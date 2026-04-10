@@ -1,0 +1,38 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="400" fill="#F8F9FA"/>
+  
+  <!-- A-SAFE Yellow Brand Color -->
+  <rect x="50" y="80" width="300" height="240" rx="20" fill="#FFD700" stroke="#E6C200" stroke-width="2"/>
+  
+  <!-- Rack Protection Product Silhouette -->
+  <!-- Main Guardrail (Yellow A-SAFE Color) -->
+  <rect x="80" y="150" width="240" height="20" rx="10" fill="#FFD700"/>
+  <rect x="80" y="155" width="240" height="10" rx="5" fill="#FFA500"/>
+  
+  <!-- Support Posts -->
+  <rect x="85" y="120" width="12" height="80" rx="6" fill="#FFD700"/>
+  <rect x="110" y="120" width="12" height="80" rx="6" fill="#FFD700"/>
+  <rect x="280" y="120" width="12" height="80" rx="6" fill="#FFD700"/>
+  <rect x="305" y="120" width="12" height="80" rx="6" fill="#FFD700"/>
+  
+  <!-- Circular End Posts (Enhanced) -->
+  <circle cx="91" cy="160" r="18" fill="#FFD700" stroke="#FFA500" stroke-width="2"/>
+  <circle cx="311" cy="160" r="18" fill="#FFD700" stroke="#FFA500" stroke-width="2"/>
+  
+  <!-- Spinning Collars -->
+  <circle cx="91" cy="160" r="12" fill="#FFA500"/>
+  <circle cx="311" cy="160" r="12" fill="#FFA500"/>
+  
+  <!-- Base Plates -->
+  <rect x="82" y="195" width="16" height="8" rx="2" fill="#2C3E50"/>
+  <rect x="302" y="195" width="16" height="8" rx="2" fill="#2C3E50"/>
+  
+  <!-- A-SAFE Logo -->
+  <text x="200" y="250" text-anchor="middle" fill="#2C3E50" font-family="Arial, sans-serif" font-size="24" font-weight="bold">A-SAFE</text>
+  <text x="200" y="275" text-anchor="middle" fill="#7F8C8D" font-family="Arial, sans-serif" font-size="14">RACK PROTECTION</text>
+  
+  <!-- Product Name Background -->
+  <rect x="60" y="320" width="280" height="40" rx="8" fill="#FFFFFF" stroke="#E1E8ED" stroke-width="1"/>
+  <text x="200" y="345" text-anchor="middle" fill="#2C3E50" font-family="Arial, sans-serif" font-size="16" font-weight="bold">Authentic A-SAFE Product</text>
+</svg>

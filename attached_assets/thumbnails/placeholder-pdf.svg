@@ -1,0 +1,7 @@
+<svg width="120" height="160" viewBox="0 0 120 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="120" height="160" rx="8" fill="#F3F4F6"/>
+  <rect x="10" y="10" width="100" height="140" rx="4" fill="white"/>
+  <path d="M20 30h80M20 40h80M20 50h60M20 60h70M20 70h80M20 80h50M20 90h80M20 100h65M20 110h75" stroke="#D1D5DB" stroke-width="2" stroke-linecap="round"/>
+  <rect x="35" y="120" width="50" height="20" rx="4" fill="#FFC72C"/>
+  <text x="60" y="133" text-anchor="middle" fill="#000000" font-family="Arial, sans-serif" font-size="10" font-weight="bold">A-SAFE</text>
+</svg>

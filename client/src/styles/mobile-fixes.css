@@ -1,0 +1,111 @@
+/* Enhanced mobile touch handling and viewport fixes */
+
+/* Improve dropdown positioning on mobile devices */
+[role="listbox"], [role="combobox"], .select-content {
+  /* Better mobile viewport handling */
+  max-width: calc(100vw - 2rem) !important;
+  max-height: 60vh !important;
+  
+  /* Enhanced touch scrolling */
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  
+  /* Prevent rubber band effect */
+  overscroll-behavior-y: contain !important;
+}
+
+/* Mobile-specific dropdown positioning */
+@media (max-width: 640px) {
+  [role="listbox"], [role="combobox"], .select-content {
+    max-height: 50vh !important;
+    margin: 0.5rem !important;
+  }
+  
+  /* Ensure proper safe area handling on iOS */
+  [data-radix-select-content] {
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 4rem) !important;
+  }
+}
+
+/* Enhance touch targets for better precision */
+.touch-enhanced {
+  /* Minimum touch target size as per iOS HIG */
+  min-height: 44px !important;
+  min-width: 44px !important;
+  
+  /* Better touch feedback */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  
+  /* Optimize rendering for touch interactions */
+  will-change: background-color, transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Prevent zoom on form inputs on iOS */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Only apply smaller font size on larger screens */
+@media (min-width: 640px) {
+  input, select, textarea {
+    font-size: 14px !important;
+  }
+}
+
+/* Enhanced dialog/modal positioning for mobile */
+[role="dialog"] {
+  max-width: calc(100vw - 1rem) !important;
+  max-height: calc(100vh - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+  margin: 0.5rem !important;
+}
+
+/* Mobile-specific dialog fixes */
+@media (max-width: 640px) {
+  [data-state="open"][role="dialog"] {
+    position: fixed !important;
+    inset: 0.5rem !important;
+    margin: 0 !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+  }
+}
+
+/* Drawing canvas mobile optimizations */
+.drawing-canvas-container {
+  /* Ensure proper touch handling on canvas */
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  
+  /* Optimize for smooth drawing */
+  will-change: transform !important;
+  backface-visibility: hidden !important;
+  transform: translateZ(0) !important;
+}
+
+/* High DPI rendering for canvas */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .drawing-canvas {
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+  }
+}
+
+/* Smooth zoom/pan animations */
+.smooth-transform {
+  transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* Prevent overscroll on drawing containers */
+.no-overscroll {
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: touch !important;
+}

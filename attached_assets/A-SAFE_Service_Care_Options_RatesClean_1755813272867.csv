@@ -1,0 +1,4 @@
+id,title,description,chargeable,value
+SERVICE_ESSENTIAL,Essential Care,"Annual inspection, compliance check, service report, and access to technical support. Included free of charge.",False,Free
+SERVICE_ENHANCED,Enhanced Care,"Bi-annual maintenance, staff training, priority repairs, preferential parts pricing. Chargeable service package.",True,5%
+SERVICE_ELITE,Elite Care,"Quarterly inspections, unlimited call-outs, extended warranty, showcase recognition, 48–72h response. Chargeable service package.",True,10%

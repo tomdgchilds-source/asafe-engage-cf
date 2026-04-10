@@ -1,0 +1,1215 @@
+/* Import modal positioning fixes */
+@import './styles/modal-fixes.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles for dropdowns */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thumb-border {
+    scrollbar-color: theme('colors.border') transparent;
+  }
+  
+  .scrollbar-track-transparent {
+    scrollbar-gutter: stable;
+  }
+  
+  /* Webkit scrollbar styling */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.border');
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    background-color: theme('colors.muted-foreground / 0.5');
+  }
+  
+  /* Smooth scroll for dropdowns */
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
+}
+
+/* Import mobile-specific fixes for enhanced touch handling */
+@import './styles/mobile-fixes.css';
+
+/* Case Study Selector Mobile Fixes */
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Fix for mobile dialog scrolling */
+  [role="dialog"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  
+  /* Ensure proper scrolling in flex containers */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Prevent body scroll when modal is open on iOS */
+  body.modal-open {
+    position: fixed;
+    width: 100%;
+    overflow: hidden;
+  }
+}
+
+/* Mobile performance optimizations */
+@supports (-webkit-touch-callout: none) {
+  /* iOS specific optimizations */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  
+  /* Smooth scrolling on iOS */
+  html {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent horizontal scrolling on mobile */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  /* Improve text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  /* Prevent layout shift on iOS */
+  min-height: -webkit-fill-available;
+}
+
+/* Ensure all containers stay within viewport */
+* {
+  box-sizing: border-box;
+}
+
+/* Optimize animations for mobile */
+@media (max-width: 768px) {
+  * {
+    /* Reduce motion for better performance */
+    animation-duration: 0.3s !important;
+    transition-duration: 0.2s !important;
+  }
+  
+  /* Disable hover effects on touch devices */
+  @media (hover: none) {
+    *:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+  
+  /* Optimize loading indicators for mobile */
+  .animate-spin {
+    animation-duration: 1s !important;
+  }
+  
+  /* Improve button tap targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Optimize images for mobile */
+img {
+  will-change: transform;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Reduce repaints on scroll */
+.fixed, .sticky {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.container {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* iOS Safari specific fixes */
+.ios-device {
+  /* Fix for iOS Safari viewport height */
+  min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+/* Prevent iOS bounce scrolling */
+.ios-device body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix for iOS input zoom */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Smart tooltip positioning utilities */
+@layer utilities {
+  .tooltip-adaptive {
+    @apply absolute z-50 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none;
+    max-width: 90vw;
+    width: max-content;
+    word-wrap: break-word;
+    white-space: normal;
+    
+    /* Default positioning - to the right and below */
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+  }
+  
+  /* Alternative positioning for constrained spaces */
+  .tooltip-above {
+    @apply absolute z-50 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none;
+    max-width: 90vw;
+    width: max-content;
+    word-wrap: break-word;
+    white-space: normal;
+    
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .tooltip-below {
+    @apply absolute z-50 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none;
+    max-width: 90vw;
+    width: max-content;
+    word-wrap: break-word;
+    white-space: normal;
+    
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+  }
+  
+  .tooltip-left {
+    @apply absolute z-50 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none;
+    max-width: 90vw;
+    width: max-content;
+    word-wrap: break-word;
+    white-space: normal;
+    
+    top: 50%;
+    right: 100%;
+    margin-right: 0.5rem;
+    transform: translateY(-50%);
+  }
+}
+
+/* Text truncation utilities */
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Custom responsive classes for xs breakpoint */
+@media (min-width: 475px) {
+  .xs\:block {
+    display: block;
+  }
+  .xs\:hidden {
+    display: none;
+  }
+}
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0, 0%, 0%);
+  --muted: hsl(0, 0%, 97%);
+  --muted-foreground: hsl(0, 0%, 35%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(0, 0%, 0%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0, 0%, 0%);
+  --border: hsl(0, 0%, 92%);
+  --input: hsl(0, 0%, 94%);
+  --primary: #FFC72C;
+  --primary-foreground: hsl(0, 0%, 0%);
+  --secondary: hsl(0, 0%, 97%);
+  --secondary-foreground: hsl(0, 0%, 0%);
+  --accent: hsl(0, 0%, 97%);
+  --accent-foreground: hsl(0, 0%, 0%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: #FFC72C;
+  --radius: 0.375rem;
+  
+  /* Official A-SAFE Brand Colors - From Brand Guidelines 2023 */
+  --asafe-yellow: #FFC72C;
+  --asafe-yellow-hover: hsl(51, 100%, 45%);
+  --asafe-black: #000000;
+  --asafe-grey-text: hsl(0, 0%, 35%);
+  --asafe-light-bg: hsl(0, 0%, 98%);
+}
+
+.dark {
+  /* Deep black backgrounds for elegant appearance */
+  --background: hsl(0, 0%, 4%); /* #0a0a0a - Deepest black */
+  --foreground: hsl(0, 0%, 100%); /* Pure white text for maximum contrast */
+  --muted: hsl(0, 0%, 10%); /* #1a1a1a - Slightly elevated surface */
+  --muted-foreground: hsl(0, 0%, 88%); /* #e0e0e0 - Secondary text */
+  
+  /* No white panels - all dark surfaces */
+  --popover: hsl(0, 0%, 6%); /* #0f0f0f - Dark popover background */
+  --popover-foreground: hsl(0, 0%, 100%);
+  --card: hsl(0, 0%, 7%); /* #121212 - Card background */
+  --card-foreground: hsl(0, 0%, 100%);
+  
+  /* Subtle borders for element separation */
+  --border: hsl(0, 0%, 16%); /* #2a2a2a - Subtle gray borders */
+  --input: hsl(0, 0%, 10%); /* #1a1a1a - Dark input backgrounds */
+  
+  /* A-SAFE Yellow as accent */
+  --primary: #FFC72C;
+  --primary-foreground: hsl(0, 0%, 0%);
+  --secondary: hsl(0, 0%, 10%); /* #1a1a1a */
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(0, 0%, 14%); /* #242424 - Slightly elevated accent */
+  --accent-foreground: hsl(0, 0%, 100%);
+  
+  /* Error states */
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: #FFC72C;
+  
+  /* A-SAFE Dark Mode - Professional Black Aesthetic */
+  --asafe-light-bg: hsl(0, 0%, 8%); /* #141414 - Alternative surface */
+  
+  /* Additional dark mode specific variables */
+  --dialog-bg: hsl(0, 0%, 5%); /* #0d0d0d - Modal backgrounds */
+  --hover-bg: hsl(0, 0%, 12%); /* #1f1f1f - Hover states */
+  --selected-bg: hsla(45, 100%, 58%, 0.1); /* Yellow tint for selections */
+}
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Header positioning fix */
+@layer utilities {
+  .header-fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+}
+
+/* Official A-SAFE Brand Utilities - Iconic Black & Yellow */
+.text-asafe-yellow {
+  color: var(--asafe-yellow);
+}
+
+.text-asafe-black {
+  color: var(--asafe-black);
+}
+
+.text-asafe-grey {
+  color: var(--asafe-grey-text);
+}
+
+/* A-SAFE Professional Design System */
+.asafe-section {
+  @apply bg-white dark:bg-card;
+}
+
+.asafe-section-alt {
+  background-color: var(--asafe-light-bg);
+}
+
+/* Dark mode specific overrides for complete dark experience */
+.dark .asafe-section {
+  @apply bg-[#0a0a0a];
+}
+
+.dark .asafe-section-alt {
+  @apply bg-[#121212];
+}
+
+.asafe-heading {
+  @apply text-foreground font-bold tracking-tight;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.asafe-subheading {
+  @apply text-foreground font-normal leading-relaxed;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 400;
+}
+
+.asafe-cta-primary {
+  @apply bg-primary text-primary-foreground font-semibold;
+  background-color: var(--asafe-yellow);
+  transition: all 0.2s ease;
+}
+
+.asafe-cta-primary:hover {
+  background-color: var(--asafe-yellow-hover);
+}
+
+.asafe-card {
+  @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-200;
+}
+
+.asafe-card-elevated {
+  @apply bg-card border border-border rounded-lg shadow-lg hover:shadow-xl transition-all duration-300;
+}
+
+.bg-asafe-yellow {
+  background-color: var(--asafe-yellow);
+}
+
+.bg-asafe-black {
+  background-color: var(--asafe-black);
+}
+
+.bg-asafe-grey {
+  background-color: var(--asafe-grey);
+}
+
+/* Enhanced A-SAFE styling for industrial aesthetic */
+.asafe-industrial-card {
+  @apply bg-card border border-border rounded-lg shadow-md hover:shadow-lg transition-all duration-200;
+  @apply hover:border-primary dark:hover:border-primary;
+}
+
+.asafe-yellow-accent {
+  @apply text-primary font-semibold;
+}
+
+.asafe-safety-badge {
+  @apply bg-primary text-primary-foreground px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wide;
+}
+
+/* Professional button styles */
+.asafe-btn-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary font-medium;
+  @apply shadow-md hover:shadow-lg transition-all duration-200;
+}
+
+.asafe-btn-secondary {
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary border border-border;
+  @apply shadow-sm hover:shadow-md transition-all duration-200;
+}
+
+/* Ensure button text maintains good contrast */
+@layer components {
+  .btn-text-black {
+    color: black !important;
+  }
+}
+
+.bg-asafe-bg {
+  background-color: var(--asafe-bg);
+}
+
+.border-asafe-yellow {
+  border-color: var(--asafe-yellow);
+}
+
+.border-asafe-black {
+  border-color: var(--asafe-black);
+}
+
+/* Custom animations */
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s ease-out;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* COMPREHENSIVE DARK MODE OVERRIDES - NO WHITE PANELS */
+/* Ensure all components use dark backgrounds in dark mode */
+
+/* Dialog and Modal dark backgrounds */
+.dark [role="dialog"] {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+.dark [data-state="open"][data-side] {
+  background-color: #0a0a0a !important;
+}
+
+/* Remove all white backgrounds from cards and panels */
+.dark .bg-white {
+  background-color: #0a0a0a !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #121212 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1a1a1a !important;
+}
+
+/* Input fields with dark backgrounds */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #FFC72C !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.2) !important;
+}
+
+/* Buttons and interactive elements */
+.dark button[type="button"]:not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary) {
+  background-color: #1a1a1a !important;
+  color: #ffffff !important;
+  border-color: #2a2a2a !important;
+}
+
+.dark button[type="button"]:not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary):hover {
+  background-color: #242424 !important;
+  border-color: #3a3a3a !important;
+}
+
+/* Select dropdowns and menus */
+.dark [role="combobox"],
+.dark [role="listbox"],
+.dark [data-radix-popper-content-wrapper] {
+  background-color: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Table styling */
+.dark table {
+  background-color: #0a0a0a !important;
+}
+
+.dark tbody tr {
+  border-color: #2a2a2a !important;
+}
+
+.dark tbody tr:hover {
+  background-color: #1a1a1a !important;
+}
+
+.dark th {
+  background-color: #121212 !important;
+  color: #ffffff !important;
+  border-color: #2a2a2a !important;
+}
+
+.dark td {
+  border-color: #2a2a2a !important;
+  color: #e0e0e0 !important;
+}
+
+/* Dropdown menus and popovers */
+.dark [role="menu"],
+.dark [role="menuitem"],
+.dark [data-state="open"] > div {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+.dark [role="menuitem"]:hover {
+  background-color: #1a1a1a !important;
+}
+
+/* Tabs and navigation */
+.dark [role="tablist"] {
+  background-color: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+}
+
+.dark [role="tab"][data-state="active"] {
+  background-color: #1a1a1a !important;
+  border-color: #FFC72C !important;
+  color: #ffffff !important;
+}
+
+/* Accordion and collapsible elements */
+.dark [data-state="open"] > button,
+.dark [data-state="closed"] > button {
+  background-color: #121212 !important;
+  color: #ffffff !important;
+}
+
+/* Alert and toast notifications */
+.dark [role="alert"] {
+  background-color: #121212 !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+/* Badges and tags */
+.dark .rounded-full:not(.bg-yellow-500):not(.bg-green-100):not([class*="bg-[#FFC72C]"]) {
+  background-color: #1a1a1a !important;
+  color: #e0e0e0 !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Dashboard number badges - Always yellow in dark mode */
+.dark .rounded-full[class*="bg-[#FFC72C]"] {
+  background-color: #FFC72C !important;
+  color: #000000 !important;
+}
+
+/* Loading spinners - Enhanced visibility in dark mode */
+.dark .animate-spin {
+  border-color: #4a4a4a !important; /* Visible gray for the full border */
+}
+
+.dark .animate-spin.border-t-transparent {
+  border-top-color: transparent !important; /* Keep top transparent for animation effect */
+  border-right-color: #FFC72C !important; /* A-SAFE yellow for right */
+  border-bottom-color: #FFC72C !important; /* A-SAFE yellow for bottom */
+  border-left-color: #FFC72C !important; /* A-SAFE yellow for left */
+}
+
+/* Alternative spinner with yellow accent */
+.dark .border-yellow-400.border-t-transparent,
+.dark .border-yellow-500.border-t-transparent,
+.dark .border-yellow-600.border-t-transparent {
+  border-top-color: transparent !important;
+  border-right-color: #FFC72C !important;
+  border-bottom-color: #FFC72C !important;
+  border-left-color: #FFC72C !important;
+}
+
+/* Progress bars */
+.dark [role="progressbar"] {
+  background-color: #1a1a1a !important;
+}
+
+/* Scrollbars */
+.dark ::-webkit-scrollbar {
+  background-color: #0a0a0a;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: #0a0a0a;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #2a2a2a;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #3a3a3a;
+}
+
+/* Text contrast fixes */
+.dark .text-gray-500 {
+  color: #a0a0a0 !important;
+}
+
+.dark .text-gray-600 {
+  color: #9a9a9a !important;
+}
+
+.dark .text-gray-700 {
+  color: #e0e0e0 !important;
+}
+
+.dark .text-gray-800 {
+  color: #ffffff !important;
+}
+
+.dark .text-gray-900 {
+  color: #ffffff !important;
+}
+
+/* Border color consistency */
+.dark .border-gray-200 {
+  border-color: #2a2a2a !important;
+}
+
+.dark .border-gray-300 {
+  border-color: #2a2a2a !important;
+}
+
+.dark .divide-gray-200 > * + * {
+  border-color: #2a2a2a !important;
+}
+
+/* Shadow adjustments for dark mode */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.dark .shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.6);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.7);
+}
+
+/* Special case for yellow/primary buttons - maintain visibility */
+.dark .bg-yellow-600,
+.dark .bg-yellow-500,
+.dark .bg-primary {
+  background-color: #FFC72C !important;
+  color: #000000 !important;
+}
+
+.dark .bg-yellow-600:hover,
+.dark .bg-yellow-500:hover {
+  background-color: #FFB800 !important;
+}
+
+/* Additional Dark Mode Form Element Improvements */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark input[type="search"],
+.dark input[type="url"],
+.dark textarea,
+.dark select {
+  background-color: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="email"]:focus,
+.dark input[type="password"]:focus,
+.dark input[type="number"]:focus,
+.dark input[type="tel"]:focus,
+.dark input[type="search"]:focus,
+.dark input[type="url"]:focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #1f1f1f !important;
+  border-color: #FFC72C !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(255, 199, 44, 0.1) !important;
+}
+
+/* Dark mode placeholder text */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6a6a6a !important;
+}
+
+/* Dark mode disabled inputs */
+.dark input:disabled,
+.dark textarea:disabled,
+.dark select:disabled {
+  background-color: #0f0f0f !important;
+  color: #4a4a4a !important;
+  cursor: not-allowed;
+}
+
+/* Dialog overlay dark mode fix */
+.dark [data-radix-popper-content-wrapper],
+.dark [data-radix-portal] > div {
+  background-color: transparent !important;
+}
+
+/* Make sure dialog content is properly dark */
+.dark [role="dialog"] > div {
+  background-color: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Specific fixes for radix-ui components */
+.dark [data-state="open"] [role="dialog"] {
+  background-color: #0a0a0a !important;
+}
+
+/* Select trigger dark mode */
+.dark button[role="combobox"] {
+  background-color: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+.dark button[role="combobox"]:hover {
+  background-color: #242424 !important;
+  border-color: #3a3a3a !important;
+}
+
+/* Dropdown content dark mode */
+.dark [role="listbox"],
+.dark [data-radix-select-content],
+.dark [data-radix-dropdown-content],
+.dark [data-radix-popover-content] {
+  background-color: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Modal background overlay */
+.dark .fixed.inset-0.bg-black {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Toast notifications dark mode */
+.dark [data-sonner-toast] {
+  background-color: #121212 !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+/* Ensure proper contrast for all text */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #ffffff !important;
+}
+
+.dark p, .dark span, .dark div {
+  color: inherit;
+}
+
+.dark label {
+  color: #e0e0e0 !important;
+}
+
+/* COMPREHENSIVE COLORED BACKGROUND FIXES FOR DARK MODE */
+
+/* Red/Error/Risk Backgrounds */
+.dark .bg-red-50 {
+  background-color: #1f0a0a !important; /* Dark red background */
+}
+.dark .bg-red-100 {
+  background-color: #2a1010 !important;
+}
+.dark .border-red-200 {
+  border-color: #4a2020 !important;
+}
+.dark .text-red-700 {
+  color: #ff9999 !important;
+}
+.dark .text-red-800 {
+  color: #ffaaaa !important;
+}
+.dark .text-red-600 {
+  color: #ff8888 !important;
+}
+
+/* Green/Success/Benefit Backgrounds */
+.dark .bg-green-50 {
+  background-color: #0a1f0a !important; /* Dark green background */
+}
+.dark .bg-green-100 {
+  background-color: #102a10 !important;
+}
+.dark .border-green-200 {
+  border-color: #204a20 !important;
+}
+.dark .text-green-700 {
+  color: #99ff99 !important;
+}
+.dark .text-green-800 {
+  color: #aaffaa !important;
+}
+.dark .text-green-600 {
+  color: #88ff88 !important;
+}
+
+/* Blue/Info Backgrounds */
+.dark .bg-blue-50 {
+  background-color: #0a0a1f !important; /* Dark blue background */
+}
+.dark .bg-blue-100 {
+  background-color: #10102a !important;
+}
+.dark .border-blue-200 {
+  border-color: #20204a !important;
+}
+.dark .text-blue-700 {
+  color: #9999ff !important;
+}
+.dark .text-blue-800 {
+  color: #aaaaff !important;
+}
+.dark .text-blue-600 {
+  color: #8888ff !important;
+}
+
+/* Purple/Violet Backgrounds */
+.dark .bg-purple-50 {
+  background-color: #1a0a1f !important; /* Dark purple background */
+}
+.dark .bg-purple-100 {
+  background-color: #2a102a !important;
+}
+.dark .border-purple-200 {
+  border-color: #4a204a !important;
+}
+.dark .text-purple-700 {
+  color: #dd99ff !important;
+}
+.dark .text-purple-800 {
+  color: #eeaaff !important;
+}
+.dark .text-purple-600 {
+  color: #cc88ff !important;
+}
+
+/* Yellow/Warning Backgrounds */
+.dark .bg-yellow-50 {
+  background-color: #1f1a0a !important; /* Dark yellow background */
+}
+.dark .bg-yellow-100 {
+  background-color: #2a2a10 !important;
+}
+.dark .border-yellow-200 {
+  border-color: #4a4a20 !important;
+}
+.dark .text-yellow-700 {
+  color: #ffee99 !important;
+}
+.dark .text-yellow-800 {
+  color: #ffffaa !important;
+}
+.dark .text-yellow-600 {
+  color: #ffdd88 !important;
+}
+
+/* Pink Backgrounds */
+.dark .bg-pink-50 {
+  background-color: #1f0a1a !important; /* Dark pink background */
+}
+.dark .bg-pink-100 {
+  background-color: #2a102a !important;
+}
+.dark .border-pink-200 {
+  border-color: #4a204a !important;
+}
+.dark .text-pink-700 {
+  color: #ff99dd !important;
+}
+.dark .text-pink-800 {
+  color: #ffaaee !important;
+}
+.dark .text-pink-600 {
+  color: #ff88cc !important;
+}
+
+/* Orange Backgrounds */
+.dark .bg-orange-50 {
+  background-color: #1f1a0a !important; /* Dark orange background */
+}
+.dark .bg-orange-100 {
+  background-color: #2a2010 !important;
+}
+.dark .border-orange-200 {
+  border-color: #4a3020 !important;
+}
+.dark .text-orange-700 {
+  color: #ffcc99 !important;
+}
+.dark .text-orange-800 {
+  color: #ffddaa !important;
+}
+.dark .text-orange-600 {
+  color: #ffbb88 !important;
+}
+
+/* Indigo Backgrounds */
+.dark .bg-indigo-50 {
+  background-color: #0a0a2a !important; /* Dark indigo background */
+}
+.dark .bg-indigo-100 {
+  background-color: #10103a !important;
+}
+.dark .border-indigo-200 {
+  border-color: #20205a !important;
+}
+.dark .text-indigo-700 {
+  color: #aaaaff !important;
+}
+.dark .text-indigo-800 {
+  color: #bbbbff !important;
+}
+.dark .text-indigo-600 {
+  color: #9999ff !important;
+}
+
+/* MODAL AND DIALOG SPECIFIC FIXES */
+.dark [role="dialog"] {
+  background-color: #0a0a0a !important;
+}
+
+.dark .add-to-cart-modal-content {
+  background-color: #0a0a0a !important;
+}
+
+/* Gray backgrounds (replace white/light gray with dark) */
+.dark .bg-gray-50 {
+  background-color: #0a0a0a !important;
+}
+.dark .bg-gray-100 {
+  background-color: #121212 !important;
+}
+.dark .bg-gray-200 {
+  background-color: #1a1a1a !important;
+}
+.dark .border-gray-200 {
+  border-color: #2a2a2a !important;
+}
+.dark .text-gray-700 {
+  color: #e0e0e0 !important;
+}
+.dark .text-gray-800 {
+  color: #f0f0f0 !important;
+}
+.dark .text-gray-600 {
+  color: #d0d0d0 !important;
+}
+
+/* ENSURE ALL TEXT IS READABLE */
+.dark .text-muted-foreground {
+  color: #a0a0a0 !important;
+}
+
+.dark .text-foreground {
+  color: #ffffff !important;
+}
+
+.dark .text-card-foreground {
+  color: #ffffff !important;
+}
+
+.dark .text-popover-foreground {
+  color: #ffffff !important;
+}
+
+.dark .text-primary {
+  color: #FFC72C !important;
+}
+
+.dark .text-secondary {
+  color: #e0e0e0 !important;
+}
+
+/* Fix Select and Dropdown backgrounds */
+.dark [role="option"] {
+  background-color: #121212 !important;
+}
+
+.dark [role="option"]:hover {
+  background-color: #1a1a1a !important;
+}
+
+.dark [role="listbox"] {
+  background-color: #0a0a0a !important;
+}
+
+/* Fix Input and Textarea backgrounds */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: #121212 !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #1a1a1a !important;
+  border-color: #FFC72C !important;
+}
+
+/* Fix placeholder text */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #606060 !important;
+}
+
+/* Ensure all buttons have proper contrast */
+.dark button {
+  color: inherit !important;
+}
+
+.dark button[disabled] {
+  opacity: 0.5 !important;
+}
+
+/* Fix accordion and collapsible backgrounds */
+.dark [data-state="open"] > div,
+.dark [data-state="closed"] > div {
+  background-color: transparent !important;
+}
+
+/* Specific fixes for info sections */
+.dark .space-y-3.border {
+  background-color: #0a0a0a !important;
+  border-color: #2a2a2a !important;
+}
+
+/* Remove any remaining white backgrounds */
+.dark .bg-white {
+  background-color: #0a0a0a !important;
+}
+
+.dark .bg-background {
+  background-color: #0a0a0a !important;
+}
+
+.dark .bg-card {
+  background-color: #121212 !important;
+}
+
+.dark .bg-popover {
+  background-color: #121212 !important;
+}
+
+.dark .bg-muted {
+  background-color: #1a1a1a !important;
+}
+
+/* Tabs and navigation backgrounds */
+.dark [role="tablist"] {
+  background-color: #0a0a0a !important;
+}
+
+.dark [role="tab"] {
+  background-color: #121212 !important;
+}
+
+.dark [role="tab"][data-state="active"] {
+  background-color: #1a1a1a !important;
+  border-color: #FFC72C !important;
+}
+
+/* Sheet and drawer backgrounds */
+.dark [data-vaul-drawer] {
+  background-color: #0a0a0a !important;
+}
+
+.dark .sheet-content {
+  background-color: #0a0a0a !important;
+}
+
+/* HIGH-QUALITY IMAGE RENDERING FOR TECHNICAL DRAWINGS */
+/* This ensures maximum clarity and sharpness for layout drawings and technical images */
+img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+/* Ensure canvas and SVG elements are high-DPI ready */
+canvas, svg {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* PDF rendering optimization */
+.react-pdf__Page {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+}
+
+.react-pdf__Page__canvas {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+}
+
+/* Layout drawings specific high-quality rendering */
+.layout-drawing-image {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: pixelated !important;
+}

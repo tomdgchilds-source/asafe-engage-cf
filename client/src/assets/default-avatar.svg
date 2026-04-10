@@ -1,0 +1,41 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="#FFD700"/>
+  
+  <!-- Hard hat/Safety helmet -->
+  <ellipse cx="100" cy="85" rx="45" ry="35" fill="#FF6B35"/>
+  <ellipse cx="100" cy="82" rx="40" ry="30" fill="#FF8C42"/>
+  <rect x="85" y="65" width="30" height="8" rx="4" fill="#FFF"/>
+  
+  <!-- Face -->
+  <circle cx="100" cy="115" r="35" fill="#FDBCB4"/>
+  
+  <!-- Eyes -->
+  <circle cx="88" cy="105" r="4" fill="#2C3E50"/>
+  <circle cx="112" cy="105" r="4" fill="#2C3E50"/>
+  <circle cx="90" cy="103" r="1.5" fill="#FFF"/>
+  <circle cx="114" cy="103" r="1.5" fill="#FFF"/>
+  
+  <!-- Nose -->
+  <ellipse cx="100" cy="115" rx="2" ry="3" fill="#F4A688"/>
+  
+  <!-- Mouth (smile) -->
+  <path d="M 92 125 Q 100 132 108 125" stroke="#2C3E50" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Safety vest/uniform -->
+  <rect x="70" y="150" width="60" height="50" fill="#2ECC71"/>
+  <rect x="75" y="155" width="50" height="8" fill="#F39C12"/>
+  <rect x="75" y="168" width="50" height="8" fill="#F39C12"/>
+  
+  <!-- Arms -->
+  <ellipse cx="60" cy="165" rx="12" ry="25" fill="#FDBCB4"/>
+  <ellipse cx="140" cy="165" rx="12" ry="25" fill="#FDBCB4"/>
+  
+  <!-- Safety gloves -->
+  <circle cx="60" cy="185" r="8" fill="#E74C3C"/>
+  <circle cx="140" cy="185" r="8" fill="#E74C3C"/>
+  
+  <!-- A-SAFE logo badge -->
+  <circle cx="85" cy="165" r="8" fill="#FFF"/>
+  <text x="85" y="169" text-anchor="middle" fill="#2C3E50" font-family="Arial, sans-serif" font-size="6" font-weight="bold">A</text>
+</svg>

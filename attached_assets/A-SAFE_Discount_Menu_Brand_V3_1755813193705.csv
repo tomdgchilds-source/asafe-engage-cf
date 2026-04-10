@@ -1,0 +1,12 @@
+id,title,description,discount_percent,category
+LOGO_USAGE,Logo usage rights,"Permission to use the customer’s official logo on A-SAFE website, proposals, case studies, and brochures to showcase partnership.",2,Customer Content & Storytelling
+CASE_STUDY,Written case study,"Customer agrees to participate in a professionally produced case study article including project details, quotes, and outcomes.",3,Customer Content & Storytelling
+VIDEO_TESTIMONIAL,Video testimonial,"Customer provides a short filmed testimonial with their HSE or Operations lead, describing the value of A-SAFE barriers and impact protection.",4,Customer Content & Storytelling
+SITE_PHOTOGRAPHY,On-site photography,Permission for A-SAFE to professionally photograph installed barriers in operation at the customer’s facility for marketing use.,3,Site Access for Marketing
+REFERENCE_SITE,Reference site access,Customer allows their facility to be used as a live reference site for tours by prospective A-SAFE clients.,5,Site Access for Marketing
+LINKEDIN_POST,Official LinkedIn post,"Customer agrees to publish a post on their corporate LinkedIn page highlighting the A-SAFE installation, tagging A-SAFE Middle East.",3,Digital & Social Exposure
+PRESS_RELEASE,Joint press release,A co-branded press release is issued in collaboration with the customer’s communications team to promote the project’s success.,4,Digital & Social Exposure
+REFERRALS,Warm referrals,"Customer provides 2–3 warm introductions to peer companies, subsidiaries, or industry partners who may benefit from A-SAFE solutions.",5,Influence & Networking
+SERVICE_CONTRACT,Multi-year service agreement,Customer signs a multi-year aftersales service/maintenance package agreement with A-SAFE.,6,Long-Term Value
+EXCLUSIVE_SUPPLIER,Exclusive supplier agreement,Customer agrees A-SAFE will be the exclusive supplier of impact protection solutions for a defined period of time.,8,Long-Term Value
+FLAGSHIP_SHOWCASE,Flagship safety showcase,"Customer allows their project to be promoted as a flagship benchmark site for A-SAFE in the region, featured in marketing and presentations.",10,Prestige & Strategic Leverage

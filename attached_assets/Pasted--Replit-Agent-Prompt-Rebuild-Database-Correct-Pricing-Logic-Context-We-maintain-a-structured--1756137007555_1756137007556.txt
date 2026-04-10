@@ -1,0 +1,238 @@
+🔧 Replit Agent Prompt — Rebuild Database + Correct Pricing Logic
+
+Context
+We maintain a structured catalog of A-SAFE products. You will rebuild the database from the following CSVs (I will upload them to the Replit project first):
+
+asafe_items.csv — identity: item_id, Code, Product_Family, Variant, slug
+
+asafe_specs.csv — specs: item_id, Length_mm, Width_mm, Height_mm, OD_mm, OD_Size_mm
+
+asafe_pricing.csv — pricing: item_id, Price_AED, currency
+
+asafe_media.csv — media: item_id, image_url
+
+asafe_ratings.csv — safety: item_id, joule_j
+
+Your tasks:
+
+1) Load + Validate + Join
+
+Load all five CSVs.
+
+Join them on item_id into an in-memory products_view with the following columns:
+
+item_id, Code, Product_Family, Variant, slug,
+Length_mm, Width_mm, Height_mm, OD_mm, OD_Size_mm,
+Price_AED, currency, image_url, joule_j
+
+
+Hard validations (fail with a helpful log if violated):
+
+Every row has a unique item_id.
+
+Product_Family present for all rows.
+
+Price_AED is numeric (nullable allowed only if we intentionally mark “rate required”, see section 3).
+
+image_url present for every row (Monoplex can use official product page if no webcdn URL).
+
+joule_j present where applicable (barriers and impact-rated items). If unknown/not published, store NULL and add a warning.
+
+Remove “phantom” SKUs that aren’t in the authoritative CSVs.
+
+That means if you still have any of these (e.g., “Atlas”, “Topple Guardrail”, “iFlex Traffic Guardrail+” etc.) left over from earlier experiments, do not keep them. We will only populate products from the CSVs unless the user explicitly provides new data/rates.
+
+2) Assign Pricing Models
+
+Add a column pricing_model with one of these values (mutually exclusive):
+
+unit_fixed — One price per item, no dimensional variation.
+Examples (from our CSVs):
+
+iFlex RackGuard (Code P-03-01-0017)
+
+Alarm Bar (S-02-02-0007)
+
+Dock Buffer (Pair)
+
+Car Stop / Coach Stop / Truck Stop
+
+Slider Plate (130 OD / 190 OD)
+
+FlexiShield Corner Guard (Yellow/Black, 1000mm height but sold per piece)
+
+unit_by_height — Price varies by height (and sometimes OD), length/width not relevant.
+Examples:
+
+iFlex Bollards / Heavy Duty Bollards (in our CSVs: Yellow/Grey/HD entries use height+OD; treat as height-based unit items)
+
+unit_by_length — Price varies by length; each length is a separate line item.
+Examples:
+
+eFlex Single Rack End Barrier
+
+eFlex Double Rack End Barrier
+
+Step Guard
+
+ForkGuard Kerb Barrier
+
+HD ForkGuard Kerb Barrier
+
+Traffic Gate
+
+Hydraulic Swing Gate (variant lengths 1000 / 1200)
+
+unit_by_lw_fixed_h — Price varies by Length × Width, height is fixed/not priced.
+Examples:
+
+FlexiShield Column Guard (square sizes 100×100 … 600×600)
+
+FlexiShield Column Guard Spacer Set (100×100 insert)
+
+linear_meter — Price per meter (length drives price, height is a chosen model).
+Use this for the A-SAFE traffic guardrail families (mFlex/eFlex/iFlex traffic guardrails, parking, plus versions, cold storage variants).
+⚠️ These rates are not in the CSVs yet, so keep Price_AED null and set rate_required = true. You’ll store rate_aed_per_m once the user provides official A-SAFE rates per model/height.
+
+Model assignment rules (deterministic):
+
+If Product_Family IN {“iFlex RackGuard”, “Alarm Bar”, “Dock Buffer (Pair)”, “Car Stop”, “Coach Stop”, “Truck Stop”, “Slider Plate”, “FlexiShield Corner Guard”} → unit_fixed
+
+If Product_Family contains Bollard (and Code starts with S-01-07-*) → unit_by_height
+
+If Product_Family IN {“eFlex Single Rack End Barrier”, “eFlex Double Rack End Barrier”, “ForkGuard Kerb Barrier”, “HD ForkGuard Kerb Barrier”, “Step Guard”, “Traffic Gate”, “Hydraulic Swing Gate, Self-Close”} → unit_by_length
+
+If Product_Family = “FlexiShield Column Guard” OR “FlexiShield Column Guard Spacer Set” → unit_by_lw_fixed_h
+
+If Product_Family contains “Traffic Guardrail” or “Parking Guardrail” (mFlex/eFlex/iFlex families), or specifically:
+
+iFlex Single Traffic Barrier / +
+
+iFlex Double Traffic Barrier / +
+
+eFlex Single Traffic Guardrail / +
+
+mFlex Single/Double Traffic Guardrail / Parking
+(and similar “Traffic Guardrail” strings) → linear_meter with rate_required = true until rates are provided.
+
+Store pricing_model in the joined products_view.
+
+3) Pricing Enforcement
+
+For each pricing_model:
+
+unit_fixed:
+
+Use Price_AED as is; it must be non-null and > 0.
+
+If 0.00, look up exact Code in products_view (from the CSVs) and correct it; if still missing, flag requires_fix=true.
+
+unit_by_height:
+
+Group by {Product_Family, OD_mm} and vary by Height_mm.
+
+Each row represents a priced height variant. Price must be present. If not, flag requires_fix=true.
+
+unit_by_length:
+
+One row per length (Length_mm required).
+
+Price must be present. If not, flag requires_fix=true.
+
+unit_by_lw_fixed_h:
+
+One row per Length_mm × Width_mm.
+
+Price must be present; if missing, flag requires_fix=true.
+
+linear_meter:
+
+The selling unit is meter. Create fields:
+
+rate_aed_per_m (nullable until the user supplies rates)
+
+min_length_m (default 1.0 unless the family specifies a minimum)
+
+A quoted line computes: line_total = rate_aed_per_m * requested_length_m * quantity.
+
+If rate_aed_per_m is null → block quotation for that family and return a structured prompt asking for the rate(s).
+
+Also: if Price_AED == 0 for any non-linear item, set requires_fix=true and include it in a “Fix List” report.
+
+4) Dedupe + Canonical Names
+
+Dedupe on item_id.
+
+If two items share the same Code and Variant, keep the one from CSVs and drop ad-hoc ones.
+
+Normalize display names as:
+
+display_name = Product_Family
+
+If Variant exists, append – {Variant}
+
+For racks/kerbs by length, show – {Length_mm} mm.
+
+5) Proposal Math
+
+For quote building:
+
+unit_fixed: line_total = Price_AED * quantity
+
+unit_by_height: line_total = Price_AED * quantity (user picks height variant)
+
+unit_by_length: line_total = Price_AED * quantity (user picks length variant)
+
+unit_by_lw_fixed_h: line_total = Price_AED * quantity (user picks size)
+
+linear_meter: line_total = rate_aed_per_m * requested_length_m * quantity
+
+Always include image_url and joule_j on the line if present.
+
+6) Reports to Output
+
+After rebuilding, print:
+
+Summary counts by pricing_model.
+
+Zero/Missing Price Report (non-linear items only) with item_id, Code, Product_Family, Variant.
+
+Linear-Meter Pending Rates Report listing all traffic guardrail families that need rate_aed_per_m.
+
+Examples for UI: return three example queries and the matched items.
+
+7) Known Good Baseline (from CSVs you’re loading)
+
+These should be present with prices (non-zero) and correct models:
+
+unit_fixed: iFlex RackGuard (156.00), Alarm Bar (3728.40), Dock Buffer (Pair), Car/Coach/Truck Stop, Slider Plate, FlexiShield Corner Guard.
+
+unit_by_height: Bollards (Yellow/Grey/HD entries; each height/OD is a separate item).
+
+unit_by_length: eFlex Single/Double Rack End Barrier (900–2600mm), Step Guard (600/900/1200), ForkGuard Kerb Barrier (365–1965), HD ForkGuard Kerb Barrier, Traffic Gate (2000/2500/3000), Hydraulic Swing Gate (1000/1200).
+
+unit_by_lw_fixed_h: FlexiShield Column Guard (100×100 … 600×600) + Spacer Set.
+
+Do not fabricate “Atlas”, “Topple Guardrail”, or other families unless the user provides official data and rates.
+
+8) API Helpers (for the quoting UI)
+
+Implement these functions over products_view:
+
+find_products(family=None, code=None, length=None, width=None, height=None, od=None, model=None)
+
+Filter by given criteria; for numeric lookups, exact match first, then nearest.
+
+price_line(item_id, quantity=1, requested_length_m=None)
+
+Switch on pricing_model and compute line_total.
+
+If linear_meter and rate_aed_per_m missing → return an error requesting that rate.
+
+build_proposal(customer, items[])
+
+Each item: {item_id, quantity, requested_length_m?}
+
+Output: grouped lines, VAT 5%, grand total; include image_url, joule_j.
+
+Return all reports, counts, and sample calls after the rebuild.

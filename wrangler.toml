@@ -1,0 +1,35 @@
+name = "asafe-engage"
+main = "worker/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "dist/client"
+
+[[kv_namespaces]]
+binding = "KV_SESSIONS"
+id = "PLACEHOLDER_KV_ID"
+preview_id = "PLACEHOLDER_KV_PREVIEW_ID"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "asafe-engage-files"
+
+[vars]
+NODE_ENV = "production"
+
+# Secrets (set via: wrangler secret put <NAME>):
+# DATABASE_URL
+# SESSION_SECRET
+# SENDGRID_API_KEY
+# SENDGRID_FROM_EMAIL
+# ADMIN_NOTIFICATION_EMAILS
+# OPENAI_API_KEY
+# SLACK_WEBHOOK_URL
+# SLACK_BOT_TOKEN
+# SLACK_SIGNING_SECRET
+# SLACK_CHANNEL_ID
+# SLACK_NOTIFICATION_CHANNEL_ID
+# WHATSAPP_ACCESS_TOKEN
+# WHATSAPP_PHONE_NUMBER_ID
+# CONTACT_EMAIL

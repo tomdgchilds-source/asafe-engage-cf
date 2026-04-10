@@ -1,0 +1,270 @@
+﻿<!doctype html><html lang="en-GB" class="no-js" dir="ltr"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Page not found | A-SAFE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="The world’s leading polymer safety barriers suitable for all industrial workplaces. A-SAFE - making the safest and most advanced workplaces.">
+    <meta property="og:title" content="The most tested and trusted industrial safety barriers | A-SAFE">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.asafe.com/en-gb/">
+    <meta property="og:image" content="/media/12194/a-safe_logo_strapline_secondary_version.png">
+    <meta property="og:site_name" content="A-SAFE">
+    <meta property="og:description" content="The world’s leading polymer safety barriers suitable for all industrial workplaces. A-SAFE - making the safest and most advanced workplaces.">
+    <meta name="theme-color" content="#ffc72c">
+    <link rel="apple-touch-icon-precomposed" sizes="57x57" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" sizes="114x114" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" sizes="72x72" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" sizes="120x120" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta name="application-name" content="A-SAFE">
+    <meta name="msapplication-TileColor" content="#ffc72c">
+    <meta name="msapplication-TileImage" content="/mstile-144x144.png">
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.1/css/bootstrap.min.css" integrity="sha512-T584yQ/tdRR5QwOpfvDfVQUidzfgc2339Lc8uBDtcp/wYu80d7jwBgAxbyMh0a9YM9F8N3tdErpFI8iaGx6x5g==" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="https://webcdn.asafe.com/assets/css/core.css?v=">
+    <script async>
+        //if ('serviceWorker' in navigator) {window.addEventListener('load', function() {navigator.serviceWorker.register('/assets/js/service-worker.js');});}
+        if (('ontouchstart' in window)||(navigator.maxTouchPoints > 0)||(navigator.msMaxTouchPoints > 0)) document.documentElement.classList.add('is-touch');
+        document.documentElement.setAttribute('data-loading', 'true');
+    </script>
+    <script>
+        (function (w, d, s, l, i) {w[l] = w[l] || []; w[l].push({'gtm.start':new Date().getTime(), event: 'gtm.js'
+        }); var f = d.getElementsByTagName(s)[0],j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src =
+            'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);})(window, document, 'script', 'dataLayer', 'GTM-PHW74ZB');
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js" integrity="sha512-3n19xznO0ubPpSwYCRRBgHh63DrV+bdZfHK52b1esvId4GsfwStQNPJFjeQos2h3JwCmZl0/LgLxSKMAI55hgw==" crossorigin="anonymous" async></script>
+    <script src="/umbraco/Surface/SiteNavigation/NavigationJson" type="text/javascript"></script>
+<body>
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PHW74ZB" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<div class="as-container">
+    <div class="site-header-wrapper">
+        <header id="header" class="as-site-header">
+            <div class="inner">
+                <div class="inner--secondary">
+                    <div class="as-content-column">
+                        <ul class="as-menu menu--meta">
+                            <li class="item">
+                                <button class="link language modal--link" data-modal="language">
+                                    <span class="language--select-prompt">Country &amp; Language: </span>
+                                    <span class="language--current">United Kingdom</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="inner--primary">
+                    <div class="as-content-column">
+                        <div class="logo">
+                            <a href="/en-gb/">
+                                <img src="/assets/img/asafe-logo-new.png" alt="A-Safe" width="220">
+                            </a>
+                        </div>
+                        <nav id="primary-nav" class="primary-nav as-menu">
+                            <div class="primary-nav__inner">
+                                <ul>
+                                    <li class="item primary-nav__item ">
+                                        <a href="/en-gb/contact/" title="Contact">Contact</a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </nav>
+                        <button class="link language modal--link" data-modal="language">
+                            <span class="language--current">United Kingdom</span>
+                        </button>
+                        <a href="/en-gb/contact/" class="link mobile-only">
+                            Contact
+                        </a>
+                        <button id="mobile-hamburger" class="link hamburger">
+                            <span class="hamburger--inner"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="culture-selection" class="as-culture-selection" data-modal="language">
+                <div class="modal">
+                    <div class="header">
+                        <div class="title">Select Country</div>
+                        <div class="close"></div>
+                    </div>
+                    <ul class="cultures">
+                        <li class="culture" lang="en-AU" title="en-AU">
+                            <a class="link" href="/en-au/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/au.svg)"></div>
+                                <div class="title">Australia</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="fr-BE" title="fr-BE">
+                            <a class="link" href="/fr-be/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/be.svg)"></div>
+                                <div class="title">Belgique</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="nl-BE" title="nl-BE">
+                            <a class="link" href="/nl-be/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/be.svg)"></div>
+                                <div class="title">België</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="en-ca" title="Canada (en)">
+                            <a class="link" href="/en-ca/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/ca.svg)"></div>
+                                <div class="title">Canada (en)</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="fr-ca" title="Canada (fr)">
+                            <a class="link" href="/fr-ca/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/ca.svg)"></div>
+                                <div class="title">Canada (fr)</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="da-DK" title="da-DK">
+                            <a class="link" href="/da-dk/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/dk.svg)"></div>
+                                <div class="title">Danmark</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="de-DE" title="de-DE">
+                            <a class="link" href="/de-de/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/de.svg)"></div>
+                                <div class="title">Deutschland</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="es-ES" title="es-ES">
+                            <a class="link" href="/es-es/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/es.svg)"></div>
+                                <div class="title">España</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="fr-FR" title="fr-FR">
+                            <a class="link" href="/fr-fr/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/fr.svg)"></div>
+                                <div class="title">France</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="it-IT" title="it-IT">
+                            <a class="link" href="/it-it/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/it.svg)"></div>
+                                <div class="title">Italia</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="es-MX" title="es-MX">
+                            <a class="link" href="/es-mx/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/mx.svg)"></div>
+                                <div class="title">México</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="ar-AE" title="ar-AE">
+                            <a class="link" href="/ar-ae/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/ae.svg)"></div>
+                                <div class="title">Middle East</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="nl-NL" title="nl-NL">
+                            <a class="link" href="/nl-nl/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/nl.svg)"></div>
+                                <div class="title">Nederland</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="ja-JP" title="ja-JP">
+                            <a class="link" href="/ja-jp/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/jp.svg)"></div>
+                                <div class="title">日本</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="pl-PL" title="pl-PL">
+                            <a class="link" href="/pl-pl/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/pl.svg)"></div>
+                                <div class="title">Polska</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="sv-SE" title="sv-SE">
+                            <a class="link" href="/sv-se/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/se.svg)"></div>
+                                <div class="title">Sverige</div>
+                            </a>
+                        </li>
+                        <li class="culture culture--current" lang="en-GB" title="en-GB">
+                            <a class="link" href="/en-gb/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/gb.svg)"></div>
+                                <div class="title">United Kingdom</div>
+                            </a>
+                        </li>
+                        <li class="culture" lang="en-US" title="en-US">
+                            <a class="link" href="/en-us/?geo=false" rel="noindex nofollow">
+                                <div class="flag" style="background-image: url(https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/2.8.0/flags/1x1/us.svg)"></div>
+                                <div class="title">United States</div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+    </div>
+    <section class="container-fluid hero-area -medium hero-area--black">
+        <img src="/media/sprnrtla/global_safety_standards_1156x556.jpg" alt="" role="presentation" loading="lazy" class="hero-area__bg-image">
+        <div class="row">
+            <div class="col-sm hero-area__copy">
+                <h1 class="hero-area__title">404 Page not found</h1>
+                <p>Sorry, the page you're looking for doesn't seem to exist.</p>
+                <p>Please try navigating or searching from the home page: </p>
+                <a href="/en-gb/" class="button -yellow">Home | A-SAFE.com</a>
+            </div>
+            <div class="pillar-curve"></div>
+        </div>
+    </section>
+    <footer class="as-site-footer">
+        <div class="inner inner--primary">
+            <div class="as-content-column">
+                <ul class="as-menu as-social-menu">
+                </ul>
+                <ul class="as-menu">
+                    <li class="item">
+                        <a class="link" href="/en-gb/contact/">Contact</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="inner inner--secondary">
+            <div class="as-content-column">
+                <div class="copyright">
+                    <p><span>Copyright © 2023 A-SAFE. All rights reserved. A-SAFE®, Atlas®, eFlex™, FlexiShield™, ForkGuard™, iFlex®, Memaplex®, mFlex™, RackEye™, </span><span>Protx</span><span>™, </span><span>RackGuard™ and SenseSafe™ are either registered trademarks or trademarks of A-SAFE in the United Kingdom and/or other countries.</span></p> </div>
+                <ul class="as-menu">
+                    <li class="item">
+                        <a class="link" href="/em-gb/media/9797/a-safe-uk-ltd-terms-conditions-june-2020.pdf" target="_blank">Conditions of sale</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/en-gb/cookies-policy/">Cookies Policy</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/en-gb/privacy-policy/">Privacy Policy</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/en-gb/accessibility/">Accessibility</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/em-gb/media/12075/modern-slavery-and-human-trafficking-2022-v1-28june22.pdf" target="_blank">Modern Slavery Act Statement</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/en-gb/terms-conditions/">Terms &amp; Conditions</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/en-gb/standard-warranty/">Standard Warranty</a>
+                    </li>
+                    <li class="item">
+                        <a class="link" href="/em-gb/media/12118/recycled-material-policy.pdf" target="_blank">Recycled Material Policy</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://webcdn.asafe.com/assets/js/content.bundle.js?v=" defer></script>
+<script src="https://webcdn.asafe.com/assets/js/cookies.bundle.js?v="></script>
+<script src="https://webcdn.asafe.com/assets/js/tracking.bundle.js?v=" async></script>
+</body></html>

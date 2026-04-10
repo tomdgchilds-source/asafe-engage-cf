@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="300" fill="#F8F9FA"/>
+  
+  <!-- A-SAFE Yellow Brand Background -->
+  <rect x="20" y="20" width="360" height="260" rx="20" fill="#FFD700" stroke="#E6C200" stroke-width="2"/>
+  
+  <!-- RackGuard Cold Storage Leg Protector -->
+  <!-- Main Rack Leg (Center) -->
+  <rect x="185" y="80" width="30" height="120" rx="5" fill="#2C3E50"/>
+  
+  <!-- RackGuard Protector Shell -->
+  <ellipse cx="200" cy="140" rx="45" ry="70" fill="#FFA500" stroke="#FF8C00" stroke-width="3"/>
+  <ellipse cx="200" cy="140" rx="35" ry="60" fill="#FFD700" opacity="0.8"/>
+  
+  <!-- Multi-directional Protection Indicators -->
+  <!-- Front Protection -->
+  <rect x="155" y="130" width="90" height="20" rx="10" fill="#FF8C00" opacity="0.7"/>
+  <!-- Side Protection -->
+  <rect x="190" y="100" width="20" height="80" rx="10" fill="#FF8C00" opacity="0.7"/>
+  
+  <!-- Mounting Points (10 grip points) -->
+  <circle cx="170" cy="120" r="3" fill="#2C3E50"/>
+  <circle cx="170" cy="140" r="3" fill="#2C3E50"/>
+  <circle cx="170" cy="160" r="3" fill="#2C3E50"/>
+  <circle cx="230" cy="120" r="3" fill="#2C3E50"/>
+  <circle cx="230" cy="140" r="3" fill="#2C3E50"/>
+  <circle cx="230" cy="160" r="3" fill="#2C3E50"/>
+  <circle cx="200" cy="110" r="3" fill="#2C3E50"/>
+  <circle cx="200" cy="170" r="3" fill="#2C3E50"/>
+  <circle cx="185" cy="100" r="3" fill="#2C3E50"/>
+  <circle cx="215" cy="180" r="3" fill="#2C3E50"/>
+  
+  <!-- Cold Storage Indicators (Snowflakes) -->
+  <g fill="#87CEEB" opacity="0.8">
+    <text x="140" y="100" font-family="Arial, sans-serif" font-size="20">❄</text>
+    <text x="260" y="110" font-family="Arial, sans-serif" font-size="16">❄</text>
+    <text x="130" y="180" font-family="Arial, sans-serif" font-size="18">❄</text>
+    <text x="270" y="170" font-family="Arial, sans-serif" font-size="14">❄</text>
+  </g>
+  
+  <!-- Temperature Rating -->
+  <rect x="150" y="200" width="100" height="25" rx="12" fill="#E74C3C" opacity="0.9"/>
+  <text x="200" y="217" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="12" font-weight="bold">-30°C Rated</text>
+  
+  <!-- A-SAFE Branding -->
+  <text x="200" y="245" text-anchor="middle" fill="#2C3E50" font-family="Arial, sans-serif" font-size="28" font-weight="bold">A-SAFE</text>
+  <text x="200" y="265" text-anchor="middle" fill="#7F8C8D" font-family="Arial, sans-serif" font-size="16">RackGuard™ Cold Storage</text>
+  
+  <!-- Product Features Text -->
+  <text x="200" y="285" text-anchor="middle" fill="#2C3E50" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Sub-Zero Rack Leg Protection</text>
+</svg>

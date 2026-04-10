@@ -1,0 +1,190 @@
+/* Global modal and popup positioning fixes for mobile, tablet, and desktop */
+
+/* Ensure Radix UI portals respect viewport bounds */
+[data-radix-popper-content-wrapper] {
+  max-width: calc(100vw - 1rem) !important;
+  max-height: calc(100vh - 1rem) !important;
+}
+
+/* Fix dialog positioning on all devices */
+[role="dialog"] {
+  max-width: calc(100vw - 1rem) !important;
+  max-height: calc(100vh - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+}
+
+/* Ensure dialogs stay within mobile safe areas */
+@media (max-width: 640px) {
+  /* Dialog content should respect mobile viewport */
+  [data-state="open"][role="dialog"] {
+    position: fixed !important;
+    inset: 0.5rem !important;
+    margin: 0 !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* Prevent content from being cut off at bottom */
+  [role="dialog"] > * {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+}
+
+/* iPad and tablet specific fixes */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [role="dialog"] {
+    max-width: min(90vw, 768px) !important;
+    max-height: 85vh !important;
+    margin: auto !important;
+  }
+}
+
+/* Desktop modal constraints */
+@media (min-width: 1025px) {
+  [role="dialog"] {
+    max-height: 90vh !important;
+  }
+}
+
+/* Fix popover positioning */
+[data-radix-popper-content-wrapper] {
+  z-index: 50;
+}
+
+/* Ensure popover content stays within bounds */
+[role="dialog"][data-radix-popper-content-wrapper] {
+  position: absolute !important;
+}
+
+/* Fix for select dropdown positioning */
+[role="listbox"] {
+  max-height: min(300px, 50vh) !important;
+  overflow-y: auto !important;
+}
+
+/* Fix dropdown menu positioning to prevent overflow */
+[role="menu"] {
+  max-height: min(350px, calc(100vh - 4rem)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Mobile-specific dropdown constraints */
+@media (max-width: 640px) {
+  [role="menu"] {
+    max-height: min(250px, calc(100vh - 3rem)) !important;
+  }
+  
+  [role="listbox"] {
+    max-height: min(200px, calc(100vh - 3rem)) !important;
+  }
+}
+
+/* Tablet-specific dropdown constraints */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [role="menu"] {
+    max-height: min(400px, calc(100vh - 4rem)) !important;
+  }
+}
+
+/* Prevent body scroll when modal is open */
+body:has([role="dialog"][data-state="open"]) {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+}
+
+/* Ensure overlay covers full viewport on all devices */
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+}
+
+/* Fix command palette positioning */
+[cmdk-dialog] {
+  max-height: min(500px, 80vh) !important;
+}
+
+/* Ensure sheet components slide within viewport */
+[data-state="open"][data-side="bottom"] {
+  max-height: 85vh !important;
+}
+
+[data-state="open"][data-side="right"],
+[data-state="open"][data-side="left"] {
+  max-width: min(400px, 90vw) !important;
+}
+
+/* Fix toast positioning on mobile */
+@media (max-width: 640px) {
+  [data-sonner-toaster] {
+    bottom: env(safe-area-inset-bottom, 20px) !important;
+  }
+}
+
+/* Ensure tooltips don't overflow viewport */
+[role="tooltip"] {
+  max-width: min(300px, calc(100vw - 2rem)) !important;
+  word-wrap: break-word !important;
+}
+
+/* Fix alert dialog specific issues */
+[role="alertdialog"] {
+  max-width: min(500px, calc(100vw - 2rem)) !important;
+  max-height: calc(100vh - 2rem) !important;
+}
+
+/* Ensure context menus stay within bounds */
+[role="menu"] {
+  max-height: calc(100vh - 2rem) !important;
+  overflow-y: auto !important;
+}
+
+/* Fix dropdown menu positioning */
+[data-radix-menu-content] {
+  max-height: min(300px, calc(60vh)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Mobile-specific dropdown constraints */
+@media (max-width: 640px) {
+  [data-radix-menu-content] {
+    max-height: calc(50vh) !important;
+  }
+}
+
+/* Tablet-specific dropdown constraints */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-radix-menu-content] {
+    max-height: calc(60vh) !important;
+  }
+}
+
+/* Prevent horizontal scroll caused by modals */
+html:has([role="dialog"][data-state="open"]) {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+
+/* Specific fix for AddToCart modal on mobile */
+.add-to-cart-modal-content {
+  max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+  overflow-y: auto !important;
+}
+
+/* Fix for Uppy modal on mobile */
+.uppy-Dashboard--modal {
+  max-height: calc(100vh - 2rem) !important;
+  margin: 1rem !important;
+}
+
+@media (max-width: 640px) {
+  .uppy-Dashboard--modal {
+    position: fixed !important;
+    inset: 0.5rem !important;
+    width: auto !important;
+    height: auto !important;
+  }
+}
