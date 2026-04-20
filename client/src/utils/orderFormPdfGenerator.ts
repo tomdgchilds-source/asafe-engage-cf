@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import { pdfjs } from "react-pdf";
 import asafeLogoImg from "../../../attached_assets/A-SAFE_Logo_Strapline_Secondary_Version_1767686263231.png";
+import { renderAboutAsafe, type AppendixContext } from "./aboutAsafeAppendix";
 
 // Reuse the pdfjs instance react-pdf already loads for the layout-markup
 // viewer. Importing from "react-pdf" gives us the exact build its worker is
@@ -108,6 +109,13 @@ interface OrderFormPdfData {
   customerEmail?: string;
   /** Customer logo (same-origin /api/objects/... URL, needs auth cookie) */
   companyLogoUrl?: string;
+  /** Drawing Ref printed on the cover next to the Order Ref. Free-text
+   *  so it can be a DWG number, a revision code, or a CAD filename. */
+  drawingRef?: string;
+  /** When true, prepends a 2-page "About A-SAFE" brand appendix before the
+   *  cover (mirrors the old-style hand-prepared quote). Off by default so
+   *  every quote doesn't ship 10 pages of marketing. */
+  includeBrandOverview?: boolean;
   orderDate: string;
   items: OrderItem[];
   servicePackage?: string;
@@ -306,12 +314,35 @@ interface CatalogProduct {
   name: string;
   description?: string;
   imageUrl?: string;
+  technicalSheetUrl?: string | null;
+  installationGuideUrl?: string | null;
   impactRating?: number | null;
   pas13Compliant?: boolean | null;
   pas13TestMethod?: string | null;
   pas13TestJoules?: number | null;
+  pas13Sections?: string[] | null;
   heightMin?: number | null;
   heightMax?: number | null;
+  category?: string | null;
+  subcategory?: string | null;
+  applications?: string[] | null;
+  industries?: string[] | null;
+  features?: string[] | null;
+  isNew?: boolean;
+  isColdStorage?: boolean;
+  pricingLogic?: string | null;
+  priceVariants?: Array<{
+    id: string;
+    sku?: string | null;
+    name: string;
+    lengthMm?: number | null;
+    priceAed: number | string;
+    isNew?: boolean;
+  }>;
+  // The scraped vehicleTest string from asafe.com, e.g. "3.6 Tonne vehicle at 7 km/h".
+  // Lives in specifications.vehicleTest for products seeded from the CSV import,
+  // but modern rows merged from the scrape surface it at the top level. We
+  // read both.
   specifications?: any;
   productMedia?: Array<{ url?: string; mediaUrl?: string; mediaType?: string }>;
 }
@@ -372,6 +403,103 @@ function pickProductImageUrl(item: OrderItem, cat: CatalogProduct | null): strin
   const media = cat?.productMedia?.[0];
   if (media?.mediaUrl) return media.mediaUrl;
   if (media?.url) return media.url;
+  return null;
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Application bucket inference
+//
+// Mirrors the old hand-prepared quote format (A: Door, B: Column, C: Racking,
+// D: Traffic/Wall, E: Height Restriction, F: Dock / Stops). Each bucket
+// has a fixed letter + label used both on solution cards and in the
+// grouped Order Summary. Precedence:
+//   1) If the item's applicationArea text already maps cleanly to a bucket,
+//      use that (sales rep's intent wins).
+//   2) Otherwise derive from the catalog category.
+//   3) Fallback to bucket G ("General") so nothing goes un-categorised.
+// ───────────────────────────────────────────────────────────────────────
+const APPLICATION_BUCKETS = [
+  { letter: "A", label: "Door Protection" },
+  { letter: "B", label: "Column Protection" },
+  { letter: "C", label: "Racking Protection" },
+  { letter: "D", label: "Traffic & Wall Protection" },
+  { letter: "E", label: "Height Restriction & Gates" },
+  { letter: "F", label: "Dock, Stops & Accessories" },
+  { letter: "G", label: "General" },
+] as const;
+
+type BucketLetter = typeof APPLICATION_BUCKETS[number]["letter"];
+
+function inferApplicationBucket(
+  item: OrderItem,
+  cat: CatalogProduct | null,
+): { letter: BucketLetter; label: string } {
+  // Step 1 — honour an explicit user-entered applicationArea when it maps
+  // unambiguously to a bucket.
+  const area = (item.applicationArea || "").toLowerCase();
+  if (area) {
+    if (/\bdoor\b|entrance|gateway/.test(area)) return bucketByLetter("A");
+    if (/column/.test(area)) return bucketByLetter("B");
+    if (/rack|pallet/.test(area)) return bucketByLetter("C");
+    if (/wall|traffic|aisle|corridor|perimeter/.test(area))
+      return bucketByLetter("D");
+    if (/height|mezzanine|gantry|overhead|swing|slide gate/.test(area))
+      return bucketByLetter("E");
+    if (/dock|stop|buffer|retractable|forkguard|slider/.test(area))
+      return bucketByLetter("F");
+  }
+
+  // Step 2 — derive from catalog taxonomy.
+  const category = (cat?.category || "").toLowerCase();
+  const subcategory = (cat?.subcategory || "").toLowerCase();
+  const name = (cat?.name || item.productName || "").toLowerCase();
+
+  if (/bollard|post/.test(category) || /bollard|post/.test(name))
+    return bucketByLetter("A");
+  if (/column-protection|column/.test(category)) return bucketByLetter("B");
+  if (/rack-protection|topple/.test(category) || /rack|topple/.test(name))
+    return bucketByLetter("C");
+  if (/traffic|pedestrian/.test(category)) return bucketByLetter("D");
+  if (/height-restrictor|gate/.test(category) || /gate/.test(name))
+    return bucketByLetter("E");
+  if (/retractable|stops|accessories/.test(category)) return bucketByLetter("F");
+  if (/forkguard|slider|bumper|step-guard|dock-buffer/.test(subcategory))
+    return bucketByLetter("F");
+
+  return bucketByLetter("G");
+}
+
+function bucketByLetter(letter: BucketLetter): { letter: BucketLetter; label: string } {
+  const b = APPLICATION_BUCKETS.find((x) => x.letter === letter)!;
+  return { letter: b.letter, label: b.label };
+}
+
+// Derive a "length in metres" string for the Quote-to-Supply table. Items
+// bought per-linear-meter use their quantity as the length; items with a
+// selectedVariant.length or a dimension suffix in their name use that.
+// Returns null when the product isn't length-keyed (e.g. a single bollard).
+function inferLineLength(item: OrderItem, cat: CatalogProduct | null): string | null {
+  // per-meter barriers: quantity IS the length in metres.
+  if (item.pricingType === "linear_meter" || item.pricingType === "per_meter") {
+    return item.quantity.toFixed(2);
+  }
+  // Variant-selected items (selectedVariant carries a lengthMm we stashed
+  // at add-to-cart time).
+  const v = item.specifications?.selectedVariant || (item as any).selectedVariant;
+  if (v?.length_mm || v?.lengthMm) {
+    const mm = Number(v.length_mm ?? v.lengthMm);
+    if (Number.isFinite(mm) && mm > 0) return (mm / 1000).toFixed(2);
+  }
+  // Fallback: product name contains a "1000mm" style suffix.
+  const m = item.productName.match(/\b(\d{3,5})\s*mm\b/i);
+  if (m) {
+    const mm = parseInt(m[1], 10);
+    if (Number.isFinite(mm) && mm > 0) return (mm / 1000).toFixed(2);
+  }
+  // Catalog-level height for restrictor posts etc.
+  if (cat?.heightMin && cat?.heightMin === cat?.heightMax) {
+    return (cat.heightMin / 1000).toFixed(2);
+  }
   return null;
 }
 
@@ -675,6 +803,9 @@ export async function generateOrderFormPDF(
   setText(ink.muted);
   pdf.text(`ORDER REF | ${orderRef}`, pageWidth - margin, 20, { align: "right" });
   pdf.text(`ISSUED | ${orderDateFormatted}`, pageWidth - margin, 25, { align: "right" });
+  if (orderData.drawingRef) {
+    pdf.text(`DRAWING | ${orderData.drawingRef}`, pageWidth - margin, 30, { align: "right" });
+  }
 
   yPosition = 64;
   setFont(10, "bold");
@@ -714,6 +845,10 @@ export async function generateOrderFormPDF(
   setText(ink.muted);
   pdf.text(`Project reference: ${orderRef}`, margin, yPosition);
   yPosition += 5;
+  if (orderData.drawingRef) {
+    pdf.text(`Drawing reference: ${orderData.drawingRef}`, margin, yPosition);
+    yPosition += 5;
+  }
   pdf.text(`Currency: ${orderData.currency}`, margin, yPosition);
 
   // Customer logo on the right, same vertical range as the hero block
@@ -796,6 +931,58 @@ export async function generateOrderFormPDF(
   pageFooter();
 
   // ═══════════════════════════════════════════════════════════════════
+  // OPTIONAL — "About A-SAFE" brand appendix (2-3 pages)
+  //
+  // Opt-in via orderData.includeBrandOverview so every standard quote
+  // doesn't ship with ten pages of marketing. Mirrors the hand-prepared
+  // sales quote's brand section (scientifically engineered safety,
+  // Memaplex, 3-phase energy absorption, certifications, trusted-by).
+  // Uses ctx primitives from this generator so typography / spacing /
+  // page chrome all stay identical.
+  // ═══════════════════════════════════════════════════════════════════
+  if (orderData.includeBrandOverview) {
+    const yRef = { value: yPosition };
+    const appendixCtx: AppendixContext = {
+      pageWidth,
+      pageHeight,
+      margin,
+      contentWidth,
+      yStart: yPosition,
+      newPage: () => {
+        newPage();
+        yRef.value = yPosition;
+      },
+      needSpace: (mm: number) => {
+        yPosition = yRef.value;
+        needSpace(mm);
+        yRef.value = yPosition;
+      },
+      setFill,
+      setStroke,
+      setText,
+      setFont,
+      wrap,
+      hr,
+      ink,
+      brand,
+      accent,
+      sectionHeading: (title: string, subtitle?: string) => {
+        yPosition = yRef.value;
+        sectionHeading(title, subtitle);
+        yRef.value = yPosition;
+      },
+      eyebrow,
+      y: yRef,
+    };
+    // The appendix has its own intro sectionHeading that wants a fresh
+    // page. newPage() advances past the cover and into the appendix.
+    newPage();
+    appendixCtx.y.value = yPosition;
+    renderAboutAsafe(pdf, appendixCtx);
+    yPosition = appendixCtx.y.value;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // PAGE 2+ — CLIENT SUMMARY + PROPOSED SOLUTIONS
   // ═══════════════════════════════════════════════════════════════════
   newPage();
@@ -829,11 +1016,13 @@ export async function generateOrderFormPDF(
 
   // ───── Product cards ────────────────────────────────────────────────
   //
-  // Left: thumbnail in a 48x70mm frame. Right: name, description, 2-col
-  // facts grid (impact, PAS 13, height, variant, material, location), and
-  // a qty/price summary row at the bottom. Facts lean on the catalog data
-  // we pulled up front.
-  const cardHeight = 70;
+  // Left: thumbnail in a 48×90mm frame. Right: product name + NEW pill,
+  // inline description, joules/vehicle hero band, feature bullets,
+  // applications chip strip, qty/price row. The card leans heavily on
+  // catalog data we pulled up front (vehicle test, PAS 13 sections, real
+  // features list) — these come from the scrape merge so the card feels
+  // like a printed product datasheet rather than a line in a spreadsheet.
+  const cardHeight = 90;
 
   for (let i = 0; i < resolvedItems.length; i++) {
     const { item, cat, img } = resolvedItems[i];
@@ -844,10 +1033,21 @@ export async function generateOrderFormPDF(
     const imgBoxH = cardHeight;
     const textX = margin + imgBoxW + 8;
     const textW = contentWidth - imgBoxW - 8;
+    // Right-side stats column width (joules hero, PAS13 summary, vehicle
+    // test) — sits flush with the right margin inside the card.
+    const statsColW = 42;
+    const infoColW = textW - statsColW - 4;
 
     setFont(8, "bold");
     setText(brand.yellowDark);
-    pdf.text(`SOLUTION ${String(i + 1).padStart(2, "0")}`, margin, cardY - 2);
+    const solutionLabel =
+      item.applicationArea?.trim() ||
+      inferApplicationBucket(item, cat).label;
+    pdf.text(
+      `SOLUTION ${String(i + 1).padStart(2, "0")} · ${solutionLabel.toUpperCase()}`,
+      margin,
+      cardY - 2,
+    );
     hr(cardY, ink.line, 0.3);
 
     // LEFT — image frame
@@ -879,69 +1079,162 @@ export async function generateOrderFormPDF(
       });
     }
 
-    // RIGHT — product name + description
+    // RIGHT — product name + NEW pill
     let ty = cardY + 6;
     setFont(13, "bold");
     setText(ink.black);
-    const nameLines = wrap(item.productName, textW);
+    const nameLines = wrap(item.productName, infoColW);
     pdf.text(nameLines[0], textX, ty);
+    if (cat?.isNew) {
+      // Small NEW pill aligned with the first name line.
+      const pillW = 10;
+      const pillX = textX + pdf.getTextWidth(nameLines[0]) + 2;
+      if (pillX + pillW < textX + infoColW) {
+        setFill(brand.yellow);
+        pdf.roundedRect(pillX, ty - 3.5, pillW, 4, 1, 1, "F");
+        setFont(6, "bold");
+        setText(ink.black);
+        pdf.text("NEW", pillX + pillW / 2, ty - 0.5, { align: "center" });
+      }
+    }
     if (nameLines.length > 1) {
       ty += 5;
       setFont(10, "normal");
       setText(ink.muted);
       pdf.text(nameLines[1], textX, ty);
     }
-    ty += 6;
+    ty += 5;
 
+    // Description (2 lines max)
     const description = cat?.description || item.description || "";
     if (description) {
       setFont(8, "normal");
       setText(ink.body);
-      const descLines = wrap(description, textW).slice(0, 2);
+      const descLines = wrap(description, infoColW).slice(0, 2);
       pdf.text(descLines, textX, ty);
-      ty += descLines.length * 3.8 + 2;
+      ty += descLines.length * 3.8;
     }
 
-    // Facts grid (2 columns x up to 3 rows)
-    const facts: Array<[string, string]> = [];
+    // ───── Stats column (right side): joules hero + vehicle + PAS 13
+    const statsX = textX + infoColW + 4;
+    const statsY = cardY + 6;
     const rating = item.impactRating ?? cat?.impactRating;
-    if (rating) facts.push(["Impact", `${rating.toLocaleString()} J`]);
+    const vehicleTest =
+      (cat as any)?.vehicleTest ||
+      cat?.specifications?.vehicleTest ||
+      null;
+    const pas13Sections: string[] =
+      cat?.pas13Sections ||
+      cat?.specifications?.pas13Sections ||
+      [];
     const testJ = cat?.pas13TestJoules;
-    if (cat?.pas13Compliant) {
-      facts.push([
-        "PAS 13",
-        testJ
-          ? `Certified (${testJ.toLocaleString()} J ${cat.pas13TestMethod || "tested"})`
-          : "Certified",
-      ]);
-    }
-    if (cat?.heightMin && cat?.heightMax) {
-      facts.push(["Height", `${cat.heightMin}-${cat.heightMax} mm`]);
-    } else if (cat?.heightMin) {
-      facts.push(["Height", `${cat.heightMin} mm`]);
-    }
-    if (item.variationDetails) facts.push(["Variant", item.variationDetails]);
-    if (item.materialUsed) facts.push(["Material", item.materialUsed]);
-    if (item.installationLocation) facts.push(["Location", item.installationLocation]);
 
-    const factColW = textW / 2;
-    const factRowH = 8;
-    facts.slice(0, 6).forEach((f, idx) => {
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const fx = textX + col * factColW;
-      const fy = ty + row * factRowH;
+    setFill(ink.surface);
+    pdf.rect(statsX, statsY - 1, statsColW, 30, "F");
+
+    if (rating) {
+      setFont(18, "bold");
+      setText(ink.black);
+      pdf.text(`${rating.toLocaleString()}`, statsX + 2, statsY + 6);
       setFont(7, "bold");
       setText(ink.muted);
-      pdf.text(f[0].toUpperCase(), fx, fy, { charSpace: 0.3 });
-      setFont(8, "normal");
-      setText(ink.body);
-      const vLines = wrap(f[1], factColW - 2).slice(0, 1);
-      pdf.text(vLines[0], fx, fy + 4);
-    });
+      pdf.text("J IMPACT", statsX + 2, statsY + 10, { charSpace: 0.4 });
+    } else {
+      setFont(8, "italic");
+      setText(ink.muted);
+      pdf.text("Impact rating", statsX + 2, statsY + 6);
+      pdf.text("on request", statsX + 2, statsY + 10);
+    }
 
-    // Pricing row at bottom of card
-    const priceRowY = cardY + imgBoxH - 6;
+    if (vehicleTest) {
+      setFont(7, "bold");
+      setText(ink.muted);
+      pdf.text("TESTED AT", statsX + 2, statsY + 15, { charSpace: 0.4 });
+      setFont(7, "normal");
+      setText(ink.body);
+      const vtLines = wrap(vehicleTest, statsColW - 4).slice(0, 2);
+      pdf.text(vtLines, statsX + 2, statsY + 19);
+    }
+
+    if (cat?.pas13Compliant) {
+      const ribbonY = statsY + 26;
+      setFill(brand.yellowSoft);
+      pdf.rect(statsX, ribbonY, statsColW, 6, "F");
+      setFont(7, "bold");
+      setText(brand.yellowDark);
+      pdf.text("PAS 13", statsX + 2, ribbonY + 4, { charSpace: 0.4 });
+      setFont(7, "normal");
+      setText(ink.body);
+      const pasSummary = pas13Sections.length
+        ? `§ ${pas13Sections.slice(0, 3).join(", ")}`
+        : testJ
+          ? `${testJ.toLocaleString()} J ${cat?.pas13TestMethod || "tested"}`
+          : "Certified";
+      const pasLines = wrap(pasSummary, statsColW - 14).slice(0, 1);
+      pdf.text(pasLines[0], statsX + 14, ribbonY + 4);
+    }
+
+    // ───── Feature bullets (max 3, prefer scraped features list)
+    const features = (cat?.features ?? []).filter(Boolean).slice(0, 3);
+    if (features.length) {
+      ty += 2;
+      features.forEach((f) => {
+        setFont(8, "bold");
+        setText(brand.yellowDark);
+        pdf.text("✓", textX, ty);
+        setFont(8, "normal");
+        setText(ink.body);
+        const fLines = wrap(f, infoColW - 4).slice(0, 1);
+        pdf.text(fLines[0], textX + 4, ty);
+        ty += 4;
+      });
+    } else {
+      // Fallback to 2x2 facts grid when the catalog has no features list.
+      const facts: Array<[string, string]> = [];
+      if (cat?.heightMin && cat?.heightMax)
+        facts.push(["Height", `${cat.heightMin}-${cat.heightMax} mm`]);
+      else if (cat?.heightMin) facts.push(["Height", `${cat.heightMin} mm`]);
+      if (item.variationDetails) facts.push(["Variant", item.variationDetails]);
+      if (item.materialUsed) facts.push(["Material", item.materialUsed]);
+      if (item.installationLocation)
+        facts.push(["Location", item.installationLocation]);
+      const factColW = infoColW / 2;
+      facts.slice(0, 4).forEach((f, idx) => {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const fx = textX + col * factColW;
+        const fy = ty + row * 8;
+        setFont(7, "bold");
+        setText(ink.muted);
+        pdf.text(f[0].toUpperCase(), fx, fy, { charSpace: 0.3 });
+        setFont(8, "normal");
+        setText(ink.body);
+        const vLines = wrap(f[1], factColW - 2).slice(0, 1);
+        pdf.text(vLines[0], fx, fy + 4);
+      });
+      ty += Math.ceil(facts.length / 2) * 8;
+    }
+
+    // ───── Applications chip strip (max 4, only when there's room)
+    const apps = (cat?.applications ?? []).filter(Boolean).slice(0, 4);
+    const stripY = cardY + imgBoxH - 14;
+    if (apps.length && ty < stripY - 2) {
+      let cx = textX;
+      setFont(7, "normal");
+      apps.forEach((a) => {
+        const w = pdf.getTextWidth(a) + 6;
+        if (cx + w > textX + textW) return;
+        setFill(ink.softLine);
+        pdf.roundedRect(cx, stripY - 3, w, 4.5, 1, 1, "F");
+        setText(ink.muted);
+        pdf.text(a, cx + 3, stripY);
+        cx += w + 2;
+      });
+    }
+
+    // ───── Price row at bottom of card
+    const priceRowY = cardY + imgBoxH - 4;
+    hr(priceRowY - 5, ink.line, 0.2);
     setFont(8, "normal");
     setText(ink.muted);
     const qtyUnit = item.pricingType === "linear_meter" ? "m" : "units";
@@ -949,7 +1242,9 @@ export async function generateOrderFormPDF(
     pdf.text(`Unit: ${money(item.unitPrice)}`, textX + 40, priceRowY);
     setFont(10, "bold");
     setText(ink.black);
-    pdf.text(money(item.totalPrice), pageWidth - margin, priceRowY, { align: "right" });
+    pdf.text(money(item.totalPrice), pageWidth - margin, priceRowY, {
+      align: "right",
+    });
 
     yPosition = cardY + cardHeight + 6;
   }
@@ -1139,43 +1434,123 @@ export async function generateOrderFormPDF(
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // ORDER SUMMARY
+  // QUOTE TO SUPPLY — grouped by application zone (A/B/C/D/…)
+  //
+  // Mirrors the old hand-prepared quote format: each protection zone gets
+  // its own sub-table with a sub-total, and only the grand total row
+  // consolidates everything at the end. Uses inferApplicationBucket()
+  // to pick the zone, with the sales rep's manual applicationArea text
+  // winning over the catalog-derived fallback.
   // ═══════════════════════════════════════════════════════════════════
   newPage();
-  sectionHeading("Order Summary", "Line-item breakdown and grand total");
+  sectionHeading(
+    "Quote to Supply",
+    "Line-item breakdown grouped by protection zone",
+  );
 
-  // Table header
-  setFill(ink.black);
-  pdf.rect(margin, yPosition, contentWidth, 7, "F");
-  setFont(7, "bold");
-  setText(ink.white);
-  const colXs = [margin + 3, margin + 110, margin + 125, margin + 148];
-  pdf.text("ITEM", colXs[0], yPosition + 4.8);
-  pdf.text("QTY", colXs[1], yPosition + 4.8);
-  pdf.text("UNIT PRICE", colXs[2], yPosition + 4.8);
-  pdf.text(`TOTAL (${orderData.currency})`, pageWidth - margin - 2, yPosition + 4.8, {
-    align: "right",
-  });
-  yPosition += 7;
+  // Bucket the resolved items so we can iterate in canonical A→G order.
+  const bucketedItems: Record<
+    BucketLetter,
+    Array<{ item: OrderItem; cat: CatalogProduct | null }>
+  > = { A: [], B: [], C: [], D: [], E: [], F: [], G: [] };
+  for (const r of resolvedItems) {
+    const b = inferApplicationBucket(r.item, r.cat);
+    bucketedItems[b.letter].push({ item: r.item, cat: r.cat });
+  }
 
-  orderData.items.forEach((item, idx) => {
+  // Column positions — shared across every group table.
+  const colX = {
+    index: margin + 3,
+    item: margin + 11,
+    length: margin + 108,
+    qty: margin + 124,
+    unit: margin + 138,
+    total: pageWidth - margin - 2,
+  };
+
+  const renderGroupHeader = (letter: string, label: string) => {
+    needSpace(14);
+    // Thin yellow bar to the left of the group label — matches section
+    // heading treatment at a smaller scale.
+    setFill(brand.yellow);
+    pdf.rect(margin, yPosition, 1.2, 6, "F");
+    setFont(10, "bold");
+    setText(ink.heading);
+    pdf.text(`${letter}  ·  ${label}`, margin + 4, yPosition + 4.5);
+    yPosition += 8;
+
+    // Column header row
+    setFill(ink.black);
+    pdf.rect(margin, yPosition, contentWidth, 6, "F");
+    setFont(7, "bold");
+    setText(ink.white);
+    pdf.text("#", colX.index, yPosition + 4);
+    pdf.text("ITEM", colX.item, yPosition + 4);
+    pdf.text("LEN (m)", colX.length, yPosition + 4);
+    pdf.text("QTY", colX.qty, yPosition + 4);
+    pdf.text("UNIT", colX.unit, yPosition + 4);
+    pdf.text(`TOTAL (${orderData.currency})`, colX.total, yPosition + 4, {
+      align: "right",
+    });
+    yPosition += 6;
+  };
+
+  const renderSubtotal = (letter: string, total: number) => {
     needSpace(8);
-    if (idx % 2 === 0) {
-      setFill(ink.surface);
-      pdf.rect(margin, yPosition, contentWidth, 7, "F");
-    }
-    setFont(8, "normal");
-    setText(ink.body);
-    const nm = item.productName.length > 55 ? item.productName.substring(0, 52) + "..." : item.productName;
-    pdf.text(nm, colXs[0], yPosition + 4.8);
-    const qtyText = `${item.quantity}${item.pricingType === "linear_meter" ? " m" : ""}`;
-    pdf.text(qtyText, colXs[1], yPosition + 4.8);
-    pdf.text(money(item.unitPrice), colXs[2], yPosition + 4.8);
+    hr(yPosition, ink.line, 0.3);
+    yPosition += 1;
     setFont(8, "bold");
+    setText(ink.muted);
+    pdf.text(`SUB TOTAL · ${letter}`, margin + 4, yPosition + 4.2);
     setText(ink.black);
-    pdf.text(money(item.totalPrice), pageWidth - margin - 2, yPosition + 4.8, { align: "right" });
-    yPosition += 7;
-  });
+    pdf.text(money(total), colX.total, yPosition + 4.2, { align: "right" });
+    yPosition += 8;
+  };
+
+  let goodsTotal = 0;
+  for (const bucket of APPLICATION_BUCKETS) {
+    const rows = bucketedItems[bucket.letter];
+    if (rows.length === 0) continue;
+
+    renderGroupHeader(bucket.letter, bucket.label);
+    let bucketTotal = 0;
+
+    rows.forEach(({ item, cat }, idx) => {
+      needSpace(7);
+      if (idx % 2 === 0) {
+        setFill(ink.surface);
+        pdf.rect(margin, yPosition, contentWidth, 6.5, "F");
+      }
+      const rowY = yPosition + 4.2;
+      const index = `${bucket.letter}.${idx + 1}`;
+      const lengthVal = inferLineLength(item, cat);
+      const nameMax = colX.length - colX.item - 3;
+
+      setFont(8, "bold");
+      setText(brand.yellowDark);
+      pdf.text(index, colX.index, rowY);
+
+      setFont(8, "normal");
+      setText(ink.body);
+      const nm = wrap(item.productName, nameMax).slice(0, 1)[0] || item.productName;
+      pdf.text(nm, colX.item, rowY);
+
+      pdf.text(lengthVal ?? "—", colX.length, rowY);
+      pdf.text(String(item.quantity), colX.qty, rowY);
+      pdf.text(money(item.unitPrice), colX.unit, rowY);
+
+      setFont(8, "bold");
+      setText(ink.black);
+      pdf.text(money(item.totalPrice), colX.total, rowY, { align: "right" });
+
+      bucketTotal += item.totalPrice;
+      yPosition += 6.5;
+    });
+
+    renderSubtotal(bucket.letter, bucketTotal);
+    goodsTotal += bucketTotal;
+    yPosition += 2;
+  }
 
   hr(yPosition, ink.line, 0.5);
   yPosition += 6;
@@ -1220,7 +1595,7 @@ export async function generateOrderFormPDF(
   }
   const deliveryInstall = (orderData.deliveryCharge || 0) + (orderData.installationCharge || 0);
   if (deliveryInstall > 0) {
-    summaryLine("Delivery + Installation (door-to-door)", money(deliveryInstall));
+    summaryLine("Door to Door Delivery + Installation", money(deliveryInstall));
   }
 
   yPosition += 2;
@@ -1290,45 +1665,83 @@ export async function generateOrderFormPDF(
   newPage();
   sectionHeading("Terms & Conditions", "Commercial terms for this order");
 
-  const headerTerms: Array<[string, string, string]> = [
-    ["Order Validity", "30 days", "From date of this order form"],
+  // Commercial header — two-column layout mirrors the hand-prepared quotes:
+  // Notes column on the left (Validity, Lead time), Payment column on the
+  // right (structured 75/25/100 terms + Mode/Warranty).
+  const leftCol: Array<[string, string, string]> = [
+    ["Order Validity", "30 days", "From the date of this order form"],
     ["Lead time", "10-12 weeks", "Subject to availability"],
-    ["Payment terms", "50% on confirmation, 50% on delivery + installation", ""],
-    ["Warranty", "24 months", "Against manufacturing defects"],
   ];
-  headerTerms.forEach(([k, v, note], idx) => {
-    needSpace(10);
-    if (idx % 2 === 0) {
-      setFill(ink.surface);
-      pdf.rect(margin, yPosition, contentWidth, 8, "F");
-    }
+  const rightCol: Array<[string, string]> = [
+    ["Payment terms", "75% pre-payment upon order confirmation"],
+    ["", "Balance of material + carriage cost 30 days from material delivery"],
+    ["", "100% of installation cost due 30 days from installation"],
+    ["Mode of Payment", "Bank Transfer"],
+    ["Warranty", "24 months against manufacturing defects"],
+  ];
+
+  const headerStartY = yPosition;
+  const midX = margin + contentWidth / 2;
+  const colPad = 3;
+
+  // Left column
+  setFont(7, "bold");
+  setText(ink.muted);
+  pdf.text("NOTES", margin, yPosition, { charSpace: 0.5 });
+  yPosition += 5;
+  leftCol.forEach(([k, v, note]) => {
     setFont(8, "bold");
     setText(ink.black);
-    pdf.text(k, margin + 3, yPosition + 5);
+    pdf.text(k, margin, yPosition + 4);
     setFont(8, "normal");
     setText(ink.body);
-    pdf.text(v, margin + 50, yPosition + 5);
+    pdf.text(v, margin + 38, yPosition + 4);
     if (note) {
       setFont(8, "italic");
       setText(ink.muted);
-      pdf.text(note, pageWidth - margin - 3, yPosition + 5, { align: "right" });
+      const nl = wrap(note, midX - margin - 45).slice(0, 1);
+      pdf.text(nl[0] || "", margin, yPosition + 9);
     }
-    yPosition += 8;
+    yPosition += 12;
   });
+  const leftEndY = yPosition;
+
+  // Right column
+  yPosition = headerStartY;
+  setFont(7, "bold");
+  setText(ink.muted);
+  pdf.text("PAYMENT DUE", midX + colPad, yPosition, { charSpace: 0.5 });
+  yPosition += 5;
+  rightCol.forEach(([k, v]) => {
+    if (k) {
+      setFont(8, "bold");
+      setText(ink.black);
+      pdf.text(k, midX + colPad, yPosition + 4);
+    }
+    setFont(8, "normal");
+    setText(ink.body);
+    const vLines = wrap(v, contentWidth / 2 - colPad - 2).slice(0, 2);
+    pdf.text(vLines, midX + colPad + (k ? 38 : 6), yPosition + 4);
+    yPosition += vLines.length > 1 ? 8 : 6;
+  });
+  const rightEndY = yPosition;
+
+  yPosition = Math.max(leftEndY, rightEndY) + 4;
+  hr(yPosition, ink.line, 0.3);
   yPosition += 6;
 
   const conditions = [
     "Concrete bases are required where a suitable concrete floor slab is not available; these are excluded from the above quote unless explicitly listed.",
-    "It is the client's responsibility to offload materials from the delivery vehicle and to store them in a suitable location at site prior to installation, unless specifically stated otherwise above.",
-    "Product images are representational only and may not picture the exact item quoted for.",
-    "Our standard products are produced with yellow impact rails and black posts (hazard-warning colouring) for typical internal environments.",
+    "It is the client's responsibility to offload materials from the delivery vehicle at the destination unless specifically mentioned above, and to store them in a suitable location at site prior to installation unless otherwise stated above.",
+    "Images as depicted on the product details are for representational purposes only, and may not picture the actual product quoted for.",
+    "Our standard products are produced with yellow impact rails and black posts (hazard warning colouring), unless otherwise specified, for typical internal working environments.",
     "Although all products are UV-stabilised for impact performance, the yellow colour is primarily intended for internal use; prolonged direct sunlight may cause some bleaching over time.",
-    "If the quoted barrier is for external use in direct sunlight, consider accepting grey or black impact rails.",
-    "The above prices include standard zinc-galvanised floor-fixing bolts. Stainless steel, countersunk or chemical fixings are priced separately on request.",
-    "We do not accept retention deductions or contractor discounts.",
-    "Where installation is unreasonably delayed by the client after delivery (>10 days), A-SAFE reserves the right to issue the final invoice for 100% of the order value.",
-    "All products remain the property of A-SAFE until the final invoice has been paid.",
-    "A-SAFE is not responsible for removal of existing barriers, bollards or for floor repair works unless specifically listed above.",
+    "If the quoted barrier is for external application likely to be in direct sunlight, consideration should be given to accepting the impact rails in either a grey or black colour.",
+    "The above prices include the supply of all standard zinc-galvanised post floor-fixing bolts, unless specified otherwise as stainless steel / countersunk / chemical fixings, etc.",
+    "A-SAFE does not accept retention deductions or any contractor discounts.",
+    "In the case where installation is unreasonably delayed by the Client after delivery of products (>10 days), A-SAFE reserves the right to issue the final invoice for 100% of the order value.",
+    "All products remain the property of A-SAFE until the final invoice payment is received.",
+    "A-SAFE is not responsible for the removal of any existing barriers, bollards or for floor repair works unless specifically listed above. Any such requirements must be handled by the client prior to A-SAFE conducting their installation works.",
   ];
 
   conditions.forEach((c, idx) => {

@@ -1011,6 +1011,21 @@ export function OrderForm() {
         uploadedImages: orderData.uploadedImages,
         layoutDrawingId: orderData.layoutDrawingId,
         reciprocalCommitments: orderData.reciprocalCommitments,
+        // Drawing ref — prefer an explicit field on the order, fall back to
+        // the linked layout drawing's dwgNumber, then its filename. This
+        // surfaces the CAD reference on the cover without needing a schema
+        // change before the broader product/price rollout.
+        drawingRef:
+          (orderData as any).drawingRef ||
+          orderLayoutDrawings?.[0]?.dwgNumber ||
+          orderLayoutDrawings?.[0]?.fileName?.replace(/\.[^.]+$/, "") ||
+          undefined,
+        // Opt-in brand appendix. Off by default. Set via
+        // orderData.includeBrandOverview OR by passing ?brand=1 in the
+        // URL (for quick demo PDFs).
+        includeBrandOverview:
+          !!(orderData as any).includeBrandOverview ||
+          new URLSearchParams(window.location.search).get("brand") === "1",
       };
       
       // Generate PDF with order-specific currency formatting

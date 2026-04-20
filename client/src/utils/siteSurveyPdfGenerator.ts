@@ -156,6 +156,65 @@ async function loadImage(src: string): Promise<{ dataUrl: string; width: number;
 }
 
 // ═══════════════════════════════════════════════════════════════
+// CATALOG FETCH — mirror of the helper in orderFormPdfGenerator so
+// the site-survey PDF can cross-reference each recommended product
+// against the live product table (and the scrape-enriched fields:
+// description, vehicleTest, impact rating, PAS 13 sections, features,
+// applications, full-resolution imageUrl).
+// ═══════════════════════════════════════════════════════════════
+interface SurveyCatalogProduct {
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  category?: string | null;
+  impactRating?: number | null;
+  pas13Compliant?: boolean | null;
+  pas13TestMethod?: string | null;
+  pas13TestJoules?: number | null;
+  pas13Sections?: string[] | null;
+  heightMin?: number | null;
+  heightMax?: number | null;
+  features?: string[] | null;
+  applications?: string[] | null;
+  isNew?: boolean;
+  isColdStorage?: boolean;
+  specifications?: any;
+}
+
+async function fetchSurveyCatalog(): Promise<SurveyCatalogProduct[]> {
+  try {
+    const res = await fetch("/api/products?grouped=false&pageSize=200", {
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.products)) return data.products;
+    return [];
+  } catch (err) {
+    console.warn("[siteSurveyPdf] catalog fetch failed", err);
+    return [];
+  }
+}
+
+function matchSurveyCatalog(
+  itemName: string,
+  catalog: SurveyCatalogProduct[],
+): SurveyCatalogProduct | null {
+  if (!catalog.length) return null;
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[\u2013\u2014]/g, "-").replace(/\s+/g, " ").trim();
+  const target = norm(itemName);
+  const exact = catalog.find((p) => norm(p.name) === target);
+  if (exact) return exact;
+  const prefix = catalog.find((p) => target.startsWith(norm(p.name)));
+  if (prefix) return prefix;
+  const contains = catalog.find((p) => target.includes(norm(p.name)));
+  return contains ?? null;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
@@ -204,6 +263,15 @@ export async function generateSiteSurveyPdf(
     if (k === "low") return risk.low;
     return risk.none;
   };
+
+  // ───── Catalog preload ────────────────────────────────────────
+  // Pull /api/products?grouped=false once so each recommended product
+  // can be enriched with scrape-sourced content (full description,
+  // vehicleTest, PAS 13 sections, feature bullets, applications) when
+  // we render the consolidated Recommended Solutions section. Soft-
+  // fails: if the fetch returns nothing we just fall back to whatever
+  // lives on area.recommendedProducts.
+  const surveyCatalog = await fetchSurveyCatalog();
 
   // ───── Data computed from actual areas (not stale DB fields) ──
   const areaCount = areas.length;
@@ -480,13 +548,24 @@ export async function generateSiteSurveyPdf(
   await newPage();
   sectionHeading("Contents", `${areaCount} area${areaCount === 1 ? "" : "s"} assessed · ${calcCount} impact calculation${calcCount === 1 ? "" : "s"}`);
 
+  const recCount = areas.reduce(
+    (set, a) => {
+      (a.recommendedProducts || []).forEach((p) =>
+        set.add(p.productId || p.productName),
+      );
+      return set;
+    },
+    new Set<string>(),
+  ).size;
+
   const toc = [
     { n: "01", t: "Executive Summary", d: "Overall risk, metrics, distribution chart" },
     { n: "02", t: "Detailed Area Assessments", d: `${areaCount} area${areaCount === 1 ? "" : "s"} evaluated with risk analysis` },
     { n: "03", t: "Impact Energy Summary", d: calcCount > 0 ? "Per-area kinetic energy calculations" : "No impact calculations performed" },
-    { n: "04", t: "Implementation Roadmap", d: "Priority plan, timeline, and ROI drivers" },
-    { n: "05", t: "Methodology & References", d: "PAS 13, kinetic energy formula, risk criteria" },
-    { n: "06", t: "Next Steps", d: "How to action this report with A-SAFE" },
+    { n: "04", t: "Recommended A-SAFE Solutions", d: recCount > 0 ? `${recCount} product${recCount === 1 ? "" : "s"} proposed across the areas` : "Added once products are matched to areas" },
+    { n: "05", t: "Implementation Roadmap", d: "Priority plan, timeline, and ROI drivers" },
+    { n: "06", t: "Methodology & References", d: "PAS 13, kinetic energy formula, risk criteria" },
+    { n: "07", t: "Next Steps", d: "How to action this report with A-SAFE" },
   ];
   toc.forEach((e) => {
     setFont(10, "bold");
@@ -956,10 +1035,234 @@ export async function generateSiteSurveyPdf(
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // RECOMMENDED A-SAFE SOLUTIONS
+  //
+  // Consolidated palette of products recommended across all areas.
+  // Each row is a spec card mirroring the order-form Proposed Solutions
+  // style: joules hero, vehicle test, PAS 13 sections, feature bullets,
+  // and the areas where the product applies. Uses the catalog preload
+  // so we can enrich each recommendation with scrape-sourced content
+  // (full description, vehicleTest, feature list, applications).
+  // ═══════════════════════════════════════════════════════════════
+  type Rec = {
+    productId: string;
+    productName: string;
+    imageUrl?: string;
+    impactRating?: number;
+    price?: number;
+    areas: string[]; // area names where this product was recommended
+  };
+  const recMap = new Map<string, Rec>();
+  for (const a of areas) {
+    const list = a.recommendedProducts || [];
+    for (const p of list) {
+      const key = p.productId || p.productName;
+      if (!recMap.has(key)) {
+        recMap.set(key, {
+          productId: p.productId,
+          productName: p.productName,
+          imageUrl: p.imageUrl,
+          impactRating: p.impactRating,
+          price: p.price,
+          areas: [],
+        });
+      }
+      const entry = recMap.get(key)!;
+      if (a.areaName && !entry.areas.includes(a.areaName))
+        entry.areas.push(a.areaName);
+    }
+  }
+  const recs = Array.from(recMap.values());
+
+  if (recs.length > 0) {
+    await newPage();
+    sectionHeading(
+      "04 · Recommended A-SAFE Solutions",
+      `${recs.length} product${recs.length === 1 ? "" : "s"} proposed across the surveyed areas`,
+    );
+
+    // Preload each recommendation's image (catalog takes priority over
+    // the thumbnail snapshot the surveyor selected).
+    const resolved = await Promise.all(
+      recs.map(async (r) => {
+        const cat = matchSurveyCatalog(r.productName, surveyCatalog);
+        const url = r.imageUrl || cat?.imageUrl || null;
+        let img: { dataUrl: string; width: number; height: number } | null = null;
+        if (url) {
+          try {
+            img = await loadImage(url);
+          } catch {
+            img = null;
+          }
+        }
+        return { r, cat, img };
+      }),
+    );
+
+    const cardH = 78;
+    const imgBoxW = 44;
+    const statsColW = 38;
+
+    for (let i = 0; i < resolved.length; i++) {
+      const { r, cat, img } = resolved[i];
+      await needSpace(cardH + 6);
+      const cardY = yPosition;
+      const textX = margin + imgBoxW + 6;
+      const textW = contentWidth - imgBoxW - 6;
+      const infoColW = textW - statsColW - 4;
+
+      setFont(7, "bold");
+      setText(brand.yellowDark);
+      pdf.text(
+        `RECOMMENDATION ${String(i + 1).padStart(2, "0")}`,
+        margin,
+        cardY - 1,
+      );
+      hr(cardY, ink.line, 0.3);
+
+      // LEFT — image frame
+      if (img) {
+        const ratio = img.width / img.height;
+        let iw = imgBoxW;
+        let ih = iw / ratio;
+        if (ih > cardH - 4) {
+          ih = cardH - 4;
+          iw = ih * ratio;
+        }
+        const ox = margin + (imgBoxW - iw) / 2;
+        const oy = cardY + (cardH - ih) / 2;
+        setStroke(ink.line);
+        pdf.setLineWidth(0.2);
+        pdf.rect(margin, cardY + 2, imgBoxW, cardH - 4);
+        try {
+          pdf.addImage(img.dataUrl, "JPEG", ox, oy, iw, ih);
+        } catch {
+          /* ignore */
+        }
+      } else {
+        setFill(ink.surface);
+        pdf.rect(margin, cardY + 2, imgBoxW, cardH - 4, "F");
+        setFont(8, "italic");
+        setText(ink.subtle);
+        pdf.text("Image unavailable", margin + imgBoxW / 2, cardY + cardH / 2, {
+          align: "center",
+        });
+      }
+
+      // RIGHT — name + description
+      let ty = cardY + 6;
+      setFont(12, "bold");
+      setText(ink.black);
+      const nameLines = wrap(r.productName, infoColW);
+      pdf.text(nameLines[0], textX, ty);
+      ty += 5;
+      const desc = cat?.description || "";
+      if (desc) {
+        setFont(8, "normal");
+        setText(ink.body);
+        const lines = wrap(desc, infoColW).slice(0, 2);
+        pdf.text(lines, textX, ty);
+        ty += lines.length * 3.8 + 1;
+      }
+
+      // Feature bullets (from scraped catalog)
+      const features = (cat?.features ?? []).filter(Boolean).slice(0, 2);
+      features.forEach((f) => {
+        setFont(8, "bold");
+        setText(brand.yellowDark);
+        pdf.text("✓", textX, ty);
+        setFont(8, "normal");
+        setText(ink.body);
+        const fl = wrap(f, infoColW - 4).slice(0, 1);
+        pdf.text(fl[0], textX + 4, ty);
+        ty += 4;
+      });
+
+      // Areas this product addresses
+      if (r.areas.length > 0) {
+        ty += 2;
+        setFont(7, "bold");
+        setText(ink.muted);
+        pdf.text("ADDRESSES", textX, ty, { charSpace: 0.4 });
+        ty += 4;
+        setFont(8, "normal");
+        setText(ink.body);
+        const areaSummary = r.areas.slice(0, 4).join(" · ");
+        const al = wrap(areaSummary, infoColW).slice(0, 2);
+        pdf.text(al, textX, ty);
+        ty += al.length * 3.8;
+      }
+
+      // RIGHT — stats column (joules + PAS 13)
+      const statsX = textX + infoColW + 4;
+      const statsY = cardY + 6;
+      setFill(ink.surface);
+      pdf.rect(statsX, statsY - 1, statsColW, 32, "F");
+
+      const rating = r.impactRating ?? cat?.impactRating ?? null;
+      if (rating) {
+        setFont(18, "bold");
+        setText(ink.black);
+        pdf.text(`${rating.toLocaleString()}`, statsX + 2, statsY + 7);
+        setFont(7, "bold");
+        setText(ink.muted);
+        pdf.text("J RATED", statsX + 2, statsY + 11, { charSpace: 0.4 });
+      } else {
+        setFont(8, "italic");
+        setText(ink.muted);
+        pdf.text("Rating on", statsX + 2, statsY + 6);
+        pdf.text("request", statsX + 2, statsY + 10);
+      }
+
+      const vehicleTest =
+        (cat as any)?.vehicleTest ||
+        cat?.specifications?.vehicleTest ||
+        null;
+      if (vehicleTest) {
+        setFont(7, "bold");
+        setText(ink.muted);
+        pdf.text("TESTED AT", statsX + 2, statsY + 16, { charSpace: 0.4 });
+        setFont(7, "normal");
+        setText(ink.body);
+        const vtLines = wrap(vehicleTest, statsColW - 4).slice(0, 2);
+        pdf.text(vtLines, statsX + 2, statsY + 20);
+      }
+
+      if (cat?.pas13Compliant) {
+        const ribbonY = statsY + 28;
+        setFont(7, "bold");
+        setText(brand.yellowDark);
+        pdf.text("PAS 13", statsX + 2, ribbonY, { charSpace: 0.4 });
+        const sections = cat.pas13Sections || [];
+        setFont(7, "normal");
+        setText(ink.body);
+        pdf.text(
+          sections.length ? `§ ${sections.slice(0, 3).join(", ")}` : "Certified",
+          statsX + 14,
+          ribbonY,
+        );
+      }
+
+      yPosition = cardY + cardH + 4;
+    }
+
+    // Short explainer under the card stack
+    await needSpace(18);
+    yPosition += 4;
+    setFont(8, "italic");
+    setText(ink.muted);
+    const expl =
+      "Impact ratings shown are A-SAFE's tested performance under PAS 13:2017. Cross-reference with the kinetic energy calculated per area above; the recommended product should exceed the area's peak joules by a safety margin of 20% or more. Your A-SAFE consultant will confirm final selection during layout design.";
+    const explLines = wrap(expl, contentWidth);
+    pdf.text(explLines, margin, yPosition);
+    yPosition += explLines.length * 3.8 + 4;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // IMPLEMENTATION ROADMAP
   // ═══════════════════════════════════════════════════════════════
   await newPage();
-  sectionHeading("04 · Implementation Roadmap", "Recommended phasing based on risk level");
+  sectionHeading("05 · Implementation Roadmap", "Recommended phasing based on risk level");
 
   const phases = [
     { phase: "01", name: "IMMEDIATE",   range: "0-30 days",     focus: "Critical-risk areas",            color: risk.critical, count: breakdown.critical },
@@ -1030,7 +1333,7 @@ export async function generateSiteSurveyPdf(
   // ═══════════════════════════════════════════════════════════════
   await needSpace(80);
   yPosition += 6;
-  sectionHeading("05 · Methodology & References");
+  sectionHeading("06 · Methodology & References");
 
   // Risk level definitions table
   eyebrow("RISK LEVEL CRITERIA", margin, yPosition);
@@ -1094,7 +1397,7 @@ export async function generateSiteSurveyPdf(
   // NEXT STEPS
   // ═══════════════════════════════════════════════════════════════
   await newPage();
-  sectionHeading("06 · Next Steps", "How to action this survey with A-SAFE");
+  sectionHeading("07 · Next Steps", "How to action this survey with A-SAFE");
 
   const steps = [
     { n: "01", t: "Internal review",   d: "Share this report with your health & safety committee and operations team." },
