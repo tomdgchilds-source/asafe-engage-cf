@@ -965,6 +965,21 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
     // (400mm + 600mm Normal, 400mm + 600mm Cold Storage). Price per-unit
     // stays on the family rate card (AED 155.76 / AED 186.90); the variant
     // just carries the chosen height so the quote line is explicit.
+    // Hide every quote-only (unpriced) catalog entry. Preserves the row
+    // for later re-enable if a price lands, but the product list, cart,
+    // and search stop surfacing them.
+    if (c.req.query("hideQuoteOnly") === "1") {
+      const res = await db
+        .update(products)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(products.pricingLogic, "per_quote"))
+        .returning({ id: products.id, name: products.name });
+      report.hideQuoteOnly = {
+        deactivated: res.length,
+        names: res.map((r) => r.name),
+      };
+    }
+
     if (c.req.query("rackguard") === "1") {
       type RackFam = {
         familyName: string;

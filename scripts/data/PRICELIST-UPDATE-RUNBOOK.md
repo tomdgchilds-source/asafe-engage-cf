@@ -53,12 +53,15 @@ DATABASE_URL="<prod>" npx tsx scripts/loadPriceList.ts
 
 # 4. Merge the scraped asafe.com catalog once the scrape agent finishes
 #    (it writes scripts/data/asafe-catalog.json, now present — 68 products).
-#    --create-missing inserts scraped products that don't appear on the
-#    AED price list (Atlas series, mFlex series, RackEye, Under Guard,
-#    Padded Column Guard, iFlex Slide Gate, iFlex Swing Gate Long, etc.)
-#    as quote-only products (price=null, pricingLogic=per_quote).
-DATABASE_URL="<prod>" npx tsx scripts/mergeCatalog.ts --dry-run --create-missing
-DATABASE_URL="<prod>" npx tsx scripts/mergeCatalog.ts --create-missing
+#    By default this ONLY enriches existing priced products (images,
+#    specs, PAS 13, impact rating) — it does NOT create new rows.
+#
+#    --create-missing is available if you've sourced prices for the
+#    Atlas / mFlex / other catalog-only series and need them in the
+#    live app. Do NOT pass it otherwise — quote-only rows without
+#    pricing clutter the cart and were deliberately removed.
+DATABASE_URL="<prod>" npx tsx scripts/mergeCatalog.ts --dry-run
+DATABASE_URL="<prod>" npx tsx scripts/mergeCatalog.ts              # live, enrichment only
 
 # 5. Build + deploy.
 npm run deploy
