@@ -28,6 +28,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { GoogleMapSelector } from "./GoogleMapSelector";
 import { SiteReferenceUploader } from "./SiteReferenceUploader";
 import { ForkGuardKerbCalculator } from "./ForkGuardKerbCalculator";
+import { QuoteBuilderPanel } from "./QuoteBuilderPanel";
 import {
   calculateHeightRestrictorPricing as calcHeightRestrictor,
   calculateIFlexRailPricing as calcIFlexRail,
@@ -361,6 +362,14 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
   // Only show variants section if product explicitly has variants or there are real selectable variants
   const hasVariants = ((product as any).hasVariants === true && availableVariants.length > 0) || 
     availableVariants.length > 1;
+
+  // Catalog snapshot used by QuoteBuilderPanel so Height Restrictor /
+  // Swing Gate kits can resolve their sibling families (Post ↔ Top Rail /
+  // Gate ↔ Post) without a second round-trip.
+  const { data: allCatalogProducts = [] } = useQuery<any[]>({
+    queryKey: ["/api/products"],
+    enabled: open,
+  });
 
   // For FlexiShield Column Guard - fetch the grouped product and extract all variants
   const { data: allFlexiShieldProducts = [], isLoading: isLoadingFlexiShield } = useQuery({
@@ -1150,6 +1159,18 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           </DialogHeader>
 
         <div className="space-y-4">
+          {/* Quote Builder panel — renders for per-length barriers + kit
+              products (Height Restrictor, Swing Gate). Rep enters total
+              length or kit dimensions and the cart gets the right lines
+              in one click. Falls back silently to the standard picker for
+              products that don't match. */}
+          <QuoteBuilderPanel
+            product={product as any}
+            allProducts={allCatalogProducts}
+            onComplete={() => {
+              handleOpenChange(false);
+            }}
+          />
           {/* Product Info Card — always shown at top, especially useful for single-SKU items like Spacer Set */}
           {(() => {
             const isSpacerKit = product.name.toLowerCase().includes("spacer");

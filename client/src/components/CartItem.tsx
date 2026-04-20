@@ -212,6 +212,18 @@ export function CartItem({
                   Survey
                 </Badge>
               )}
+              {/* Product taxonomy badges from the catalog (NEW flag from the
+                  2025v1 price list, Cold Storage from the CS product variants). */}
+              {productDetails?.isNew && (
+                <Badge className="text-[10px] px-1.5 py-0 font-bold tracking-wider bg-[#FFC72C] text-black hover:bg-[#FFC72C]">
+                  NEW
+                </Badge>
+              )}
+              {productDetails?.isColdStorage && (
+                <Badge className="text-[10px] px-1.5 py-0 bg-cyan-500 text-white hover:bg-cyan-500">
+                  Cold Storage
+                </Badge>
+              )}
               {!item.impactCalculationId && !item.solutionContext && !item.layoutDrawingId && !item.siteSurveyId && (
                 <Badge variant="outline" className="text-xs px-1.5 py-0 bg-gray-50 border-gray-300">
                   <Package className="h-3 w-3 mr-1" />

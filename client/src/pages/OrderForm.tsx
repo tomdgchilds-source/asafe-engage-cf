@@ -215,6 +215,10 @@ export function OrderForm() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
   const [customOrderNumber, setCustomOrderNumber] = useState("");
+  // Controls the optional 2-3 page "About A-SAFE" brand appendix on the
+  // generated PDF. Off by default so standard quotes don't ship ten pages
+  // of marketing; flip it on for premium / first-time customers.
+  const [includeBrandOverview, setIncludeBrandOverview] = useState(false);
   const technicalCanvasRef = useRef<HTMLCanvasElement>(null);
   const commercialCanvasRef = useRef<HTMLCanvasElement>(null);
   const marketingCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -854,7 +858,9 @@ export function OrderForm() {
     });
   };
 
-  const downloadPDF = async () => {
+  const downloadPDF = async (
+    opts: { includeBrandOverview?: boolean } = {},
+  ) => {
     if (!orderData) {
       haptic.error();
       toast({
@@ -1024,6 +1030,7 @@ export function OrderForm() {
         // orderData.includeBrandOverview OR by passing ?brand=1 in the
         // URL (for quick demo PDFs).
         includeBrandOverview:
+          !!opts.includeBrandOverview ||
           !!(orderData as any).includeBrandOverview ||
           new URLSearchParams(window.location.search).get("brand") === "1",
       };
@@ -1712,10 +1719,30 @@ export function OrderForm() {
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </Button>
-                <Button onClick={downloadPDF} variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    onClick={() => downloadPDF({ includeBrandOverview })}
+                    variant="outline"
+                    size="sm"
+                    data-testid="button-download-pdf"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </Button>
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
+                    title="Adds a 2-3 page About A-SAFE brand appendix after the cover"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeBrandOverview}
+                      onChange={(e) => setIncludeBrandOverview(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#FFC72C] focus:ring-[#FFC72C]"
+                      data-testid="checkbox-brand-overview"
+                    />
+                    Include brand overview
+                  </label>
+                </div>
                 <Button onClick={handleReviseOrder} variant="outline" size="sm" className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800">
                   <Edit3 className="h-4 w-4 mr-2" />
                   Revise Order

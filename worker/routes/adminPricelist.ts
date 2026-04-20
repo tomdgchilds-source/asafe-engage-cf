@@ -926,6 +926,100 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
       report.cleanup = { deleted };
     }
 
+    // Deactivate legacy rows that have been superseded by 2025v1 price-list
+    // rows. Preserves order history (is_active=false, not delete) so quotes
+    // already referencing these names still resolve for audit.
+    if (c.req.query("deactivateLegacy") === "1") {
+      const legacyNames = [
+        // Step-2 duplicates
+        "iFlex Single Traffic Barrier",
+        "iFlex Double Traffic Barrier",
+        "iFlex Single Traffic Barrier+",
+        "iFlex Double Traffic Barrier+",
+        "eFlex Single Traffic Barrier+",
+        "eFlex Single Rack End Barrier",
+        "eFlex Double Rack End Barrier",
+        "HD ForkGuard Kerb Barrier",
+        "ForkGuard Kerb Barrier",
+        "FlexiShield Column Guard Spacer Set",
+        "iFlex RackGuard",
+        "iFlex Height Restrictor",
+        "Slider Plate",
+        "Hydraulic Swing Gate, Self-Close",
+        // Step-3 overview page with no price
+        "Monoplex Bollard",
+      ];
+      let deactivated = 0;
+      for (const name of legacyNames) {
+        const res = await db
+          .update(products)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(products.name, name))
+          .returning({ id: products.id });
+        deactivated += res.length;
+      }
+      report.deactivateLegacy = { deactivated, attempted: legacyNames.length };
+    }
+
+    // Rebuild RackGuard families into 4 variants across 2 families
+    // (400mm + 600mm Normal, 400mm + 600mm Cold Storage). Price per-unit
+    // stays on the family rate card (AED 155.76 / AED 186.90); the variant
+    // just carries the chosen height so the quote line is explicit.
+    if (c.req.query("rackguard") === "1") {
+      type RackFam = {
+        familyName: string;
+        priceAed: number;
+        heights: number[];
+      };
+      const fams: RackFam[] = [
+        {
+          familyName: "RackGuard - Multiple height and profile sizes",
+          priceAed: 155.76,
+          heights: [400, 600],
+        },
+        {
+          familyName:
+            "Cold Storage RackGuard - Multiple height and profile sizes",
+          priceAed: 186.9,
+          heights: [400, 600],
+        },
+      ];
+      const rgReport: Array<{ family: string; variantsCreated: number }> = [];
+      for (const fam of fams) {
+        const rows = await db
+          .select()
+          .from(products)
+          .where(eq(products.name, fam.familyName))
+          .limit(1);
+        if (!rows[0]) continue;
+        const productId = rows[0].id;
+        await db
+          .delete(productVariants)
+          .where(eq(productVariants.productId, productId));
+        await db.insert(productVariants).values(
+          fam.heights.map((h) => ({
+            productId,
+            sku: null,
+            name: `${fam.familyName.replace(/ - Multiple.*$/, "")} - ${h}mm`,
+            variantType: "size",
+            kind: null,
+            lengthMm: null,
+            widthMm: null,
+            heightMm: h,
+            dimensionLabel: `${h}mm height`,
+            colorLabel: null,
+            priceAed: fam.priceAed.toFixed(2),
+            currency: "AED",
+            isNew: false,
+            isActive: true,
+            metadata: null,
+          })),
+        );
+        rgReport.push({ family: fam.familyName, variantsCreated: fam.heights.length });
+      }
+      report.rackguard = rgReport;
+    }
+
     if (doSchema) {
       await ensureSchema(db);
       report.schema = "ok";
