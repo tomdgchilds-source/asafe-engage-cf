@@ -44,7 +44,9 @@ import {
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 
 interface LayoutProps {
   children: ReactNode;
@@ -53,10 +55,25 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated } = useAuth();
   const [location] = useLocation();
+  const haptic = useHapticFeedback();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => {
+    // Persist to localStorage so the sidebar remembers which sections are open.
+    try {
+      const stored = localStorage.getItem("expandedCategories");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  });
+
+  // Sync expanded state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("expandedCategories", JSON.stringify(expandedCategories));
+    } catch {}
+  }, [expandedCategories]);
   
   // Track scroll position for header effects
   useEffect(() => {
@@ -138,6 +155,7 @@ export function Layout({ children }: LayoutProps) {
       name: "Support & Info",
       icon: HelpCircle,
       items: [
+        { name: "Help Center", href: "/help", icon: BookOpen, external: false },
         { name: "FAQs", href: "/faqs", icon: HelpCircle, external: false },
         { name: "About", href: "/about", icon: Info, external: false },
         { name: "Contact", href: "/contact", icon: Phone, external: false },
@@ -153,18 +171,25 @@ export function Layout({ children }: LayoutProps) {
   ], []);
 
   const toggleCategory = (categoryName: string) => {
-    setExpandedCategories(prev => 
-      prev.includes(categoryName) 
+    haptic.toggle();
+    setExpandedCategories(prev =>
+      prev.includes(categoryName)
         ? prev.filter(name => name !== categoryName)
         : [...prev, categoryName]
     );
   };
 
   const handleLogout = () => {
+    haptic.medium();
     window.location.href = "/api/logout";
   };
 
-  const NavItems = ({ onItemClick, isMobile = false }: { onItemClick?: () => void; isMobile?: boolean }) => (
+  const NavItems = ({ onItemClick, isMobile = false }: { onItemClick?: () => void; isMobile?: boolean }) => {
+    const handleNavClick = () => {
+      haptic.pageTransition();
+      onItemClick?.();
+    };
+    return (
     <>
       {navigationCategories.map((category) => {
         const CategoryIcon = category.icon;
@@ -203,7 +228,7 @@ export function Layout({ children }: LayoutProps) {
                           variant="ghost"
                           className="w-full justify-start text-foreground hover:bg-muted hover:text-primary h-auto py-2 px-3 text-left whitespace-normal transition-colors"
                           data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
-                          onClick={onItemClick}
+                          onClick={handleNavClick}
                         >
                           <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
                           <span className="text-sm">{item.name}</span>
@@ -211,19 +236,19 @@ export function Layout({ children }: LayoutProps) {
                       </a>
                     );
                   }
-                  
+
                   return (
                     <Link key={item.name} href={item.href}>
                       <Button
                         variant={isActive ? "default" : "ghost"}
                         className={cn(
                           "w-full justify-start transition-colors duration-100 h-auto py-2 px-3 text-left whitespace-normal",
-                          isActive 
-                            ? "bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold" 
+                          isActive
+                            ? "bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold"
                             : "text-foreground hover:bg-[#FFC72C]/10 hover:text-foreground"
                         )}
                         data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
-                        onClick={onItemClick}
+                        onClick={handleNavClick}
                       >
                         <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
                         <span className="text-sm">{item.name}</span>
@@ -238,6 +263,7 @@ export function Layout({ children }: LayoutProps) {
       })}
     </>
   );
+  };
 
   if (!isAuthenticated) {
     return (
@@ -319,8 +345,9 @@ export function Layout({ children }: LayoutProps) {
               </Link>
             </div>
 
-            {/* Center Section - Currency Selector & Theme Toggle for desktop */}
-            <div className="hidden md:flex items-center justify-center space-x-4">
+            {/* Center Section - Project switcher + Currency Selector & Theme Toggle for desktop */}
+            <div className="hidden md:flex items-center justify-center space-x-3">
+              <ProjectSwitcher />
               <CurrencySelector />
               <ThemeToggle />
             </div>

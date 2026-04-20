@@ -68,17 +68,22 @@ export default function Resources() {
     },
   ];
 
-  // Product categories based on actual database content
+  // Product categories — counts computed live from the resources we actually have
+  const byCategory = (cat: string) =>
+    Array.isArray(resources) ? resources.filter((r: Resource) => r.category === cat).length : 0;
+
   const productCategories = [
-    { value: "Impact Testing", label: "Impact Testing", icon: Shield, count: 49 },
-    { value: "Traffic Barriers", label: "Traffic Barriers", icon: Package, count: 10 },
-    { value: "PAS 13 Standards", label: "PAS 13 Standards", icon: Shield, count: 7 },
-    { value: "Bollards", label: "Bollards", icon: Building2, count: 6 },
-    { value: "Rack Protection", label: "Rack Protection", icon: Package, count: 6 },
-    { value: "Gates", label: "Gates & Access", icon: Package, count: 5 },
-    { value: "Column Protection", label: "Column Protection", icon: Building2, count: 4 },
-    { value: "Pedestrian Barriers", label: "Pedestrian Safety", icon: Shield, count: 3 },
-  ];
+    { value: "Traffic Barriers", label: "Traffic Barriers", icon: Package, count: byCategory("Traffic Barriers") },
+    { value: "Rack Protection", label: "Rack Protection", icon: Package, count: byCategory("Rack Protection") },
+    { value: "Column Protection", label: "Column Protection", icon: Building2, count: byCategory("Column Protection") },
+    { value: "Bollards", label: "Bollards", icon: Building2, count: byCategory("Bollards") },
+    { value: "Kerb Barriers", label: "Kerb Barriers", icon: Package, count: byCategory("Kerb Barriers") },
+    { value: "Gates & Access", label: "Gates & Access", icon: Package, count: byCategory("Gates & Access") },
+    { value: "Height Restrictors", label: "Height Restrictors", icon: Shield, count: byCategory("Height Restrictors") },
+    { value: "Safety Standards", label: "Safety Standards", icon: Shield, count: byCategory("Safety Standards") },
+    { value: "Applications", label: "Industry Guides", icon: Package, count: byCategory("Applications") },
+    { value: "Virtual Tours", label: "Virtual Tours", icon: Video, count: byCategory("Virtual Tours") },
+  ].filter((c) => c.count > 0); // hide empty categories
 
   const handleDownload = async (resource: Resource) => {
     // Track the download

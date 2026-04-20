@@ -241,8 +241,8 @@ function analyzeVehicleThreats(problemData: any): any {
   
   // Also analyze selected vehicle types
   vehicleTypes.forEach((vehicleType: string) => {
-    if (VEHICLE_CHARACTERISTICS[vehicleType]) {
-      const vehicle = VEHICLE_CHARACTERISTICS[vehicleType];
+    if (vehicleType in VEHICLE_CHARACTERISTICS) {
+      const vehicle = VEHICLE_CHARACTERISTICS[vehicleType as keyof typeof VEHICLE_CHARACTERISTICS];
       analysis.vehicles.push({
         type: vehicleType,
         ...vehicle
@@ -270,8 +270,8 @@ function analyzeVehicleThreats(problemData: any): any {
 }
 
 function analyzeWorkplaceRisks(problemData: any): any {
-  const workplaceType = problemData.workplaceType;
-  const risks = WORKPLACE_HAZARDS[workplaceType] || {
+  const workplaceType = problemData.workplaceType as string;
+  const risks = (WORKPLACE_HAZARDS as Record<string, typeof WORKPLACE_HAZARDS[keyof typeof WORKPLACE_HAZARDS]>)[workplaceType] || {
     primaryHazards: ['general-collision'],
     commonVehicles: ['vehicle'],
     riskAreas: ['general-area']
@@ -342,7 +342,7 @@ async function matchProductsIntelligently(
   // Score each product family and return with all variants
   const matches = Array.from(productFamilies.entries()).map(([familyName, familyProducts]) => {
     // Sort variants by impact rating for better presentation
-    const sortedVariants = familyProducts.sort((a, b) => 
+    const sortedVariants = familyProducts.sort((a: any, b: any) =>
       (a.impactRating || 0) - (b.impactRating || 0)
     );
     
@@ -390,8 +390,8 @@ async function matchProductsIntelligently(
       score: Math.round(score),
       matchingReasons: reasons.slice(0, 4), // Top 4 reasons
       impactRange: {
-        min: Math.min(...sortedVariants.map(p => p.impactRating || 0)),
-        max: Math.max(...sortedVariants.map(p => p.impactRating || 0))
+        min: Math.min(...sortedVariants.map((p: any) => p.impactRating || 0)),
+        max: Math.max(...sortedVariants.map((p: any) => p.impactRating || 0))
       }
     };
   });
@@ -418,9 +418,9 @@ function assessCategoryRelevance(category: string, workplaceRisks: any, safetyCo
     'bollards': ['perimeter-security', 'vehicle-stopping']
   };
   
-  const relevantHazards = categoryHazardMapping[category] || [];
-  const matchingHazards = workplaceRisks.primaryHazards.filter(hazard => 
-    relevantHazards.some(relevant => hazard.includes(relevant.split('-')[0]))
+  const relevantHazards = (categoryHazardMapping as Record<string, string[]>)[category] || [];
+  const matchingHazards = workplaceRisks.primaryHazards.filter((hazard: string) =>
+    relevantHazards.some((relevant: string) => hazard.includes(relevant.split('-')[0]))
   );
   
   if (matchingHazards.length > 0) {
@@ -507,7 +507,7 @@ function assessIndustryMatch(product: any, problemData: any, workplaceRisks: any
     'office': ['public-sector', 'healthcare', 'education']
   };
   
-  const relevantIndustries = workplaceIndustryMapping[problemData.workplaceType] || [];
+  const relevantIndustries = (workplaceIndustryMapping as Record<string, string[]>)[problemData.workplaceType] || [];
   
   if (problemData.industry && relevantIndustries.includes(problemData.industry)) {
     score = 35;
@@ -526,7 +526,7 @@ function assessVehicleCompatibility(product: any, vehicleAnalysis: any, safetyCo
   
   if (vehicleAnalysis.vehicles && vehicleAnalysis.vehicles.length > 0) {
     const highestRiskVehicle = vehicleAnalysis.vehicles
-      .sort((a, b) => b.impactEnergy - a.impactEnergy)[0];
+      .sort((a: any, b: any) => b.impactEnergy - a.impactEnergy)[0];
     
     // Match product category to vehicle type
     const vehicleCategoryMapping = {
@@ -536,7 +536,7 @@ function assessVehicleCompatibility(product: any, vehicleAnalysis: any, safetyCo
       'pallet_jack': ['pedestrian-barriers', 'rack-protection']
     };
     
-    const suitableCategories = vehicleCategoryMapping[highestRiskVehicle.type] || [];
+    const suitableCategories = (vehicleCategoryMapping as Record<string, string[]>)[highestRiskVehicle.type] || [];
     
     if (suitableCategories.includes(product.category)) {
       score = 45;
@@ -717,8 +717,8 @@ function analyzeWorkplaceContextMatch(caseStudy: any, problemData: any, safetyCo
     'office': ['office', 'building', 'corporate', 'workplace']
   };
   
-  const relevantTerms = workplaceTerms[problemData.workplaceType] || [];
-  const matchingTerms = relevantTerms.filter(term => caseStudyText.includes(term));
+  const relevantTerms = (workplaceTerms as Record<string, string[]>)[problemData.workplaceType] || [];
+  const matchingTerms = relevantTerms.filter((term: string) => caseStudyText.includes(term));
   
   if (matchingTerms.length > 0) {
     score += matchingTerms.length * 20;
@@ -749,7 +749,7 @@ function matchRelevantResources(
       const productName = productMatch.product.name.toLowerCase();
       const productWords = productName.split(' ');
       
-      if (productWords.some(word => resourceText.includes(word) && word.length > 3)) {
+      if (productWords.some((word: string) => resourceText.includes(word) && word.length > 3)) {
         score += 40;
         reasons.push(`Related to recommended ${productMatch.product.name}`);
       }
@@ -767,8 +767,8 @@ function matchRelevantResources(
       'Video Guides': 20
     };
     
-    if (categoryRelevance[resource.category]) {
-      score += categoryRelevance[resource.category];
+    if ((categoryRelevance as Record<string, number>)[resource.category]) {
+      score += (categoryRelevance as Record<string, number>)[resource.category];
       reasons.push(`Essential ${resource.category.toLowerCase()}`);
     }
     

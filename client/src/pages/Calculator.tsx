@@ -27,7 +27,7 @@ export default function Calculator() {
         <VehicleImpactCalculator />
 
         {/* Information Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mt-6 sm:mt-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-6 sm:mt-12">
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="p-4 sm:p-6 text-center">
               <Shield className="h-8 w-8 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-3 sm:mb-4" />

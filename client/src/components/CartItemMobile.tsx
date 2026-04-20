@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus, Edit, Package } from "lucide-react";
+import { useLocation } from "wouter";
 
 interface CartItemMobileProps {
   item: any;
@@ -32,13 +33,14 @@ export function CartItemMobile({
   removeItemMutation
 }: CartItemMobileProps) {
   
+  const [, setLocation] = useLocation();
   const productDetails = getProductDetails(item.productName);
   const productId = productDetails?.id;
   const imageUrl = getProductImage(item.productName);
 
   const handleProductClick = () => {
     if (productDetails) {
-      window.location.href = `/products/${productDetails.id}`;
+      setLocation(`/products/${productDetails.id}`);
     }
   };
 

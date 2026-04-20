@@ -46,7 +46,8 @@ export function GlobalSearch() {
       if (!debouncedSearch || debouncedSearch.length < 2) {
         return { products: [], resources: [], caseStudies: [], orders: [], faqs: [] };
       }
-      return apiRequest(`/api/search?q=${encodeURIComponent(debouncedSearch)}&type=${selectedType}`, 'GET');
+      const res = await apiRequest(`/api/search?q=${encodeURIComponent(debouncedSearch)}&type=${selectedType}`, 'GET');
+      return await res.json() as SearchResult;
     },
     enabled: debouncedSearch.length >= 2,
   });

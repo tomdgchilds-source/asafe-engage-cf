@@ -1,30 +1,31 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
+import { getQueryFn } from "@/lib/queryClient";
 
 export function useAuth() {
-  const [hasInitialCheck, setHasInitialCheck] = useState(false);
-  
-  const { data: user, isLoading, error } = useQuery({
+  const hasFetched = useRef(false);
+
+  const { data: user, isLoading: queryLoading, isFetched, error } = useQuery({
     queryKey: ["/api/auth/user"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 30 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   useEffect(() => {
-    // Mark initial check as complete after first load
-    if (!isLoading) {
-      setHasInitialCheck(true);
+    if (isFetched) {
+      hasFetched.current = true;
     }
-  }, [isLoading]);
+  }, [isFetched]);
 
-  // For mobile, consider user as not authenticated if there's an error
-  // This prevents hanging on network issues
-  const isAuthenticated = !error && !!user;
+  // isLoading is true until we've completed at least one fetch
+  const isLoading = !hasFetched.current && !isFetched;
+  const isAuthenticated = !!user;
 
   return {
     user,
-    isLoading: isLoading && !hasInitialCheck,
+    isLoading,
     isAuthenticated,
     error,
   };

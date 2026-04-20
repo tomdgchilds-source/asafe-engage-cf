@@ -102,5 +102,20 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
   }
 
   await createSession(c, user);
+
+  // Fire-and-forget activity log
+  try {
+    c.executionCtx.waitUntil(
+      storage.logUserActivity({
+        userId: user.id,
+        activityType: "login",
+        section: "auth",
+        details: { method: "email" },
+        ipAddress: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined,
+        userAgent: c.req.header("user-agent") || undefined,
+      })
+    );
+  } catch {}
+
   return c.json({ ok: true });
 }

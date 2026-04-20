@@ -1,7 +1,16 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-// Import A-SAFE logo - Secondary Version with strapline for better visibility on colored backgrounds
-import asafeLogoImg from '../../../attached_assets/A-SAFE_Logo_Strapline_Secondary_Version_1767686263231.png';
+import jsPDF from "jspdf";
+import asafeLogoImg from "../../../attached_assets/A-SAFE_Logo_Strapline_Secondary_Version_1767686263231.png";
+
+// ═══════════════════════════════════════════════════════════════
+// A-SAFE ENGAGE — Site Survey PDF Generator (v2)
+//
+// Redesigned to a consulting-grade aesthetic:
+//  • clean typography, generous whitespace, hairline rules
+//  • yellow used only as an accent (not as background noise)
+//  • data-first: counts computed from actual area data, not stale DB fields
+//  • information-dense: photos, impact calc, recommended products per area
+//  • consistent header / footer across every page
+// ═══════════════════════════════════════════════════════════════
 
 interface SurveyArea {
   id: string;
@@ -17,6 +26,7 @@ interface SurveyArea {
   impactAngle?: number;
   calculatedJoules?: number;
   photosUrls?: string[];
+  matterportUrl?: string;
   recommendedProducts?: Array<{
     productId: string;
     productName: string;
@@ -36,18 +46,8 @@ interface SiteSurvey {
   overallRiskLevel?: string;
   totalAreasReviewed?: number;
   totalImpactCalculations?: number;
-  riskBreakdown?: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-  };
-  conditionBreakdown?: {
-    critical: number;
-    damaged: number;
-    unprotected: number;
-    good: number;
-  };
+  riskBreakdown?: { critical: number; high: number; medium: number; low: number };
+  conditionBreakdown?: { critical: number; damaged: number; unprotected: number; good: number };
   createdAt?: string;
   updatedAt?: string;
   requestedByName?: string;
@@ -55,80 +55,6 @@ interface SiteSurvey {
   requestedByEmail?: string;
   requestedByMobile?: string;
   companyLogoUrl?: string;
-}
-
-// Risk & Benefit data
-const applicationAreaData = {
-  "WorkStation(s)": {
-    risk: "Employees seated close to vehicle routes remain exposed while distracted. Basic, non-tested barriers are easily damaged and ineffective against real impacts.",
-    benefit: "Impact-rated barriers shield staff, reduce repeat maintenance, and prevent costly downtime from accidents."
-  },
-  "Pedestrian Walkways": {
-    risk: "Painted lines alone offer no protection. Pedestrians are exposed to vehicles, blocked routes, and poor driver visibility.",
-    benefit: "Physical barriers safely segregate pedestrians, maintain evacuation routes, and improve MHE efficiency with fewer obstacles."
-  },
-  "Crossing Points / Entry & Exits": {
-    risk: "Staff crossing high-traffic or blind spots are vulnerable. Painted markings fail to stop vehicles or distracted pedestrians.",
-    benefit: "Guided crossings and barriers provide safe, visible, and controlled movement across vehicle zones."
-  },
-  "Racking": {
-    risk: "Vehicle impacts compromise racking integrity, risking collapse, product loss, and costly replacement.",
-    benefit: "Barriers preserve racking stability, prevent collapse, and protect both staff and stored goods."
-  },
-  "Shutter Doors": {
-    risk: "Vehicle damage disrupts workflows, reduces loading capacity, and compromises environmental control.",
-    benefit: "Robust barriers protect doors, maintain security, efficiency, and climate control, while avoiding repair downtime."
-  },
-  "Cold Store Walls": {
-    risk: "Insulated panels are easily damaged, causing temperature loss, product spoilage, and high repair costs.",
-    benefit: "Barriers prevent panel damage, preserve goods, reduce energy waste, and avoid operational disruption."
-  },
-  "Fire Hose Cabinets": {
-    risk: "Impact damage can render firefighting equipment unusable, delaying emergency response.",
-    benefit: "Barriers ensure cabinets remain accessible and operational, protecting staff, assets, and compliance."
-  },
-  "Columns (Structural / Mezzanine)": {
-    risk: "Impacts from vehicles can damage structural or mezzanine columns, threatening building integrity.",
-    benefit: "Impact-rated barriers absorb collisions, protect structures, and prevent costly facility repairs."
-  },
-  "Overhead Pipework / Cables": {
-    risk: "Overhead utilities are often overlooked. Impacts can disrupt power, processing, or CCTV, causing downtime.",
-    benefit: "Barriers protect critical infrastructure, ensuring uninterrupted power and operations."
-  },
-  "Loading Docks": {
-    risk: "Forklifts risk falling 1–2m from raised docks, endangering operators and damaging equipment.",
-    benefit: "Barriers eliminate fall hazards, safeguard operators, and maintain safe, continuous loading operations."
-  },
-  "Processing Machines": {
-    risk: "Vehicle collisions can cause severe equipment damage, downtime, and injury or fatalities.",
-    benefit: "Barriers protect machinery, prevent production halts, and safeguard employees from life-threatening risks."
-  },
-  "Electrical DBs": {
-    risk: "Impact damage risks short circuits, outages, fires, and prolonged downtime from complex repairs.",
-    benefit: "Barriers maintain power continuity, reduce outage risks, and mitigate fire hazards."
-  }
-};
-
-// Helper function to load image and get dimensions
-async function loadImageWithAspectRatio(imagePath: string): Promise<{ dataUrl: string; width: number; height: number }> {
-  const response = await fetch(imagePath);
-  const blob = await response.blob();
-  
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    const img = new Image();
-    
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      img.onload = () => {
-        resolve({ dataUrl, width: img.width, height: img.height });
-      };
-      img.onerror = reject;
-      img.src = dataUrl;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
 
 interface UserProfile {
@@ -142,1004 +68,1079 @@ interface UserProfile {
   company?: string;
 }
 
+// Risk/benefit explainer copy keyed to area type.
+const applicationAreaData: Record<string, { risk: string; benefit: string }> = {
+  "WorkStation(s)": {
+    risk: "Employees seated close to vehicle routes remain exposed while distracted. Basic, non-tested barriers are easily damaged and ineffective against real impacts.",
+    benefit: "Impact-rated barriers shield staff, reduce repeat maintenance, and prevent costly downtime from accidents.",
+  },
+  "Pedestrian Walkways": {
+    risk: "Painted lines alone offer no protection. Pedestrians are exposed to vehicles, blocked routes, and poor driver visibility.",
+    benefit: "Physical barriers safely segregate pedestrians, maintain evacuation routes, and improve MHE efficiency with fewer obstacles.",
+  },
+  "Crossing Points / Entry & Exits": {
+    risk: "Staff crossing high-traffic or blind spots are vulnerable. Painted markings fail to stop vehicles or distracted pedestrians.",
+    benefit: "Guided crossings and barriers provide safe, visible, and controlled movement across vehicle zones.",
+  },
+  Racking: {
+    risk: "Vehicle impacts compromise racking integrity, risking collapse, product loss, and costly replacement.",
+    benefit: "Barriers preserve racking stability, prevent collapse, and protect both staff and stored goods.",
+  },
+  "Shutter Doors": {
+    risk: "Vehicle damage disrupts workflows, reduces loading capacity, and compromises environmental control.",
+    benefit: "Robust barriers protect doors, maintain security, efficiency, and climate control, while avoiding repair downtime.",
+  },
+  "Cold Store Walls": {
+    risk: "Insulated panels are easily damaged, causing temperature loss, product spoilage, and high repair costs.",
+    benefit: "Barriers prevent panel damage, preserve goods, reduce energy waste, and avoid operational disruption.",
+  },
+  "Fire Hose Cabinets": {
+    risk: "Impact damage can render firefighting equipment unusable, delaying emergency response.",
+    benefit: "Barriers ensure cabinets remain accessible and operational, protecting staff, assets, and compliance.",
+  },
+  "Columns (Structural / Mezzanine)": {
+    risk: "Impacts from vehicles can damage structural or mezzanine columns, threatening building integrity.",
+    benefit: "Impact-rated barriers absorb collisions, protect structures, and prevent costly facility repairs.",
+  },
+  "Overhead Pipework / Cables": {
+    risk: "Overhead utilities are often overlooked. Impacts can disrupt power, processing, or CCTV, causing downtime.",
+    benefit: "Barriers protect critical infrastructure, ensuring uninterrupted power and operations.",
+  },
+  "Loading Docks": {
+    risk: "Forklifts risk falling 1–2m from raised docks, endangering operators and damaging equipment.",
+    benefit: "Barriers eliminate fall hazards, safeguard operators, and maintain safe, continuous loading operations.",
+  },
+  "Processing Machines": {
+    risk: "Vehicle collisions can cause severe equipment damage, downtime, and injury or fatalities.",
+    benefit: "Barriers protect machinery, prevent production halts, and safeguard employees from life-threatening risks.",
+  },
+  "Electrical DBs": {
+    risk: "Impact damage risks short circuits, outages, fires, and prolonged downtime from complex repairs.",
+    benefit: "Barriers maintain power continuity, reduce outage risks, and mitigate fire hazards.",
+  },
+};
+
+// Load an image URL as a data URI with dimensions — throws on failure.
+// CRITICAL: /api/objects/* URLs on our own domain require auth cookies.
+// We pass credentials: "include" so user-uploaded photos (R2/KV backed)
+// actually come through instead of silently returning 401.
+async function loadImage(src: string): Promise<{ dataUrl: string; width: number; height: number }> {
+  // Absolute-path URLs (/api/...) need the domain prepended so fetch treats them as same-origin.
+  let fetchUrl = src;
+  if (src.startsWith("/")) {
+    fetchUrl = window.location.origin + src;
+  }
+
+  // Include credentials for same-origin fetches so auth-gated /api/objects/* URLs work.
+  const sameOrigin = fetchUrl.startsWith(window.location.origin);
+  const response = await fetch(fetchUrl, sameOrigin ? { credentials: "include" } : {});
+
+  if (!response.ok) throw new Error(`Image HTTP ${response.status}: ${src}`);
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.startsWith("image/")) throw new Error(`Not an image (${contentType}): ${src}`);
+  const blob = await response.blob();
+  if (blob.size === 0) throw new Error(`Empty image: ${src}`);
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const img = new Image();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      img.onload = () => resolve({ dataUrl, width: img.width, height: img.height });
+      img.onerror = () => reject(new Error(`Decode failed: ${src}`));
+      img.src = dataUrl;
+    };
+    reader.onerror = () => reject(new Error(`Reader failed: ${src}`));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN GENERATOR
+// ═══════════════════════════════════════════════════════════════
+
 export async function generateSiteSurveyPdf(
   survey: SiteSurvey,
   areas: SurveyArea[],
-  userProfile?: UserProfile
+  userProfile?: UserProfile,
 ): Promise<void> {
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 20;
-  const contentWidth = pageWidth - (margin * 2);
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();      // 210
+  const pageHeight = pdf.internal.pageSize.getHeight();    // 297
+  const margin = 18;
+  const contentWidth = pageWidth - margin * 2;             // 174
   let yPosition = 0;
   let currentPageNum = 1;
 
-  // A-SAFE Brand Colors
-  const yellowColor: [number, number, number] = [255, 199, 44]; // #FFC72C
-  const blackColor: [number, number, number] = [0, 0, 0]; // #000000
-  const grayColor: [number, number, number] = [128, 128, 128];
-  const lightGrayColor: [number, number, number] = [245, 245, 245];
-  const darkGrayColor: [number, number, number] = [64, 64, 64];
-  const borderGrayColor: [number, number, number] = [200, 200, 200];
-
-  // Risk Level Colors
-  const riskColors = {
-    critical: [220, 38, 38] as [number, number, number], // Red
-    high: [251, 146, 60] as [number, number, number], // Orange
-    medium: [255, 199, 44] as [number, number, number], // Yellow (A-SAFE Yellow)
-    low: [34, 197, 94] as [number, number, number] // Green
+  // ───── Design tokens ──────────────────────────────────────────
+  const ink = {
+    black: [17, 24, 39] as [number, number, number],     // #111827
+    heading: [15, 23, 42] as [number, number, number],   // #0F172A
+    body: [55, 65, 81] as [number, number, number],      // #374151
+    muted: [107, 114, 128] as [number, number, number],  // #6B7280
+    subtle: [156, 163, 175] as [number, number, number], // #9CA3AF
+    line: [229, 231, 235] as [number, number, number],   // #E5E7EB
+    softLine: [243, 244, 246] as [number, number, number], // #F3F4F6
+    surface: [249, 250, 251] as [number, number, number], // #F9FAFB
+    white: [255, 255, 255] as [number, number, number],
+  };
+  const brand = {
+    yellow: [255, 199, 44] as [number, number, number],   // #FFC72C
+    yellowDark: [202, 138, 4] as [number, number, number],// #CA8A04
+  };
+  const risk = {
+    critical: [220, 38, 38] as [number, number, number],  // red-600
+    high: [234, 88, 12] as [number, number, number],      // orange-600
+    medium: [202, 138, 4] as [number, number, number],    // amber-600
+    low: [22, 163, 74] as [number, number, number],       // green-600
+    none: ink.muted,
   };
 
-  // Helper function to add page footer
-  const addPageFooter = () => {
-    const footerY = pageHeight - 15;
-    
-    // Footer separator line
-    pdf.setDrawColor(...borderGrayColor);
-    pdf.setLineWidth(0.3);
-    pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-    
-    // A-SAFE contact information
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...darkGrayColor);
-    
-    // Left side - UAE office details
-    pdf.text('A-SAFE UAE', margin, footerY);
-    pdf.text('Office 220, Building A5, Dubai South Business Park', margin, footerY + 3);
-    pdf.text('Tel: +971 (4) 8842 422', margin, footerY + 6);
-    
-    // Center - Website
-    pdf.text('www.asafe.com', pageWidth / 2, footerY, { align: 'center' });
-    
-    // Right side - Page number and timestamp
-    const timestamp = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    pdf.text(`Page ${currentPageNum}`, pageWidth - margin, footerY, { align: 'right' });
-    pdf.text(timestamp, pageWidth - margin, footerY + 3, { align: 'right' });
+  const riskColorFor = (level?: string): [number, number, number] => {
+    const k = (level || "").toLowerCase();
+    if (k === "critical") return risk.critical;
+    if (k === "high") return risk.high;
+    if (k === "medium") return risk.medium;
+    if (k === "low") return risk.low;
+    return risk.none;
   };
 
-  // Footer height includes: separator line at footerY-5, contact info (3 lines ~9mm) + padding = ~20mm total
-  const footerHeight = 22;
-  const safeContentBottom = pageHeight - footerHeight;
-  
-  // Helper function to check if we need a new page
-  const checkNewPage = async (requiredSpace: number, skipFooter: boolean = false) => {
-    if (yPosition + requiredSpace > safeContentBottom) {
-      if (!skipFooter) {
-        addPageFooter();
-      }
-      pdf.addPage();
-      currentPageNum++;
-      yPosition = margin;
-      await addPageHeader();
-      return true;
-    }
-    return false;
+  // ───── Data computed from actual areas (not stale DB fields) ──
+  const areaCount = areas.length;
+  const calcCount = areas.filter((a) => typeof a.calculatedJoules === "number" && a.calculatedJoules > 0).length;
+  const breakdown = {
+    critical: areas.filter((a) => a.riskLevel?.toLowerCase() === "critical").length,
+    high:     areas.filter((a) => a.riskLevel?.toLowerCase() === "high").length,
+    medium:   areas.filter((a) => a.riskLevel?.toLowerCase() === "medium").length,
+    low:      areas.filter((a) => a.riskLevel?.toLowerCase() === "low").length,
+  };
+  const criticalHigh = breakdown.critical + breakdown.high;
+  const recommendedCount = areas.filter((a) => (a.recommendedProducts?.length || 0) > 0).length;
+  const computedOverallRisk = breakdown.critical > 0 ? "critical"
+                            : breakdown.high > 0     ? "high"
+                            : breakdown.medium > 0   ? "medium"
+                            : breakdown.low > 0      ? "low"
+                            : "not assessed";
+  const overallRisk = (survey.overallRiskLevel && survey.overallRiskLevel !== "low") ? survey.overallRiskLevel
+                    : computedOverallRisk;
+  const reportRef = `SS-${survey.id.substring(0, 8).toUpperCase()}`;
+  const assessmentDate = survey.createdAt
+    ? new Date(survey.createdAt).toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
+    : new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" });
+
+  // ───── Primitives ─────────────────────────────────────────────
+  const setFill = (c: [number, number, number]) => pdf.setFillColor(c[0], c[1], c[2]);
+  const setStroke = (c: [number, number, number]) => pdf.setDrawColor(c[0], c[1], c[2]);
+  const setText = (c: [number, number, number]) => pdf.setTextColor(c[0], c[1], c[2]);
+
+  const setFont = (size: number, weight: "normal" | "bold" = "normal") => {
+    pdf.setFontSize(size);
+    pdf.setFont("helvetica", weight);
   };
 
-  // Helper function to add page header (for pages after the first)
-  const addPageHeader = async () => {
-    // Yellow accent bar at top
-    pdf.setFillColor(...yellowColor);
-    pdf.rect(0, 0, pageWidth, 4, 'F');
-    
-    // Small A-SAFE logo with proper aspect ratio
+  // Hairline horizontal rule
+  const hr = (y: number, color: [number, number, number] = ink.line, width = 0.3) => {
+    setStroke(color);
+    pdf.setLineWidth(width);
+    pdf.line(margin, y, pageWidth - margin, y);
+  };
+
+  // ───── Header (pages 2+) ──────────────────────────────────────
+  const pageHeader = async () => {
+    // Thin yellow accent strip
+    setFill(brand.yellow);
+    pdf.rect(0, 0, pageWidth, 2, "F");
+
+    // Logo
     try {
-      const logoData = await loadImageWithAspectRatio(asafeLogoImg);
-      // Calculate proper dimensions maintaining aspect ratio
-      const logoMaxWidth = 35;
-      const logoMaxHeight = 12;
-      let logoDisplayWidth = logoMaxWidth;
-      let logoDisplayHeight = logoMaxHeight;
-      
-      const aspectRatio = logoData.width / logoData.height;
-      if (aspectRatio > logoMaxWidth / logoMaxHeight) {
-        logoDisplayHeight = logoMaxWidth / aspectRatio;
-      } else {
-        logoDisplayWidth = logoMaxHeight * aspectRatio;
-      }
-      
-      pdf.addImage(logoData.dataUrl, 'PNG', margin, 6, logoDisplayWidth, logoDisplayHeight);
-    } catch (error) {
-      console.error('Failed to load logo for header:', error);
-    }
-    
-    // Report reference
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...grayColor);
-    pdf.text(`Site Survey Report - ${survey.facilityName}`, pageWidth - margin, 10, { align: 'right' });
-    pdf.text(`Ref: SS-${survey.id.substring(0, 8).toUpperCase()}`, pageWidth - margin, 14, { align: 'right' });
-    
-    yPosition = 22;
+      const logo = await loadImage(asafeLogoImg);
+      const maxW = 28, maxH = 10;
+      const ratio = logo.width / logo.height;
+      const w = ratio > maxW / maxH ? maxW : maxH * ratio;
+      const h = ratio > maxW / maxH ? maxW / ratio : maxH;
+      pdf.addImage(logo.dataUrl, "PNG", margin, 7, w, h);
+    } catch {}
+
+    // Right-side meta
+    setFont(7, "normal");
+    setText(ink.muted);
+    pdf.text("SITE SURVEY REPORT", pageWidth - margin, 10, { align: "right" });
+    setFont(7, "bold");
+    setText(ink.black);
+    pdf.text(`${survey.facilityName.toUpperCase()} · ${reportRef}`, pageWidth - margin, 14, { align: "right" });
+
+    // Bottom hairline
+    hr(20);
+    yPosition = 28;
   };
 
-  // COVER PAGE - Professional Design
-  yPosition = 0;
-  
-  // Yellow header bar
-  pdf.setFillColor(...yellowColor);
-  pdf.rect(0, 0, pageWidth, 50, 'F');
-  
-  // Add A-SAFE logo with white background for visibility
-  try {
-    const logoData = await loadImageWithAspectRatio(asafeLogoImg);
-    // Calculate proper dimensions maintaining aspect ratio
-    const logoMaxWidth = 65;
-    const logoMaxHeight = 22;
-    let logoDisplayWidth = logoMaxWidth;
-    let logoDisplayHeight = logoMaxHeight;
-    
-    const aspectRatio = logoData.width / logoData.height;
-    if (aspectRatio > logoMaxWidth / logoMaxHeight) {
-      logoDisplayHeight = logoMaxWidth / aspectRatio;
-    } else {
-      logoDisplayWidth = logoMaxHeight * aspectRatio;
+  // ───── Footer (every page) ────────────────────────────────────
+  const pageFooter = () => {
+    const y = pageHeight - 12;
+    hr(y - 6);
+
+    // Left — short company line (leaves room for centre + right)
+    setFont(7, "normal");
+    setText(ink.muted);
+    pdf.text("A-SAFE  |  +971 (4) 8842 422  |  sales@asafe.ae", margin, y - 2);
+
+    // Centre — website (brand accent)
+    setFont(7, "bold");
+    setText(brand.yellowDark);
+    pdf.text("www.asafe.com", pageWidth / 2, y - 2, { align: "center" });
+
+    // Right — confidential + page no.
+    setFont(7, "normal");
+    setText(ink.muted);
+    pdf.text(`CONFIDENTIAL  |  Page ${currentPageNum}`, pageWidth - margin, y - 2, { align: "right" });
+  };
+
+  const footerSafeBottom = pageHeight - 22;
+
+  const newPage = async () => {
+    pageFooter();
+    pdf.addPage();
+    currentPageNum++;
+    yPosition = 0;
+    await pageHeader();
+  };
+
+  // Reserve space at bottom of page if needed
+  const needSpace = async (required: number) => {
+    if (yPosition + required > footerSafeBottom) {
+      await newPage();
     }
-    
-    // Add white rounded background behind logo for visibility
-    const logoPadding = 4;
-    pdf.setFillColor(255, 255, 255);
-    pdf.roundedRect(
-      margin - logoPadding/2, 
-      14 - logoPadding/2, 
-      logoDisplayWidth + logoPadding, 
-      logoDisplayHeight + logoPadding, 
-      3, 3, 'F'
-    );
-    
-    // Add the logo without stretching
-    pdf.addImage(logoData.dataUrl, 'PNG', margin, 14, logoDisplayWidth, logoDisplayHeight);
-  } catch (error) {
-    console.error('Failed to load logo:', error);
+  };
+
+  // ───── Design helpers ─────────────────────────────────────────
+
+  // Section heading: yellow 3mm vertical bar + black caps title
+  const sectionHeading = (text: string, subtitle?: string) => {
+    const barH = subtitle ? 14 : 10;
+    setFill(brand.yellow);
+    pdf.rect(margin, yPosition, 1.5, barH, "F");
+    setFont(15, "bold");
+    setText(ink.heading);
+    pdf.text(text.toUpperCase(), margin + 5, yPosition + 7);
+    if (subtitle) {
+      setFont(9, "normal");
+      setText(ink.muted);
+      pdf.text(subtitle, margin + 5, yPosition + 12);
+    }
+    yPosition += barH + 6;
+  };
+
+  // Small muted label / eyebrow
+  const eyebrow = (text: string, x: number, y: number) => {
+    setFont(7, "bold");
+    setText(ink.muted);
+    pdf.text(text.toUpperCase(), x, y, { charSpace: 0.5 });
+  };
+
+  // Risk tag: small colored dot + label
+  const riskTag = (level: string, x: number, y: number) => {
+    const c = riskColorFor(level);
+    setFill(c);
+    pdf.circle(x + 1.2, y - 1.2, 1.2, "F");
+    setFont(8, "bold");
+    setText(c);
+    pdf.text(level.toUpperCase(), x + 3.6, y);
+  };
+
+  // Text-wrapping helpers
+  const wrap = (text: string, maxW: number): string[] => {
+    return pdf.splitTextToSize(text, maxW) as string[];
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 1 — COVER
+  // ═══════════════════════════════════════════════════════════════
+  // Top yellow strip (4mm)
+  setFill(brand.yellow);
+  pdf.rect(0, 0, pageWidth, 3, "F");
+
+  // Logo (top-left, breathing room)
+  try {
+    const logo = await loadImage(asafeLogoImg);
+    const maxW = 46, maxH = 16;
+    const ratio = logo.width / logo.height;
+    const w = ratio > maxW / maxH ? maxW : maxH * ratio;
+    const h = ratio > maxW / maxH ? maxW / ratio : maxH;
+    pdf.addImage(logo.dataUrl, "PNG", margin, 16, w, h);
+  } catch {}
+
+  // Right-side meta: ref + date
+  setFont(8, "normal");
+  setText(ink.muted);
+  pdf.text(`REPORT REF · ${reportRef}`, pageWidth - margin, 20, { align: "right" });
+  pdf.text(`ISSUED · ${assessmentDate}`, pageWidth - margin, 25, { align: "right" });
+
+  // Hero title (upper third of page)
+  yPosition = 64;
+  setFont(10, "bold");
+  setText(brand.yellowDark);
+  pdf.text("A-SAFE SITE SURVEY", margin, yPosition, { charSpace: 1.5 });
+
+  yPosition += 12;
+  setFont(34, "bold");
+  setText(ink.heading);
+  pdf.text("Safety Assessment", margin, yPosition);
+  yPosition += 12;
+  pdf.text("& Risk Analysis", margin, yPosition);
+
+  yPosition += 14;
+  hr(yPosition, ink.line, 0.5);
+  yPosition += 10;
+
+  // Client block
+  setFont(8, "bold");
+  setText(ink.muted);
+  pdf.text("PREPARED FOR", margin, yPosition, { charSpace: 1 });
+  yPosition += 8;
+  setFont(22, "bold");
+  setText(ink.black);
+  pdf.text(survey.facilityName, margin, yPosition);
+
+  yPosition += 8;
+  setFont(11, "normal");
+  setText(ink.body);
+  pdf.text(survey.facilityLocation, margin, yPosition);
+
+  if (survey.title && survey.title.trim() && survey.title !== survey.facilityName) {
+    yPosition += 6;
+    setFont(10, "normal");
+    setText(ink.muted);
+    pdf.text(survey.title, margin, yPosition);
   }
-  
-  // Report title on yellow background
-  pdf.setFontSize(28);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('SITE SURVEY REPORT', pageWidth - margin, 25, { align: 'right' });
-  
-  pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Safety Assessment & Risk Analysis', pageWidth - margin, 35, { align: 'right' });
-  
-  yPosition = 60;
-  
-  // Client company logo if available
+
+  // Optional customer logo (right side, same vertical range)
   if (survey.companyLogoUrl) {
     try {
-      const companyLogoData = await loadImageWithAspectRatio(survey.companyLogoUrl);
-      const logoMaxWidth = 70;
-      const logoMaxHeight = 35;
-      let logoDisplayWidth = logoMaxWidth;
-      let logoDisplayHeight = logoMaxHeight;
-      
-      const aspectRatio = companyLogoData.width / companyLogoData.height;
-      if (aspectRatio > logoMaxWidth / logoMaxHeight) {
-        logoDisplayHeight = logoMaxWidth / aspectRatio;
-      } else {
-        logoDisplayWidth = logoMaxHeight * aspectRatio;
-      }
-      
-      // Center the logo
-      pdf.addImage(companyLogoData.dataUrl, 'PNG', 
-        pageWidth / 2 - logoDisplayWidth / 2, 
-        yPosition, 
-        logoDisplayWidth, 
-        logoDisplayHeight
-      );
-      yPosition += logoDisplayHeight + 15;
-    } catch (error) {
-      console.error('Failed to load company logo:', error);
-    }
+      const l = await loadImage(survey.companyLogoUrl);
+      const maxW = 40, maxH = 26;
+      const ratio = l.width / l.height;
+      const w = ratio > maxW / maxH ? maxW : maxH * ratio;
+      const h = ratio > maxW / maxH ? maxW / ratio : maxH;
+      pdf.addImage(l.dataUrl, "PNG", pageWidth - margin - w, 118, w, h);
+    } catch {}
   }
-  
-  // Facility Information Card
-  pdf.setFillColor(...lightGrayColor);
-  pdf.roundedRect(margin, yPosition, contentWidth, 45, 4, 4, 'F');
-  pdf.setDrawColor(...borderGrayColor);
-  pdf.setLineWidth(0.5);
-  pdf.roundedRect(margin, yPosition, contentWidth, 45, 4, 4, 'S');
-  
-  yPosition += 10;
-  pdf.setFontSize(20);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text(survey.facilityName.toUpperCase(), pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 10;
-  pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(survey.title, pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 8;
-  pdf.setFontSize(12);
-  pdf.setTextColor(...darkGrayColor);
-  pdf.text(survey.facilityLocation, pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 8;
-  const assessmentDate = survey.createdAt ? new Date(survey.createdAt).toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  }) : new Date().toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  pdf.text(`Assessment Date: ${assessmentDate}`, pageWidth / 2, yPosition, { align: 'center' });
-  
-  yPosition += 25;
-  
-  // Assessment Details Cards (side by side)
-  const cardWidth = (contentWidth - 10) / 2;
-  
-  // Left Card - Facility Contact
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(margin, yPosition, cardWidth, 70, 4, 4, 'F');
-  pdf.setDrawColor(...borderGrayColor);
-  pdf.roundedRect(margin, yPosition, cardWidth, 70, 4, 4, 'S');
-  
-  // Yellow accent for header
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin, yPosition, cardWidth, 12, 4, 4, 'F');
-  pdf.rect(margin, yPosition + 6, cardWidth, 6, 'F'); // Square bottom to connect
-  
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('FACILITY CONTACT', margin + cardWidth/2, yPosition + 8, { align: 'center' });
-  
-  let leftCardY = yPosition + 20;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.setTextColor(...darkGrayColor);
-  
-  if (survey.requestedByName) {
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(survey.requestedByName, margin + 5, leftCardY);
-    pdf.setFont('helvetica', 'normal');
-    leftCardY += 6;
-  }
-  
-  if (survey.requestedByPosition) {
-    pdf.text(survey.requestedByPosition, margin + 5, leftCardY);
-    leftCardY += 6;
-  }
-  
-  if (survey.requestedByEmail) {
-    pdf.text(survey.requestedByEmail, margin + 5, leftCardY);
-    leftCardY += 6;
-  }
-  
-  if (survey.requestedByMobile) {
-    pdf.text(survey.requestedByMobile, margin + 5, leftCardY);
-  }
-  
-  // Right Card - Assessment By
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(margin + cardWidth + 10, yPosition, cardWidth, 70, 4, 4, 'F');
-  pdf.setDrawColor(...borderGrayColor);
-  pdf.roundedRect(margin + cardWidth + 10, yPosition, cardWidth, 70, 4, 4, 'S');
-  
-  // Yellow accent for header
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin + cardWidth + 10, yPosition, cardWidth, 12, 4, 4, 'F');
-  pdf.rect(margin + cardWidth + 10, yPosition + 6, cardWidth, 6, 'F');
-  
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('ASSESSMENT BY', margin + cardWidth + 10 + cardWidth/2, yPosition + 8, { align: 'center' });
-  
-  let rightCardY = yPosition + 20;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.setTextColor(...darkGrayColor);
-  
-  if (userProfile) {
-    const fullName = `${userProfile.firstName || ''} ${userProfile.lastName || ''}`.trim() || 'A-SAFE Consultant';
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(fullName, margin + cardWidth + 15, rightCardY);
-    pdf.setFont('helvetica', 'normal');
-    rightCardY += 6;
-    
-    if (userProfile.jobTitle) {
-      pdf.text(userProfile.jobTitle, margin + cardWidth + 15, rightCardY);
-      rightCardY += 6;
-    }
-    
-    pdf.text(userProfile.company || 'A-SAFE', margin + cardWidth + 15, rightCardY);
-    rightCardY += 6;
-    
-    if (userProfile.email) {
-      pdf.text(userProfile.email, margin + cardWidth + 15, rightCardY);
-      rightCardY += 6;
-    }
-    
-    if (userProfile.phone) {
-      pdf.text(userProfile.phone, margin + cardWidth + 15, rightCardY);
-    }
-  } else {
-    pdf.text('A-SAFE Safety Consultant', margin + cardWidth + 15, rightCardY);
-  }
-  
-  // Report ID at bottom
-  yPosition = pageHeight - 40;
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(...grayColor);
-  pdf.text(`Report ID: SS-${survey.id.substring(0, 8).toUpperCase()}`, pageWidth / 2, yPosition, { align: 'center' });
-  
-  // Add footer to first page
-  addPageFooter();
 
-  // EXECUTIVE SUMMARY PAGE
-  pdf.addPage();
-  currentPageNum++;
-  yPosition = margin;
-  
-  // Page header
-  pdf.setFillColor(...yellowColor);
-  pdf.rect(0, 0, pageWidth, 4, 'F');
-  
-  // Section title with yellow accent
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin, yPosition, 8, 12, 2, 2, 'F');
-  pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('EXECUTIVE SUMMARY', margin + 12, yPosition + 9);
-  
-  yPosition += 20;
-  
-  // Overall Risk Assessment Card
-  const riskLevel = survey.overallRiskLevel || 'not assessed';
-  const riskColor = riskColors[riskLevel as keyof typeof riskColors] || grayColor;
-  
-  // Risk level banner with gradient effect
-  pdf.setFillColor(...riskColor);
-  pdf.roundedRect(margin, yPosition, contentWidth, 20, 4, 4, 'F');
-  
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('OVERALL FACILITY RISK LEVEL', pageWidth / 2, yPosition + 8, { align: 'center' });
-  pdf.setFontSize(20);
-  pdf.text(riskLevel.toUpperCase(), pageWidth / 2, yPosition + 16, { align: 'center' });
-  
-  yPosition += 30;
-  
-  // Key Metrics Cards - Professional Grid Layout
-  const metricCardHeight = 35;
-  const metricCardWidth = (contentWidth - 20) / 3;
-  
-  // Card 1 - Areas Reviewed
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(margin, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'F');
-  pdf.setDrawColor(...yellowColor);
-  pdf.setLineWidth(2);
-  pdf.roundedRect(margin, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'S');
-  
-  pdf.setTextColor(...darkGrayColor);
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('AREAS REVIEWED', margin + metricCardWidth/2, yPosition + 10, { align: 'center' });
-  
-  pdf.setTextColor(...blackColor);
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(String(survey.totalAreasReviewed || 0), margin + metricCardWidth/2, yPosition + 25, { align: 'center' });
-  
-  // Card 2 - Impact Calculations
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(margin + metricCardWidth + 10, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'F');
-  pdf.setDrawColor(...yellowColor);
-  pdf.setLineWidth(2);
-  pdf.roundedRect(margin + metricCardWidth + 10, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'S');
-  
-  pdf.setTextColor(...darkGrayColor);
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('IMPACT CALCULATIONS', margin + metricCardWidth + 10 + metricCardWidth/2, yPosition + 10, { align: 'center' });
-  
-  pdf.setTextColor(...blackColor);
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(String(survey.totalImpactCalculations || 0), margin + metricCardWidth + 10 + metricCardWidth/2, yPosition + 25, { align: 'center' });
-  
-  // Card 3 - Critical/High Risk Areas
-  const criticalCount = (survey.riskBreakdown?.critical || 0) + (survey.riskBreakdown?.high || 0);
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(margin + (metricCardWidth + 10) * 2, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'F');
-  const borderColor = criticalCount > 0 ? riskColors.high : yellowColor;
-  pdf.setDrawColor(...borderColor);
-  pdf.setLineWidth(2);
-  pdf.roundedRect(margin + (metricCardWidth + 10) * 2, yPosition, metricCardWidth, metricCardHeight, 4, 4, 'S');
-  
-  pdf.setTextColor(...darkGrayColor);
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('CRITICAL/HIGH RISK', margin + (metricCardWidth + 10) * 2 + metricCardWidth/2, yPosition + 10, { align: 'center' });
-  
-  pdf.setTextColor(...(criticalCount > 0 ? riskColors.high : blackColor));
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(String(criticalCount), margin + (metricCardWidth + 10) * 2 + metricCardWidth/2, yPosition + 25, { align: 'center' });
-  
-  yPosition += metricCardHeight + 15;
-  
-  // Risk Distribution Analysis with Visual Chart
-  if (survey.riskBreakdown) {
-    pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(...blackColor);
-    pdf.text('Risk Distribution Analysis', margin, yPosition);
-    yPosition += 10;
-    
-    const total = (survey.riskBreakdown.critical || 0) + (survey.riskBreakdown.high || 0) + 
-                  (survey.riskBreakdown.medium || 0) + (survey.riskBreakdown.low || 0);
-    
-    if (total > 0) {
-      // Background for chart
-      pdf.setFillColor(...lightGrayColor);
-      pdf.roundedRect(margin, yPosition, contentWidth, 15, 2, 2, 'F');
-      
-      const barHeight = 15;
-      let barX = margin;
-      
-      // Draw segments with proper rounding
-      if (survey.riskBreakdown.critical > 0) {
-        const width = (survey.riskBreakdown.critical / total) * contentWidth;
-        pdf.setFillColor(...riskColors.critical);
-        pdf.rect(barX, yPosition, width, barHeight, 'F');
-        barX += width;
-      }
-      
-      if (survey.riskBreakdown.high > 0) {
-        const width = (survey.riskBreakdown.high / total) * contentWidth;
-        pdf.setFillColor(...riskColors.high);
-        pdf.rect(barX, yPosition, width, barHeight, 'F');
-        barX += width;
-      }
-      
-      if (survey.riskBreakdown.medium > 0) {
-        const width = (survey.riskBreakdown.medium / total) * contentWidth;
-        pdf.setFillColor(...riskColors.medium);
-        pdf.rect(barX, yPosition, width, barHeight, 'F');
-        barX += width;
-      }
-      
-      if (survey.riskBreakdown.low > 0) {
-        const width = (survey.riskBreakdown.low / total) * contentWidth;
-        pdf.setFillColor(...riskColors.low);
-        pdf.rect(barX, yPosition, width, barHeight, 'F');
-      }
-      
-      yPosition += barHeight + 8;
-      
-      // Legend with percentages
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      let legendX = margin;
-      const legendSpacing = contentWidth / 4;
-      
-      if (survey.riskBreakdown.critical > 0) {
-        pdf.setFillColor(...riskColors.critical);
-        pdf.circle(legendX + 2, yPosition, 2, 'F');
-        const percentage = ((survey.riskBreakdown.critical / total) * 100).toFixed(0);
-        pdf.setTextColor(...blackColor);
-        pdf.text(`Critical: ${survey.riskBreakdown.critical} (${percentage}%)`, legendX + 6, yPosition + 1);
-        legendX += legendSpacing;
-      }
-      
-      if (survey.riskBreakdown.high > 0) {
-        pdf.setFillColor(...riskColors.high);
-        pdf.circle(legendX + 2, yPosition, 2, 'F');
-        const percentage = ((survey.riskBreakdown.high / total) * 100).toFixed(0);
-        pdf.text(`High: ${survey.riskBreakdown.high} (${percentage}%)`, legendX + 6, yPosition + 1);
-        legendX += legendSpacing;
-      }
-      
-      if (survey.riskBreakdown.medium > 0) {
-        pdf.setFillColor(...riskColors.medium);
-        pdf.circle(legendX + 2, yPosition, 2, 'F');
-        const percentage = ((survey.riskBreakdown.medium / total) * 100).toFixed(0);
-        pdf.text(`Medium: ${survey.riskBreakdown.medium} (${percentage}%)`, legendX + 6, yPosition + 1);
-        legendX += legendSpacing;
-      }
-      
-      if (survey.riskBreakdown.low > 0) {
-        pdf.setFillColor(...riskColors.low);
-        pdf.circle(legendX + 2, yPosition, 2, 'F');
-        const percentage = ((survey.riskBreakdown.low / total) * 100).toFixed(0);
-        pdf.text(`Low: ${survey.riskBreakdown.low} (${percentage}%)`, legendX + 6, yPosition + 1);
-      }
-      
-      yPosition += 15;
-    }
-  }
-  
-  // Key Findings Summary
-  yPosition += 10;
-  pdf.setFillColor(255, 250, 240);
-  pdf.roundedRect(margin, yPosition, contentWidth, 50, 4, 4, 'F');
-  pdf.setDrawColor(...yellowColor);
-  pdf.setLineWidth(1);
-  pdf.roundedRect(margin, yPosition, contentWidth, 50, 4, 4, 'S');
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('KEY FINDINGS', margin + 5, yPosition + 10);
-  
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  const keyFindings = [
-    `• ${areas.length} areas assessed for workplace safety risks`,
-    `• ${areas.filter(a => a.calculatedJoules).length} impact energy calculations performed`,
-    `• ${areas.filter(a => a.riskLevel === 'critical' || a.riskLevel === 'high').length} areas require immediate safety improvements`,
-    `• ${areas.filter(a => a.recommendedProducts && a.recommendedProducts.length > 0).length} areas have safety solutions identified`
+  // Contact cards near bottom — clean two-column with thin rule
+  const contactY = 190;
+  hr(contactY);
+  const colW = contentWidth / 2 - 5;
+
+  eyebrow("PREPARED BY", margin, contactY + 8);
+  setFont(12, "bold");
+  setText(ink.black);
+  const repName = userProfile
+    ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || "A-SAFE Consultant"
+    : "A-SAFE Consultant";
+  pdf.text(repName, margin, contactY + 15);
+
+  setFont(9, "normal");
+  setText(ink.muted);
+  let by = contactY + 21;
+  if (userProfile?.jobTitle) { pdf.text(userProfile.jobTitle, margin, by); by += 5; }
+  pdf.text(userProfile?.company || "A-SAFE", margin, by); by += 5;
+  if (userProfile?.email) { pdf.text(userProfile.email, margin, by); by += 5; }
+  if (userProfile?.phone) { pdf.text(userProfile.phone, margin, by); }
+
+  const rightX = margin + colW + 10;
+  eyebrow("FACILITY CONTACT", rightX, contactY + 8);
+  setFont(12, "bold");
+  setText(ink.black);
+  pdf.text(survey.requestedByName || "—", rightX, contactY + 15);
+
+  setFont(9, "normal");
+  setText(ink.muted);
+  let fy = contactY + 21;
+  if (survey.requestedByPosition) { pdf.text(survey.requestedByPosition, rightX, fy); fy += 5; }
+  if (survey.facilityName) { pdf.text(survey.facilityName, rightX, fy); fy += 5; }
+  if (survey.requestedByEmail) { pdf.text(survey.requestedByEmail, rightX, fy); fy += 5; }
+  if (survey.requestedByMobile) { pdf.text(survey.requestedByMobile, rightX, fy); }
+
+  // Bottom confidential stripe
+  const confY = pageHeight - 24;
+  hr(confY, ink.line);
+  setFont(8, "bold");
+  setText(ink.muted);
+  pdf.text("CONFIDENTIAL", margin, confY + 6, { charSpace: 1.5 });
+  setFont(8, "normal");
+  pdf.text(`A-SAFE DWC-LLC · ${reportRef}`, pageWidth / 2, confY + 6, { align: "center" });
+  setFont(8, "bold");
+  setText(brand.yellowDark);
+  pdf.text("www.asafe.com", pageWidth - margin, confY + 6, { align: "right" });
+
+  pageFooter();
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 2 — TABLE OF CONTENTS + SCOPE
+  // ═══════════════════════════════════════════════════════════════
+  await newPage();
+  sectionHeading("Contents", `${areaCount} area${areaCount === 1 ? "" : "s"} assessed · ${calcCount} impact calculation${calcCount === 1 ? "" : "s"}`);
+
+  const toc = [
+    { n: "01", t: "Executive Summary", d: "Overall risk, metrics, distribution chart" },
+    { n: "02", t: "Detailed Area Assessments", d: `${areaCount} area${areaCount === 1 ? "" : "s"} evaluated with risk analysis` },
+    { n: "03", t: "Impact Energy Summary", d: calcCount > 0 ? "Per-area kinetic energy calculations" : "No impact calculations performed" },
+    { n: "04", t: "Implementation Roadmap", d: "Priority plan, timeline, and ROI drivers" },
+    { n: "05", t: "Methodology & References", d: "PAS 13, kinetic energy formula, risk criteria" },
+    { n: "06", t: "Next Steps", d: "How to action this report with A-SAFE" },
   ];
-  
-  let findingsY = yPosition + 18;
-  keyFindings.forEach(finding => {
-    pdf.text(finding, margin + 5, findingsY);
-    findingsY += 7;
+  toc.forEach((e) => {
+    setFont(10, "bold");
+    setText(brand.yellowDark);
+    pdf.text(e.n, margin, yPosition + 5);
+
+    setFont(12, "bold");
+    setText(ink.black);
+    pdf.text(e.t, margin + 14, yPosition + 5);
+
+    setFont(9, "normal");
+    setText(ink.muted);
+    pdf.text(e.d, margin + 14, yPosition + 10);
+
+    yPosition += 16;
+    hr(yPosition - 3, ink.softLine);
   });
-  
-  // Add footer
-  addPageFooter();
 
-  // DETAILED AREA ASSESSMENTS
-  pdf.addPage();
-  currentPageNum++;
-  yPosition = margin;
-  await addPageHeader();
-  
-  // Section title
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin, yPosition, 8, 12, 2, 2, 'F');
-  pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('DETAILED AREA ASSESSMENTS', margin + 12, yPosition + 9);
-  yPosition += 20;
+  // Scope summary block
+  yPosition += 6;
+  eyebrow("SURVEY SCOPE", margin, yPosition);
+  yPosition += 5;
+  hr(yPosition, ink.line);
+  yPosition += 6;
 
-  // Process each area with professional formatting
+  const scopeRows: Array<[string, string]> = [
+    ["Facility", survey.facilityName],
+    ["Location", survey.facilityLocation],
+    ["Assessment date", assessmentDate],
+    ["Areas assessed", String(areaCount)],
+    ["Overall risk", overallRisk.toUpperCase()],
+  ];
+  scopeRows.forEach(([k, v]) => {
+    setFont(9, "normal");
+    setText(ink.muted);
+    pdf.text(k, margin, yPosition);
+    setFont(9, "bold");
+    setText(ink.black);
+    pdf.text(v, margin + 45, yPosition);
+    yPosition += 6;
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 3 — EXECUTIVE SUMMARY
+  // ═══════════════════════════════════════════════════════════════
+  await newPage();
+  sectionHeading("01 · Executive Summary");
+
+  // Overall risk banner — thin with colored bar, not a giant filled box
+  const riskC = riskColorFor(overallRisk);
+  setFill(riskC);
+  pdf.rect(margin, yPosition, 1.5, 18, "F");
+
+  setFont(8, "bold");
+  setText(ink.muted);
+  pdf.text("OVERALL FACILITY RISK LEVEL", margin + 5, yPosition + 7, { charSpace: 1 });
+
+  setFont(20, "bold");
+  setText(riskC);
+  pdf.text(overallRisk.toUpperCase(), margin + 5, yPosition + 15);
+
+  // Right-side one-line summary
+  setFont(9, "normal");
+  setText(ink.body);
+  const summaryText = criticalHigh > 0
+    ? `${criticalHigh} area${criticalHigh === 1 ? "" : "s"} require immediate attention`
+    : (areaCount > 0 ? "No critical or high-risk areas identified" : "No areas surveyed yet");
+  pdf.text(summaryText, pageWidth - margin, yPosition + 15, { align: "right" });
+
+  yPosition += 26;
+  hr(yPosition);
+  yPosition += 8;
+
+  // Three-column key metric row
+  const metrics: Array<{ label: string; value: string; tint?: [number, number, number] }> = [
+    { label: "Areas assessed", value: String(areaCount) },
+    { label: "Impact calculations", value: String(calcCount) },
+    { label: "Critical / high-risk", value: String(criticalHigh), tint: criticalHigh > 0 ? risk.high : undefined },
+  ];
+  const cellW = contentWidth / 3;
+  metrics.forEach((m, i) => {
+    const x = margin + cellW * i;
+    eyebrow(m.label, x, yPosition);
+    setFont(28, "bold");
+    setText(m.tint || ink.heading);
+    pdf.text(m.value, x, yPosition + 14);
+  });
+  yPosition += 22;
+  hr(yPosition);
+  yPosition += 10;
+
+  // Risk distribution bar chart — real, with data
+  eyebrow("RISK DISTRIBUTION", margin, yPosition);
+  yPosition += 6;
+
+  const total = breakdown.critical + breakdown.high + breakdown.medium + breakdown.low;
+  if (total > 0) {
+    const barH = 10;
+    let x = margin;
+    const segments: Array<[number, [number, number, number]]> = [
+      [breakdown.critical, risk.critical],
+      [breakdown.high, risk.high],
+      [breakdown.medium, risk.medium],
+      [breakdown.low, risk.low],
+    ];
+    segments.forEach(([count, color]) => {
+      if (count > 0) {
+        const w = (count / total) * contentWidth;
+        setFill(color);
+        pdf.rect(x, yPosition, w, barH, "F");
+        x += w;
+      }
+    });
+    yPosition += barH + 6;
+
+    // Legend row (4 columns)
+    const legendW = contentWidth / 4;
+    const legends: Array<[string, number, [number, number, number]]> = [
+      ["Critical", breakdown.critical, risk.critical],
+      ["High",     breakdown.high,     risk.high],
+      ["Medium",   breakdown.medium,   risk.medium],
+      ["Low",      breakdown.low,      risk.low],
+    ];
+    legends.forEach(([label, count, color], i) => {
+      const lx = margin + legendW * i;
+      setFill(color);
+      pdf.rect(lx, yPosition - 2.5, 3, 3, "F");
+      setFont(8, "bold");
+      setText(ink.black);
+      pdf.text(label, lx + 5, yPosition);
+      setFont(8, "normal");
+      setText(ink.muted);
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+      pdf.text(`${count} (${pct}%)`, lx + 5, yPosition + 4);
+    });
+    yPosition += 12;
+  } else {
+    setFont(9, "italic");
+    setText(ink.muted);
+    pdf.text("No risk-level data available — add areas to populate distribution.", margin, yPosition);
+    yPosition += 8;
+  }
+
+  hr(yPosition);
+  yPosition += 10;
+
+  // Key findings — numbered list with hairline separators
+  eyebrow("KEY FINDINGS", margin, yPosition);
+  yPosition += 6;
+
+  const findings: string[] = [];
+  findings.push(`${areaCount} area${areaCount === 1 ? "" : "s"} assessed across ${new Set(areas.map(a => a.zoneName).filter(Boolean)).size || 1} zone${new Set(areas.map(a => a.zoneName).filter(Boolean)).size === 1 ? "" : "s"}.`);
+  if (calcCount > 0) findings.push(`${calcCount} impact energy calculation${calcCount === 1 ? "" : "s"} completed using PAS 13:2017 methodology.`);
+  if (criticalHigh > 0) findings.push(`${criticalHigh} area${criticalHigh === 1 ? "" : "s"} flagged as critical or high risk — these demand immediate intervention.`);
+  if (breakdown.medium > 0) findings.push(`${breakdown.medium} area${breakdown.medium === 1 ? "" : "s"} at medium risk, suitable for a 3-6 month remediation plan.`);
+  if (recommendedCount > 0) findings.push(`${recommendedCount} area${recommendedCount === 1 ? "" : "s"} already have matched A-SAFE product recommendations ready to quote.`);
+  if (findings.length === 0) findings.push("Baseline survey captured. Add impact calculations and product recommendations to enrich the report.");
+
+  findings.forEach((f, i) => {
+    setFont(9, "bold");
+    setText(brand.yellowDark);
+    pdf.text(String(i + 1).padStart(2, "0"), margin, yPosition);
+
+    setFont(9, "normal");
+    setText(ink.body);
+    const lines = wrap(f, contentWidth - 10);
+    pdf.text(lines, margin + 7, yPosition);
+    yPosition += Math.max(5, lines.length * 4.5) + 3;
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 4+ — DETAILED AREA ASSESSMENTS
+  // ═══════════════════════════════════════════════════════════════
+  await newPage();
+  sectionHeading("02 · Detailed Area Assessments", `${areaCount} area${areaCount === 1 ? "" : "s"} evaluated`);
+
   for (let i = 0; i < areas.length; i++) {
     const area = areas[i];
-    
-    // Check if we need a new page
-    await checkNewPage(180);
-    
-    // Area Header Card
-    pdf.setFillColor(...lightGrayColor);
-    pdf.roundedRect(margin, yPosition, contentWidth, 12, 3, 3, 'F');
-    
-    // Area number badge
-    pdf.setFillColor(...yellowColor);
-    pdf.circle(margin + 8, yPosition + 6, 5, 'F');
-    pdf.setTextColor(...blackColor);
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(String(i + 1), margin + 8, yPosition + 7, { align: 'center' });
-    
-    // Area name
-    pdf.setFontSize(14);
-    pdf.text(area.areaName.toUpperCase(), margin + 18, yPosition + 8);
-    
-    // Zone info on the right
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...darkGrayColor);
-    pdf.text(`Zone: ${area.zoneName}`, pageWidth - margin - 50, yPosition + 8);
-    
-    yPosition += 18;
-    
-    // Risk and Condition Status Cards (side by side)
-    const statusCardWidth = (contentWidth - 10) / 2;
-    
-    // Risk Level Card
-    const areaRiskColor = riskColors[area.riskLevel as keyof typeof riskColors] || grayColor;
-    pdf.setFillColor(...areaRiskColor);
-    pdf.roundedRect(margin, yPosition, statusCardWidth, 10, 3, 3, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`RISK LEVEL: ${area.riskLevel?.toUpperCase() || 'N/A'}`, margin + statusCardWidth/2, yPosition + 7, { align: 'center' });
-    
-    // Condition Card
-    const conditionColors = {
-      critical: riskColors.critical,
-      damaged: riskColors.high,
-      unprotected: riskColors.medium,
-      good: riskColors.low
-    };
-    const conditionColor = conditionColors[area.currentCondition as keyof typeof conditionColors] || grayColor;
-    pdf.setFillColor(...conditionColor);
-    pdf.roundedRect(margin + statusCardWidth + 10, yPosition, statusCardWidth, 10, 3, 3, 'F');
-    pdf.text(`CONDITION: ${area.currentCondition.toUpperCase()}`, margin + statusCardWidth + 10 + statusCardWidth/2, yPosition + 7, { align: 'center' });
-    
-    yPosition += 15;
-    pdf.setTextColor(...blackColor);
-    
-    // Area Type and Issue Description
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Application Area: ${area.areaType === 'Other' ? area.customApplicationArea || 'Custom' : area.areaType}`, margin, yPosition);
+    await needSpace(90); // reserve ~90mm per area block
+
+    // Area header row: index / name / zone / risk
+    setFont(8, "bold");
+    setText(brand.yellowDark);
+    pdf.text(`AREA ${String(i + 1).padStart(2, "0")}`, margin, yPosition);
+
+    setFont(14, "bold");
+    setText(ink.black);
+    pdf.text(area.areaName || "Unnamed area", margin, yPosition + 7);
+
+    setFont(8, "normal");
+    setText(ink.muted);
+    pdf.text(`Zone: ${area.zoneName || "—"}`, margin, yPosition + 12);
+
+    // Right side: two stacked tags
+    riskTag(area.riskLevel || "none", pageWidth - margin - 40, yPosition + 7);
+    setFont(7, "bold");
+    setText(ink.muted);
+    pdf.text(`CONDITION: ${(area.currentCondition || "—").toUpperCase()}`, pageWidth - margin, yPosition + 12, { align: "right" });
+
+    yPosition += 16;
+    hr(yPosition, ink.line);
     yPosition += 6;
-    
-    if (area.issueDescription) {
-      pdf.setFont('helvetica', 'italic');
-      pdf.setTextColor(...darkGrayColor);
-      const issueLines = pdf.splitTextToSize(`Issue Description: ${area.issueDescription}`, contentWidth);
-      pdf.text(issueLines, margin, yPosition);
-      yPosition += issueLines.length * 5 + 5;
-      pdf.setTextColor(...blackColor);
+
+    // Two columns — LEFT: facts, RIGHT: first photo (if any)
+    const contentStartY = yPosition;
+    const leftW = area.photosUrls && area.photosUrls.length > 0 ? contentWidth * 0.62 : contentWidth;
+    const rightX = margin + leftW + 6;
+    const photoW = contentWidth - leftW - 6;
+
+    // LEFT — facts grid
+    const factRows: Array<[string, string]> = [
+      ["Application area", area.areaType || (area.customApplicationArea || "—")],
+      ["Issue description", area.issueDescription || "—"],
+    ];
+    if (typeof area.vehicleWeight === "number" && area.vehicleWeight > 0) factRows.push(["Vehicle mass", `${area.vehicleWeight.toLocaleString()} kg`]);
+    if (typeof area.vehicleSpeed === "number" && area.vehicleSpeed > 0) factRows.push(["Vehicle speed", `${area.vehicleSpeed} km/h`]);
+    if (typeof area.impactAngle === "number" && area.impactAngle > 0) factRows.push(["Impact angle", `${area.impactAngle}°`]);
+    if (typeof area.calculatedJoules === "number" && area.calculatedJoules > 0) {
+      factRows.push(["Calculated impact", `${Math.round(area.calculatedJoules).toLocaleString()} J`]);
     }
-    
-    // Impact Analysis Table (if applicable)
-    if (area.calculatedJoules) {
-      yPosition += 5;
-      
-      // Table header
-      pdf.setFillColor(...yellowColor);
-      pdf.roundedRect(margin, yPosition, contentWidth, 10, 3, 3, 'F');
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...blackColor);
-      pdf.text('IMPACT ENERGY ANALYSIS', margin + 5, yPosition + 7);
-      
-      yPosition += 10;
-      
-      // Table body with borders
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(margin, yPosition, contentWidth, 25, 'F');
-      pdf.setDrawColor(...borderGrayColor);
-      pdf.setLineWidth(0.3);
-      pdf.rect(margin, yPosition, contentWidth, 25, 'S');
-      
-      // Vertical lines for columns
-      const colWidth = contentWidth / 4;
-      pdf.line(margin + colWidth, yPosition, margin + colWidth, yPosition + 25);
-      pdf.line(margin + colWidth * 2, yPosition, margin + colWidth * 2, yPosition + 25);
-      pdf.line(margin + colWidth * 3, yPosition, margin + colWidth * 3, yPosition + 25);
-      
-      // Headers
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...darkGrayColor);
-      pdf.text('Vehicle Weight', margin + colWidth/2, yPosition + 6, { align: 'center' });
-      pdf.text('Vehicle Speed', margin + colWidth + colWidth/2, yPosition + 6, { align: 'center' });
-      pdf.text('Impact Angle', margin + colWidth * 2 + colWidth/2, yPosition + 6, { align: 'center' });
-      pdf.text('Impact Energy', margin + colWidth * 3 + colWidth/2, yPosition + 6, { align: 'center' });
-      
-      // Horizontal line
-      pdf.line(margin, yPosition + 10, margin + contentWidth, yPosition + 10);
-      
-      // Values
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...blackColor);
-      pdf.text(`${area.vehicleWeight || '-'} kg`, margin + colWidth/2, yPosition + 18, { align: 'center' });
-      pdf.text(`${area.vehicleSpeed || '-'} km/h`, margin + colWidth + colWidth/2, yPosition + 18, { align: 'center' });
-      pdf.text(`${area.impactAngle || '-'}°`, margin + colWidth * 2 + colWidth/2, yPosition + 18, { align: 'center' });
-      
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...riskColors.high);
-      pdf.text(`${area.calculatedJoules.toLocaleString()} J`, margin + colWidth * 3 + colWidth/2, yPosition + 18, { align: 'center' });
-      pdf.setTextColor(...blackColor);
-      
-      yPosition += 30;
-    }
-    
-    // Photo Cards Section (Professional Gallery)
+    if (area.matterportUrl) factRows.push(["3D scan", "Matterport link available"]);
+
+    let factY = yPosition;
+    factRows.forEach(([k, v]) => {
+      setFont(8, "bold");
+      setText(ink.muted);
+      pdf.text(k, margin, factY);
+
+      setFont(9, "normal");
+      setText(ink.body);
+      const lines = wrap(v, leftW - 40);
+      pdf.text(lines, margin + 32, factY);
+      factY += Math.max(5, lines.length * 4) + 2;
+    });
+
+    // RIGHT — hero photo (the first uploaded photo, beside the facts grid)
+    // Load ALL photos once up front so we can decide layout and not re-fetch.
+    const loadedPhotos: Array<{ dataUrl: string; width: number; height: number }> = [];
     if (area.photosUrls && area.photosUrls.length > 0) {
-      yPosition += 5;
-      
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('SITE PHOTOGRAPHS', margin, yPosition);
-      yPosition += 8;
-      
-      // Display photos in professional cards (max 2 per row)
-      const photoCardWidth = (contentWidth - 10) / 2;
-      const photoCardHeight = 55;
-      let photoX = margin;
-      let photoCount = 0;
-      
-      for (const photoUrl of area.photosUrls.slice(0, 4)) { // Max 4 photos per area
-        if (photoCount > 0 && photoCount % 2 === 0) {
-          yPosition += photoCardHeight + 10;
-          photoX = margin;
-          await checkNewPage(photoCardHeight + 20);
-        }
-        
+      for (const url of area.photosUrls) {
         try {
-          const imgResponse = await fetch(photoUrl);
-          if (imgResponse.ok) {
-            const imgBlob = await imgResponse.blob();
-            const imgDataUrl = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.readAsDataURL(imgBlob);
-            });
-            
-            // Photo card with shadow effect (simulated with gray background)
-            pdf.setFillColor(...borderGrayColor);
-            pdf.roundedRect(photoX + 1, yPosition + 1, photoCardWidth, photoCardHeight, 4, 4, 'F');
-            
-            // White card background
-            pdf.setFillColor(255, 255, 255);
-            pdf.roundedRect(photoX, yPosition, photoCardWidth, photoCardHeight, 4, 4, 'F');
-            
-            // Card border
-            pdf.setDrawColor(...borderGrayColor);
-            pdf.setLineWidth(0.5);
-            pdf.roundedRect(photoX, yPosition, photoCardWidth, photoCardHeight, 4, 4, 'S');
-            
-            // Add image with padding
-            const imagePadding = 3;
-            const imageWidth = photoCardWidth - (imagePadding * 2);
-            const imageHeight = photoCardHeight - 12; // Leave room for caption
-            pdf.addImage(imgDataUrl, 'JPEG', 
-              photoX + imagePadding, 
-              yPosition + imagePadding, 
-              imageWidth, 
-              imageHeight
-            );
-            
-            // Caption area
-            pdf.setFillColor(...lightGrayColor);
-            pdf.rect(photoX, yPosition + photoCardHeight - 8, photoCardWidth, 8, 'F');
-            pdf.setFontSize(8);
-            pdf.setFont('helvetica', 'normal');
-            pdf.setTextColor(...darkGrayColor);
-            pdf.text(`Photo ${photoCount + 1}`, photoX + photoCardWidth/2, yPosition + photoCardHeight - 3, { align: 'center' });
-            
-            photoX += photoCardWidth + 10;
-            photoCount++;
-          }
-        } catch (error) {
-          console.error('Failed to load photo:', error);
+          loadedPhotos.push(await loadImage(url));
+        } catch (e) {
+          console.warn(`[siteSurveyPdf] Skipping photo: ${url}`, e);
         }
       }
-      
-      yPosition += photoCardHeight + 15;
     }
-    
-    // Risk & Benefit Analysis (Professional Table)
-    if (area.areaType && area.areaType !== 'Other' && applicationAreaData[area.areaType as keyof typeof applicationAreaData]) {
-      const areaData = applicationAreaData[area.areaType as keyof typeof applicationAreaData];
-      
-      // Table with professional styling
-      pdf.setFillColor(...yellowColor);
-      pdf.roundedRect(margin, yPosition, contentWidth, 8, 3, 3, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...blackColor);
-      pdf.text('RISK & BENEFIT ANALYSIS', margin + 5, yPosition + 5.5);
-      
-      yPosition += 8;
-      
-      // Risk section
-      pdf.setFillColor(255, 245, 245); // Light red background
-      pdf.rect(margin, yPosition, contentWidth/2, 35, 'F');
-      pdf.setDrawColor(...riskColors.high);
-      pdf.setLineWidth(1);
-      pdf.rect(margin, yPosition, contentWidth/2, 35, 'S');
-      
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...riskColors.high);
-      pdf.text('CURRENT RISK', margin + 3, yPosition + 6);
-      
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...blackColor);
-      const riskLines = pdf.splitTextToSize(areaData.risk, contentWidth/2 - 6);
-      pdf.text(riskLines, margin + 3, yPosition + 12);
-      
-      // Benefit section
-      pdf.setFillColor(245, 255, 245); // Light green background
-      pdf.rect(margin + contentWidth/2, yPosition, contentWidth/2, 35, 'F');
-      pdf.setDrawColor(...riskColors.low);
-      pdf.setLineWidth(1);
-      pdf.rect(margin + contentWidth/2, yPosition, contentWidth/2, 35, 'S');
-      
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(...riskColors.low);
-      pdf.text('SAFETY BENEFIT', margin + contentWidth/2 + 3, yPosition + 6);
-      
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(...blackColor);
-      const benefitLines = pdf.splitTextToSize(areaData.benefit, contentWidth/2 - 6);
-      pdf.text(benefitLines, margin + contentWidth/2 + 3, yPosition + 12);
-      
-      yPosition += 40;
+
+    if (loadedPhotos.length > 0) {
+      const hero = loadedPhotos[0];
+      const maxH = Math.max(40, factY - yPosition);
+      const ratio = hero.width / hero.height;
+      let pw = photoW;
+      let ph = pw / ratio;
+      if (ph > maxH) { ph = maxH; pw = ph * ratio; }
+      pdf.addImage(hero.dataUrl, "JPEG", rightX + (photoW - pw) / 2, yPosition, pw, ph);
+
+      // Photo count caption
+      setFont(7, "italic");
+      setText(ink.subtle);
+      pdf.text(
+        loadedPhotos.length > 1
+          ? `Photo 1 of ${loadedPhotos.length}`
+          : "Site reference photo",
+        rightX + photoW / 2,
+        yPosition + ph + 4,
+        { align: "center" }
+      );
+    } else if (area.photosUrls && area.photosUrls.length > 0) {
+      // We tried to load photos but they all failed
+      setStroke(ink.line);
+      pdf.setLineWidth(0.3);
+      pdf.rect(rightX, yPosition, photoW, 38);
+      setFont(8, "italic");
+      setText(ink.subtle);
+      pdf.text("Photos unavailable", rightX + photoW / 2, yPosition + 22, { align: "center" });
     }
-    
-    // Recommended Products Table
-    if (area.recommendedProducts && area.recommendedProducts.length > 0) {
+
+    yPosition = Math.max(factY, contentStartY + 40);
+
+    // Risk & Benefit inline paragraph (if area type has canned copy)
+    const aData = applicationAreaData[area.areaType];
+    if (aData) {
+      yPosition += 4;
+      const half = contentWidth / 2 - 3;
+
+      // Left — Risk
+      setFont(7, "bold");
+      setText(risk.critical);
+      pdf.text("CURRENT RISK", margin, yPosition, { charSpace: 0.5 });
+      setFont(8, "normal");
+      setText(ink.body);
+      const rlines = wrap(aData.risk, half);
+      pdf.text(rlines, margin, yPosition + 4);
+
+      // Right — Benefit
+      setFont(7, "bold");
+      setText(risk.low);
+      pdf.text("SAFETY BENEFIT", margin + half + 6, yPosition, { charSpace: 0.5 });
+      setFont(8, "normal");
+      setText(ink.body);
+      const blines = wrap(aData.benefit, half);
+      pdf.text(blines, margin + half + 6, yPosition + 4);
+
+      const maxLines = Math.max(rlines.length, blines.length);
+      yPosition += 4 + maxLines * 4 + 4;
+    }
+
+    // Additional site photos — 3-column gallery of photos 2..N (photo 1 is the hero)
+    if (loadedPhotos.length > 1) {
+      yPosition += 4;
+      await needSpace(16);
+      eyebrow(`SITE PHOTOS (${loadedPhotos.length})`, margin, yPosition);
       yPosition += 5;
-      
-      // Products header
-      pdf.setFillColor(34, 197, 94); // Green
-      pdf.roundedRect(margin, yPosition, contentWidth, 10, 3, 3, 'F');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('RECOMMENDED SAFETY SOLUTIONS', margin + 5, yPosition + 7);
-      
-      yPosition += 15;
-      
-      // Products table
-      for (const product of area.recommendedProducts) {
-        await checkNewPage(30);
-        
-        // Product row with professional styling
-        pdf.setFillColor(250, 250, 250);
-        pdf.roundedRect(margin, yPosition, contentWidth, 25, 3, 3, 'F');
-        pdf.setDrawColor(...borderGrayColor);
-        pdf.setLineWidth(0.5);
-        pdf.roundedRect(margin, yPosition, contentWidth, 25, 3, 3, 'S');
-        
-        // Product name
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(...blackColor);
-        pdf.text(product.productName, margin + 5, yPosition + 8);
-        
-        // Impact rating badge
-        if (product.impactRating && area.calculatedJoules) {
-          const safetyMargin = ((product.impactRating - area.calculatedJoules) / area.calculatedJoules * 100).toFixed(0);
-          const marginValue = Number(safetyMargin);
-          const marginColor = marginValue > 20 ? riskColors.low : [255, 152, 0] as [number, number, number];
-          
-          // Rating badge
-          pdf.setFillColor(...marginColor);
-          pdf.roundedRect(pageWidth - margin - 40, yPosition + 3, 35, 8, 2, 2, 'F');
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(`${product.impactRating.toLocaleString()}J`, pageWidth - margin - 22.5, yPosition + 8, { align: 'center' });
-          
-          // Safety margin text
-          pdf.setTextColor(...marginColor);
-          pdf.setFontSize(8);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(`${safetyMargin}% margin`, pageWidth - margin - 22.5, yPosition + 14, { align: 'center' });
+
+      const cols = 3;
+      const gap = 3;
+      const cellW = (contentWidth - gap * (cols - 1)) / cols;
+      const cellH = 34;
+      const extras = loadedPhotos.slice(1); // photo 0 was hero above
+
+      for (let pi = 0; pi < extras.length; pi++) {
+        const photo = extras[pi];
+        const col = pi % cols;
+        const row = Math.floor(pi / cols);
+
+        if (col === 0 && row > 0) {
+          yPosition += cellH + 8;
+          await needSpace(cellH + 8);
         }
-        
-        // Product description/reason
-        if (product.reason) {
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(...darkGrayColor);
-          const reasonLines = pdf.splitTextToSize(product.reason, contentWidth - 50);
-          pdf.text(reasonLines, margin + 5, yPosition + 15);
+
+        const x = margin + col * (cellW + gap);
+        // Fit image into cell preserving aspect ratio
+        const r = photo.width / photo.height;
+        let ph = cellH;
+        let pw = ph * r;
+        if (pw > cellW) { pw = cellW; ph = pw / r; }
+        const ox = x + (cellW - pw) / 2;
+        const oy = yPosition + (cellH - ph) / 2;
+
+        // Subtle border around cell
+        setStroke(ink.line);
+        pdf.setLineWidth(0.2);
+        pdf.rect(x, yPosition, cellW, cellH);
+
+        try {
+          pdf.addImage(photo.dataUrl, "JPEG", ox, oy, pw, ph);
+        } catch {}
+
+        // Photo number caption at bottom-left of cell
+        setFont(6, "normal");
+        setText(ink.subtle);
+        pdf.text(`Photo ${pi + 2}`, x + 1, yPosition + cellH - 1);
+      }
+      // Advance below the last row
+      const rowsUsed = Math.ceil(extras.length / cols);
+      yPosition += rowsUsed * cellH + (rowsUsed - 1) * 8 + 6;
+    }
+
+    // Recommended products (compact chip row)
+    if (area.recommendedProducts && area.recommendedProducts.length > 0) {
+      yPosition += 2;
+      eyebrow("RECOMMENDED SOLUTIONS", margin, yPosition);
+      yPosition += 5;
+
+      for (const p of area.recommendedProducts.slice(0, 4)) {
+        await needSpace(14);
+        // Small chip: [name] ···· [rating] [margin]
+        setFont(9, "bold");
+        setText(ink.black);
+        const name = p.productName.length > 50 ? p.productName.substring(0, 48) + "…" : p.productName;
+        pdf.text(name, margin + 3, yPosition);
+
+        if (p.impactRating) {
+          setFont(8, "normal");
+          setText(ink.muted);
+          pdf.text(`${p.impactRating.toLocaleString()} J rated`, pageWidth - margin - 45, yPosition, { align: "right" });
+
+          if (area.calculatedJoules && area.calculatedJoules > 0) {
+            const sm = Math.round(((p.impactRating - area.calculatedJoules) / area.calculatedJoules) * 100);
+            const mcolor = sm >= 20 ? risk.low : sm >= 0 ? risk.medium : risk.critical;
+            setFont(8, "bold");
+            setText(mcolor);
+            pdf.text(`${sm >= 0 ? "+" : ""}${sm}% margin`, pageWidth - margin, yPosition, { align: "right" });
+          }
         }
-        
-        yPosition += 30;
+        yPosition += 5;
+        hr(yPosition, ink.softLine, 0.2);
+        yPosition += 2;
+      }
+
+      if (area.recommendedProducts.length > 4) {
+        setFont(8, "italic");
+        setText(ink.subtle);
+        pdf.text(`+ ${area.recommendedProducts.length - 4} more recommended`, margin, yPosition);
+        yPosition += 4;
       }
     }
-    
+
     // Area separator
     if (i < areas.length - 1) {
-      yPosition += 10;
-      pdf.setDrawColor(...lightGrayColor);
-      pdf.setLineWidth(0.5);
-      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-      yPosition += 10;
+      yPosition += 6;
+      hr(yPosition, ink.line, 0.5);
+      yPosition += 8;
     }
   }
-  
-  // Add footer to last assessment page
-  addPageFooter();
 
-  // RECOMMENDATIONS SUMMARY PAGE
-  pdf.addPage();
-  currentPageNum++;
-  yPosition = margin;
-  await addPageHeader();
-  
-  // Section title
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin, yPosition, 8, 12, 2, 2, 'F');
-  pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('IMPLEMENTATION ROADMAP', margin + 12, yPosition + 9);
-  yPosition += 20;
-  
-  // Priority Action Plan
-  pdf.setFillColor(255, 245, 240);
-  pdf.roundedRect(margin, yPosition, contentWidth, 60, 4, 4, 'F');
-  pdf.setDrawColor(...yellowColor);
-  pdf.setLineWidth(1);
-  pdf.roundedRect(margin, yPosition, contentWidth, 60, 4, 4, 'S');
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('PRIORITY ACTION PLAN', margin + 5, yPosition + 10);
-  
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  const priorities = [
-    '1. IMMEDIATE (0-30 days): Address all CRITICAL risk areas',
-    '2. SHORT TERM (1-3 months): Implement solutions for HIGH risk zones',
-    '3. MEDIUM TERM (3-6 months): Upgrade MEDIUM risk areas',
-    '4. LONG TERM (6-12 months): Enhance LOW risk areas and preventive measures'
+  // ═══════════════════════════════════════════════════════════════
+  // IMPACT ENERGY SUMMARY (table)
+  // ═══════════════════════════════════════════════════════════════
+  const withCalc = areas.filter((a) => typeof a.calculatedJoules === "number" && a.calculatedJoules > 0);
+  if (withCalc.length > 0) {
+    await newPage();
+    sectionHeading("03 · Impact Energy Summary", "Kinetic energy calculated per PAS 13:2017 methodology");
+
+    // Table header
+    setFill(ink.black);
+    pdf.rect(margin, yPosition, contentWidth, 7, "F");
+    setFont(7, "bold");
+    setText(ink.white);
+    const colX = [margin + 3, margin + 68, margin + 98, margin + 120, margin + 142];
+    pdf.text("AREA", colX[0], yPosition + 4.8);
+    pdf.text("MASS (kg)", colX[1], yPosition + 4.8);
+    pdf.text("SPEED", colX[2], yPosition + 4.8);
+    pdf.text("ANGLE", colX[3], yPosition + 4.8);
+    pdf.text("IMPACT (J)", colX[4], yPosition + 4.8);
+    yPosition += 7;
+
+    // Rows
+    withCalc.forEach((a, idx) => {
+      if (idx % 2 === 0) {
+        setFill(ink.surface);
+        pdf.rect(margin, yPosition, contentWidth, 7, "F");
+      }
+      setFont(8, "normal");
+      setText(ink.body);
+      pdf.text((a.areaName || "—").substring(0, 30), colX[0], yPosition + 4.8);
+      pdf.text(String(a.vehicleWeight || "—"), colX[1], yPosition + 4.8);
+      pdf.text(a.vehicleSpeed ? `${a.vehicleSpeed} km/h` : "—", colX[2], yPosition + 4.8);
+      pdf.text(a.impactAngle ? `${a.impactAngle}°` : "—", colX[3], yPosition + 4.8);
+      setFont(8, "bold");
+      setText(ink.black);
+      pdf.text(Math.round(a.calculatedJoules!).toLocaleString(), colX[4], yPosition + 4.8);
+      yPosition += 7;
+    });
+
+    hr(yPosition, ink.line, 0.5);
+    yPosition += 4;
+
+    // Totals row
+    const total = withCalc.reduce((s, a) => s + (a.calculatedJoules || 0), 0);
+    const avg = withCalc.length > 0 ? total / withCalc.length : 0;
+    const max = Math.max(...withCalc.map((a) => a.calculatedJoules || 0));
+    setFont(8, "bold");
+    setText(ink.muted);
+    pdf.text("TOTAL", colX[0], yPosition + 5);
+    pdf.text(`Σ ${Math.round(total).toLocaleString()} J`, colX[4], yPosition + 5);
+    yPosition += 6;
+    setFont(8, "normal");
+    setText(ink.muted);
+    pdf.text("AVG", colX[0], yPosition + 5);
+    pdf.text(`${Math.round(avg).toLocaleString()} J`, colX[4], yPosition + 5);
+    yPosition += 6;
+    pdf.text("MAX", colX[0], yPosition + 5);
+    pdf.text(`${Math.round(max).toLocaleString()} J`, colX[4], yPosition + 5);
+    yPosition += 8;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // IMPLEMENTATION ROADMAP
+  // ═══════════════════════════════════════════════════════════════
+  await newPage();
+  sectionHeading("04 · Implementation Roadmap", "Recommended phasing based on risk level");
+
+  const phases = [
+    { phase: "01", name: "IMMEDIATE",   range: "0-30 days",     focus: "Critical-risk areas",            color: risk.critical, count: breakdown.critical },
+    { phase: "02", name: "SHORT TERM",  range: "1-3 months",    focus: "High-risk zones",                color: risk.high,     count: breakdown.high },
+    { phase: "03", name: "MEDIUM TERM", range: "3-6 months",    focus: "Medium-risk areas",              color: risk.medium,   count: breakdown.medium },
+    { phase: "04", name: "LONG TERM",   range: "6-12 months",   focus: "Low-risk + preventive upgrades", color: risk.low,      count: breakdown.low },
   ];
-  
-  let priorityY = yPosition + 20;
-  priorities.forEach(priority => {
-    pdf.text(priority, margin + 10, priorityY);
-    priorityY += 10;
+
+  // Table header
+  setFill(ink.black);
+  pdf.rect(margin, yPosition, contentWidth, 7, "F");
+  setFont(7, "bold");
+  setText(ink.white);
+  pdf.text("PHASE",   margin + 3,   yPosition + 4.8);
+  pdf.text("TIMELINE", margin + 30, yPosition + 4.8);
+  pdf.text("FOCUS",    margin + 70, yPosition + 4.8);
+  pdf.text("AREAS",    pageWidth - margin - 3, yPosition + 4.8, { align: "right" });
+  yPosition += 7;
+
+  phases.forEach((p, idx) => {
+    if (idx % 2 === 0) {
+      setFill(ink.surface);
+      pdf.rect(margin, yPosition, contentWidth, 12, "F");
+    }
+    setFill(p.color);
+    pdf.rect(margin, yPosition, 1.5, 12, "F");
+
+    setFont(9, "bold");
+    setText(ink.black);
+    pdf.text(`${p.phase} · ${p.name}`, margin + 4, yPosition + 5);
+
+    setFont(9, "normal");
+    setText(ink.body);
+    pdf.text(p.range, margin + 30, yPosition + 5);
+    pdf.text(p.focus, margin + 70, yPosition + 5);
+
+    setFont(11, "bold");
+    setText(p.color);
+    pdf.text(String(p.count), pageWidth - margin - 3, yPosition + 8, { align: "right" });
+    yPosition += 12;
   });
-  
-  yPosition += 70;
-  
-  // Investment Summary Card
-  pdf.setFillColor(240, 253, 244); // Light green
-  pdf.roundedRect(margin, yPosition, contentWidth, 40, 4, 4, 'F');
-  pdf.setDrawColor(...riskColors.low);
-  pdf.setLineWidth(1);
-  pdf.roundedRect(margin, yPosition, contentWidth, 40, 4, 4, 'S');
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('RETURN ON SAFETY INVESTMENT', margin + 5, yPosition + 10);
-  
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
-  const roiPoints = [
-    '• Reduced accident rates and associated costs',
-    '• Lower insurance premiums through risk mitigation',
-    '• Improved productivity from safer work environment',
-    '• Compliance with safety regulations and standards'
+
+  yPosition += 6;
+  hr(yPosition);
+  yPosition += 8;
+
+  // Return on safety investment
+  eyebrow("RETURN ON SAFETY INVESTMENT", margin, yPosition);
+  yPosition += 6;
+  const roi = [
+    "Reduced accident rates and associated claim costs",
+    "Lower insurance premiums through risk mitigation",
+    "Improved productivity from a safer working environment",
+    "Compliance with HSE regulations and PAS 13 standards",
   ];
-  
-  let roiY = yPosition + 18;
-  roiPoints.forEach(point => {
-    pdf.text(point, margin + 10, roiY);
-    roiY += 6;
+  roi.forEach((r) => {
+    setFill(brand.yellow);
+    pdf.circle(margin + 1, yPosition - 1.2, 1, "F");
+    setFont(9, "normal");
+    setText(ink.body);
+    pdf.text(r, margin + 5, yPosition);
+    yPosition += 5;
   });
-  
-  yPosition += 50;
-  
-  // Contact for Quote
-  pdf.setFillColor(...yellowColor);
-  pdf.roundedRect(margin, yPosition, contentWidth, 30, 4, 4, 'F');
-  
-  pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...blackColor);
-  pdf.text('READY TO ENHANCE YOUR WORKPLACE SAFETY?', pageWidth/2, yPosition + 10, { align: 'center' });
-  
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Contact our safety experts for a detailed quotation', pageWidth/2, yPosition + 18, { align: 'center' });
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('+971 (4) 8842 422  |  sales@asafe.ae  |  www.asafe.com', pageWidth/2, yPosition + 26, { align: 'center' });
-  
-  // Add final footer
-  addPageFooter();
-  
-  // Generate and download the PDF
-  const reportName = `A-SAFE_Site_Survey_${survey.facilityName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-  pdf.save(reportName);
+  yPosition += 4;
+
+  // ═══════════════════════════════════════════════════════════════
+  // METHODOLOGY
+  // ═══════════════════════════════════════════════════════════════
+  await needSpace(80);
+  yPosition += 6;
+  sectionHeading("05 · Methodology & References");
+
+  // Risk level definitions table
+  eyebrow("RISK LEVEL CRITERIA", margin, yPosition);
+  yPosition += 6;
+
+  const criteria = [
+    { level: "Critical", color: risk.critical, def: "Immediate threat to life or major asset damage. Requires intervention within 30 days." },
+    { level: "High",     color: risk.high,     def: "Likely injury or significant downtime if unaddressed. Plan within 1-3 months." },
+    { level: "Medium",   color: risk.medium,   def: "Foreseeable incidents with moderate impact. Upgrade within 3-6 months." },
+    { level: "Low",      color: risk.low,      def: "Minor exposure; preventive measures recommended within 6-12 months." },
+  ];
+  criteria.forEach((c) => {
+    setFill(c.color);
+    pdf.rect(margin, yPosition - 3, 1.5, 8, "F");
+    setFont(9, "bold");
+    setText(c.color);
+    pdf.text(c.level.toUpperCase(), margin + 4, yPosition);
+    setFont(9, "normal");
+    setText(ink.body);
+    const lines = wrap(c.def, contentWidth - 30);
+    pdf.text(lines, margin + 28, yPosition);
+    yPosition += Math.max(6, lines.length * 4 + 2);
+  });
+
+  yPosition += 6;
+  hr(yPosition);
+  yPosition += 8;
+
+  eyebrow("KINETIC ENERGY FORMULA", margin, yPosition);
+  yPosition += 5;
+  setFont(12, "bold");
+  setText(ink.black);
+  pdf.text("KE = 0.5 x m x (v x sin(angle))^2", margin, yPosition + 5);
+  yPosition += 10;
+
+  setFont(9, "normal");
+  setText(ink.body);
+  const variables = [
+    "KE     -  Kinetic energy in joules (J)",
+    "m      -  Total mass = vehicle + payload (kg)",
+    "v      -  Vehicle velocity (m/s; mph x 0.447 or km/h / 3.6)",
+    "angle  -  Impact angle from barrier (0-90 degrees)",
+  ];
+  variables.forEach((v) => { pdf.text(v, margin, yPosition); yPosition += 4; });
+
+  yPosition += 6;
+  hr(yPosition);
+  yPosition += 8;
+
+  eyebrow("REFERENCES", margin, yPosition);
+  yPosition += 5;
+  setFont(9, "normal");
+  setText(ink.body);
+  [
+    "PAS 13:2017  -  Safety barriers used in traffic management. Specification.",
+    "ISO 45001    -  Occupational health and safety management systems.",
+    "A-SAFE Test Laboratory - In-house crash-test facility, Halifax UK.",
+  ].forEach((r) => { pdf.text(r, margin, yPosition); yPosition += 4; });
+
+  // ═══════════════════════════════════════════════════════════════
+  // NEXT STEPS
+  // ═══════════════════════════════════════════════════════════════
+  await newPage();
+  sectionHeading("06 · Next Steps", "How to action this survey with A-SAFE");
+
+  const steps = [
+    { n: "01", t: "Internal review",   d: "Share this report with your health & safety committee and operations team." },
+    { n: "02", t: "Prioritise",         d: "Decide which critical / high-risk areas to address first based on operational impact." },
+    { n: "03", t: "Request a quote",    d: "Reply with the areas you want to action; your A-SAFE consultant will build a detailed proposal." },
+    { n: "04", t: "Schedule",           d: "A-SAFE installers can be on-site within 2-4 weeks; existing operations continue during fit-out." },
+    { n: "05", t: "Follow-up review",   d: "6 months post-install, we return to measure risk-reduction and refine the long-term plan." },
+  ];
+  steps.forEach((s) => {
+    setFont(11, "bold");
+    setText(brand.yellowDark);
+    pdf.text(s.n, margin, yPosition + 4);
+
+    setFont(11, "bold");
+    setText(ink.black);
+    pdf.text(s.t, margin + 14, yPosition + 4);
+
+    setFont(9, "normal");
+    setText(ink.body);
+    const lines = wrap(s.d, contentWidth - 16);
+    pdf.text(lines, margin + 14, yPosition + 10);
+
+    yPosition += Math.max(14, lines.length * 4 + 10);
+    hr(yPosition - 3, ink.softLine);
+  });
+
+  yPosition += 8;
+
+  // Contact banner — sober, not shouting
+  setFill(ink.black);
+  pdf.rect(margin, yPosition, contentWidth, 24, "F");
+  setFill(brand.yellow);
+  pdf.rect(margin, yPosition, 1.5, 24, "F");
+
+  setFont(8, "bold");
+  setText(brand.yellow);
+  pdf.text("ACTION THIS REPORT", margin + 6, yPosition + 8, { charSpace: 1 });
+  setFont(11, "bold");
+  setText(ink.white);
+  pdf.text("Contact your A-SAFE sales consultant", margin + 6, yPosition + 15);
+  setFont(9, "normal");
+  setText([200, 200, 200]);
+  pdf.text("sales@asafe.ae  ·  +971 (4) 8842 422  ·  www.asafe.com", margin + 6, yPosition + 20);
+
+  // Final footer + save
+  pageFooter();
+  const safeName = survey.facilityName.replace(/[^a-zA-Z0-9]/g, "_");
+  pdf.save(`A-SAFE_Site_Survey_${safeName}_${new Date().toISOString().split("T")[0]}.pdf`);
 }

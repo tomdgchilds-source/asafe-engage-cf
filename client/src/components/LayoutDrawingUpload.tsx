@@ -154,32 +154,17 @@ export function LayoutDrawingUpload({
 
   const handleGetUploadParameters = async () => {
     try {
-      const response = await fetch("/api/objects/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Upload endpoint failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Upload parameters:', data);
-      
-      if (!data.uploadURL || !data.accessPath) {
-        throw new Error('No upload URL or access path received from server');
-      }
+      const ext = 'bin'; // Will be overridden by actual file extension in key
+      const key = `uploads/${crypto.randomUUID()}.${ext}`;
+      const accessPath = `/api/objects/${key}`;
 
       // Store the access path for use when upload completes
-      currentAccessPathRef.current = data.accessPath;
-      console.log('Stored access path:', data.accessPath);
-      
+      currentAccessPathRef.current = accessPath;
+      console.log('Stored access path:', accessPath);
+
       return {
         method: "PUT" as const,
-        url: data.uploadURL,
+        url: accessPath,  // Upload to our worker's PUT endpoint
       };
     } catch (error) {
       console.error('Error getting upload parameters:', error);
@@ -202,7 +187,17 @@ export function LayoutDrawingUpload({
       const fileUrl = currentAccessPathRef.current;
       // Use custom name if provided, otherwise use original filename
       const fileName = pendingFileName.trim() || uploadedFile.name || 'Unknown file';
-      const fileType = uploadedFile.name?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image';
+      // Three canonical file types the viewer knows about: "pdf", "image",
+      // and "dwg". DWG is stored verbatim so the user always has the
+      // original file to download — the viewer shows a placeholder with
+      // a download CTA (full in-browser DWG rendering requires a wasm
+      // library or Autodesk APS translation; out of scope for this sprint).
+      const lower = (uploadedFile.name || "").toLowerCase();
+      const fileType = lower.endsWith(".pdf")
+        ? "pdf"
+        : lower.endsWith(".dwg") || lower.endsWith(".dxf")
+          ? "dwg"
+          : "image";
       
       console.log('File URL:', fileUrl, 'File name:', fileName);
       
@@ -324,7 +319,10 @@ export function LayoutDrawingUpload({
         <ObjectUploader
           maxNumberOfFiles={1}
           maxFileSize={100 * 1024 * 1024} // 100MB for high-quality drawings
-          allowedFileTypes={['image/*', 'application/pdf']} // Allow images and PDF files
+          // Allow images (JPG/PNG/WEBP etc), PDF, and AutoCAD DWG/DXF.
+          // DWG files rarely have a registered MIME — the extension-based
+          // entries handle them. Store-as-original + viewer placeholder.
+          allowedFileTypes={['image/*', 'application/pdf', '.dwg', '.dxf', 'application/acad', 'image/vnd.dwg']}
           onGetUploadParameters={handleGetUploadParameters}
           onComplete={handleUploadComplete}
           buttonClassName="w-full bg-purple-600 hover:bg-purple-700 text-white"

@@ -22,6 +22,19 @@ calculations.post("/calculations", authMiddleware, async (c) => {
     });
 
     const calculation = await storage.saveImpactCalculation(validatedData);
+
+    // Fire-and-forget activity log
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "calculation",
+          section: "calculator",
+          details: { calculationId: calculation.id, type: body.calculationType || body.type },
+        })
+      );
+    } catch {}
+
     return c.json(calculation);
   } catch (error) {
     if (error instanceof z.ZodError) {

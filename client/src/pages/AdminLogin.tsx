@@ -113,11 +113,7 @@ export default function AdminLogin() {
           <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             <p>For A-SAFE administrative staff only.</p>
             <p className="mt-2">
-              Default credentials for testing:
-              <br />
-              Username: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">admin</code>
-              <br />
-              Password: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">Admin@ASAFE2025</code>
+              Contact your system administrator if you need access.
             </p>
           </div>
         </CardContent>

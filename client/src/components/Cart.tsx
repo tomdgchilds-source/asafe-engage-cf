@@ -21,7 +21,7 @@ import { SpendMoreSaveMoreDiscount } from "@/components/SpendMoreSaveMoreDiscoun
 import { ServiceCareModal } from "@/components/ServiceCareModal";
 import { CreateOrderModal } from "@/components/CreateOrderModal";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
-import { LayoutMarkupEditor } from "@/components/LayoutMarkupEditor";
+import { LayoutMarkupEditor } from "@/components/layout-markup";
 import { CaseStudySelector } from "@/components/CaseStudySelector";
 import { CompanyLogoFinder } from "@/components/CompanyLogoFinder";
 import { LinkedInSocialReciprocitySimple } from "@/components/LinkedInSocialReciprocitySimple";
@@ -30,7 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import type { Product, LayoutDrawing, CaseStudy, ProjectCaseStudy } from "@shared/schema";
-import { Link } from "wouter";
+import { getCombinedDiscount } from "@shared/discountLimits";
+import { Link, useLocation } from "wouter";
 
 interface CartItemType {
   id: string;
@@ -93,6 +94,7 @@ interface CartResponse {
 }
 
 export function Cart() {
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -132,6 +134,9 @@ export function Cart() {
   const [partnerDiscountCode, setPartnerDiscountCode] = useState('');
   const [partnerDiscountPercent, setPartnerDiscountPercent] = useState(0);
   const [partnerDiscountError, setPartnerDiscountError] = useState('');
+  const [partnerDiscountPartnerName, setPartnerDiscountPartnerName] = useState<string>('');
+  const [partnerDiscountValidating, setPartnerDiscountValidating] = useState(false);
+  const partnerValidateTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [installationComplexity, setInstallationComplexity] = useState<'simple' | 'standard' | 'complex'>('standard');
   const [linkedInDiscountAmount, setLinkedInDiscountAmount] = useState(0);
   const [linkedInDiscountData, setLinkedInDiscountData] = useState<any>(null);
@@ -463,11 +468,22 @@ export function Cart() {
     })
     .filter(Boolean);
   
-  const totalDiscountPercent = selectedDiscounts.reduce((sum, discount) => sum + (discount?.discountPercent || 0), 0);
-  
-  // Include partner discount in total discount calculation
-  const combinedDiscountPercent = totalDiscountPercent + partnerDiscountPercent;
-  const effectiveDiscountPercent = Math.min(combinedDiscountPercent, 35); // Cap at 35% for partner rates
+  const rawReciprocalPercent = selectedDiscounts.reduce((sum, discount) => sum + (discount?.discountPercent || 0), 0);
+
+  // Apply the three caps in one place (tiered reciprocal, 15% partner, 40%
+  // combined). `totalDiscountPercent` stays as an alias for the *post-cap*
+  // reciprocal so downstream UI that displays "Reciprocal Savings (X%)"
+  // shows the number actually applied — not the raw-selected number.
+  const combined = getCombinedDiscount(rawReciprocalPercent, partnerDiscountPercent, totalAmount);
+  const totalDiscountPercent = combined.reciprocal;
+  // Effective partner % after the 15% per-order cap + 40% combined ceiling.
+  // The `partnerDiscountPercent` state var still holds the *raw* % returned
+  // by the server for the code so we can show the partner their headline
+  // rate elsewhere — but the cart line-item shows the number we're actually
+  // giving the customer.
+  const effectivePartnerDiscountPercent = combined.partner;
+  const combinedDiscountPercent = combined.combined;
+  const effectiveDiscountPercent = combined.combined;
   // Calculate discount amount including LinkedIn discount
   const percentageDiscount = totalAmount * (effectiveDiscountPercent / 100);
   const discountAmount = percentageDiscount + linkedInDiscountAmount;
@@ -655,36 +671,89 @@ export function Cart() {
     setSelectedLayoutDrawing(null);
   };
 
-  // Validate partner discount code
+  // Validate partner discount code against the server.
+  //
+  // Behaviour:
+  //  - Debounced 400ms so we don't hit the API on every keystroke.
+  //  - Empty input clears state silently.
+  //  - Shorter-than-3-char input is treated as "still typing" and doesn't
+  //    show an error yet.
+  //  - Server returns { valid, partnerName, discountPercent } or
+  //    { valid: false, reason }. We surface a friendly message per reason.
   const validatePartnerCode = (code: string) => {
-    // Reset if code is empty
-    if (!code) {
+    // Cancel any in-flight debounce so we don't race.
+    if (partnerValidateTimerRef.current) {
+      clearTimeout(partnerValidateTimerRef.current);
+      partnerValidateTimerRef.current = null;
+    }
+
+    const trimmed = (code || '').trim();
+
+    if (!trimmed) {
       setPartnerDiscountPercent(0);
       setPartnerDiscountError('');
+      setPartnerDiscountPartnerName('');
+      setPartnerDiscountValidating(false);
       return;
     }
 
-    // Check if code matches the pattern EngageXX! where XX is 5-35
-    const match = code.match(/^Engage(\d{1,2})!$/);
-    
-    if (match) {
-      const percent = parseInt(match[1]);
-      if (percent >= 5 && percent <= 35) {
-        setPartnerDiscountPercent(percent);
-        setPartnerDiscountError('');
-        haptic.success();
-      } else {
-        setPartnerDiscountPercent(0);
-        setPartnerDiscountError('Invalid code.');
-        haptic.error();
-      }
-    } else {
+    if (trimmed.length < 3) {
+      // Still typing — don't error-toast prematurely.
       setPartnerDiscountPercent(0);
-      if (code.length > 0) {
-        setPartnerDiscountError('Invalid partner code');
-        haptic.error();
-      }
+      setPartnerDiscountError('');
+      setPartnerDiscountPartnerName('');
+      setPartnerDiscountValidating(false);
+      return;
     }
+
+    setPartnerDiscountValidating(true);
+    partnerValidateTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/partner-codes/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ code: trimmed }),
+        });
+        const data: any = await res.json();
+
+        if (res.status === 429) {
+          setPartnerDiscountPercent(0);
+          setPartnerDiscountError('Too many attempts — try again in a minute.');
+          setPartnerDiscountPartnerName('');
+          haptic.error();
+          return;
+        }
+
+        if (data?.valid) {
+          setPartnerDiscountPercent(data.discountPercent);
+          setPartnerDiscountPartnerName(data.partnerName || '');
+          setPartnerDiscountError('');
+          haptic.success();
+        } else {
+          setPartnerDiscountPercent(0);
+          setPartnerDiscountPartnerName('');
+          const reasonMap: Record<string, string> = {
+            invalid: 'Invalid partner code',
+            inactive: 'That code is no longer active',
+            expired: 'That code has expired',
+            notYetValid: "That code isn't valid yet",
+            exhausted: 'That code has reached its usage limit',
+            per_user_same_code_limit: "You've already used this code in the last 12 months",
+            per_user_total_limit: "You've hit your annual partner-code usage limit",
+            server_error: 'Could not validate code — please try again',
+          };
+          setPartnerDiscountError(reasonMap[data?.reason] || 'Invalid partner code');
+          haptic.error();
+        }
+      } catch (err) {
+        setPartnerDiscountPercent(0);
+        setPartnerDiscountPartnerName('');
+        setPartnerDiscountError('Network error — please try again');
+      } finally {
+        setPartnerDiscountValidating(false);
+      }
+    }, 400);
   };
 
   if (isLoading) {
@@ -956,7 +1025,7 @@ export function Cart() {
                     variant="outline"
                     className="flex items-center justify-center gap-2 border-2 border-primary bg-primary/5 hover:bg-primary/10 text-primary hover:text-primary w-full sm:w-auto"
                     data-testid="button-browse-products"
-                    onClick={() => window.location.href = '/products'}
+                    onClick={() => navigate('/products')}
                   >
                     <Plus className="h-4 w-4" />
                     <span className="text-sm">Browse Products</span>
@@ -967,7 +1036,7 @@ export function Cart() {
                     variant="outline"
                     className="flex items-center justify-center gap-2 border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 w-full sm:w-auto"
                     data-testid="button-use-calculator"
-                    onClick={() => window.location.href = '/calculator'}
+                    onClick={() => navigate('/calculator')}
                   >
                     <Calculator className="h-4 w-4" />
                     <span className="text-sm">Use Calculator</span>
@@ -1088,11 +1157,18 @@ export function Cart() {
                       className="flex-1"
                       data-testid="input-partner-code"
                     />
-                    {partnerDiscountPercent > 0 && (
+                    {partnerDiscountValidating && (
                       <div className="flex items-center gap-2">
+                        <span className="inline-block h-4 w-4 border-2 border-gray-300 border-t-purple-600 rounded-full animate-spin" />
+                        <span className="text-sm text-gray-500">Checking code…</span>
+                      </div>
+                    )}
+                    {!partnerDiscountValidating && partnerDiscountPercent > 0 && (
+                      <div className="flex items-center gap-2" data-testid="partner-discount-applied">
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
                         <span className="text-sm font-medium text-green-600">
-                          {partnerDiscountPercent}% discount applied
+                          {partnerDiscountPercent}% applied
+                          {partnerDiscountPartnerName ? ` — ${partnerDiscountPartnerName}` : ''}
                         </span>
                       </div>
                     )}
@@ -1130,10 +1206,10 @@ export function Cart() {
                     </div>
                   )}
                   
-                  {partnerDiscountPercent > 0 && (
+                  {effectivePartnerDiscountPercent > 0 && (
                     <div className="flex justify-between text-purple-600">
-                      <span>Partner Rate ({partnerDiscountPercent}%):</span>
-                      <span>-{formatPrice(totalAmount * (partnerDiscountPercent / 100))}</span>
+                      <span>Partner Rate ({effectivePartnerDiscountPercent}%):</span>
+                      <span>-{formatPrice(totalAmount * (effectivePartnerDiscountPercent / 100))}</span>
                     </div>
                   )}
                   

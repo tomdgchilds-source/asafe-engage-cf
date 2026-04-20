@@ -12,11 +12,15 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 export function CurrencySelector() {
   const { selectedCurrency, setCurrency, isLoading } = useCurrency();
 
+  // Previously this selector was `disabled={isLoading}`, which locked it on
+  // AED whenever the rates query hung. Rates have sensible fallback defaults
+  // baked into CurrencyContext, so we let the user switch freely — the
+  // display will briefly show default-rate prices until the live rates land,
+  // which is a much better UX than a permanently locked dropdown.
   return (
-    <Select 
-      value={selectedCurrency} 
+    <Select
+      value={selectedCurrency}
       onValueChange={setCurrency}
-      disabled={isLoading}
     >
       <SelectTrigger className="w-auto min-w-16 px-2 sm:px-3 h-8 sm:h-9 text-xs sm:text-sm border-2 border-gray-300 hover:border-yellow-400 [&>svg]:hidden" data-testid="select-currency">
         <div className="flex items-center gap-1 sm:gap-2">

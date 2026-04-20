@@ -4,13 +4,14 @@ import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { sendEmail } from "../services/email";
 
 const users = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ──────────────────────────────────────────────
 // POST /api/auth/send-verification
 // ──────────────────────────────────────────────
-users.post("/api/auth/send-verification", authMiddleware, async (c) => {
+users.post("/auth/send-verification", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -59,8 +60,10 @@ users.post("/api/auth/send-verification", authMiddleware, async (c) => {
       }
     }
 
-    // Generate OTP
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate OTP using cryptographically secure random
+    const otpArray = new Uint32Array(1);
+    crypto.getRandomValues(otpArray);
+    const otpCode = String(100000 + (otpArray[0] % 900000));
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     await storage.updateUser(userId, {
@@ -71,9 +74,30 @@ users.post("/api/auth/send-verification", authMiddleware, async (c) => {
       verificationMethod: method,
     });
 
-    // TODO: Actually send the code via email/WhatsApp service
-    // For now just return success so the flow works
-    console.log(`[send-verification] OTP ${otpCode} generated for user ${userId} via ${method}`);
+    // Send verification code via the chosen method
+    if (method === "email" && user?.email) {
+      const emailWork = sendEmail(
+        c.env,
+        user.email,
+        "Your Verification Code - A-SAFE Engage",
+        `<div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; text-align: center;">
+          <div style="background-color: #FFC72C; padding: 20px;">
+            <h2 style="margin: 0; color: #000;">Verification Code</h2>
+          </div>
+          <div style="padding: 24px; background: #fff;">
+            <p>Your verification code is:</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 16px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">${otpCode}</div>
+            <p style="color: #666; font-size: 14px;">This code expires in 15 minutes.</p>
+          </div>
+        </div>`,
+      );
+      c.executionCtx.waitUntil(emailWork);
+    } else if (method === "whatsapp" && user?.phone) {
+      // WhatsApp delivery — will activate once Meta Business verification completes
+      console.log(`[send-verification] WhatsApp OTP ${otpCode} for ${user.phone} (delivery pending Meta verification)`);
+    } else {
+      console.log(`[send-verification] OTP ${otpCode} for user ${userId} — no delivery channel for method "${method}"`);
+    }
 
     return c.json({ success: true, message: "Verification code sent" });
   } catch (error) {
@@ -85,7 +109,7 @@ users.post("/api/auth/send-verification", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/auth/verify-code
 // ──────────────────────────────────────────────
-users.post("/api/auth/verify-code", authMiddleware, async (c) => {
+users.post("/auth/verify-code", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -149,7 +173,7 @@ users.post("/api/auth/verify-code", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/auth/resend-code
 // ──────────────────────────────────────────────
-users.post("/api/auth/resend-code", authMiddleware, async (c) => {
+users.post("/auth/resend-code", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -192,8 +216,10 @@ users.post("/api/auth/resend-code", authMiddleware, async (c) => {
       }
     }
 
-    // Generate new OTP
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate new OTP using cryptographically secure random
+    const otpArray = new Uint32Array(1);
+    crypto.getRandomValues(otpArray);
+    const otpCode = String(100000 + (otpArray[0] % 900000));
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     await storage.updateUser(userId, {
@@ -204,8 +230,27 @@ users.post("/api/auth/resend-code", authMiddleware, async (c) => {
       verificationMethod: method,
     });
 
-    // TODO: Actually send the code via email/WhatsApp service
-    console.log(`[resend-code] OTP ${otpCode} generated for user ${userId} via ${method}`);
+    // Send verification code via the chosen method
+    if (method === "email" && user.email) {
+      const emailWork = sendEmail(
+        c.env,
+        user.email,
+        "Your Verification Code - A-SAFE Engage",
+        `<div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; text-align: center;">
+          <div style="background-color: #FFC72C; padding: 20px;">
+            <h2 style="margin: 0; color: #000;">Verification Code</h2>
+          </div>
+          <div style="padding: 24px; background: #fff;">
+            <p>Your verification code is:</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 16px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">${otpCode}</div>
+            <p style="color: #666; font-size: 14px;">This code expires in 15 minutes.</p>
+          </div>
+        </div>`,
+      );
+      c.executionCtx.waitUntil(emailWork);
+    } else if (method === "whatsapp" && user.phone) {
+      console.log(`[resend-code] WhatsApp OTP ${otpCode} for ${user.phone} (delivery pending Meta verification)`);
+    }
 
     return c.json({ success: true, message: "Verification code resent" });
   } catch (error) {
@@ -217,7 +262,7 @@ users.post("/api/auth/resend-code", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/auth/verification-status
 // ──────────────────────────────────────────────
-users.get("/api/auth/verification-status", authMiddleware, async (c) => {
+users.get("/auth/verification-status", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -258,7 +303,7 @@ users.get("/api/auth/verification-status", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PATCH /api/users/complete-profile
 // ──────────────────────────────────────────────
-users.patch("/api/users/complete-profile", authMiddleware, async (c) => {
+users.patch("/users/complete-profile", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -321,7 +366,7 @@ users.patch("/api/users/complete-profile", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/auth/profile
 // ──────────────────────────────────────────────
-users.get("/api/auth/profile", authMiddleware, async (c) => {
+users.get("/auth/profile", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -361,7 +406,7 @@ users.get("/api/auth/profile", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PUT /api/auth/profile
 // ──────────────────────────────────────────────
-users.put("/api/auth/profile", authMiddleware, async (c) => {
+users.put("/auth/profile", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -422,7 +467,7 @@ users.put("/api/auth/profile", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/auth/profile/image
 // ──────────────────────────────────────────────
-users.post("/api/auth/profile/image", authMiddleware, async (c) => {
+users.post("/auth/profile/image", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -436,18 +481,21 @@ users.post("/api/auth/profile/image", authMiddleware, async (c) => {
       return c.json({ message: "No image found in upload" }, 400);
     }
 
-    // Upload to R2
+    // Upload to R2 (via the proxy upload pattern)
     const buffer = await file.arrayBuffer();
-    const key = `profiles/${userId}/${file.name}`;
+    const ext = file.name.split(".").pop() || "jpg";
+    const key = `profiles/${userId}/${crypto.randomUUID()}.${ext}`;
+
+    if (!c.env.R2_BUCKET) {
+      return c.json({ message: "File storage not configured" }, 503);
+    }
 
     await c.env.R2_BUCKET.put(key, buffer, {
       httpMetadata: { contentType: file.type },
     });
 
-    // TODO: Generate a public URL for the R2 object.
-    // For now, use a relative path that a separate route can serve,
-    // or a custom domain pointing at the R2 bucket.
-    const imageUrl = `/r2/${key}`;
+    // Use the objects API path so the GET /api/objects/* route can serve it
+    const imageUrl = `/api/objects/${key}`;
 
     // Update user profile with the image URL
     await storage.updateUser(userId, { profileImageUrl: imageUrl });

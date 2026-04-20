@@ -41,6 +41,16 @@ interface DiscountModalProps {
   cartItems: any[];
 }
 
+interface DiscountLimitInfo {
+  subtotalAed: number;
+  cap: number;
+  tier: string;
+  rationale: string;
+  hardCeiling: number;
+  nextTier: { label: string; cap: number; amountToNext: number } | null;
+  allTiers: { min: number; cap: number; label: string }[];
+}
+
 export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModalProps) {
   const [selectedDiscounts, setSelectedDiscounts] = useState<string[]>([]);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
@@ -60,6 +70,32 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
     queryKey: ["/api/user-discount-selections"],
     enabled: isOpen && !!user,
   });
+
+  // Cart total in AED — used to request a tier-appropriate cap from the server.
+  // NOTE: cartItems.totalPrice is already in the user's chosen display currency,
+  // so when non-AED we leave the conversion to the server in a future iteration.
+  // For now we treat the display number as the AED proxy (the existing code does
+  // the same thing for the hard-coded 23% cap).
+  const cartTotalAed = (cartItems || []).reduce(
+    (sum: number, item: any) => sum + (item.totalPrice || 0),
+    0
+  );
+
+  // Fetch dynamic cap (tier, next-unlock) from the worker.
+  const { data: limitInfo } = useQuery<DiscountLimitInfo>({
+    queryKey: ["/api/discount-limit", Math.round(cartTotalAed)],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/discount-limit?subtotal=${encodeURIComponent(Math.round(cartTotalAed))}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+    enabled: isOpen,
+    staleTime: 30_000,
+  });
+  const discountCap = limitInfo?.cap ?? 25; // safe default while loading
 
   // Update selected discounts when user selections load
   useEffect(() => {
@@ -99,22 +135,25 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
 
   const handleDiscountToggle = (discountId: string, discountPercent: number) => {
     const isCurrentlySelected = selectedDiscounts.includes(discountId);
-    
+
     if (isCurrentlySelected) {
       // Remove the discount
       setSelectedDiscounts(prev => prev.filter(id => id !== discountId));
     } else {
-      // Check if adding this discount would exceed 23%
+      // Check against the server-computed tier cap (25–30% depending on deal size).
       const currentTotal = getTotalDiscount();
-      if (currentTotal + discountPercent > 23) {
+      if (currentTotal + discountPercent > discountCap) {
         toast({
-          title: "Discount Limit Exceeded",
-          description: `Adding this discount would exceed the 23% maximum limit. Current total: ${currentTotal}%`,
+          title: "Savings limit reached",
+          description: `Your current order qualifies for up to ${discountCap}% (${limitInfo?.tier || "Standard"} tier). ${
+            limitInfo?.nextTier
+              ? `Add AED ${Math.round(limitInfo.nextTier.amountToNext).toLocaleString()} more to unlock the ${limitInfo.nextTier.label} tier (${limitInfo.nextTier.cap}%).`
+              : ""
+          }`,
           variant: "destructive",
         });
         return;
       }
-      // Add the discount
       setSelectedDiscounts(prev => [...prev, discountId]);
     }
   };
@@ -185,7 +224,21 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
             Unlock Savings
           </DialogTitle>
           <DialogDescription className="space-y-3">
-            <span className="block">Select savings options to apply to your cart{totalDiscount >= 23 ? '. Maximum total savings: 23%' : ''}</span>
+            <span className="block">
+              Select savings options to apply to your cart.{" "}
+              <strong>
+                This order qualifies for up to {discountCap}% (
+                {limitInfo?.tier || "Standard"} tier)
+              </strong>
+              {limitInfo?.nextTier && (
+                <>
+                  {" "}— spend AED{" "}
+                  {Math.round(limitInfo.nextTier.amountToNext).toLocaleString()}{" "}
+                  more to unlock the {limitInfo.nextTier.label} tier (
+                  {limitInfo.nextTier.cap}%).
+                </>
+              )}
+            </span>
             <span className="block text-sm text-gray-600 leading-relaxed">
               At A-SAFE, we believe in creating partnerships that benefit both sides. That's why we offer added value through a reciprocal approach meaning if you share your safety successes, such as a testimonial, referrals, or a LinkedIn post, we can recognize your achievements, promote safer work practices, and celebrate your improvements while enhancing the overall value you receive on your project.
             </span>
@@ -197,11 +250,13 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Available Saving Options</h3>
-              <Badge 
-                variant={totalDiscount >= 20 ? "destructive" : totalDiscount >= 15 ? "secondary" : "default"}
+              <Badge
+                variant={totalDiscount >= discountCap ? "destructive" : totalDiscount >= discountCap * 0.75 ? "secondary" : "default"}
                 className="text-base px-3 py-1"
+                data-testid="badge-total-savings"
               >
-                Total Savings: -{totalDiscount}%{totalDiscount >= 23 && " / 23% max"}
+                Total Savings: -{totalDiscount}%
+                {totalDiscount >= discountCap && ` / ${discountCap}% max`}
               </Badge>
             </div>
             
@@ -213,7 +268,7 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
                 <CardContent className="space-y-3">
                   {options.map(option => {
                     const isSelected = selectedDiscounts.includes(option.id);
-                    const wouldExceedLimit = !isSelected && (totalDiscount + option.discountPercent > 23);
+                    const wouldExceedLimit = !isSelected && (totalDiscount + option.discountPercent > discountCap);
                     
                     // Check if this is the 10% flagship discount that requires 500k AED minimum
                     const isEligibleForFlagship = option.discountPercent === 10 && option.id === 'FLAGSHIP_SHOWCASE' 
@@ -271,7 +326,7 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
                             {wouldExceedLimit && (
                               <div className="flex items-center gap-1 mt-2 text-xs text-amber-600">
                                 <AlertCircle className="h-3 w-3" />
-                                <span>Would exceed 23% limit</span>
+                                <span>Would exceed {discountCap}% limit for this order size</span>
                               </div>
                             )}
                             {!isEligibleForFlagship && option.id === 'FLAGSHIP_SHOWCASE' && (

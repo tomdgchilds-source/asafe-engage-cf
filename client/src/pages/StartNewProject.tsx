@@ -136,7 +136,7 @@ export default function StartNewProject() {
           {/* Layout Drawing - New 5th option */}
           <Card className="border-gray-200 dark:border-gray-700 hover:border-[#8B5CF6] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-0">
-              <Link href="/layout-drawing" data-testid="link-layout-drawing">
+              <Link href="/layout-drawings" data-testid="link-layout-drawing">
                 <div className="p-8 flex flex-col items-center text-center h-full">
                   <div className="mb-4 p-4 bg-purple-100 dark:bg-purple-900/40 rounded-full">
                     <PenTool className="h-10 w-10 text-purple-600 dark:text-purple-400" />

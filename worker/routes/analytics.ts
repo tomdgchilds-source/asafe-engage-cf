@@ -4,6 +4,7 @@ import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { sendEmail } from "../services/email";
 
 const analytics = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -21,7 +22,6 @@ analytics.post("/contact", async (c) => {
     const body = await c.req.json();
     const data = contactSchema.parse(body);
 
-    // TODO: Send email via SendGrid fetch
     // Team notification email
     const teamHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -39,9 +39,48 @@ analytics.post("/contact", async (c) => {
       </div>
     `;
 
-    // TODO: Wire sendgrid service
-    // await sendEmail(c.env, c.env.CONTACT_EMAIL || c.env.SENDGRID_FROM_EMAIL, `Contact Form: ${data.subject}`, teamHtml);
-    // await sendEmail(c.env, data.email, 'We received your message - A-SAFE ENGAGE', confirmationHtml);
+    // Confirmation email to the person who submitted the form
+    const confirmationHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #FFC72C; padding: 20px; text-align: center;">
+          <h1 style="color: #000; margin: 0;">We Received Your Message</h1>
+        </div>
+        <div style="padding: 20px; background-color: #f9f9f9;">
+          <p>Hi ${data.name},</p>
+          <p>Thank you for contacting A-SAFE. We have received your message regarding <strong>${data.subject}</strong> and our team will get back to you shortly.</p>
+          <p>If you need immediate assistance, please don't hesitate to call your nearest A-SAFE office.</p>
+          <br />
+          <p>Best regards,<br />The A-SAFE Team</p>
+        </div>
+        <div style="padding: 16px; text-align: center; color: #888; font-size: 12px;">
+          <p>A-SAFE - Pioneering Workplace Safety</p>
+        </div>
+      </div>
+    `;
+
+    // Send emails in the background so they don't block the response
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          await Promise.all([
+            sendEmail(
+              c.env,
+              c.env.CONTACT_EMAIL || c.env.EMAIL_FROM,
+              `Contact Form: ${data.subject}`,
+              teamHtml,
+            ),
+            sendEmail(
+              c.env,
+              data.email,
+              "We received your message - A-SAFE ENGAGE",
+              confirmationHtml,
+            ),
+          ]);
+        } catch (emailError) {
+          console.error("Failed to send contact form emails:", emailError);
+        }
+      })(),
+    );
 
     return c.json({ message: "Message sent successfully" });
   } catch (error) {
@@ -104,10 +143,14 @@ analytics.get("/activity/recent", authMiddleware, async (c) => {
 });
 
 // DELETE /api/activity/cleanup
-analytics.delete("/activity/cleanup", async (c) => {
+analytics.delete("/activity/cleanup", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     await storage.cleanupOldActivity();
     return c.json({ success: true, message: "Old activities cleaned up successfully" });
   } catch (error) {
@@ -149,6 +192,22 @@ analytics.get("/currency/rates", async (c) => {
     console.error("Error fetching currency rates:", error);
     return c.json({ message: "Failed to fetch currency rates" }, 500);
   }
+});
+
+// GET /api/reminders/settings - user reminder preferences (stub)
+analytics.get("/reminders/settings", authMiddleware, async (c) => {
+  return c.json({ enabled: false, frequency: "daily" });
+});
+
+// POST /api/reminders/settings - save user reminder preferences (stub)
+analytics.post("/reminders/settings", authMiddleware, async (c) => {
+  const body = await c.req.json();
+  return c.json({ enabled: body.enabled || false, frequency: body.frequency || "daily" });
+});
+
+// GET /api/reminders/quotes - get quote reminders (stub)
+analytics.get("/reminders/quotes", authMiddleware, async (c) => {
+  return c.json([]);
 });
 
 export default analytics;

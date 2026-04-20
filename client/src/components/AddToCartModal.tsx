@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -83,14 +84,16 @@ interface PricingData {
 }
 
 export function AddToCartModal({ product, children, impactCalculationId, calculationContext, variants, showVariantSelector, calculatorImages, isEditMode = false }: AddToCartModalProps) {
+  const [, setLocation] = useLocation();
   const existingItem = product.existingCartItem;
-  
+
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState(existingItem?.quantity || 0);
   const [notes, setNotes] = useState(existingItem?.notes || "");
   const [applicationArea, setApplicationArea] = useState(existingItem?.applicationArea || "");
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+  const [requiresQuote, setRequiresQuote] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   
   // Delivery options
@@ -147,11 +150,15 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
     calcToppleBarrier(toppleHeight, toppleWidth);
 
   // Helper functions to determine product types
-  const isColumnGuard = product.category === "column-protection" || 
-    product.name.toLowerCase().includes("column guard") || 
-    product.name.toLowerCase().includes("column protector");
+  // Column guard UI (length/width/sides config) should not show for spacer kits or corner guards
+  const isColumnGuard = (product.category === "column-protection" ||
+    product.name.toLowerCase().includes("column guard") ||
+    product.name.toLowerCase().includes("column protector"))
+    && !product.name.toLowerCase().includes("spacer")
+    && !product.name.toLowerCase().includes("corner guard");
   
-  const isFlexiShieldColumnGuard = product.name.toLowerCase().includes("flexishield column guard");
+  const isFlexiShieldColumnGuard = product.name.toLowerCase().includes("flexishield column guard")
+    && !product.name.toLowerCase().includes("spacer");
   const isIFlexRailColumnGuard = product.name.toLowerCase().includes("iflex rail column guard");
   const isToppleBarrier = product.name.toLowerCase().includes("topple barrier") || product.name.toLowerCase().includes("topple guardrail");
   
@@ -363,60 +370,58 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       
       // Find the FlexiShield Column Guard grouped product
       const flexiShieldGroup = data.find((p: any) => {
-        const isFlexiShield = p.name && p.name.toLowerCase() === 'flexishield column guard';
-        if (isFlexiShield) {
-    // Found FlexiShield group
-        }
-        return isFlexiShield;
+        return p.name && p.name.toLowerCase() === 'flexishield column guard';
       });
-      
-      if (!flexiShieldGroup || !flexiShieldGroup.productVariants) {
-  // No FlexiShield group found or no variants available
-        return [];
-      }
-      
-      // Extract and process all variants from the grouped product
-      const flexiProducts = flexiShieldGroup.productVariants
+
+      if (!flexiShieldGroup) return [];
+
+      // Read the size variants from the top-level `variants` array or `specifications.variants`
+      const rawVariants: any[] =
+        (Array.isArray(flexiShieldGroup.variants) && flexiShieldGroup.variants) ||
+        (flexiShieldGroup.specifications?.variants as any[]) ||
+        [];
+
+      if (!rawVariants.length) return [];
+
+      // Extract dimensions and normalize for UI use
+      const flexiProducts = rawVariants
         .filter((variant: any) => {
-          // Filter out spacers and only include base guards
-          return variant.name && !variant.name.toLowerCase().includes('spacer');
+          // Exclude spacers — we only want base column guards
+          return variant && variant.name && !variant.name.toLowerCase().includes('spacer');
         })
-        .map((variant: any) => {
-          // Parse specifications to get dimensions
-          const specs = typeof variant.specifications === 'string' ? JSON.parse(variant.specifications) : variant.specifications || {};
-          const variantName = variant.name
+        .map((variant: any, idx: number) => {
+          const variantName = String(variant.name)
             .replace('FlexiShield Column Guard – ', '')
             .replace('FlexiShield Column Guard ', '')
             .replace(' mm', 'mm');
-          
-          // Extract dimensions from the variant name if specs don't have them
-          let length = parseInt(specs.length_mm || specs.Length_mm || 0);
-          let width = parseInt(specs.width_mm || specs.Width_mm || 0);
-          
-          // If dimensions not found in specs, extract from name (e.g., "150x150 mm")
+
+          let length = parseInt(variant.length_mm || variant.Length_mm || 0);
+          let width = parseInt(variant.width_mm || variant.Width_mm || 0);
+
+          // If dimensions not present, extract from name like "150x150 mm"
           if (!length || !width) {
-            const dimensionMatch = variantName.match(/(\d+)x(\d+)/);
+            const dimensionMatch = variantName.match(/(\d+)\s*x\s*(\d+)/);
             if (dimensionMatch) {
               length = parseInt(dimensionMatch[1]);
               width = parseInt(dimensionMatch[2]);
             }
           }
-          
-          const result = {
-            id: variant.id,
+
+          const variantId = variant.id || variant.code || `${flexiShieldGroup.id}-v${idx}`;
+
+          return {
+            id: variantId,
             name: variant.name,
             price: parseFloat(variant.price) || 0,
             variant: variantName,
             length: length,
             width: width,
-            itemId: variant.id
+            itemId: variantId,
+            code: variant.code,
           };
-          
-    // Mapped variant
-          return result;
-        }); // Keep all FlexiShield variants without complex sorting
-      
-// Processed FlexiShield products
+        })
+        .sort((a: any, b: any) => (a.length || 0) - (b.length || 0));
+
       return flexiProducts;
     }
   });
@@ -868,8 +873,10 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       // Only set pricing data if it's not fallback pricing
       if (data.tier !== "Fallback") {
         setPricingData(data);
+        setRequiresQuote(false);
       } else {
         setPricingData(null);
+        setRequiresQuote(true);
         toast({
           title: "Pricing Unavailable",
           description: "Pricing information is not available for this product. Please contact us for a quote.",
@@ -880,11 +887,19 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
     onError: (error: any) => {
       setIsLoadingPrice(false);
       console.error("Pricing calculation error:", error);
-      toast({
-        title: "Error",
-        description: `Failed to calculate pricing: ${error.message || "Unknown error"}`,
-        variant: "destructive",
-      });
+      // Check if this is a "requires quote" error from the API
+      const errorMessage = error.message || "Unknown error";
+      if (errorMessage.includes("request a quote") || errorMessage.includes("No pricing available")) {
+        setPricingData(null);
+        setRequiresQuote(true);
+      } else {
+        setRequiresQuote(false);
+        toast({
+          title: "Error",
+          description: `Failed to calculate pricing: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -1135,6 +1150,58 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           </DialogHeader>
 
         <div className="space-y-4">
+          {/* Product Info Card — always shown at top, especially useful for single-SKU items like Spacer Set */}
+          {(() => {
+            const isSpacerKit = product.name.toLowerCase().includes("spacer");
+            const singleVariant = availableVariants.length === 1 ? availableVariants[0] : null;
+            const showInfo = isSpacerKit || (singleVariant && singleVariant.name && !hasVariants);
+            if (!showInfo) return null;
+            const v = singleVariant;
+            const dims: string[] = [];
+            if (v?.length_mm) dims.push(`Length ${v.length_mm}mm`);
+            if (v?.width_mm) dims.push(`Width ${v.width_mm}mm`);
+            if (v?.height_mm) dims.push(`Height ${v.height_mm}mm`);
+            if (v?.od_mm) dims.push(`OD ${v.od_mm}mm`);
+            return (
+              <div className="space-y-2 border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg" data-testid="product-info-card">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-yellow-700" />
+                  <Label className="text-base font-semibold text-yellow-900 dark:text-yellow-100">Product Details</Label>
+                </div>
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-700 dark:text-gray-300">Product:</span>
+                    <span className="font-medium text-black dark:text-white">{product.name}</span>
+                  </div>
+                  {v?.name && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-700 dark:text-gray-300">Size / Variant:</span>
+                      <span className="font-medium text-black dark:text-white">{v.name}</span>
+                    </div>
+                  )}
+                  {dims.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-700 dark:text-gray-300">Dimensions:</span>
+                      <span className="font-medium text-black dark:text-white">{dims.join(" × ")}</span>
+                    </div>
+                  )}
+                  {v?.code && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-700 dark:text-gray-300">Product Code:</span>
+                      <span className="font-mono text-xs text-black dark:text-white">{v.code}</span>
+                    </div>
+                  )}
+                  {isSpacerKit && (
+                    <div className="mt-2 p-2 bg-white dark:bg-black/30 rounded border border-yellow-400 text-xs text-gray-800 dark:text-gray-200">
+                      <strong>Note:</strong> Spacers are sold in pairs. One unit = one pair of {v?.length_mm || 100}mm spacers.
+                      Use pairs to extend the FlexiShield Column Guard coverage on larger columns (e.g. 2 length pairs + 1 width pair adds 200mm to length and 100mm to width).
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Product Variant Selection - Show when showVariantSelector is true */}
           {showVariantSelector && variants && variants.length > 0 && (
             <div className="space-y-3 border border-purple-200 bg-purple-50 p-4 rounded-lg">
@@ -1193,8 +1260,8 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             </div>
           )}
 
-          {/* Product Variant Selection - Show when product has variants from grouping OR from specifications (NOT for FlexiShield or iFlex Rail) */}
-          {!showVariantSelector && ((product as any).hasVariants && (product as any).productVariants && (product as any).productVariants.length > 1 || (availableVariants.length > 0 && product.name === 'Cold Storage Bollard')) && !isFlexiShieldColumnGuard && !isIFlexRailColumnGuard && !((product as any).basePricePerMeter && (product as any).basePricePerMeter > 0) && (
+          {/* Product Variant Selection - Show when product has selectable variants (NOT for FlexiShield or iFlex Rail which have their own config flows) */}
+          {!showVariantSelector && availableVariants.length > 1 && !isFlexiShieldColumnGuard && !isIFlexRailColumnGuard && !((product as any).basePricePerMeter && (product as any).basePricePerMeter > 0) && (
             <div className="space-y-3 border border-yellow-200 bg-yellow-50 p-4 rounded-lg">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-yellow-600" />
@@ -1202,13 +1269,12 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
               </div>
               <div className="space-y-2">
                 <Label htmlFor="variant-select" className="text-sm">
-                  Choose specific model ({product.name === 'Cold Storage Bollard' ? availableVariants.length : (product as any).productVariants?.length} available)
+                  Choose specific model ({availableVariants.length} available)
                 </Label>
-                <Select 
-                  value={selectedVariant?.id || ""} 
+                <Select
+                  value={selectedVariant?.id || selectedVariant?.code || ""}
                   onValueChange={(variantId) => {
-                    const variantsToUse = product.name === 'Cold Storage Bollard' ? availableVariants : (product as any).productVariants;
-                    const variant = variantsToUse?.find((v: any) => v.id === variantId);
+                    const variant = availableVariants.find((v: any) => (v.id || v.code) === variantId);
                     setSelectedVariant(variant);
                     if (variant) {
                       // Recalculate price for the selected variant
@@ -1221,13 +1287,17 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                     <SelectValue placeholder="Choose a variant..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {(product.name === 'Cold Storage Bollard' ? availableVariants : (product as any).productVariants)?.sort((a: any, b: any) => {
+                    {[...availableVariants].sort((a: any, b: any) => {
                       // Extract numeric dimensions for sorting
                       const extractDimension = (variant: any): number => {
                         const name = variant.name || '';
-                        // Try to extract first number from name (usually the length)
-                        const match = name.match(/(\d+)\s*mm/);
-                        return match ? parseInt(match[1]) : 9999;
+                        // Try mm match first (e.g., "1200mm"), then OD match (e.g., "130 OD"), then any number
+                        const mmMatch = name.match(/(\d+)\s*mm/i);
+                        if (mmMatch) return parseInt(mmMatch[1]);
+                        const odMatch = name.match(/(\d+)\s*OD/i);
+                        if (odMatch) return parseInt(odMatch[1]);
+                        const anyNum = name.match(/(\d+)/);
+                        return anyNum ? parseInt(anyNum[1]) : 9999;
                       };
                       const dimA = extractDimension(a);
                       const dimB = extractDimension(b);
@@ -1236,16 +1306,19 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                       const priceA = parseFloat(a.price || '0');
                       const priceB = parseFloat(b.price || '0');
                       return priceA - priceB;
-                    }).map((variant: any) => (
-                      <SelectItem key={variant.id} value={variant.id}>
-                        <div className="flex justify-between items-center w-full">
-                          <span>{variant.name}</span>
-                          <span className="text-yellow-600 font-medium ml-4">
-                            {formatPrice(variant.price)}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    }).map((variant: any) => {
+                      const variantKey = variant.id || variant.code || variant.name;
+                      return (
+                        <SelectItem key={variantKey} value={variantKey}>
+                          <div className="flex justify-between items-center w-full">
+                            <span>{variant.name}</span>
+                            <span className="text-yellow-600 font-medium ml-4">
+                              {formatPrice(variant.price)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -2339,10 +2412,12 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             <div className="space-y-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg" data-testid="pricing-unavailable">
               <div className="flex items-center gap-2 text-yellow-800">
                 <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">Pricing Not Available</span>
+                <span className="font-medium">{requiresQuote ? "Quote Required" : "Pricing Not Available"}</span>
               </div>
               <p className="text-sm text-yellow-700">
-                This product requires a custom quote. Please contact our sales team for accurate pricing and availability.
+                {requiresQuote
+                  ? "No standard pricing is configured for this product. Use the \"Request Quote\" button below to get a custom quote from our sales team."
+                  : "This product requires a custom quote. Please contact our sales team for accurate pricing and availability."}
               </p>
               <div className="text-xs text-yellow-600">
                 <p>• Pricing varies based on quantity, specifications, and location</p>
@@ -2510,20 +2585,53 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             >
               Cancel
             </Button>
-            <Button
-              onClick={() => addToCartMutation.mutate()}
-              disabled={!pricingData || addToCartMutation.isPending || (isColumnGuard && configurationMode === 'custom' && (!columnLength || !columnWidth)) || (hasVariants && !isLinearMeter && !selectedVariant)}
-              className="flex-1"
-              data-testid="button-confirm-add-to-cart"
-            >
-              {addToCartMutation.isPending 
-                ? (isEditMode ? "Updating..." : "Adding...") 
-                : !pricingData 
-                  ? "Contact for Quote" 
-                  : (isEditMode ? "Update Cart" : "Add to Cart")
-              }
-            </Button>
+            {requiresQuote && !pricingData ? (
+              <Button
+                onClick={() => {
+                  setOpen(false);
+                  // Navigate to the products page where the quote modal can be triggered
+                  setLocation(`/products?requestQuote=${encodeURIComponent(product.name)}`);
+                }}
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                data-testid="button-request-quote"
+              >
+                Request Quote
+              </Button>
+            ) : (
+              <Button
+                onClick={() => addToCartMutation.mutate()}
+                disabled={!pricingData || addToCartMutation.isPending || (isColumnGuard && configurationMode === 'custom' && (!columnLength || !columnWidth)) || (hasVariants && !isLinearMeter && !selectedVariant)}
+                className="flex-1"
+                data-testid="button-confirm-add-to-cart"
+              >
+                {addToCartMutation.isPending
+                  ? (isEditMode ? "Updating..." : "Adding...")
+                  : !pricingData
+                    ? "Calculating..."
+                    : (isEditMode ? "Update Cart" : "Add to Cart")
+                }
+              </Button>
+            )}
           </div>
+
+          {/* Inline error banner for persistent visibility */}
+          {addToCartMutation.isError && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                {(() => {
+                  const msg = (addToCartMutation.error as any)?.message || "Unknown error";
+                  // Clean up JSON wrapper from API error responses
+                  try {
+                    const parsed = JSON.parse(msg.replace(/^\d+:\s*/, ''));
+                    return parsed.message || msg;
+                  } catch {
+                    return msg.replace(/^\d+:\s*/, '');
+                  }
+                })()}
+              </span>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -109,3 +109,81 @@ input, select, textarea {
   overscroll-behavior: none !important;
   -webkit-overflow-scrolling: touch !important;
 }
+
+/* ─── iPad / Tablet optimizations ─── */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Better sidebar behavior on iPads */
+  .md\:block.fixed {
+    width: 14rem !important;
+  }
+
+  /* Ensure grid cards don't get too squeezed */
+  [class*="grid-cols"] > * {
+    min-width: 0;
+  }
+}
+
+/* ─── Safe area insets for iPhone notch/home indicator ─── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  /* Fixed bottom elements need safe area padding */
+  .fixed.bottom-0,
+  [class*="fixed"][class*="bottom-"] {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Main content padding for safe areas */
+  main {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* ─── Table horizontal scroll on mobile ─── */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  table thead,
+  table tbody,
+  table tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  /* Minimum column widths for readability */
+  table th,
+  table td {
+    min-width: 80px;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* ─── Ensure all buttons have minimum touch target on mobile ─── */
+@media (max-width: 640px) {
+  button, a[role="button"], [role="tab"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Reduce padding on cards for more content space */
+  .card-content, [class*="CardContent"] {
+    padding: 0.75rem;
+  }
+}
+
+/* ─── Prevent horizontal overflow globally ─── */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ─── Smooth momentum scrolling everywhere ─── */
+* {
+  -webkit-overflow-scrolling: touch;
+}

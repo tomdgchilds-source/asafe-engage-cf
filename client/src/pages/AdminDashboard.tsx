@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PartnerCodesTab } from "@/pages/admin/PartnerCodesTab";
 import { 
   Users, 
   ShoppingCart, 
@@ -68,6 +69,9 @@ interface UserActivity {
   section: string;
   details: any;
   createdAt: string;
+  userEmail?: string;
+  userFirstName?: string;
+  userLastName?: string;
 }
 
 interface AdminStats {
@@ -88,18 +92,11 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  // Check admin session
-  const { data: adminUser, isLoading: isLoadingSession } = useQuery({
+  // Admin session is verified by the AdminRoute wrapper
+  const { data: adminUser } = useQuery({
     queryKey: ["/api/admin/session"],
     retry: false,
   });
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isLoadingSession && !adminUser) {
-      setLocation("/admin/login");
-    }
-  }, [adminUser, isLoadingSession, setLocation]);
 
   // Fetch admin stats
   const { data: stats } = useQuery<AdminStats>({
@@ -182,10 +179,6 @@ export default function AdminDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  if (isLoadingSession) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
   if (!adminUser) {
     return null;
   }
@@ -231,7 +224,7 @@ export default function AdminDashboard() {
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -287,11 +280,12 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="activities">Activities</TabsTrigger>
             <TabsTrigger value="user-details">User Details</TabsTrigger>
+            <TabsTrigger value="partner-codes">Partner Codes</TabsTrigger>
           </TabsList>
 
           {/* Users Tab */}
@@ -373,10 +367,10 @@ export default function AdminDashboard() {
           <TabsContent value="orders" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <CardTitle>Order Management</CardTitle>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48" data-testid="select-order-status">
+                    <SelectTrigger className="w-full sm:w-48" data-testid="select-order-status">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -446,7 +440,7 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>User ID</TableHead>
+                        <TableHead>User</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Section</TableHead>
                         <TableHead>Details</TableHead>
@@ -456,18 +450,25 @@ export default function AdminDashboard() {
                     <TableBody>
                       {activities.slice(0, 100).map((activity) => (
                         <TableRow key={activity.id}>
-                          <TableCell className="font-mono text-xs">
-                            {activity.userId.slice(0, 8)}...
+                          <TableCell className="text-sm">
+                            <div className="font-medium">
+                              {activity.userFirstName && activity.userLastName
+                                ? `${activity.userFirstName} ${activity.userLastName}`
+                                : activity.userEmail || activity.userId.slice(0, 8) + "..."}
+                            </div>
+                            {activity.userEmail && (
+                              <div className="text-xs text-muted-foreground">{activity.userEmail}</div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary">{activity.activityType}</Badge>
                           </TableCell>
                           <TableCell>{activity.section}</TableCell>
                           <TableCell className="max-w-xs truncate">
-                            {activity.details?.path || "-"}
+                            {activity.details?.method || activity.details?.path || activity.details?.productName || "-"}
                           </TableCell>
                           <TableCell>
-                            {activity.createdAt ? format(new Date(activity.createdAt), "HH:mm:ss") : "-"}
+                            {activity.createdAt ? format(new Date(activity.createdAt), "MMM d, HH:mm") : "-"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -490,7 +491,7 @@ export default function AdminDashboard() {
                     {/* User Info */}
                     <div>
                       <h3 className="text-lg font-semibold mb-2">User Information</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           <p className="text-sm text-gray-500">Name</p>
                           <p className="font-medium">
@@ -515,7 +516,7 @@ export default function AdminDashboard() {
                     {/* Stats */}
                     <div>
                       <h3 className="text-lg font-semibold mb-2">Activity Summary</h3>
-                      <div className="grid grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                         <Card>
                           <CardContent className="pt-4">
                             <div className="text-2xl font-bold">
@@ -588,6 +589,11 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Partner Codes Tab */}
+          <TabsContent value="partner-codes" className="space-y-4">
+            <PartnerCodesTab />
           </TabsContent>
         </Tabs>
       </div>

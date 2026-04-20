@@ -13,7 +13,7 @@ const safety = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // GET /api/safety-metrics
 // ──────────────────────────────────────────────
-safety.get("/api/safety-metrics", authMiddleware, async (c) => {
+safety.get("/safety-metrics", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -30,7 +30,7 @@ safety.get("/api/safety-metrics", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/safety-metrics
 // ──────────────────────────────────────────────
-safety.post("/api/safety-metrics", authMiddleware, async (c) => {
+safety.post("/safety-metrics", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -55,7 +55,7 @@ safety.post("/api/safety-metrics", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/compliance-checks
 // ──────────────────────────────────────────────
-safety.get("/api/compliance-checks", authMiddleware, async (c) => {
+safety.get("/compliance-checks", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -72,7 +72,7 @@ safety.get("/api/compliance-checks", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/compliance-checks
 // ──────────────────────────────────────────────
-safety.post("/api/compliance-checks", authMiddleware, async (c) => {
+safety.post("/compliance-checks", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -97,7 +97,7 @@ safety.post("/api/compliance-checks", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/smart-reorders
 // ──────────────────────────────────────────────
-safety.get("/api/smart-reorders", authMiddleware, async (c) => {
+safety.get("/smart-reorders", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -114,7 +114,7 @@ safety.get("/api/smart-reorders", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/smart-reorders
 // ──────────────────────────────────────────────
-safety.post("/api/smart-reorders", authMiddleware, async (c) => {
+safety.post("/smart-reorders", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -135,7 +135,7 @@ safety.post("/api/smart-reorders", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PUT /api/smart-reorders/:id
 // ──────────────────────────────────────────────
-safety.put("/api/smart-reorders/:id", authMiddleware, async (c) => {
+safety.put("/smart-reorders/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -159,7 +159,7 @@ safety.put("/api/smart-reorders/:id", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/training-modules
 // ──────────────────────────────────────────────
-safety.get("/api/training-modules", authMiddleware, async (c) => {
+safety.get("/training-modules", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -176,7 +176,7 @@ safety.get("/api/training-modules", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/training-modules/:id
 // ──────────────────────────────────────────────
-safety.get("/api/training-modules/:id", authMiddleware, async (c) => {
+safety.get("/training-modules/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -195,7 +195,7 @@ safety.get("/api/training-modules/:id", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/training-progress
 // ──────────────────────────────────────────────
-safety.get("/api/training-progress", authMiddleware, async (c) => {
+safety.get("/training-progress", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -212,7 +212,7 @@ safety.get("/api/training-progress", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PATCH /api/training-progress/:moduleId
 // ──────────────────────────────────────────────
-safety.patch("/api/training-progress/:moduleId", authMiddleware, async (c) => {
+safety.patch("/training-progress/:moduleId", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -243,7 +243,7 @@ safety.patch("/api/training-progress/:moduleId", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/forum/categories
 // ──────────────────────────────────────────────
-safety.get("/api/forum/categories", authMiddleware, async (c) => {
+safety.get("/forum/categories", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -258,7 +258,7 @@ safety.get("/api/forum/categories", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/forum/categories/:categoryId/topics
 // ──────────────────────────────────────────────
-safety.get("/api/forum/categories/:categoryId/topics", authMiddleware, async (c) => {
+safety.get("/forum/categories/:categoryId/topics", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -277,7 +277,7 @@ safety.get("/api/forum/categories/:categoryId/topics", authMiddleware, async (c)
 // ──────────────────────────────────────────────
 // POST /api/forum/topics
 // ──────────────────────────────────────────────
-safety.post("/api/forum/topics", authMiddleware, async (c) => {
+safety.post("/forum/topics", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -298,7 +298,7 @@ safety.post("/api/forum/topics", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/forum/topics/:topicId/replies
 // ──────────────────────────────────────────────
-safety.get("/api/forum/topics/:topicId/replies", authMiddleware, async (c) => {
+safety.get("/forum/topics/:topicId/replies", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -317,7 +317,7 @@ safety.get("/api/forum/topics/:topicId/replies", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/forum/topics/:topicId/replies
 // ──────────────────────────────────────────────
-safety.post("/api/forum/topics/:topicId/replies", authMiddleware, async (c) => {
+safety.post("/forum/topics/:topicId/replies", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -342,7 +342,7 @@ safety.post("/api/forum/topics/:topicId/replies", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/market-trends
 // ──────────────────────────────────────────────
-safety.get("/api/market-trends", authMiddleware, async (c) => {
+safety.get("/market-trends", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -368,7 +368,7 @@ safety.get("/api/market-trends", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/contracts
 // ──────────────────────────────────────────────
-safety.get("/api/contracts", authMiddleware, async (c) => {
+safety.get("/contracts", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -385,7 +385,7 @@ safety.get("/api/contracts", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/contracts
 // ──────────────────────────────────────────────
-safety.post("/api/contracts", authMiddleware, async (c) => {
+safety.post("/contracts", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -410,7 +410,7 @@ safety.post("/api/contracts", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/conversations
 // ──────────────────────────────────────────────
-safety.get("/api/conversations", authMiddleware, async (c) => {
+safety.get("/conversations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -426,7 +426,7 @@ safety.get("/api/conversations", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/conversations
 // ──────────────────────────────────────────────
-safety.post("/api/conversations", authMiddleware, async (c) => {
+safety.post("/conversations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -451,7 +451,7 @@ safety.post("/api/conversations", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/conversations/:id/messages
 // ──────────────────────────────────────────────
-safety.get("/api/conversations/:id/messages", authMiddleware, async (c) => {
+safety.get("/conversations/:id/messages", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -470,7 +470,7 @@ safety.get("/api/conversations/:id/messages", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/conversations/:id/messages
 // ──────────────────────────────────────────────
-safety.post("/api/conversations/:id/messages", authMiddleware, async (c) => {
+safety.post("/conversations/:id/messages", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -496,7 +496,7 @@ safety.post("/api/conversations/:id/messages", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/safety-tips
 // ──────────────────────────────────────────────
-safety.get("/api/safety-tips", async (c) => {
+safety.get("/safety-tips", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -524,7 +524,7 @@ safety.get("/api/safety-tips", async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/safety-tips/:tipId/feedback
 // ──────────────────────────────────────────────
-safety.post("/api/safety-tips/:tipId/feedback", authMiddleware, async (c) => {
+safety.post("/safety-tips/:tipId/feedback", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -545,7 +545,7 @@ safety.post("/api/safety-tips/:tipId/feedback", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/safety-progress
 // ──────────────────────────────────────────────
-safety.get("/api/safety-progress", authMiddleware, async (c) => {
+safety.get("/safety-progress", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -564,7 +564,7 @@ safety.get("/api/safety-progress", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/safety-progress
 // ──────────────────────────────────────────────
-safety.post("/api/safety-progress", authMiddleware, async (c) => {
+safety.post("/safety-progress", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

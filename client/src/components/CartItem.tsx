@@ -26,53 +26,26 @@ interface CartItemProps {
 // Helper function to upload image to object storage
 const uploadImageToStorage = async (file: File): Promise<string> => {
   try {
-    // Get upload URL from server
-    const uploadResponse = await fetch('/api/cart-reference-images/upload', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to get upload URL');
-    }
-    
-    const { uploadURL } = await uploadResponse.json();
-    
-    // Upload file directly to object storage
-    const putResponse = await fetch(uploadURL, {
+    // Generate a unique key and upload directly to our worker's PUT endpoint
+    const ext = file.name.split('.').pop() || 'bin';
+    const key = `uploads/${crypto.randomUUID()}.${ext}`;
+    const accessPath = `/api/objects/${key}`;
+
+    // Upload file directly to our worker
+    const putResponse = await fetch(accessPath, {
       method: 'PUT',
       body: file,
+      credentials: 'include',
       headers: {
-        'Content-Type': file.type,
+        'Content-Type': file.type || 'application/octet-stream',
       },
     });
-    
+
     if (!putResponse.ok) {
       throw new Error('Failed to upload file');
     }
-    
-    // Update ACL and get final URL
-    const finalizeResponse = await fetch('/api/cart-reference-images', {
-      method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        imageUrl: uploadURL,
-        fileName: file.name,
-      })
-    });
-    
-    if (!finalizeResponse.ok) {
-      throw new Error('Failed to finalize upload');
-    }
-    
-    const { objectPath } = await finalizeResponse.json();
-    return objectPath;
+
+    return accessPath;
   } catch (error) {
     console.error('Error uploading image:', error);
     throw error;

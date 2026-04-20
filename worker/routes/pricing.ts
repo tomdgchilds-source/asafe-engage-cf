@@ -3,6 +3,12 @@ import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import {
+  getDiscountTier,
+  getNextTierUnlock,
+  DISCOUNT_TIERS,
+  HARD_DISCOUNT_CEILING,
+} from "../../shared/discountLimits";
 
 const pricing = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -28,6 +34,14 @@ pricing.post("/product-pricing/calculate", async (c) => {
 
     const { productName, quantity } = await c.req.json();
     const result = await storage.calculatePrice(productName, quantity);
+
+    if (result.requiresQuote) {
+      return c.json(
+        { message: "No pricing available for this product. Please request a quote.", requiresQuote: true },
+        400
+      );
+    }
+
     return c.json(result);
   } catch (error) {
     console.error("Error calculating price:", error);
@@ -46,6 +60,39 @@ pricing.get("/discount-options", async (c) => {
   } catch (error) {
     console.error("Error fetching discount options:", error);
     return c.json({ message: "Failed to fetch discount options" }, 500);
+  }
+});
+
+// GET /api/discount-limit?subtotal=<AED>
+//
+// Returns the applicable reciprocal-discount cap for an order of the given
+// AED-equivalent subtotal. Centralised here so the client and the PDF
+// generator can't drift from each other.
+pricing.get("/discount-limit", async (c) => {
+  try {
+    const raw = c.req.query("subtotal") ?? "0";
+    const subtotalAed = parseFloat(raw);
+    const tier = getDiscountTier(subtotalAed);
+    const nextUnlock = getNextTierUnlock(subtotalAed);
+
+    return c.json({
+      subtotalAed: Number.isFinite(subtotalAed) ? subtotalAed : 0,
+      cap: tier.cap,
+      tier: tier.label,
+      rationale: tier.rationale,
+      hardCeiling: HARD_DISCOUNT_CEILING,
+      nextTier: nextUnlock
+        ? {
+            label: nextUnlock.nextTier.label,
+            cap: nextUnlock.nextTier.cap,
+            amountToNext: nextUnlock.amountToNext,
+          }
+        : null,
+      allTiers: DISCOUNT_TIERS.map((t) => ({ min: t.min, cap: t.cap, label: t.label })),
+    });
+  } catch (error) {
+    console.error("Error computing discount limit:", error);
+    return c.json({ message: "Failed to compute discount limit" }, 500);
   }
 });
 
@@ -209,6 +256,21 @@ pricing.get("/service-care-options", async (c) => {
   } catch (error) {
     console.error("Error fetching service care options:", error);
     return c.json({ message: "Failed to fetch service care options" }, 500);
+  }
+});
+
+// GET /api/user-service-selection - get user service selection
+pricing.get("/user-service-selection", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const selection = await storage.getUserServiceSelection(userId);
+    return c.json(selection || null);
+  } catch (error) {
+    console.error("Error fetching user service selection:", error);
+    return c.json({ message: "Failed to fetch service selection" }, 500);
   }
 });
 

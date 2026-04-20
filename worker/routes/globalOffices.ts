@@ -9,7 +9,7 @@ const globalOffices = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // GET /api/global-offices
 // ──────────────────────────────────────────────
-globalOffices.get("/api/global-offices", async (c) => {
+globalOffices.get("/global-offices", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -27,7 +27,7 @@ globalOffices.get("/api/global-offices", async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/global-offices/region/:region
 // ──────────────────────────────────────────────
-globalOffices.get("/api/global-offices/region/:region", async (c) => {
+globalOffices.get("/global-offices/region/:region", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -42,7 +42,7 @@ globalOffices.get("/api/global-offices/region/:region", async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/global-offices/country/:country
 // ──────────────────────────────────────────────
-globalOffices.get("/api/global-offices/country/:country", async (c) => {
+globalOffices.get("/global-offices/country/:country", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -57,7 +57,7 @@ globalOffices.get("/api/global-offices/country/:country", async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/global-offices/default/:region
 // ──────────────────────────────────────────────
-globalOffices.get("/api/global-offices/default/:region", async (c) => {
+globalOffices.get("/global-offices/default/:region", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -75,7 +75,7 @@ globalOffices.get("/api/global-offices/default/:region", async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/global-offices/:id
 // ──────────────────────────────────────────────
-globalOffices.get("/api/global-offices/:id", async (c) => {
+globalOffices.get("/global-offices/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -93,7 +93,7 @@ globalOffices.get("/api/global-offices/:id", async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/global-offices (admin only)
 // ──────────────────────────────────────────────
-globalOffices.post("/api/global-offices", authMiddleware, async (c) => {
+globalOffices.post("/global-offices", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -117,7 +117,7 @@ globalOffices.post("/api/global-offices", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PUT /api/global-offices/:id (admin only)
 // ──────────────────────────────────────────────
-globalOffices.put("/api/global-offices/:id", authMiddleware, async (c) => {
+globalOffices.put("/global-offices/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -140,7 +140,7 @@ globalOffices.put("/api/global-offices/:id", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // DELETE /api/global-offices/:id (admin only)
 // ──────────────────────────────────────────────
-globalOffices.delete("/api/global-offices/:id", authMiddleware, async (c) => {
+globalOffices.delete("/global-offices/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

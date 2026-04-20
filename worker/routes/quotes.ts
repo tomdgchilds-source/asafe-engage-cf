@@ -3,6 +3,7 @@ import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { sendEmail } from "../services/email";
 
 const quotes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -117,12 +118,67 @@ quotes.post("/quote-requests", authMiddleware, async (c) => {
       }
     }
 
-    // TODO: Send email notifications via emailService
-    // await emailService.sendQuoteRequestConfirmation(emailData);
-    // await emailService.sendQuoteRequestToAdmin(emailData);
+    // Fire-and-forget activity log
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "request_quote",
+          section: "quotes",
+          details: { quoteRequestId: quoteRequest.id, productNames },
+        })
+      );
+    } catch {}
 
-    // TODO: Send WhatsApp confirmation via whatsappService
-    // await whatsappService.sendQuoteRequestConfirmation(emailData);
+    // Fire-and-forget email notifications
+    const customerName = contactPerson || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Customer";
+    const customerEmail = contactEmail || user?.email || "";
+    const notificationWork = (async () => {
+      try {
+        // Confirmation to customer
+        if (customerEmail) {
+          await sendEmail(c.env, customerEmail, "Quote Request Received - A-SAFE Engage",
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background-color: #FFC72C; padding: 24px; text-align: center;">
+                <h1 style="margin: 0; color: #000;">Quote Request Received</h1>
+              </div>
+              <div style="padding: 24px; background: #fff;">
+                <p>Hi ${customerName},</p>
+                <p>We've received your quote request and our team will review it shortly. You'll receive a detailed quotation within 24-48 hours.</p>
+                <p style="margin-top: 24px;">
+                  <a href="${c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/quotes"
+                     style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                    View Your Quotes
+                  </a>
+                </p>
+              </div>
+            </div>`);
+        }
+        // Notification to admin team
+        const adminEmails = (c.env.ADMIN_NOTIFICATION_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+        for (const adminEmail of adminEmails) {
+          await sendEmail(c.env, adminEmail, `New Quote Request from ${customerName}`,
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background-color: #1a1a2e; padding: 24px; text-align: center;">
+                <h1 style="margin: 0; color: #FFC72C;">New Quote Request</h1>
+              </div>
+              <div style="padding: 24px; background: #fff;">
+                <p><strong>Customer:</strong> ${customerName}</p>
+                <p><strong>Email:</strong> ${customerEmail}</p>
+                <p><strong>Company:</strong> ${company || user?.company || "Not specified"}</p>
+                <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
+                <p style="margin-top: 16px;"><a href="${c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/admin"
+                   style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                  Review in Admin
+                </a></p>
+              </div>
+            </div>`);
+        }
+      } catch (err) {
+        console.error("Quote notification error (non-blocking):", err);
+      }
+    })();
+    c.executionCtx.waitUntil(notificationWork);
 
     return c.json(quoteRequest);
   } catch (error) {
@@ -190,9 +246,9 @@ quotes.get("/quote-requests/:id", authMiddleware, async (c) => {
       return c.json({ message: "Quote request not found" }, 404);
     }
 
-    // Check if user owns this quote request
+    // Check if user owns this quote request — return 404 to avoid leaking existence
     if (quoteRequest.userId !== userId) {
-      return c.json({ message: "Access denied" }, 403);
+      return c.json({ message: "Quote request not found" }, 404);
     }
 
     return c.json(quoteRequest);
@@ -208,7 +264,15 @@ quotes.get("/quote-requests/:id/items", authMiddleware, async (c) => {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
 
+    const userId = c.get("user").claims.sub;
     const id = c.req.param("id");
+
+    // Verify ownership of the parent quote request
+    const quoteRequest = await storage.getQuoteRequest(id);
+    if (!quoteRequest || quoteRequest.userId !== userId) {
+      return c.json({ message: "Quote request not found" }, 404);
+    }
+
     const quoteRequestItems = await storage.getQuoteRequestItems(id);
     return c.json(quoteRequestItems);
   } catch (error) {
@@ -231,9 +295,9 @@ quotes.delete("/quote-requests/:id", authMiddleware, async (c) => {
       return c.json({ message: "Quote request not found" }, 404);
     }
 
-    // Check if user owns this quote request
+    // Check if user owns this quote request — return 404 to avoid leaking existence
     if (quoteRequest.userId !== userId) {
-      return c.json({ message: "Access denied" }, 403);
+      return c.json({ message: "Quote request not found" }, 404);
     }
 
     await storage.deleteQuoteRequest(quoteRequestId);

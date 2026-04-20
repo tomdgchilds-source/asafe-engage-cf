@@ -18,14 +18,16 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 export default function About() {
+  const [, setLocation] = useLocation();
   const [showContactModal, setShowContactModal] = useState(false);
 
   const handleContactAction = (type: 'contact' | 'whatsapp-me') => {
     switch (type) {
       case 'contact':
-        window.location.href = '/contact';
+        setLocation('/contact');
         break;
       case 'whatsapp-me':
         // Keep Middle East WhatsApp as a quick contact option
@@ -252,6 +254,11 @@ export default function About() {
                   src="https://webcdn.asafe.com/media/iyvhq2wy/a-safe-memaflex-barrier-system.jpg"
                   alt="A-SAFE Memaflex barrier system - innovative safety technology"
                   className="rounded-lg shadow-lg w-full"
+                  loading="lazy"
+                  onError={(e) => {
+                    // Gracefully hide broken image rather than showing a broken icon
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
                 />
                 <div className="mt-4">
                   <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">

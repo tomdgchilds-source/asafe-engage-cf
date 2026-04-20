@@ -7,7 +7,10 @@ import { createStorage } from "../storage";
 const siteSurveys = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // All site survey routes require authentication
-siteSurveys.use("/*", authMiddleware);
+siteSurveys.use("/site-surveys/*", authMiddleware);
+siteSurveys.use("/site-surveys", authMiddleware);
+siteSurveys.use("/site-survey-areas/*", authMiddleware);
+siteSurveys.use("/site-survey-areas", authMiddleware);
 
 // =============================================
 // SITE SURVEY ROUTES
@@ -32,9 +35,10 @@ siteSurveys.get("/site-surveys/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
     const survey = await storage.getSiteSurvey(c.req.param("id"));
-    if (!survey) {
-      return c.json({ message: "Site survey not found" }, 404);
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
     }
     return c.json(survey);
   } catch (error) {
@@ -58,6 +62,19 @@ siteSurveys.post("/site-surveys", async (c) => {
     };
 
     const survey = await storage.createSiteSurvey(validatedData);
+
+    // Fire-and-forget activity log
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "create_survey",
+          section: "site-surveys",
+          details: { surveyId: survey.id, title: body.title || body.name },
+        })
+      );
+    } catch {}
+
     return c.json(survey, 201);
   } catch (error) {
     console.error("Error creating site survey:", error);
@@ -70,6 +87,11 @@ siteSurveys.put("/site-surveys/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const survey = await storage.getSiteSurvey(c.req.param("id"));
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
     const body = await c.req.json();
 
     // TODO: Add Zod validation with insertSiteSurveySchema.partial()
@@ -86,6 +108,11 @@ siteSurveys.post("/site-surveys/:id/complete", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const survey = await storage.getSiteSurvey(c.req.param("id"));
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
     const completedSurvey = await storage.completeSiteSurvey(c.req.param("id"));
     return c.json(completedSurvey);
   } catch (error) {
@@ -99,6 +126,11 @@ siteSurveys.delete("/site-surveys/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const survey = await storage.getSiteSurvey(c.req.param("id"));
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
     await storage.deleteSiteSurvey(c.req.param("id"));
     return c.json({ success: true });
   } catch (error) {
@@ -116,6 +148,11 @@ siteSurveys.get("/site-surveys/:id/areas", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const survey = await storage.getSiteSurvey(c.req.param("id"));
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
     const areas = await storage.getSiteSurveyAreas(c.req.param("id"));
     return c.json(areas);
   } catch (error) {
@@ -129,6 +166,11 @@ siteSurveys.post("/site-surveys/:id/areas", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const survey = await storage.getSiteSurvey(c.req.param("id"));
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
     const body = await c.req.json();
 
     // TODO: Add Zod validation with insertSiteSurveyAreaSchema
@@ -150,33 +192,44 @@ siteSurveys.put("/site-survey-areas/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+
+    // Ownership check: area -> parent survey -> userId
+    const area = await storage.getSiteSurveyArea(c.req.param("id"));
+    if (!area) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+    const survey = await storage.getSiteSurvey(area.siteSurveyId);
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+
     const body = await c.req.json();
 
     // TODO: Add Zod validation with insertSiteSurveyAreaSchema.partial()
 
-    // Check if this is a product selection update (has recommendedProducts)
-    // If so, don't reset the calculations
+    // Only reset the impact calculation when inputs that actually affect it change.
+    // Editing zone name, photos, Matterport URL, description, etc. should NOT wipe
+    // an existing calculation.
+    const calcInputFields = ["vehicleWeight", "vehicleSpeed", "impactAngle"];
+    const calcInputChanged = calcInputFields.some((k) => k in body);
     const isProductSelectionUpdate =
-      "recommendedProducts" in body &&
-      !("zoneName" in body ||
-        "areaName" in body ||
-        "areaType" in body ||
-        "issueDescription" in body ||
-        "currentCondition" in body ||
-        "riskLevel" in body);
+      "recommendedProducts" in body && !calcInputChanged;
 
     let dataToUpdate;
     if (isProductSelectionUpdate) {
-      // Just update the recommended products without resetting calculations
       dataToUpdate = body;
-    } else {
-      // Reset calculation results when area details are edited
-      // This ensures user must recalculate after any changes
+    } else if (calcInputChanged) {
+      // User actually changed a calc input — invalidate the stored result.
       dataToUpdate = {
         ...body,
         calculatedJoules: null,
         recommendedProducts: [],
       };
+    } else {
+      // Non-calc edits (matterportUrl, photosUrls, names, description, etc.)
+      // leave the existing calculation intact.
+      dataToUpdate = body;
     }
 
     const updatedArea = await storage.updateSiteSurveyArea(c.req.param("id"), dataToUpdate);
@@ -192,15 +245,24 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const { vehicleWeight, vehicleSpeed, impactAngle = 90 } = await c.req.json();
+    const userId = c.get("user").claims.sub;
     const areaId = c.req.param("id");
+
+    // Ownership check: area -> parent survey -> userId
+    const currentArea = await storage.getSiteSurveyArea(areaId);
+    if (!currentArea) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+    const survey = await storage.getSiteSurvey(currentArea.siteSurveyId);
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+
+    const { vehicleWeight, vehicleSpeed, impactAngle = 90 } = await c.req.json();
 
     if (!vehicleWeight || !vehicleSpeed) {
       return c.json({ message: "Vehicle weight, speed, and impact angle are required" }, 400);
     }
-
-    // Get the current area to check if it's a racking area
-    const currentArea = await storage.getSiteSurveyArea(areaId);
     const isRackingArea = currentArea?.areaType?.toLowerCase().includes("racking");
 
     // PAS 13 calculation: KE = 0.5 x m x (v x sin theta)^2
@@ -387,6 +449,18 @@ siteSurveys.delete("/site-survey-areas/:id", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+
+    // Ownership check: area -> parent survey -> userId
+    const area = await storage.getSiteSurveyArea(c.req.param("id"));
+    if (!area) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+    const survey = await storage.getSiteSurvey(area.siteSurveyId);
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey area not found" }, 404);
+    }
+
     await storage.deleteSiteSurveyArea(c.req.param("id"));
     return c.json({ success: true });
   } catch (error) {

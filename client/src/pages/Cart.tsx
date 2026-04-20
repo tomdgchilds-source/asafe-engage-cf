@@ -6,11 +6,12 @@ import { Calculator, RotateCcw, FileText, Calendar, Save } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { DraftProjectDialog } from "@/components/DraftProjectDialog";
 import { InfoPopover } from "@/components/ui/info-popover";
 
 export default function CartPage() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isReportSelectionOpen, setIsReportSelectionOpen] = useState(false);
@@ -43,7 +44,7 @@ export default function CartPage() {
   const handleSelectReport = (calculationId: string) => {
     setIsReportSelectionOpen(false);
     // Navigate to calculator with the selected calculation ID as a query parameter
-    window.location.href = `/calculator?calculationId=${calculationId}`;
+    setLocation(`/calculator?calculationId=${calculationId}`);
   };
 
   return (

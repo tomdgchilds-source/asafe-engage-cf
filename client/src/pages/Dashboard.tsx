@@ -42,6 +42,7 @@ import { QuoteListModal } from "@/components/QuoteListModal";
 import { OrderListModal } from "@/components/OrderListModal";
 import { AIChat } from "@/components/AIChat";
 import { cn } from "@/lib/utils";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import type { Order, QuoteRequest } from "@shared/schema";
 
 interface DashboardCard {
@@ -57,6 +58,7 @@ interface DashboardCard {
 export default function Dashboard() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const haptic = useHapticFeedback();
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [quoteListModalOpen, setQuoteListModalOpen] = useState(false);
@@ -68,20 +70,21 @@ export default function Dashboard() {
     return `${amount.toLocaleString()} ${currency}`;
   };
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (only after auth check completes)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (isLoading) return; // Wait for auth check to finish
+    if (!isAuthenticated) {
       toast({
         title: "Unauthorized",
         description: "You are logged out. Logging in again...",
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        setLocation("/");
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, setLocation]);
 
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ["/api/orders"],
@@ -267,6 +270,7 @@ export default function Dashboard() {
   ];
 
   const handleCardClick = (cardId: string) => {
+    haptic.select();
     if (expandedCard === cardId) {
       setExpandedCard(null);
     } else {
@@ -334,7 +338,7 @@ export default function Dashboard() {
       
       case 'start-new-project':
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             <Button asChild className="h-20 flex-col bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold">
               <Link href="/site-survey">
                 <ClipboardList className="h-6 w-6 mb-2" />
@@ -519,7 +523,7 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
                   Primary Actions
                 </h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {primaryCards.map((card) => (
                     <motion.div
                       key={card.id}
@@ -530,7 +534,7 @@ export default function Dashboard() {
                         className={cn(
                           "cursor-pointer transition-all duration-200 border-2 border-gray-200 dark:border-gray-700",
                           "hover:border-[#FFC72C] hover:shadow-lg hover:shadow-[#FFC72C]/20",
-                          "min-h-[250px] flex flex-col",
+                          "min-h-[160px] sm:min-h-[250px] flex flex-col",
                           card.color
                         )}
                         onClick={() => handleCardClick(card.id)}
@@ -749,7 +753,7 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
                   Tools & Resources
                 </h2>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {secondaryCards.map((card) => (
                     <motion.div
                       key={card.id}
@@ -760,7 +764,7 @@ export default function Dashboard() {
                         className={cn(
                           "cursor-pointer transition-all duration-200 border-2 border-gray-200 dark:border-gray-700",
                           "hover:border-[#FFC72C] hover:shadow-lg hover:shadow-[#FFC72C]/20",
-                          "min-h-[250px] flex flex-col",
+                          "min-h-[160px] sm:min-h-[250px] flex flex-col",
                           card.color
                         )}
                         onClick={() => handleCardClick(card.id)}

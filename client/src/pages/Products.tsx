@@ -15,6 +15,7 @@ import { AddToCartModal } from "@/components/AddToCartModal";
 import { ProductComparison } from "@/components/ProductComparison";
 import { useAuth } from "../hooks/useAuth";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,7 +37,7 @@ import { getPriceDisplay, extractPricingData } from "@shared/pricingUtils";
 export default function Products() {
   const params = useParams();
   const productId = params.id;
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [tempSearchTerm, setTempSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -49,18 +50,14 @@ export default function Products() {
   const [impactRatingRange, setImpactRatingRange] = useState<[number, number]>([0, 100]);
   const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>("impact-desc");
-  
-  // Product comparison states
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareProducts, setCompareProducts] = useState<Product[]>([]);
-  const [showComparison, setShowComparison] = useState(false);
-  
+
   // Check if we're coming from the calculator
   const isFromCalculator = location.includes('?from=calculator');
   
   // Get authenticated user data for quote requests
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
+  const haptic = useHapticFeedback();
 
 
   // If we have a product ID, fetch individual product, otherwise fetch all products
@@ -114,18 +111,16 @@ export default function Products() {
   }, [individualProduct, productId]);
 
   const categories = [
-    { value: "traffic-barriers", label: "Traffic Barriers" },
+    { value: "traffic-guardrails", label: "Traffic Barriers" },
     { value: "pedestrian-barriers", label: "Pedestrian Barriers" },
     { value: "rack-protection", label: "Rack Protection" },
-    { value: "loading-bay-protection", label: "Loading Bay Protection" },
-    { value: "overhead-protection", label: "Overhead Protection" },
     { value: "column-protection", label: "Column Protection" },
-    { value: "wall-protection", label: "Wall Protection" },
-    { value: "fork-protection", label: "Fork Protection" },
-    { value: "charging-unit-protection", label: "Charging Unit Protection" },
-    { value: "cold-storage", label: "Cold Storage Protection" },
     { value: "bollards", label: "Bollards" },
+    { value: "vehicle-stops", label: "Vehicle Stops" },
     { value: "gates", label: "Gates & Access Control" },
+    { value: "dock-protection", label: "Dock Protection" },
+    { value: "height-restrictors", label: "Height Restrictors" },
+    { value: "accessories", label: "Accessories" },
   ];
   
   const industries = [
@@ -149,10 +144,12 @@ export default function Products() {
   ];
 
   const handleProductDetails = (product: Product) => {
-    window.location.href = `/products/${product.id}`;
+    haptic.select();
+    setLocation(`/products/${product.id}`);
   };
 
   const handleSearch = () => {
+    haptic.select();
     setSearchTerm(tempSearchTerm);
   };
 
@@ -535,15 +532,16 @@ export default function Products() {
               {/* Actions */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <AddToCartModal product={individualProduct as any}>
-                  <Button 
+                  <Button
                     className="bg-green-600 hover:bg-green-700 text-white flex-1"
                     data-testid="add-to-cart-button"
+                    onClick={() => haptic.addToCart()}
                   >
                     Add to Cart
                   </Button>
                 </AddToCartModal>
 
-                <Button variant="outline" className="flex-1" data-testid="request-quote">
+                <Button variant="outline" className="flex-1" data-testid="request-quote" onClick={() => haptic.select()}>
                   <FileText className="h-4 w-4 mr-2" />
                   Request Quote
                 </Button>
@@ -609,7 +607,7 @@ export default function Products() {
                 
                 {/* Category Filter */}
                 <div className="md:col-span-4 xl:col-span-4">
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <Select value={selectedCategory} onValueChange={(value) => { haptic.select(); setSelectedCategory(value); }}>
                     <SelectTrigger className="h-10 sm:h-11" data-testid="category-filter">
                       <Filter className="h-4 w-4 mr-2" />
                       <SelectValue placeholder="All Categories" />
@@ -646,8 +644,8 @@ export default function Products() {
                 {searchTerm && (
                   <Badge variant="secondary" className="text-xs">
                     Search: "{searchTerm}"
-                    <button 
-                      onClick={() => setSearchTerm("")}
+                    <button
+                      onClick={() => { haptic.select(); setSearchTerm(""); }}
                       className="ml-2 hover:text-red-500"
                     >
                       ×
@@ -657,8 +655,8 @@ export default function Products() {
                 {selectedCategory !== 'all' && (
                   <Badge variant="secondary" className="text-xs">
                     Category: {categories.find(c => c.value === selectedCategory)?.label}
-                    <button 
-                      onClick={() => setSelectedCategory("all")}
+                    <button
+                      onClick={() => { haptic.select(); setSelectedCategory("all"); }}
                       className="ml-2 hover:text-red-500"
                     >
                       ×
@@ -738,6 +736,7 @@ export default function Products() {
                 <Button
                   variant="outline"
                   onClick={() => {
+                    haptic.select();
                     setSearchTerm("");
                     setSelectedCategory("all");
                   }}

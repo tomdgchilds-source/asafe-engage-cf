@@ -11,20 +11,39 @@ import { CaseStudyCard } from "@/components/CaseStudyCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CaseStudy } from "@shared/schema";
 
-// Industry display names mapping
+// Industry display names mapping (URL slug → human label)
 const industryDisplayNames: Record<string, string> = {
   manufacturing: "Manufacturing",
-  logistics: "Logistics & Warehousing", 
+  logistics: "Logistics & Warehousing",
+  "warehousing-distribution": "Warehousing & Distribution",
   pharmaceuticals: "Pharmaceuticals",
-  automotive: "Automotive"
+  "food-drink": "Food & Beverage",
+  automotive: "Automotive",
+  airports: "Airports & Aviation",
+  "health-hygiene": "Health & Hygiene",
+  "recycling-packaging": "Recycling & Packaging",
+  "chemical-and-power": "Chemical & Power",
+  "car-parks": "Car Parks",
+  "parking-lot": "Car Parks",
+  "cold-storage": "Cold Storage",
 };
 
-// Industry-specific tags mapping
+// Industry-specific tags mapping — kept broad so we match both
+// DB industry strings (e.g. "Warehousing & Logistics") and URL slugs.
 const industryTags: Record<string, string[]> = {
   manufacturing: ["Manufacturing", "Industrial", "Factory", "Production"],
   logistics: ["Logistics", "Warehousing", "Distribution", "Supply Chain"],
+  "warehousing-distribution": ["Warehousing", "Logistics", "Distribution"],
   pharmaceuticals: ["Pharmaceuticals", "Healthcare", "Medical", "Laboratory"],
-  automotive: ["Automotive", "Vehicle", "Transportation", "Assembly"]
+  "food-drink": ["Food", "Beverage", "Drink"],
+  automotive: ["Automotive", "Vehicle", "Transportation", "Assembly"],
+  airports: ["Airport", "Aviation", "Airside"],
+  "health-hygiene": ["Health", "Hygiene", "Pharmaceutical"],
+  "recycling-packaging": ["Recycling", "Packaging", "Waste"],
+  "chemical-and-power": ["Chemical", "Power", "Utilities"],
+  "car-parks": ["Car Park", "Parking"],
+  "parking-lot": ["Car Park", "Parking"],
+  "cold-storage": ["Cold Storage", "Frozen", "Chilled"],
 };
 
 export default function IndustryCaseStudies() {
@@ -54,22 +73,27 @@ export default function IndustryCaseStudies() {
 
   // Filter case studies by industry tags and search term
   const filteredCaseStudies = Array.isArray(caseStudies) ? caseStudies.filter((study: CaseStudy) => {
-    // Industry filtering
-    const matchesIndustry = relevantTags.some(tag => 
-      study.tags?.some((studyTag: string) => 
-        studyTag.toLowerCase().includes(tag.toLowerCase())
-      ) ||
-      study.title?.toLowerCase().includes(tag.toLowerCase()) ||
-      study.description?.toLowerCase().includes(tag.toLowerCase()) ||
-      study.industry?.toLowerCase().includes(tag.toLowerCase())
-    );
+    // Industry filtering — compare URL slug AND mapped tags against multiple study fields
+    const slugTokens = industry ? industry.split("-") : [];
+    const allTokens = [...relevantTags.map((t) => t.toLowerCase()), ...slugTokens];
+
+    const haystack = [
+      study.industry || "",
+      study.title || "",
+      study.description || "",
+      ...((study as any).tags || []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const matchesIndustry = allTokens.length === 0 || allTokens.some((tok) => haystack.includes(tok.toLowerCase()));
 
     // Search term filtering
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       study.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       study.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       study.company?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     return matchesIndustry && matchesSearch;
   }) : [];
 

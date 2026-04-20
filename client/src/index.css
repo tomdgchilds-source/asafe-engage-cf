@@ -407,7 +407,7 @@ img {
 }
 
 .asafe-card {
-  @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-200;
+  @apply bg-card border border-border rounded-lg shadow-md border-l-4 border-l-primary hover:shadow-lg transition-all duration-200;
 }
 
 .asafe-card-elevated {
@@ -490,6 +490,12 @@ img {
 
 .animate-bounce-in {
   animation: bounce-in 0.6s ease-out;
+}
+
+/* Branded A-SAFE loading spinner — rotating wedge */
+@keyframes asafe-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* Line clamp utilities */
@@ -1205,6 +1211,15 @@ canvas, svg {
 .react-pdf__Page__canvas {
   image-rendering: -webkit-optimize-contrast !important;
   image-rendering: crisp-edges !important;
+  /* Force-visible. react-pdf 10 sets `visibility: hidden` inline on the
+   * canvas while it's (re)rendering and only clears it after the render
+   * task resolves. When the `width` prop churns during the dialog open
+   * animation the render task keeps getting cancelled, so the canvas
+   * stays hidden indefinitely and the drawing appears blank even though
+   * the bitmap is fully painted. Overriding with !important keeps our
+   * paint visible; the rare half-second of "stale frame while a newer
+   * one is rendering" is a much better UX than a permanently blank view. */
+  visibility: visible !important;
 }
 
 /* Layout drawings specific high-quality rendering */

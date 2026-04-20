@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { ClipboardCheck, MapPin, Camera, AlertTriangle, FileText, Plus, Edit, Trash2, Upload, ShoppingCart, Download, Shield, AlertCircle, History, Search, Clock, ChevronDown } from 'lucide-react';
+import { ClipboardCheck, MapPin, Camera, AlertTriangle, FileText, Plus, Edit, Trash2, Upload, ShoppingCart, Download, Shield, AlertCircle, History, Search, Clock, ChevronDown, CheckCircle } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
   DropdownMenu,
@@ -20,12 +20,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { InfoPopover } from '@/components/ui/info-popover';
 import { generateSiteSurveyPdf } from '@/utils/siteSurveyPdfGenerator';
 import { useToast } from '@/hooks/use-toast';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { ObjectUploader } from '@/components/ObjectUploader';
 import { AddToCartModal } from '@/components/AddToCartModal';
 import { CompanyLogoFinder } from '@/components/CompanyLogoFinder';
+import { MatterportViewer, parseMatterportUrl } from '@/components/MatterportViewer';
 import type { UploadResult } from '@uppy/core';
 
 // Application areas from the impact calculator with risk & benefit data
@@ -188,6 +200,7 @@ export default function SiteSurvey() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const haptic = useHapticFeedback();
   const [selectedSurvey, setSelectedSurvey] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAreaDialog, setShowAreaDialog] = useState(false);
@@ -214,7 +227,8 @@ export default function SiteSurvey() {
     riskLevel: '',
     vehicleWeight: '',
     vehicleSpeed: '',
-    impactAngle: '90'
+    impactAngle: '90',
+    matterportUrl: ''
   });
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [editingArea, setEditingArea] = useState<any>(null);
@@ -223,6 +237,32 @@ export default function SiteSurvey() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [selectedCalculation, setSelectedCalculation] = useState<string>('');
   const [showBuildProjectModal, setShowBuildProjectModal] = useState(false);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+
+  // Mutation to complete a survey
+  const completeSurveyMutation = useMutation({
+    mutationFn: async (surveyId: string) => {
+      return await apiRequest(`/api/site-surveys/${surveyId}/complete`, 'POST');
+    },
+    onSuccess: (completedSurvey) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/site-surveys', selectedSurvey?.id, 'areas'] });
+      setSelectedSurvey(completedSurvey);
+      haptic.success();
+      toast({
+        title: 'Survey Completed',
+        description: 'The site survey has been marked as completed successfully.'
+      });
+    },
+    onError: () => {
+      haptic.error();
+      toast({
+        title: 'Error',
+        description: 'Failed to complete the site survey.',
+        variant: 'destructive'
+      });
+    }
+  });
 
   // Mutation to fetch specific survey and update lastViewed
   const fetchSurveyMutation = useMutation({
@@ -241,6 +281,7 @@ export default function SiteSurvey() {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: 'Failed to load survey details.',
@@ -251,6 +292,7 @@ export default function SiteSurvey() {
 
   // Handle survey selection
   const handleSelectSurvey = (survey: any) => {
+    haptic.select();
     // Fetch the survey to trigger lastViewed update
     fetchSurveyMutation.mutate(survey.id);
   };
@@ -275,6 +317,7 @@ export default function SiteSurvey() {
         const areas = await areasResponse.json();
         const userProfile = await profileResponse.json();
         await generateSiteSurveyPdf(survey, areas, userProfile);
+        haptic.success();
         toast({
           title: 'PDF Generated',
           description: 'Your site survey report has been downloaded successfully.'
@@ -284,6 +327,7 @@ export default function SiteSurvey() {
       }
     } catch (error) {
       console.error('Failed to generate PDF:', error);
+      haptic.error();
       toast({
         title: 'PDF Generation Failed',
         description: 'There was an error generating the PDF report. Please try again.',
@@ -302,34 +346,26 @@ export default function SiteSurvey() {
 
   // Image upload handlers
   const handleImageUpload = async () => {
-    const response = await apiRequest('/api/objects/upload', 'POST', {});
-    const data = await response.json();
+    const key = `uploads/${crypto.randomUUID()}`;
+    const accessPath = `/api/objects/${key}`;
     return {
       method: 'PUT' as const,
-      url: data.uploadURL
+      url: accessPath
     };
   };
 
   const handleImageUploadComplete = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
     if (result.successful && result.successful.length > 0) {
       const newImageUrls = result.successful.map(file => {
-        // Convert Google Storage URL to our object path format
+        // The uploadURL is now our worker's PUT endpoint path (e.g. /api/objects/uploads/uuid)
         const url = file.uploadURL;
-        if (url && url.includes('storage.googleapis.com')) {
-          // Extract the path portion after the bucket
-          const urlObj = new URL(url);
-          const pathParts = urlObj.pathname.split('/');
-          // Find where 'uploads' starts in the path
-          const uploadsIndex = pathParts.findIndex(part => part === 'uploads');
-          if (uploadsIndex !== -1) {
-            // Get everything from uploads onward
-            const objectPath = pathParts.slice(uploadsIndex).join('/');
-            return `/objects/${objectPath}`;
-          }
+        if (url) {
+          return url;
         }
-        return url;
+        return undefined;
       }).filter(url => url !== undefined) as string[];
       setUploadedImages(prev => [...prev, ...newImageUrls]);
+      haptic.upload();
       toast({
         title: 'Images Uploaded',
         description: `${result.successful.length} reference image(s) added successfully.`
@@ -353,12 +389,14 @@ export default function SiteSurvey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys', selectedSurvey?.id, 'areas'] });
+      haptic.success();
       toast({
         title: 'Impact Calculated',
         description: 'Impact energy calculated and product recommendations generated.'
       });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: 'Failed to calculate impact energy.',
@@ -389,12 +427,14 @@ export default function SiteSurvey() {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
       setShowCreateDialog(false);
       setNewSurvey({ title: '', facilityName: '', facilityLocation: '', description: '', requestedByName: '', requestedByPosition: '', requestedByEmail: '', requestedByMobile: '', companyLogoUrl: '' });
+      haptic.success();
       toast({
         title: 'Survey Created',
         description: 'Your site survey has been created successfully.'
       });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: 'Failed to create site survey.',
@@ -426,16 +466,19 @@ export default function SiteSurvey() {
         riskLevel: '',
         vehicleWeight: '',
         vehicleSpeed: '',
-        impactAngle: '90'
+        impactAngle: '90',
+        matterportUrl: ''
       });
       setUploadedImages([]);
       setEditingArea(null);
+      haptic.success();
       toast({
         title: editingArea ? 'Area Updated' : 'Area Added',
         description: editingArea ? 'Area of concern has been updated.' : 'Area of concern has been added to the survey with reference images.'
       });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: editingArea ? 'Failed to update area of concern.' : 'Failed to add area of concern.',
@@ -465,16 +508,19 @@ export default function SiteSurvey() {
         riskLevel: '',
         vehicleWeight: '',
         vehicleSpeed: '',
-        impactAngle: '90'
+        impactAngle: '90',
+        matterportUrl: ''
       });
       setUploadedImages([]);
       setEditingArea(null);
+      haptic.success();
       toast({
         title: 'Area Updated',
         description: 'Area of concern has been updated successfully.'
       });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: 'Failed to update area of concern.',
@@ -489,12 +535,14 @@ export default function SiteSurvey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys', selectedSurvey?.id, 'areas'] });
+      haptic.success();
       toast({
         title: 'Area Deleted',
         description: 'Area of concern has been removed from the survey.'
       });
     },
     onError: () => {
+      haptic.error();
       toast({
         title: 'Error',
         description: 'Failed to delete area of concern.',
@@ -505,11 +553,13 @@ export default function SiteSurvey() {
 
 
   const handleCreateSurvey = () => {
+    haptic.formSubmit();
     // Include all fields including the requested by information
     createSurveyMutation.mutate(newSurvey);
   };
 
   const handleEditArea = (area: any) => {
+    haptic.modalOpen();
     setEditingArea(area);
     setNewArea({
       zoneName: area.zoneName || '',
@@ -521,7 +571,8 @@ export default function SiteSurvey() {
       riskLevel: area.riskLevel || '',
       vehicleWeight: area.vehicleWeight?.toString() || '',
       vehicleSpeed: area.vehicleSpeed?.toString() || '',
-      impactAngle: area.impactAngle?.toString() || '90'
+      impactAngle: area.impactAngle?.toString() || '90',
+      matterportUrl: area.matterportUrl || ''
     });
     setUploadedImages(area.photosUrls || []);
     setSelectedCalculation(''); // Reset calculation selection when editing
@@ -530,12 +581,14 @@ export default function SiteSurvey() {
 
   const handleDeleteArea = (areaId: string) => {
     if (confirm('Are you sure you want to delete this area of concern?')) {
+      haptic.deleteAction();
       deleteAreaMutation.mutate(areaId);
     }
   };
 
   const handleSubmitArea = () => {
     if (!newArea.zoneName || !newArea.areaName || !newArea.areaType || !newArea.issueDescription || !newArea.currentCondition || !newArea.riskLevel) {
+      haptic.warning();
       toast({
         title: 'Missing Information',
         description: 'Please fill in all required fields.',
@@ -544,11 +597,17 @@ export default function SiteSurvey() {
       return;
     }
 
+    haptic.formSubmit();
+
     const areaData = {
       ...newArea,
       vehicleWeight: newArea.vehicleWeight ? parseFloat(newArea.vehicleWeight) : null,
       vehicleSpeed: newArea.vehicleSpeed ? parseFloat(newArea.vehicleSpeed) : null,
-      impactAngle: newArea.impactAngle ? parseFloat(newArea.impactAngle) : 90
+      impactAngle: newArea.impactAngle ? parseFloat(newArea.impactAngle) : 90,
+      matterportUrl: newArea.matterportUrl || null,
+      matterportModelId: parseMatterportUrl(newArea.matterportUrl || "") || null,
+      // Include current photos so edits don't wipe the gallery
+      photosUrls: uploadedImages,
     };
 
     if (editingArea) {
@@ -639,7 +698,10 @@ export default function SiteSurvey() {
           </DropdownMenu>
           
           {/* New Survey Button */}
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <Dialog open={showCreateDialog} onOpenChange={(open) => {
+            if (open) haptic.modalOpen();
+            setShowCreateDialog(open);
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" data-testid="button-new-survey">
                 <Plus className="h-4 w-4 mr-2" />
@@ -891,7 +953,10 @@ export default function SiteSurvey() {
               <p className="text-gray-600 mb-4">
                 Create your first site survey to start identifying safety concerns in your facility.
               </p>
-              <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-first-survey">
+              <Button onClick={() => {
+                haptic.modalOpen();
+                setShowCreateDialog(true);
+              }} data-testid="button-create-first-survey">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Your First Survey
               </Button>
@@ -918,9 +983,15 @@ export default function SiteSurvey() {
                   <Badge className={getRiskBadgeClass(selectedSurvey?.overallRiskLevel || 'low')}>
                     Overall {selectedSurvey?.overallRiskLevel || 'No'} Risk
                   </Badge>
+                  {selectedSurvey?.status === 'completed' && (
+                    <Badge className="bg-green-100 text-green-800 border-green-300">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Completed
+                    </Badge>
+                  )}
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
                       className="w-full sm:w-auto"
                       onClick={() => handleDownloadPdf(selectedSurvey)}
@@ -937,14 +1008,33 @@ export default function SiteSurvey() {
                       )}
                     </Button>
                     {surveyAreas && Array.isArray(surveyAreas) && surveyAreas.some((area: any) => area.recommendedProducts?.length > 0) && (
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="bg-[#FFC72C] hover:bg-[#F0B800] text-black w-full sm:w-auto"
-                        onClick={() => setShowBuildProjectModal(true)}
+                        onClick={() => {
+                          haptic.modalOpen();
+                          setShowBuildProjectModal(true);
+                        }}
                         data-testid="button-build-project"
                       >
                         <ShoppingCart className="h-4 w-4 mr-1" />
                         Build Project
+                      </Button>
+                    )}
+                    {selectedSurvey?.status === 'draft' && surveyAreas && Array.isArray(surveyAreas) && surveyAreas.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                        onClick={() => {
+                          haptic.modalOpen();
+                          setShowCompleteConfirm(true);
+                        }}
+                        disabled={completeSurveyMutation.isPending}
+                        data-testid="button-complete-survey"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        {completeSurveyMutation.isPending ? 'Completing...' : 'Complete Survey'}
                       </Button>
                     )}
                   </div>
@@ -1027,14 +1117,22 @@ export default function SiteSurvey() {
                   </div>
                 )}
               </div>
-              <Dialog open={showAreaDialog} onOpenChange={setShowAreaDialog}>
-                <DialogTrigger asChild>
-                  <Button size="sm" data-testid="button-add-area">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Area of Concern
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
+              {selectedSurvey?.status !== 'completed' && (
+                <Dialog open={showAreaDialog} onOpenChange={(open) => {
+                  if (open) haptic.modalOpen();
+                  setShowAreaDialog(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" data-testid="button-add-area">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Area of Concern
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+              )}
+              {selectedSurvey?.status === 'completed' && (
+                <p className="text-sm text-muted-foreground italic">This survey has been completed and is read-only.</p>
+              )}
             </div>
 
             {/* Areas of Concern */}
@@ -1058,22 +1156,26 @@ export default function SiteSurvey() {
                           <Badge variant="outline">
                             {area.currentCondition}
                           </Badge>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditArea(area)}
-                            data-testid={`button-edit-area-${area.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteArea(area.id)}
-                            data-testid={`button-delete-area-${area.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                          {selectedSurvey?.status !== 'completed' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditArea(area)}
+                                data-testid={`button-edit-area-${area.id}`}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteArea(area.id)}
+                                data-testid={`button-delete-area-${area.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -1121,6 +1223,17 @@ export default function SiteSurvey() {
                               );
                             })}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Matterport 3D Scan */}
+                      {area.matterportModelId && (
+                        <div className="mt-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                            <span className="text-sm font-medium">3D Scan</span>
+                          </div>
+                          <MatterportViewer modelId={area.matterportModelId} className="h-[400px]" />
                         </div>
                       )}
 
@@ -1177,11 +1290,13 @@ export default function SiteSurvey() {
                                         // Refresh the survey areas
                                         queryClient.invalidateQueries({ queryKey: ['/api/site-surveys', selectedSurvey?.id, 'areas'] });
                                         
+                                        haptic.save();
                                         toast({
                                           title: 'Solutions Saved',
                                           description: `${selected.length} safety solution(s) selected for this area.`
                                         });
                                       } catch (error) {
+                                        haptic.error();
                                         toast({
                                           title: 'Error',
                                           description: 'Failed to save selected solutions.',
@@ -1345,7 +1460,8 @@ export default function SiteSurvey() {
             riskLevel: '',
             vehicleWeight: '',
             vehicleSpeed: '',
-            impactAngle: '90'
+            impactAngle: '90',
+            matterportUrl: ''
           });
           setUploadedImages([]);
           setSelectedCalculation('');
@@ -1583,6 +1699,18 @@ export default function SiteSurvey() {
               </div>
             </div>
 
+            {/* Matterport 3D Scan URL */}
+            <div className="space-y-2">
+              <Label htmlFor="matterportUrl">Matterport 3D Scan URL (optional)</Label>
+              <Input
+                id="matterportUrl"
+                placeholder="https://my.matterport.com/show/?m=..."
+                value={newArea.matterportUrl || ""}
+                onChange={(e) => setNewArea({ ...newArea, matterportUrl: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Paste a Matterport URL to embed a 3D scan for this area</p>
+            </div>
+
             {/* Reference Images Upload Section */}
             <div className="bg-gray-50 p-4 rounded-lg space-y-4">
               <div className="flex items-center">
@@ -1653,7 +1781,8 @@ export default function SiteSurvey() {
                   riskLevel: '',
                   vehicleWeight: '',
                   vehicleSpeed: '',
-                  impactAngle: '90'
+                  impactAngle: '90',
+                  matterportUrl: ''
                 });
                 setUploadedImages([]);
               }}>
@@ -1673,6 +1802,35 @@ export default function SiteSurvey() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Complete Survey Confirmation Dialog */}
+      <AlertDialog open={showCompleteConfirm} onOpenChange={setShowCompleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Site Survey</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this survey as completed? This action will finalize the survey
+              and prevent further edits to areas of concern. The survey report will still be available for
+              download.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                if (selectedSurvey?.id) {
+                  haptic.formSubmit();
+                  completeSurveyMutation.mutate(selectedSurvey.id);
+                }
+              }}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Complete Survey
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Build Project Modal */}
       <Dialog open={showBuildProjectModal} onOpenChange={setShowBuildProjectModal}>
@@ -1793,6 +1951,7 @@ export default function SiteSurvey() {
                     }
                     
                     if (itemsToAdd.length === 0) {
+                      haptic.warning();
                       toast({
                         title: "No Products Selected",
                         description: "Please select at least one product with quantity > 0",
@@ -1828,11 +1987,12 @@ export default function SiteSurvey() {
                     
                     const result = await response.json();
                     
+                    haptic.success();
                     toast({
                       title: "Products Added to Cart",
                       description: result.message || `${result.itemsAdded} products added to your project cart`,
                     });
-                    
+
                     setShowBuildProjectModal(false);
                     
                     // Navigate to cart
@@ -1841,6 +2001,7 @@ export default function SiteSurvey() {
                     }, 1000);
                   } catch (error) {
                     console.error('Error adding products to cart:', error);
+                    haptic.error();
                     toast({
                       title: "Error",
                       description: "Failed to add products to cart. Please try again.",

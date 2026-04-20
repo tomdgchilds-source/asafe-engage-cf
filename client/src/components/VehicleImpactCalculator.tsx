@@ -79,15 +79,23 @@ function AuthenticatedImage({ src, alt, className, category }: { src: string; al
         const timeoutId = setTimeout(() => abortController?.abort(), 10000); // 10 second timeout
         
         try {
-          // For A-SAFE CDN URLs, use directly without proxy
-          if (src.includes('asafe.com') || src.includes('webcdn.asafe.com')) {
+          // For CORS-friendly CDNs, use directly without proxy
+          const directAllow = [
+            'asafe.com',
+            'webcdn.asafe.com',
+            'api.iconify.design',
+            'iconify.design',
+            'img.youtube.com',
+            'i.ytimg.com',
+          ];
+          if (directAllow.some(d => src.includes(d))) {
             setImageSrc(src);
             setHasError(false);
             setIsLoading(false);
             clearTimeout(timeoutId);
             return;
           }
-          
+
           // Use proxy for other external URLs to avoid CORS issues
           const fetchUrl = src.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(src)}` : src;
           const response = await fetch(fetchUrl, {
@@ -409,7 +417,7 @@ export function VehicleImpactCalculator() {
         }
         throw new Error('Failed to fetch calculation');
       })
-      .then(calculation => {
+      .then((calculation: any) => {
         setInputs({
           applicationArea: calculation.operatingZone || "",
           customApplicationArea: "",
@@ -447,13 +455,13 @@ export function VehicleImpactCalculator() {
   }, [toast]);
 
   // Fetch product recommendations when calculation is complete
-  const { data: recommendations, isLoading: loadingRecommendations, error: recommendationsError } = useQuery({
+  const { data: recommendations, isLoading: loadingRecommendations, error: recommendationsError } = useQuery<any[]>({
     queryKey: ["/api/products/recommendations", result?.kineticEnergy],
     queryFn: async () => {
       if (!result?.kineticEnergy) return [];
       const response = await fetch(`/api/products/recommendations/${result.kineticEnergy}`);
       if (!response.ok) throw new Error('Failed to fetch recommendations');
-      const data = await response.json();
+      const data = await response.json() as any[];
       console.log('Recommendations API Response:', {
         dataType: typeof data,
         isArray: Array.isArray(data),
@@ -476,24 +484,12 @@ export function VehicleImpactCalculator() {
   // Photo upload handlers
   const handleGetUploadParameters = async (): Promise<{ method: "PUT"; url: string; }> => {
     try {
-      const response = await fetch("/api/objects/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-        credentials: "include",
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Upload parameters received:", data);
+      const key = `uploads/${crypto.randomUUID()}`;
+      const accessPath = `/api/objects/${key}`;
+      console.log("Upload parameters generated:", { accessPath });
       return {
         method: "PUT" as const,
-        url: data.uploadURL,
+        url: accessPath,
       };
     } catch (error) {
       console.error("Error getting upload parameters:", error);
@@ -504,20 +500,26 @@ export function VehicleImpactCalculator() {
   const handlePhotoUploadComplete = async (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
     if (result.successful && result.successful.length > 0) {
       const newImageUrls: string[] = [];
-      
+
       // Process all uploaded files
       for (const uploadedFile of result.successful) {
-        const imageURL = uploadedFile.uploadURL;
-        
+        // The uploadURL is the URL we uploaded to (our PUT endpoint)
+        const imageURL = uploadedFile.uploadURL || (uploadedFile as any).response?.uploadURL;
+
         try {
-          // Set ACL policy for the uploaded image
+          // Tell the backend about the uploaded image so it can resolve the access path
           const response = await apiRequest("/api/operational-zone-images", "PUT", {
             imageURL: imageURL,
           });
-          const data = await response.json();
+          const data = await response.json() as any;
           newImageUrls.push(data.objectPath);
         } catch (error) {
           console.error("Error setting image ACL:", error);
+          // Fall back to using the upload URL directly as the access path
+          if (imageURL) {
+            newImageUrls.push(imageURL);
+          }
+          haptic.error();
           toast({
             title: "Upload Error",
             description: "Failed to process one or more uploaded images",
@@ -525,9 +527,10 @@ export function VehicleImpactCalculator() {
           });
         }
       }
-      
+
       if (newImageUrls.length > 0) {
         setOperationalZoneImageUrls(prev => [...prev, ...newImageUrls]);
+        haptic.success();
         toast({
           title: "Photos Uploaded",
           description: `${newImageUrls.length} application area photo(s) have been attached to this calculation`,
@@ -670,8 +673,8 @@ export function VehicleImpactCalculator() {
       impactAngle: impactAngleNum.toString(),
       kineticEnergy: kineticEnergy.toString(),
     }, {
-      onSuccess: async (response) => {
-        const data = await response.json();
+      onSuccess: async (response: any) => {
+        const data = await response.json() as any;
         setSavedCalculationId(data.id);
         haptic.success();
       },
@@ -732,7 +735,7 @@ export function VehicleImpactCalculator() {
               </Label>
               <Select
                 value={inputs.applicationArea}
-                onValueChange={(value) => handleInputChange("applicationArea", value)}
+                onValueChange={(value) => { haptic.select(); handleInputChange("applicationArea", value); }}
               >
                 <SelectTrigger className="focus:ring-yellow-400 focus:border-yellow-400" data-testid="select-application-area">
                   <SelectValue placeholder="Select application area..." />
@@ -1166,11 +1169,6 @@ export function VehicleImpactCalculator() {
             <CardTitle>Recommended Products</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Debug Info */}
-            <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
-              <p>Debug: Loading: {String(loadingRecommendations)}, Error: {String(!!recommendationsError)}, Count: {recommendations?.length || 0}</p>
-              <p>Result KE: {result?.kineticEnergy || 'none'}</p>
-            </div>
             {loadingRecommendations ? (
               <div className="text-center py-4">
                 <div className="animate-spin h-6 w-6 border-2 border-yellow-400 border-t-transparent rounded-full mx-auto"></div>
@@ -1194,7 +1192,7 @@ export function VehicleImpactCalculator() {
                     </div>
                     <Button
                       onClick={async () => {
-                        haptic.success();
+                        haptic.addToCart();
                         try {
                           const items = recommendations.map((product: any) => ({
                             productName: product.name,
@@ -1232,7 +1230,8 @@ export function VehicleImpactCalculator() {
                             autoSaveExisting: true
                           });
 
-                          const data = await response.json();
+                          const data = await response.json() as any;
+                          haptic.success();
                           toast({
                             title: "Project Created",
                             description: data.message || `${items.length} products added to project cart`,
@@ -1240,6 +1239,7 @@ export function VehicleImpactCalculator() {
                           queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
                         } catch (error) {
                           console.error("Error building project:", error);
+                          haptic.error();
                           toast({
                             title: "Error",
                             description: "Failed to create project. Please try again.",
@@ -1529,6 +1529,7 @@ export function VehicleImpactCalculator() {
               variant="outline"
               onClick={() => {
                 setInputs(prev => ({ ...prev, selectedVehicleTypes: [] }));
+                haptic.select();
                 toast({ title: "Selection Cleared", description: "All vehicle selections have been removed." });
               }}
             >
@@ -1538,7 +1539,7 @@ export function VehicleImpactCalculator() {
               <Button variant="outline" onClick={() => setShowVehicleSelector(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => setShowVehicleSelector(false)} className="bg-yellow-600 hover:bg-yellow-700">
+              <Button onClick={() => { haptic.select(); setShowVehicleSelector(false); }} className="bg-yellow-600 hover:bg-yellow-700">
                 Apply Selection
               </Button>
             </div>

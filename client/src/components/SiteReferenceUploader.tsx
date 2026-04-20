@@ -68,23 +68,15 @@ export function SiteReferenceUploader({
         shouldUseMultipart: false,
         getUploadParameters: async (file) => {
           try {
-            const response = await fetch('/api/objects/upload', {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ fileType: file.type })
-            });
-            
-            if (!response.ok) {
-              throw new Error('Failed to get upload URL');
-            }
-            
-            const { uploadURL } = await response.json();
+            const ext = file.name?.split('.').pop() || 'bin';
+            const key = `uploads/${crypto.randomUUID()}.${ext}`;
+            const accessPath = `/api/objects/${key}`;
             return {
               method: 'PUT' as const,
-              url: uploadURL
+              url: accessPath,
+              headers: {
+                'Content-Type': file.type || 'application/octet-stream',
+              },
             };
           } catch (error) {
             console.error('Error getting upload parameters:', error);
@@ -98,28 +90,16 @@ export function SiteReferenceUploader({
           const totalFiles = result.successful.length;
           let processedFiles = 0;
           let failedFiles = 0;
-          
+
           // Process all uploaded files
           await Promise.all(result.successful.map(async (file, index) => {
             try {
-              const response = await fetch('/api/site-references', {
-                method: 'PUT',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                  imageUrl: file.uploadURL,
-                  productName,
-                  caption: `${imageCaption || productName} - Image ${index + 1}`,
-                  type: imageType
-                })
-              });
-              
-              if (response.ok) {
-                const { objectPath } = await response.json();
+              // The uploadURL is now our worker's PUT endpoint path
+              const accessPath = file.uploadURL;
+
+              if (accessPath) {
                 const newImage: SiteReferenceImage = {
-                  url: objectPath,
+                  url: accessPath,
                   caption: `${imageCaption || productName} - Image ${index + 1}`,
                   uploadedAt: new Date(),
                   type: imageType
@@ -128,19 +108,19 @@ export function SiteReferenceUploader({
                 processedFiles++;
               } else {
                 failedFiles++;
-                console.error(`Failed to save image ${index + 1}`);
+                console.error(`No access path for image ${index + 1}`);
               }
             } catch (error) {
               failedFiles++;
               console.error(`Error saving image reference ${index + 1}:`, error);
             }
           }));
-          
+
           if (newImages.length > 0) {
             const allImages = [...uploadedImages, ...newImages];
             setUploadedImages(allImages);
             onImagesUploaded(allImages);
-            
+
             // Show appropriate message based on results
             if (failedFiles > 0) {
               toast({
@@ -161,7 +141,7 @@ export function SiteReferenceUploader({
               variant: "destructive",
             });
           }
-          
+
           setShowUploadModal(false);
           setImageCaption("");
           // Reset Uppy for next upload batch
@@ -173,31 +153,21 @@ export function SiteReferenceUploader({
   // Fallback upload handler for when modal doesn't work
   const handleFallbackUpload = async (files: FileList, type: 'site' | 'measurement') => {
     const newImages: SiteReferenceImage[] = [];
-    
+
     for (const file of Array.from(files)) {
       try {
-        // Get upload URL
-        const response = await fetch('/api/objects/upload', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ fileType: file.type })
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to get upload URL');
-        }
-        
-        const { uploadURL } = await response.json();
-        
-        // Upload file directly
-        const uploadResult = await fetch(uploadURL, {
+        // Generate a unique key and upload directly to our worker's PUT endpoint
+        const ext = file.name.split('.').pop() || 'bin';
+        const key = `uploads/${crypto.randomUUID()}.${ext}`;
+        const accessPath = `/api/objects/${key}`;
+
+        // Upload file directly to our worker
+        const uploadResult = await fetch(accessPath, {
           method: 'PUT',
           body: file,
+          credentials: 'include',
           headers: {
-            'Content-Type': file.type
+            'Content-Type': file.type || 'application/octet-stream',
           }
         });
 
@@ -205,31 +175,13 @@ export function SiteReferenceUploader({
           throw new Error(`Failed to upload ${file.name}`);
         }
 
-        // Save reference
-        const saveResponse = await fetch('/api/site-references', {
-          method: 'PUT',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            imageUrl: uploadURL,
-            productName,
-            caption: `${productName} - ${type === 'measurement' ? 'Measurement' : 'Site Photo'}`,
-            type: type === 'measurement' ? 'measurement' : 'site'
-          })
-        });
-        
-        if (saveResponse.ok) {
-          const { objectPath } = await saveResponse.json();
-          const newImage: SiteReferenceImage = {
-            url: objectPath,
-            caption: `${productName} - ${type === 'measurement' ? 'Measurement' : 'Site Photo'}`,
-            uploadedAt: new Date(),
-            type: type === 'measurement' ? 'measurement' : 'site'
-          };
-          newImages.push(newImage);
-        }
+        const newImage: SiteReferenceImage = {
+          url: accessPath,
+          caption: `${productName} - ${type === 'measurement' ? 'Measurement' : 'Site Photo'}`,
+          uploadedAt: new Date(),
+          type: type === 'measurement' ? 'measurement' : 'site'
+        };
+        newImages.push(newImage);
       } catch (error) {
         console.error(`Error uploading file:`, error);
         toast({
@@ -239,12 +191,12 @@ export function SiteReferenceUploader({
         });
       }
     }
-    
+
     if (newImages.length > 0) {
       const allImages = [...uploadedImages, ...newImages];
       setUploadedImages(allImages);
       onImagesUploaded(allImages);
-      
+
       toast({
         title: "Images uploaded",
         description: `${newImages.length} ${type === 'measurement' ? 'measurement' : 'site'} photo${newImages.length > 1 ? 's' : ''} uploaded successfully`,

@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, Building, Play, FileText, Share2, Mail, MessageCircle } from "lucide-react";
+import { ExternalLink, Building, Play, FileText, Share2, Mail, MessageCircle } from "lucide-react";
 import type { CaseStudy } from "@shared/schema";
 
 interface CaseStudyCardProps {
@@ -193,12 +193,12 @@ export function CaseStudyCard({ caseStudy, onDownload }: CaseStudyCardProps) {
             {caseStudy.createdAt ? new Date(caseStudy.createdAt).toLocaleDateString() : ''}
           </div>
           
-          {/* Download/View Button */}
+          {/* View/Watch Button */}
           {(caseStudy as any).contentType === 'video' ? (
             <Button
               onClick={() => {
                 if ((caseStudy as any).videoUrl) {
-                  window.open((caseStudy as any).videoUrl, '_blank');
+                  window.open((caseStudy as any).videoUrl, '_blank', 'noopener,noreferrer');
                 }
               }}
               variant="outline"
@@ -210,18 +210,21 @@ export function CaseStudyCard({ caseStudy, onDownload }: CaseStudyCardProps) {
               Watch Video
             </Button>
           ) : (
-            caseStudy.pdfUrl && (
-              <Button
-                onClick={handleDownload}
-                variant="outline"
-                size="sm"
-                className="hover:bg-yellow-50"
-                data-testid={`button-download-case-study-${caseStudy.id}`}
-              >
-                <Download className="h-3 w-3 mr-1" />
-                Download PDF
-              </Button>
-            )
+            <Button
+              onClick={() => {
+                if (caseStudy.pdfUrl) {
+                  window.open(caseStudy.pdfUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
+              variant="outline"
+              size="sm"
+              className="hover:bg-yellow-50"
+              disabled={!caseStudy.pdfUrl}
+              data-testid={`button-download-case-study-${caseStudy.id}`}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              View Case Study
+            </Button>
           )}
         </div>
       </CardContent>

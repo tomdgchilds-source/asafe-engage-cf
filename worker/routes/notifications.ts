@@ -9,7 +9,7 @@ const notifications = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // GET /api/notifications
 // ──────────────────────────────────────────────
-notifications.get("/api/notifications", authMiddleware, async (c) => {
+notifications.get("/notifications", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -26,7 +26,7 @@ notifications.get("/api/notifications", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/notifications/unread
 // ──────────────────────────────────────────────
-notifications.get("/api/notifications/unread", authMiddleware, async (c) => {
+notifications.get("/notifications/unread", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -42,7 +42,7 @@ notifications.get("/api/notifications/unread", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // PATCH /api/notifications/:id/read
 // ──────────────────────────────────────────────
-notifications.patch("/api/notifications/:id/read", authMiddleware, async (c) => {
+notifications.patch("/notifications/:id/read", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -58,7 +58,7 @@ notifications.patch("/api/notifications/:id/read", authMiddleware, async (c) => 
 // ──────────────────────────────────────────────
 // PATCH /api/notifications/read-all
 // ──────────────────────────────────────────────
-notifications.patch("/api/notifications/read-all", authMiddleware, async (c) => {
+notifications.patch("/notifications/read-all", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -67,6 +67,78 @@ notifications.patch("/api/notifications/read-all", authMiddleware, async (c) => 
     return c.json({ success: true });
   } catch (error) {
     console.error("Error marking all notifications as read:", error);
+    return c.json({ message: "Internal server error" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /api/notifications (admin only)
+// ──────────────────────────────────────────────
+notifications.post("/notifications", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const user = c.get("user");
+
+    // Check admin role via storage
+    const userRecord = await storage.getUser(user.claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
+
+    const body = await c.req.json();
+    const { userId, type, title, message, metadata } = body;
+
+    if (!userId || !type || !title || !message) {
+      return c.json({ message: "Missing required fields: userId, type, title, message" }, 400);
+    }
+
+    const notification = await storage.createNotification({
+      userId,
+      type,
+      title,
+      message,
+      data: metadata || null,
+    });
+
+    return c.json(notification, 201);
+  } catch (error) {
+    console.error("Error creating notification:", error);
+    return c.json({ message: "Internal server error" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// DELETE /api/notifications/:id
+// ──────────────────────────────────────────────
+notifications.delete("/notifications/:id", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const user = c.get("user");
+    const notificationId = c.req.param("id");
+
+    // Fetch the user's notifications to verify ownership
+    const userRecord = await storage.getUser(user.claims.sub);
+    const isAdmin = userRecord?.role === "admin";
+
+    // Get all notifications for the user to check ownership
+    const userNotifications = await storage.getUserNotifications(user.claims.sub, 1000);
+    const targetNotification = userNotifications.find((n) => n.id === notificationId);
+
+    if (!targetNotification && !isAdmin) {
+      return c.json({ message: "Notification not found or access denied" }, 404);
+    }
+
+    // If not admin and notification doesn't belong to user, deny
+    if (!isAdmin && (!targetNotification || targetNotification.userId !== user.claims.sub)) {
+      return c.json({ message: "Notification not found or access denied" }, 404);
+    }
+
+    await storage.deleteNotification(notificationId);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting notification:", error);
     return c.json({ message: "Internal server error" }, 500);
   }
 });

@@ -54,6 +54,32 @@ cart.post("/cart", authMiddleware, async (c) => {
       }
     }
 
+    // Fix calculatorImages if it's a string
+    if (
+      cartItem.calculatorImages &&
+      typeof cartItem.calculatorImages === "string"
+    ) {
+      try {
+        cartItem.calculatorImages = JSON.parse(cartItem.calculatorImages);
+      } catch (parseError) {
+        console.error("Error parsing calculatorImages:", parseError);
+        cartItem.calculatorImages = [];
+      }
+    }
+
+    // Fix selectedVariant if it's a string
+    if (
+      cartItem.selectedVariant &&
+      typeof cartItem.selectedVariant === "string"
+    ) {
+      try {
+        cartItem.selectedVariant = JSON.parse(cartItem.selectedVariant);
+      } catch (parseError) {
+        console.error("Error parsing selectedVariant:", parseError);
+        cartItem.selectedVariant = null;
+      }
+    }
+
     // Recalculate pricing to apply tiered discounts
     if (cartItem.productName && cartItem.quantity) {
       console.log(
@@ -64,16 +90,49 @@ cart.post("/cart", authMiddleware, async (c) => {
         cartItem.quantity
       );
 
-      cartItem.unitPrice = pricingResult.unitPrice;
-      cartItem.totalPrice = pricingResult.totalPrice;
-      cartItem.pricingTier = pricingResult.tier;
+      if (pricingResult.requiresQuote) {
+        // No pricing tier found for this product name. If the client provided a
+        // valid unitPrice (e.g. from a selected variant), trust it and compute
+        // the total rather than rejecting the request.
+        const clientUnitPrice = parseFloat(cartItem.unitPrice);
+        if (!isNaN(clientUnitPrice) && clientUnitPrice > 0) {
+          cartItem.totalPrice = Math.round(clientUnitPrice * cartItem.quantity * 100) / 100;
+          cartItem.unitPrice = Math.round(clientUnitPrice * 100) / 100;
+          cartItem.pricingTier = cartItem.pricingTier || "Variant Price";
+          console.log(
+            `Using client-provided variant price: Unit=${cartItem.unitPrice}, Total=${cartItem.totalPrice}`
+          );
+        } else {
+          return c.json(
+            { message: "No pricing available for this product. Please request a quote." },
+            400
+          );
+        }
+      } else {
+        cartItem.unitPrice = pricingResult.unitPrice;
+        cartItem.totalPrice = pricingResult.totalPrice;
+        cartItem.pricingTier = pricingResult.tier;
 
-      console.log(
-        `Applied pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`
-      );
+        console.log(
+          `Applied pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`
+        );
+      }
     }
 
     const newCartItem = await storage.addToCart(cartItem);
+
+    // Fire-and-forget activity log
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "add_to_cart",
+          section: "cart",
+          details: { productName: cartItem.productName, quantity: cartItem.quantity },
+        })
+      );
+    } catch {}
+
     return c.json(newCartItem);
   } catch (error) {
     console.error("Error adding to cart:", error);
@@ -211,7 +270,21 @@ cart.delete("/cart/:id", authMiddleware, async (c) => {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
 
+    const userId = c.get("user").claims.sub;
     await storage.removeFromCart(c.req.param("id"));
+
+    // Fire-and-forget activity log
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "remove_from_cart",
+          section: "cart",
+          details: { cartItemId: c.req.param("id") },
+        })
+      );
+    } catch {}
+
     return c.json({ success: true });
   } catch (error) {
     console.error("Error removing from cart:", error);
@@ -309,13 +382,14 @@ cart.post("/cart-project-info", authMiddleware, async (c) => {
     const storage = createStorage(db);
 
     const userId = c.get("user").claims.sub;
-    const { company, location, projectDescription } = await c.req.json();
+    const { company, location, projectDescription, companyLogoUrl } = await c.req.json();
 
     const projectInfo = await storage.saveCartProjectInfo(userId, {
       company: company || null,
       location: location || null,
       projectDescription: projectDescription || null,
-    });
+      companyLogoUrl: companyLogoUrl || null,
+    } as any);
     return c.json(projectInfo);
   } catch (error) {
     console.error("Error saving cart project info:", error);

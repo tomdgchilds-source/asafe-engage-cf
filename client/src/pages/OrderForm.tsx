@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { getDiscountCap, getCombinedDiscount } from "@shared/discountLimits";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,19 +9,35 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { OrderAuditLog } from "@/components/OrderAuditLog";
 import { 
-  FileText, 
-  User, 
-  Building, 
-  Phone, 
-  Mail, 
-  Package, 
+  FileText,
+  User,
+  Building,
+  Phone,
+  Mail,
+  Package,
   Calculator,
   Shield,
   Crown,
@@ -49,10 +66,16 @@ import {
   MessageCircle,
   Lock,
   Edit3,
-  Gift
+  Gift,
+  List,
+  UserPlus,
+  Briefcase,
+  ChevronRight,
+  RotateCcw
 } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { generateOrderFormPDF } from "@/utils/orderFormPdfGenerator";
 import { useLocation } from "wouter";
@@ -71,18 +94,98 @@ interface OrderFormData {
   customerEmail?: string;
   items: any[];
   servicePackage?: any;
+  serviceCareDetails?: any;
   valueCommitments?: any[];
-  discountOptions?: any[]; // Keep for backward compatibility
+  discountOptions?: any[];
+  reciprocalCommitments?: any;
   impactCalculationId?: string;
   totalAmount: number;
   currency: string;
   technicalSignature?: any;
   commercialSignature?: any;
+  marketingSignature?: any;
+  technicalComments?: string;
+  marketingComments?: string;
   createdAt: string;
   user: any;
   impactCalculation?: any;
   status?: string;
+  notes?: string;
+  installationComplexity?: string;
+  applicationAreas?: any[];
+  layoutDrawingId?: string;
   layoutDrawings?: any[];
+  layoutMarkups?: any[];
+  uploadedImages?: any[];
+  // Captured next-approver emails the server remembers across sessions
+  // (e.g. user typed the commercial email, hit Approve, but closed the tab
+  // before the sibling dispatch finished). We prefill inputs from these.
+  nextApproverEmails?: Partial<
+    Record<"technical" | "commercial" | "marketing", string>
+  > & {
+    technicalName?: string;
+    commercialName?: string;
+    marketingName?: string;
+  };
+  // Pending magic-link tokens by section. Present only when a link has
+  // been emailed but not yet consumed — the UI shows resend/revoke
+  // controls against each. Optional: backend may not surface this.
+  pendingApprovalTokens?: Partial<
+    Record<
+      "technical" | "commercial" | "marketing",
+      { email: string; sentAt: string }
+    >
+  >;
+}
+
+// ── Shape returned by GET /api/active-project (and by /contacts). Kept local
+// to OrderForm because no other page needs it yet. `ProjectContactRole`
+// mirrors the server enum; the Combobox filters by it to surface the right
+// suggestions per approval leg.
+type ProjectContactRole =
+  | "primary"
+  | "technical_approver"
+  | "commercial_approver"
+  | "marketing_lead"
+  | "pm"
+  | "other";
+
+interface ProjectContact {
+  id?: string;
+  name: string;
+  jobTitle?: string;
+  email: string;
+  mobile?: string;
+  role: ProjectContactRole;
+}
+
+interface ActiveProject {
+  id: string;
+  name: string;
+  customerCompanyId?: string;
+  customerCompany?: {
+    name?: string;
+    logoUrl?: string;
+    industry?: string;
+    billingAddress?: string;
+    city?: string;
+    country?: string;
+  };
+  location?: string;
+  description?: string;
+  defaultDeliveryAddress?: string;
+  defaultInstallationComplexity?: string;
+  contacts?: ProjectContact[];
+}
+
+// sessionStorage key for the "signed one section, reuse details for the
+// others" shortcut. Scoped per tab so a second browser window doesn't leak
+// signer identity between orders.
+const SIGNOFF_MEMORY_KEY = "order-signoff-memory";
+interface SignoffMemory {
+  signedBy: string;
+  jobTitle: string;
+  mobile: string;
 }
 
 export function OrderForm() {
@@ -91,6 +194,7 @@ export function OrderForm() {
   console.log('OrderForm ID from useParams:', id);
   const { formatPrice } = useCurrency();
   const { toast } = useToast();
+  const haptic = useHapticFeedback();
   const [technicalSignature, setTechnicalSignature] = useState("");
   const [commercialSignature, setCommercialSignature] = useState("");
   const [technicalSignerJobTitle, setTechnicalSignerJobTitle] = useState("");
@@ -107,13 +211,91 @@ export function OrderForm() {
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
-  const [rejectionType, setRejectionType] = useState<'technical' | 'marketing'>('technical');
+  const [rejectionType, setRejectionType] = useState<'technical' | 'commercial' | 'marketing'>('technical');
   const [rejectionReason, setRejectionReason] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
   const [customOrderNumber, setCustomOrderNumber] = useState("");
   const technicalCanvasRef = useRef<HTMLCanvasElement>(null);
   const commercialCanvasRef = useRef<HTMLCanvasElement>(null);
   const marketingCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Per-section next-approver capture. The Technical and Commercial forms
+  // collect the downstream approver's email inline; Marketing never does
+  // because it's the terminal leg of the chain. `selfApproveNext` short-
+  // circuits the email dispatch and unlocks the next section on-screen so
+  // a single authority can walk the order through end-to-end without
+  // email round-trips.
+  const [technicalNextEmail, setTechnicalNextEmail] = useState("");
+  const [technicalNextName, setTechnicalNextName] = useState("");
+  const [technicalSelfNext, setTechnicalSelfNext] = useState(false);
+  const [commercialNextEmail, setCommercialNextEmail] = useState("");
+  const [commercialNextName, setCommercialNextName] = useState("");
+  const [commercialSelfNext, setCommercialSelfNext] = useState(false);
+  // Sections the current user has self-promoted to (i.e. clicked "same
+  // authority for Commercial"). We use this to reveal the inline form for
+  // that section BEFORE the previous approval has round-tripped — the
+  // server will also enforce authorisation on /approve-section, so this is
+  // a pure UX optimisation, not a security boundary.
+  const [selfUnlockedSections, setSelfUnlockedSections] = useState<
+    Set<"commercial" | "marketing">
+  >(new Set());
+
+  // Combobox open state for each approver-chain input. Kept at page level so
+  // a click on "+ Add new contact" can drive the per-role inline form below.
+  const [technicalComboboxOpen, setTechnicalComboboxOpen] = useState(false);
+  const [commercialComboboxOpen, setCommercialComboboxOpen] = useState(false);
+  // Inline "new contact" mini-form state (one per chain). `activeAddContact`
+  // signals which Combobox's inline form is open; null means no form visible.
+  const [activeAddContact, setActiveAddContact] = useState<
+    "technical" | "commercial" | "marketing" | null
+  >(null);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactJobTitle, setNewContactJobTitle] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactMobile, setNewContactMobile] = useState("");
+
+  // Sign-off memory (sessionStorage). Populated when the first section is
+  // signed; read on mount to auto-fill subsequent signer blocks. Kept in
+  // component state too so we can render the "Using your details from X —
+  // clear" link without reading sessionStorage on every render.
+  const [signoffMemory, setSignoffMemory] = useState<SignoffMemory | null>(
+    null,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(SIGNOFF_MEMORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as SignoffMemory;
+      if (parsed && parsed.signedBy) setSignoffMemory(parsed);
+    } catch {
+      // Corrupt JSON is harmless — just ignore.
+    }
+  }, []);
+
+  const clearSignoffMemory = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(SIGNOFF_MEMORY_KEY);
+    }
+    setSignoffMemory(null);
+  };
+
+  // Stash signer identity in sessionStorage so the Commercial + Marketing
+  // blocks can pre-fill from it. Called right before we POST the signature.
+  const rememberSignoff = (data: SignoffMemory) => {
+    if (!data.signedBy) return;
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(
+          SIGNOFF_MEMORY_KEY,
+          JSON.stringify(data),
+        );
+      } catch {
+        // SessionStorage can throw in private mode — non-fatal.
+      }
+    }
+    setSignoffMemory(data);
+  };
 
   // Generate shareable URL
   useEffect(() => {
@@ -142,6 +324,7 @@ export function OrderForm() {
       await queryClient.invalidateQueries({ queryKey: ['/api/user-service-selection'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/user-discount-selections'] });
 
+      haptic.success();
       toast({
         title: "Order Restored",
         description: "Your order has been loaded into the cart. You can now make revisions.",
@@ -151,6 +334,7 @@ export function OrderForm() {
       setLocation('/cart');
     } catch (error) {
       console.error('Error restoring order:', error);
+      haptic.error();
       toast({
         title: "Error",
         description: "Failed to restore order. Please try again.",
@@ -165,89 +349,274 @@ export function OrderForm() {
     enabled: !!id,
   });
 
+  // Active project drives the top-of-page prefill banner + approver-chain
+  // autocomplete. Returns null when no project is active; we gate every use
+  // behind a truthy check so the page still renders in that case.
+  const { data: activeProject } = useQuery<ActiveProject | null>({
+    queryKey: ["/api/active-project"],
+  });
+
+  // Project contacts — fetched separately because the active-project payload
+  // might be stale if a contact was just added inline via the Combobox's
+  // "+ Add new contact" action (we invalidate this key on POST).
+  const { data: projectContactsData } = useQuery<ProjectContact[]>({
+    queryKey: ["/api/projects", activeProject?.id, "contacts"],
+    enabled: !!activeProject?.id,
+  });
+
+  // Prefer the dedicated /contacts endpoint when available; fall back to the
+  // contacts embedded in the active-project payload on first paint.
+  const projectContacts: ProjectContact[] = useMemo(() => {
+    if (projectContactsData && projectContactsData.length > 0) {
+      return projectContactsData;
+    }
+    return activeProject?.contacts ?? [];
+  }, [projectContactsData, activeProject?.contacts]);
+
+  // Inline contact creation — posts to /api/projects/:id/contacts and wires
+  // the newly-created contact back into the matching approver row. `role` is
+  // derived from which Combobox opened the mini-form.
+  const addContactMutation = useMutation({
+    mutationFn: async (payload: {
+      role: ProjectContactRole;
+      name: string;
+      jobTitle?: string;
+      email: string;
+      mobile?: string;
+    }) => {
+      if (!activeProject?.id) {
+        throw new Error("No active project");
+      }
+      return apiRequest(
+        `/api/projects/${activeProject.id}/contacts`,
+        "POST",
+        payload,
+      );
+    },
+    onSuccess: async (created: any, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/projects", activeProject?.id, "contacts"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/active-project"] });
+      // Auto-select the freshly-created contact into the row that opened the
+      // mini-form. The server echoes the created contact back; if it
+      // doesn't, fall back to the local form values.
+      const createdName =
+        created?.name ?? variables.name ?? "";
+      const createdEmail =
+        created?.email ?? variables.email ?? "";
+      if (activeAddContact === "technical") {
+        setTechnicalNextEmail(createdEmail);
+        setTechnicalNextName(createdName);
+      } else if (activeAddContact === "commercial") {
+        setCommercialNextEmail(createdEmail);
+        setCommercialNextName(createdName);
+      }
+      setActiveAddContact(null);
+      setNewContactName("");
+      setNewContactJobTitle("");
+      setNewContactEmail("");
+      setNewContactMobile("");
+      haptic.success();
+      toast({
+        title: "Contact added",
+        description: `${createdName} saved to the project.`,
+      });
+    },
+    onError: (err: any) => {
+      haptic.error();
+      toast({
+        title: "Could not add contact",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Fetch service care options for detailed display
-  const { data: serviceCareOptions } = useQuery({
+  const { data: serviceCareOptions } = useQuery<any[]>({
     queryKey: ["/api/service-care-options"],
   });
 
   // Fetch value commitment options for detailed display
-  const { data: valueCommitmentOptions } = useQuery({
+  const { data: valueCommitmentOptions } = useQuery<any[]>({
     queryKey: ["/api/discount-options"],
   });
   const discountOptions = valueCommitmentOptions; // Alias for backward compatibility
 
   // Fetch layout drawings for this order
-  const { data: layoutDrawings } = useQuery({
+  const { data: layoutDrawings } = useQuery<any[]>({
     queryKey: ["/api/layout-drawings"],
     enabled: !!orderData?.user?.id,
   });
 
   // Fetch project case studies
-  const { data: projectCaseStudies } = useQuery({
+  const { data: projectCaseStudies } = useQuery<any[]>({
     queryKey: ["/api/project-case-studies"],
     enabled: !!orderData?.user?.id,
   });
 
   // Fetch user profile data for consultant section
-  const { data: userProfile } = useQuery({
+  const { data: userProfile } = useQuery<any>({
     queryKey: ["/api/auth/profile"],
     enabled: !!orderData?.user?.id,
   });
 
   // Fetch cart project info
-  const { data: cartProjectInfo } = useQuery({
+  const { data: cartProjectInfo } = useQuery<any>({
     queryKey: ["/api/cart-project-info"],
     enabled: !!orderData?.user?.id,
   });
 
   // Fetch user service selection
-  const { data: userServiceSelection } = useQuery({
+  const { data: userServiceSelection } = useQuery<any>({
     queryKey: ["/api/user-service-selection"],
     enabled: !!orderData?.user?.id,
   });
 
   // Fetch user value commitment selections
-  const { data: userValueCommitmentSelections } = useQuery({
+  const { data: userValueCommitmentSelections } = useQuery<any[]>({
     queryKey: ["/api/user-discount-selections"],
     enabled: !!orderData?.user?.id,
   });
   const userDiscountSelections = userValueCommitmentSelections; // Alias for backward compatibility
-  
+
+  // Prefill next-approver emails the server remembered from a previous
+  // visit. We only set when the local input is still empty so a user's
+  // in-progress edit isn't overwritten by a background refetch.
+  useEffect(() => {
+    const hints = orderData?.nextApproverEmails;
+    if (!hints) return;
+    if (hints.commercial && !technicalNextEmail) {
+      setTechnicalNextEmail(hints.commercial);
+    }
+    if (hints.commercialName && !technicalNextName) {
+      setTechnicalNextName(hints.commercialName);
+    }
+    if (hints.marketing && !commercialNextEmail) {
+      setCommercialNextEmail(hints.marketing);
+    }
+    if (hints.marketingName && !commercialNextName) {
+      setCommercialNextName(hints.marketingName);
+    }
+    // Intentionally depend only on the hints object — including the local
+    // state values would clobber user edits on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderData?.nextApproverEmails]);
+
+  // Pre-fill the Commercial and Marketing signer blocks from sessionStorage
+  // when the same user has just signed the Technical section (or any prior
+  // section this session). Only sets fields that are currently empty so we
+  // never clobber an in-flight edit. Runs whenever `signoffMemory` changes.
+  useEffect(() => {
+    if (!signoffMemory) return;
+    if (!commercialSignature) setCommercialSignature(signoffMemory.signedBy);
+    if (!commercialSignerJobTitle)
+      setCommercialSignerJobTitle(signoffMemory.jobTitle);
+    if (!commercialSignerMobile)
+      setCommercialSignerMobile(signoffMemory.mobile);
+    if (!marketingSignature) setMarketingSignature(signoffMemory.signedBy);
+    if (!marketingSignerJobTitle)
+      setMarketingSignerJobTitle(signoffMemory.jobTitle);
+    if (!marketingSignerMobile)
+      setMarketingSignerMobile(signoffMemory.mobile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signoffMemory]);
+
+  // When the sales rep is signing on behalf of themselves we can auto-fill
+  // the Technical block from their user profile — their own job title and
+  // phone number are already on file, so no one should have to retype them.
+  useEffect(() => {
+    if (!userProfile) return;
+    if (!technicalSignerJobTitle && userProfile.jobTitle) {
+      setTechnicalSignerJobTitle(userProfile.jobTitle);
+    }
+    if (!technicalSignerMobile && userProfile.phone) {
+      setTechnicalSignerMobile(userProfile.phone);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile]);
+
   console.log('Query enabled:', !!id, 'isLoading:', isLoading, 'error:', error, 'data:', orderData);
 
+  // Section-level sign-off. Posts to /approve-section (owner OR customer-by-
+  // email) and invalidates both the single-order query (this page) and the
+  // orders list (Dashboard etc.) so downstream views reflect the new state
+  // without a manual refresh.
   const signOrderMutation = useMutation({
-    mutationFn: async (signatureData: any) => {
-      return apiRequest(`/api/orders/${id}/sign`, "POST", signatureData);
+    mutationFn: async (signatureData: {
+      signatureType: "technical" | "commercial" | "marketing";
+      signature: string;
+      signerJobTitle: string;
+      signerMobile: string;
+      comments?: string;
+      signedAt: string;
+    }) => {
+      // Map the legacy mutation payload (kept for call-site compatibility)
+      // onto the new endpoint's contract. `signedBy` is the signer's name;
+      // `date` is a human-readable display string the PDF will echo back.
+      const displayDate = new Date(signatureData.signedAt).toLocaleDateString(
+        "en-GB",
+        { day: "2-digit", month: "short", year: "numeric" },
+      );
+      return apiRequest(`/api/orders/${id}/approve-section`, "POST", {
+        section: signatureData.signatureType,
+        signedBy: signatureData.signature,
+        jobTitle: signatureData.signerJobTitle,
+        mobile: signatureData.signerMobile,
+        date: displayDate,
+      });
     },
     onSuccess: async (data, variables) => {
-      // Invalidate and refetch the order data to show updated signature
+      // Remember this signer's identity in sessionStorage so subsequent
+      // sections (Commercial, Marketing) can pre-fill without the user
+      // having to retype their name / job title / mobile.
+      rememberSignoff({
+        signedBy: variables.signature,
+        jobTitle: variables.signerJobTitle,
+        mobile: variables.signerMobile,
+      });
+
+      // Invalidate the single-order query (this page) AND the list query
+      // (Dashboard, order history) so every view re-fetches the signature.
       queryClient.invalidateQueries({ queryKey: ["/api/orders", id] });
-      
-      // Check if both signatures are now completed after this signature
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+
+      // Auto-advance to submitted_for_review once Technical + Commercial are
+      // both signed. Marketing is advisory and deliberately does NOT gate the
+      // status change — it mirrors the PDF's approval flow.
       const updatedOrder = await queryClient.fetchQuery({
         queryKey: ["/api/orders", id],
-        staleTime: 0 // Force fresh fetch
+        staleTime: 0,
       });
-      
-      // If both signatures are completed, automatically submit order for admin review
-      if (updatedOrder && (updatedOrder as any)?.technicalSignature?.signed && (updatedOrder as any)?.commercialSignature?.signed) {
+
+      if (
+        updatedOrder &&
+        (updatedOrder as any)?.technicalSignature?.signed &&
+        (updatedOrder as any)?.commercialSignature?.signed &&
+        (updatedOrder as any)?.status !== "submitted_for_review"
+      ) {
         try {
           await apiRequest(`/api/orders/${id}/submit-for-review`, "POST", {});
+          haptic.formSubmit();
           toast({
             title: "Order Submitted for Review",
-            description: "Both signatures completed! Order has been submitted to administrators for processing.",
+            description:
+              "Technical and commercial approvals completed. The order has been submitted to administrators for processing.",
           });
         } catch (error) {
           console.error("Failed to submit order for review:", error);
         }
       } else {
+        haptic.success();
         toast({
-          title: "Signature Added",
-          description: "Your signature has been recorded successfully",
+          title: "Section approved",
+          description: "The approval has been recorded.",
         });
       }
     },
     onError: (error: any) => {
+      haptic.error();
       toast({
         title: "Error",
         description: error.message || "Failed to save signature",
@@ -259,6 +628,7 @@ export function OrderForm() {
   // Handle rejection submission
   const handleRejection = async () => {
     if (!rejectionReason.trim()) {
+      haptic.error();
       toast({
         title: "Rejection Reason Required",
         description: "Please provide a reason for rejecting the order",
@@ -283,6 +653,7 @@ export function OrderForm() {
         marketingComments: orderData?.marketingComments || '',
       });
 
+      haptic.warning();
       toast({
         title: "Order Rejected",
         description: "The order has been rejected and notifications have been sent",
@@ -293,6 +664,7 @@ export function OrderForm() {
       setShowRejectionModal(false);
       setRejectionReason("");
     } catch (error: any) {
+      haptic.error();
       toast({
         title: "Error",
         description: error.message || "Failed to reject order",
@@ -301,23 +673,53 @@ export function OrderForm() {
     }
   };
 
-  const handleSignature = (type: 'technical' | 'commercial' | 'marketing') => {
-    let signature = '';
-    let signerJobTitle = '';
-    let signerMobile = '';
-    let comments = '';
-    
-    if (type === 'technical') {
+  // Best-effort email sanity check — matches ApprovalLanding.tsx. Backend
+  // re-validates, so false negatives here just cost the user a re-type.
+  const looksLikeEmail = (v: string): boolean => {
+    const s = v.trim();
+    if (s.length < 5 || s.length > 254) return false;
+    const at = s.indexOf("@");
+    if (at < 1 || at === s.length - 1) return false;
+    const dot = s.lastIndexOf(".");
+    return dot > at + 1 && dot < s.length - 1;
+  };
+
+  const nextSectionFor = (
+    type: "technical" | "commercial" | "marketing",
+  ): "commercial" | "marketing" | null => {
+    if (type === "technical") return "commercial";
+    if (type === "commercial") return "marketing";
+    return null; // Marketing terminates the chain.
+  };
+
+  const handleSignature = async (
+    type: "technical" | "commercial" | "marketing",
+  ) => {
+    let signature = "";
+    let signerJobTitle = "";
+    let signerMobile = "";
+    let comments = "";
+    let nextEmail = "";
+    let nextName = "";
+    let selfNext = false;
+
+    if (type === "technical") {
       signature = technicalSignature;
       signerJobTitle = technicalSignerJobTitle;
       signerMobile = technicalSignerMobile;
       comments = technicalComments;
-    } else if (type === 'commercial') {
+      nextEmail = technicalNextEmail;
+      nextName = technicalNextName;
+      selfNext = technicalSelfNext;
+    } else if (type === "commercial") {
       signature = commercialSignature;
       signerJobTitle = commercialSignerJobTitle;
       signerMobile = commercialSignerMobile;
       comments = commercialComments;
-    } else if (type === 'marketing') {
+      nextEmail = commercialNextEmail;
+      nextName = commercialNextName;
+      selfNext = commercialSelfNext;
+    } else if (type === "marketing") {
       signature = marketingSignature;
       signerJobTitle = marketingSignerJobTitle;
       signerMobile = marketingSignerMobile;
@@ -325,34 +727,117 @@ export function OrderForm() {
     }
 
     if (!signature.trim() || !signerJobTitle.trim() || !signerMobile.trim()) {
+      haptic.error();
       toast({
         title: "Missing Information",
-        description: "Please enter your signature, job position, and mobile number",
+        description:
+          "Please enter your signature, job position, and mobile number",
         variant: "destructive",
       });
       return;
     }
 
-    signOrderMutation.mutate({
-      signatureType: type,
-      signature: signature.trim(),
-      signerJobTitle: signerJobTitle.trim(),
-      signerMobile: signerMobile.trim(),
-      comments: comments.trim(),
-      signedAt: new Date().toISOString(),
-    });
+    const nextSection = nextSectionFor(type);
+    // Enforce: if there's a next section and the user didn't self-promote,
+    // they MUST supply a valid email — otherwise the order chain stalls.
+    if (nextSection && !selfNext && !looksLikeEmail(nextEmail)) {
+      haptic.error();
+      toast({
+        title: "Next approver needed",
+        description: `Please enter a valid email for the ${nextSection} approver or tick "I have authority".`,
+        variant: "destructive",
+      });
+      return;
+    }
 
-    if (type === 'technical') {
+    haptic.formSubmit();
+    try {
+      // 1) Commit the current section's sign-off first. The audit-log
+      //    entry + status transition are handled server-side.
+      await signOrderMutation.mutateAsync({
+        signatureType: type,
+        signature: signature.trim(),
+        signerJobTitle: signerJobTitle.trim(),
+        signerMobile: signerMobile.trim(),
+        comments: comments.trim(),
+        signedAt: new Date().toISOString(),
+      });
+
+      // 2) If there's a downstream section, either dispatch a magic link
+      //    or unlock the next form inline (self-approve path).
+      if (nextSection) {
+        if (selfNext) {
+          // Same authority: reveal the next section's form on THIS page
+          // so the user approves it immediately. We don't request a
+          // magic-link token at all — they're already authenticated as
+          // the order owner/customer and /approve-section accepts them.
+          setSelfUnlockedSections((prev) => {
+            const next = new Set(prev);
+            next.add(nextSection);
+            return next;
+          });
+          toast({
+            title: "Next step unlocked",
+            description: `Please complete the ${nextSection} approval below.`,
+          });
+        } else {
+          // Different person: fire the magic-link dispatch. Failure here
+          // doesn't roll back the approval — the sales team can resend
+          // from the pending-token UI — but we surface it loudly so the
+          // user knows to follow up.
+          try {
+            await apiRequest(`/api/orders/${id}/request-approval`, "POST", {
+              section: nextSection,
+              approverEmail: nextEmail.trim(),
+              approverName: nextName.trim() || undefined,
+            });
+            queryClient.invalidateQueries({ queryKey: ["/api/orders", id] });
+            queryClient.invalidateQueries({
+              queryKey: ["/api/orders", id, "audit-log"],
+            });
+            toast({
+              title: "Approval link sent",
+              description: `We've emailed ${nextEmail.trim()} to complete the ${nextSection} step.`,
+            });
+          } catch (err: any) {
+            haptic.error();
+            toast({
+              title: "Approval sent, but email failed",
+              description:
+                err?.message ||
+                "The sign-off was recorded but the email couldn't be sent. You can resend it below.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+    } catch {
+      // signOrderMutation.onError already toasted; swallow so we don't
+      // double-fire or wipe the form below (the user likely needs to
+      // retry with the same input).
+      return;
+    }
+
+    // Only reset the form after everything above succeeded or partially-
+    // succeeded (i.e. we got past the mutateAsync). On hard failure we
+    // bailed above so the user can re-submit without re-typing.
+    if (type === "technical") {
       setTechnicalSignature("");
       setTechnicalSignerJobTitle("");
       setTechnicalSignerMobile("");
       setTechnicalComments("");
-    } else if (type === 'commercial') {
+      setTechnicalNextEmail("");
+      setTechnicalNextName("");
+      setTechnicalSelfNext(false);
+    } else if (type === "commercial") {
       setCommercialSignature("");
       setCommercialSignerJobTitle("");
       setCommercialSignerMobile("");
       setCommercialComments("");
-    } else if (type === 'marketing') {
+      setCommercialNextEmail("");
+      setCommercialNextName("");
+      setCommercialSelfNext(false);
+    } else if (type === "marketing") {
       setMarketingSignature("");
       setMarketingSignerJobTitle("");
       setMarketingSignerMobile("");
@@ -362,6 +847,7 @@ export function OrderForm() {
 
   const copyShareableUrl = () => {
     navigator.clipboard.writeText(shareableUrl);
+    haptic.success();
     toast({
       title: "Link Copied",
       description: "Shareable order form link copied to clipboard",
@@ -370,6 +856,7 @@ export function OrderForm() {
 
   const downloadPDF = async () => {
     if (!orderData) {
+      haptic.error();
       toast({
         title: "Error",
         description: "Order data not available",
@@ -382,32 +869,32 @@ export function OrderForm() {
       // Calculate order summary values - matching Cart logic exactly
       const subtotal = orderData.items.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
       
-      // Get discount amount using actual reciprocal percentages
-      let reciprocalDiscountPercentage = 0;
+      // Get the raw reciprocal total the user selected. Caps (tiered
+      // reciprocal, flat partner, combined ceiling) are all applied by
+      // getCombinedDiscount so every site in this file uses identical math.
+      let rawReciprocalTotal = 0;
       if (orderData.discountOptions && orderData.discountOptions.length > 0) {
-        // Calculate total discount from actual percentages, capped at 23%
-        reciprocalDiscountPercentage = Math.min(
-          orderData.discountOptions.reduce((total: number, opt: any) => {
-            // If opt is an object with discountPercent, use it; otherwise look it up
-            if (opt.discountPercent !== undefined) {
-              return total + opt.discountPercent;
-            }
-            // Fallback to looking up in discountOptions array
-            const discountOption = discountOptions?.find((d: any) => d.id === opt);
-            return total + (discountOption?.discountPercent || 0);
-          }, 0),
-          23
-        );
+        rawReciprocalTotal = orderData.discountOptions.reduce((total: number, opt: any) => {
+          if (opt.discountPercent !== undefined) {
+            return total + opt.discountPercent;
+          }
+          const discountOption = discountOptions?.find((d: any) => d.id === opt);
+          return total + (discountOption?.discountPercent || 0);
+        }, 0);
       }
-      
+
       // Add partner discount if available
-      const partnerDiscountPercent = (orderData as any).partnerDiscountPercent || 0;
-      
+      const rawPartnerPercent = (orderData as any).partnerDiscountPercent || 0;
+
       // Add LinkedIn discount if available
       const linkedInDiscountAmount = (orderData as any).linkedInDiscountAmount || 0;
-      
-      // Calculate total discounts
-      const percentageDiscountTotal = Math.min(reciprocalDiscountPercentage + partnerDiscountPercent, 35); // Cap at 35% for partner rates
+
+      // Single source of truth for the three caps (tiered reciprocal, flat
+      // 15% partner, 40% combined).
+      const combined = getCombinedDiscount(rawReciprocalTotal, rawPartnerPercent, subtotal);
+      const reciprocalDiscountPercentage = combined.reciprocal;
+      const partnerDiscountPercent = combined.partner;
+      const percentageDiscountTotal = combined.combined;
       const percentageDiscountAmount = subtotal * (percentageDiscountTotal / 100);
       const discountAmount = percentageDiscountAmount + linkedInDiscountAmount;
       const subtotalAfterDiscount = subtotal - discountAmount;
@@ -473,6 +960,8 @@ export function OrderForm() {
         orderDate: orderData.createdAt,
         items: orderData.items,
         servicePackage: orderData.servicePackage,
+        // Pull customer logo from cart project info so it renders on cover + header
+        companyLogoUrl: orderData.companyLogoUrl || cartProjectInfo?.companyLogoUrl || undefined,
         discountOptions: orderData.discountOptions?.map((opt: any) => 
           Array.isArray(discountOptions) ? discountOptions.find((d: any) => d.id === opt)?.title || opt : opt
         ),
@@ -486,10 +975,13 @@ export function OrderForm() {
         reciprocalDiscountAmount: reciprocalDiscountPercentage > 0 ? subtotal * (reciprocalDiscountPercentage / 100) : 0,
         linkedInDiscountAmount: linkedInDiscountAmount,
         linkedInDiscountData: (orderData as any).linkedInDiscountData,
-        totalAmount: parseFloat(orderData.totalAmount),
+        totalAmount: orderData.totalAmount,
         currency: orderData.currency, // Use the currency from order data
         technicalSignature: orderData.technicalSignature,
         commercialSignature: orderData.commercialSignature,
+        // Passed through so the PDF stamps "Approved by X on Y" on the
+        // Marketing section when it has been signed in the live view.
+        marketingSignature: orderData.marketingSignature,
         impactCalculation: orderData.impactCalculation,
         layoutDrawings: orderLayoutDrawings, // Add layout drawings with markups
         subtotal,
@@ -512,6 +1004,13 @@ export function OrderForm() {
           profileImageUrl: userProfile.profileImageUrl || orderData.user?.profileImageUrl,
         } : orderData.user,
         isForUser: orderData.isForUser, // Pass isForUser flag
+        // ── Extras the new PDF generator needs so it can render the
+        // consulting-style document with product images, site photos,
+        // layout drawing, and reciprocal commitment details ──
+        customOrderNumber: orderData.customOrderNumber || customOrderNumber,
+        uploadedImages: orderData.uploadedImages,
+        layoutDrawingId: orderData.layoutDrawingId,
+        reciprocalCommitments: orderData.reciprocalCommitments,
       };
       
       // Generate PDF with order-specific currency formatting
@@ -519,20 +1018,442 @@ export function OrderForm() {
         // Use order's currency, not the current context currency
         return formatPrice(value, orderData.currency);
       };
-      await generateOrderFormPDF(pdfData, orderFormatPrice);
+      await generateOrderFormPDF(pdfData as any, orderFormatPrice);
       
+      haptic.save();
       toast({
         title: "PDF Downloaded",
         description: `Order form ${orderData.orderNumber} has been downloaded`,
       });
     } catch (error: any) {
       console.error("PDF generation error:", error);
+      haptic.error();
       toast({
         title: "Error",
         description: error?.message || "Failed to generate PDF. Please try again.",
         variant: "destructive",
       });
     }
+  };
+
+  // ── Resend/revoke helpers for outstanding magic-link tokens ──
+  // These intentionally don't take an error path UI of their own beyond a
+  // toast — the authoritative state is the server's, and we invalidate the
+  // order query on both success and failure so the pending-token row
+  // redraws to whatever the backend now says.
+  const resendApprovalEmail = async (
+    section: "technical" | "commercial" | "marketing",
+    email: string,
+    name?: string,
+  ) => {
+    if (!looksLikeEmail(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await apiRequest(`/api/orders/${id}/request-approval`, "POST", {
+        section,
+        approverEmail: email.trim(),
+        approverName: name?.trim() || undefined,
+      });
+      toast({
+        title: "Email sent",
+        description: `Approval link re-sent to ${email.trim()}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Couldn't resend",
+        description: err?.message || "The email could not be sent.",
+        variant: "destructive",
+      });
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders", id] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/orders", id, "audit-log"],
+      });
+    }
+  };
+
+  const revokeApprovalToken = async (
+    section: "technical" | "commercial" | "marketing",
+  ) => {
+    try {
+      await apiRequest(`/api/orders/${id}/revoke-token`, "POST", { section });
+      toast({
+        title: "Link revoked",
+        description: "The pending approval link has been cancelled.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Couldn't revoke",
+        description: err?.message || "The link could not be revoked.",
+        variant: "destructive",
+      });
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders", id] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/orders", id, "audit-log"],
+      });
+    }
+  };
+
+  // Inline UI for a pending magic-link token. Rendered at the top of each
+  // unapproved section when the backend surfaces pending-token state. If
+  // the backend doesn't set `pendingApprovalTokens` we render a plain
+  // "Resend email" button if the user typed an email previously.
+  const renderPendingTokenRow = (
+    section: "technical" | "commercial" | "marketing",
+    fallbackEmail: string,
+    fallbackName?: string,
+  ) => {
+    const pending = orderData?.pendingApprovalTokens?.[section];
+    if (pending) {
+      const sentDate = new Date(pending.sentAt).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      return (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-900/50 dark:bg-blue-950/30">
+          <p className="text-blue-900 dark:text-blue-100">
+            Sent to <span className="font-medium">{pending.email}</span> on{" "}
+            {sentDate}.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              onClick={() => resendApprovalEmail(section, pending.email)}
+            >
+              Resend
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              onClick={() => revokeApprovalToken(section)}
+            >
+              Revoke
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    // Fallback when backend doesn't expose pending state: a single
+    // "Resend" button that re-fires /request-approval against whatever
+    // the user had entered in the input above. Only shown if there IS a
+    // previously-entered email to resend to.
+    if (fallbackEmail && looksLikeEmail(fallbackEmail)) {
+      return (
+        <div className="rounded-md border border-dashed p-3 text-sm text-gray-600 dark:text-gray-400">
+          <div className="flex items-center justify-between gap-2">
+            <span>Already emailed {fallbackEmail}?</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+              onClick={() =>
+                resendApprovalEmail(section, fallbackEmail, fallbackName)
+              }
+            >
+              Resend
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Inline mini-form for adding a new contact from a Combobox. Kept as one
+  // component so it looks identical across the three approver legs.
+  const renderAddContactForm = (
+    type: "technical" | "commercial" | "marketing",
+    role: ProjectContactRole,
+  ): JSX.Element | null => {
+    if (activeAddContact !== type) return null;
+    const canSubmit =
+      !!activeProject?.id &&
+      newContactName.trim().length > 0 &&
+      looksLikeEmail(newContactEmail) &&
+      !addContactMutation.isPending;
+    return (
+      <div className="mt-2 rounded-md border bg-white p-3 dark:bg-gray-900">
+        <p className="mb-2 text-sm font-medium">Add new contact to project</p>
+        <div className="grid grid-cols-1 gap-2">
+          <Input
+            placeholder="Full name"
+            value={newContactName}
+            onChange={(e) => setNewContactName(e.target.value)}
+            className="min-h-[44px]"
+          />
+          <Input
+            placeholder="Job title"
+            value={newContactJobTitle}
+            onChange={(e) => setNewContactJobTitle(e.target.value)}
+            className="min-h-[44px]"
+          />
+          <Input
+            type="email"
+            inputMode="email"
+            placeholder="name@company.com"
+            value={newContactEmail}
+            onChange={(e) => setNewContactEmail(e.target.value)}
+            className="min-h-[44px]"
+          />
+          <Input
+            type="tel"
+            placeholder="Mobile (optional)"
+            value={newContactMobile}
+            onChange={(e) => setNewContactMobile(e.target.value)}
+            className="min-h-[44px]"
+          />
+        </div>
+        <div className="mt-2 flex gap-2">
+          <Button
+            size="sm"
+            disabled={!canSubmit}
+            onClick={() =>
+              addContactMutation.mutate({
+                role,
+                name: newContactName.trim(),
+                jobTitle: newContactJobTitle.trim() || undefined,
+                email: newContactEmail.trim(),
+                mobile: newContactMobile.trim() || undefined,
+              })
+            }
+            className="min-h-[44px] flex-1"
+          >
+            Save contact
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setActiveAddContact(null);
+              setNewContactName("");
+              setNewContactJobTitle("");
+              setNewContactEmail("");
+              setNewContactMobile("");
+            }}
+            className="min-h-[44px]"
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Approver-combobox field. Shows a text input that opens a suggestion
+  // list filtered from the active project's contacts for the given role;
+  // falls back to all contacts when no matches for the role exist (we'd
+  // rather surface something than show an empty list). A trailing "+ Add
+  // new contact" item opens the inline mini-form so a sales rep can add a
+  // missing decision-maker without leaving the page.
+  const renderApproverCombobox = (
+    type: "technical" | "commercial",
+    role: ProjectContactRole,
+    openState: boolean,
+    setOpen: (v: boolean) => void,
+  ): JSX.Element => {
+    const nextEmail =
+      type === "technical" ? technicalNextEmail : commercialNextEmail;
+    const setNextEmail =
+      type === "technical" ? setTechnicalNextEmail : setCommercialNextEmail;
+    const setNextName =
+      type === "technical" ? setTechnicalNextName : setCommercialNextName;
+
+    const roleMatches = projectContacts.filter((c) => c.role === role);
+    const suggestions =
+      roleMatches.length > 0 ? roleMatches : projectContacts;
+
+    return (
+      <Popover open={openState} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Input
+            id={`${type}-next-email`}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            value={nextEmail}
+            onChange={(e) => {
+              setNextEmail(e.target.value);
+              if (!openState) setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="name@company.com"
+            className="min-h-[44px] h-11"
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[min(28rem,calc(100vw-2rem))] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <Command shouldFilter={true}>
+            <CommandInput placeholder="Search project contacts…" />
+            <CommandList>
+              <CommandEmpty>
+                {activeProject
+                  ? "No matching contacts."
+                  : "No active project."}
+              </CommandEmpty>
+              {suggestions.length > 0 && (
+                <CommandGroup heading="Project contacts">
+                  {suggestions.map((c, idx) => (
+                    <CommandItem
+                      key={c.id || `${c.email}-${idx}`}
+                      value={`${c.name} ${c.email} ${c.jobTitle || ""}`}
+                      onSelect={() => {
+                        setNextEmail(c.email);
+                        setNextName(c.name);
+                        setOpen(false);
+                      }}
+                      className="flex flex-col items-start gap-0.5"
+                    >
+                      <span className="text-sm font-semibold">{c.name}</span>
+                      {c.jobTitle && (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {c.jobTitle}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500">{c.email}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {activeProject?.id && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup>
+                    <CommandItem
+                      value="__add_new_contact__"
+                      onSelect={() => {
+                        setActiveAddContact(type);
+                        setOpen(false);
+                      }}
+                      className="text-sm text-blue-700 dark:text-blue-300"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Add new contact
+                    </CommandItem>
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  // Inline "next approver" capture block rendered inside each APPROVE
+  // form. Marketing is the terminal step so we render nothing for it.
+  const renderNextApproverBlock = (
+    type: "technical" | "commercial",
+  ): JSX.Element => {
+    const nextLabel = type === "technical" ? "Commercial" : "Marketing";
+    const nextEmail = type === "technical" ? technicalNextEmail : commercialNextEmail;
+    const setNextEmail =
+      type === "technical" ? setTechnicalNextEmail : setCommercialNextEmail;
+    const nextName = type === "technical" ? technicalNextName : commercialNextName;
+    const setNextName =
+      type === "technical" ? setTechnicalNextName : setCommercialNextName;
+    const selfNext = type === "technical" ? technicalSelfNext : commercialSelfNext;
+    const setSelfNext =
+      type === "technical" ? setTechnicalSelfNext : setCommercialSelfNext;
+    const checkboxId = `${type}-self-next`;
+    // `type === "technical"` sends the order on to the Commercial approver,
+    // so the suggestion list should come from the commercial_approver role.
+    // Similarly "commercial" hands off to the marketing_lead.
+    const nextRole: ProjectContactRole =
+      type === "technical" ? "commercial_approver" : "marketing_lead";
+    const comboboxOpen =
+      type === "technical" ? technicalComboboxOpen : commercialComboboxOpen;
+    const setComboboxOpen =
+      type === "technical"
+        ? setTechnicalComboboxOpen
+        : setCommercialComboboxOpen;
+
+    return (
+      <div className="rounded-md border bg-gray-50 p-3 dark:bg-gray-900/40">
+        <p className="mb-3 text-sm font-medium">
+          Next approver ({nextLabel})
+        </p>
+        <div className="space-y-3">
+          {!selfNext && (
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <Label htmlFor={`${type}-next-email`}>Email</Label>
+                {renderApproverCombobox(
+                  type,
+                  nextRole,
+                  comboboxOpen,
+                  setComboboxOpen,
+                )}
+                {nextEmail && !looksLikeEmail(nextEmail) && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Please enter a valid email address.
+                  </p>
+                )}
+                {renderAddContactForm(type, nextRole)}
+              </div>
+              <div>
+                <Label htmlFor={`${type}-next-name`}>
+                  Name <span className="text-gray-400">(optional)</span>
+                </Label>
+                <Input
+                  id={`${type}-next-name`}
+                  value={nextName}
+                  onChange={(e) => setNextName(e.target.value)}
+                  placeholder="Helps personalise the email"
+                  className="min-h-[44px] h-11"
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                We&apos;ll email them a secure link to complete the{" "}
+                {nextLabel.toLowerCase()} step after you approve.
+                {projectContacts.length === 0 && activeProject && (
+                  <>
+                    {" "}No project contacts yet — use{" "}
+                    <strong>Add new contact</strong> above.
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+          <label
+            htmlFor={checkboxId}
+            className="flex cursor-pointer items-start gap-3 rounded-md border bg-white p-3 dark:bg-gray-950"
+          >
+            <Checkbox
+              id={checkboxId}
+              checked={selfNext}
+              onCheckedChange={(v) => setSelfNext(v === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">
+                I have authority for {nextLabel} approval too — skip the email
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                The {nextLabel.toLowerCase()} section will unlock here
+                immediately after you approve.
+              </p>
+            </div>
+          </label>
+        </div>
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -801,6 +1722,104 @@ export function OrderForm() {
             </div>
           </CardHeader>
         </Card>
+
+        {/* Active Project Banner.
+            Surfaces the project this order belongs to so the sales rep can
+            see at a glance which customer/site is driving the autofill.
+            Hidden when `isForUser` is true — in that case the customer IS
+            the sales rep, so there's nothing to pull from a project.
+            When no project is active we still render the banner so the rep
+            can jump to /projects and create one. */}
+        {!orderData.isForUser && (
+          <Card className="border-blue-200 bg-blue-50/40 dark:bg-blue-950/20">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              {activeProject ? (
+                <>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {activeProject.customerCompany?.logoUrl ? (
+                      <img
+                        src={activeProject.customerCompany.logoUrl}
+                        alt={activeProject.customerCompany.name || "Customer"}
+                        className="h-10 w-10 rounded object-contain bg-white"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded bg-white flex items-center justify-center">
+                        <Building className="h-5 w-5 text-gray-500" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-xs uppercase tracking-wide text-gray-500">
+                        Working on
+                      </div>
+                      <div className="truncate font-semibold">
+                        {activeProject.customerCompany?.name
+                          ? `${activeProject.customerCompany.name} — ${activeProject.name}`
+                          : activeProject.name}
+                      </div>
+                      {activeProject.location && (
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          <MapPin className="mr-1 inline h-3 w-3" />
+                          {activeProject.location}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {/* "Use project details" is a no-op on this read-only
+                        review page — the order's customer fields were
+                        baked in at creation time. We still offer the
+                        button (disabled with explanatory tooltip) so the
+                        sales rep's mental model matches other pages that
+                        DO have editable customer fields. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[44px]"
+                      disabled
+                      title="Customer details on this order are already saved. Edit them by revising the order back to the cart."
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Use project details
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[44px]"
+                      onClick={() =>
+                        setLocation(`/projects?active=${activeProject.id}`)
+                      }
+                    >
+                      View project
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <div className="font-medium">No active project</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        Create one to auto-fill customer details on future
+                        orders.
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-h-[44px]"
+                    onClick={() => setLocation("/projects")}
+                  >
+                    Go to projects
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Customer Information */}
         <Card>
@@ -1653,7 +2672,7 @@ export function OrderForm() {
         )}
 
         {/* Reciprocal Value Commitments - Enhanced with Explanation */}
-        {(orderData.reciprocalCommitments || orderData.discountOptions) && (orderData.reciprocalCommitments?.commitments?.length > 0 || orderData.discountOptions?.length > 0) && (
+        {(orderData.reciprocalCommitments || orderData.discountOptions) && ((orderData.reciprocalCommitments?.commitments?.length ?? 0) > 0 || (orderData.discountOptions?.length ?? 0) > 0) && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1707,7 +2726,7 @@ export function OrderForm() {
                           const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
                           return total + (discount?.discountPercent || 0);
                         }, 0),
-                        23
+                        getDiscountCap((orderData.items || []).reduce((s: number, i: any) => s + (i.totalPrice || 0), 0))
                       )}% Savings
                     </span>
                   </div>
@@ -1739,20 +2758,19 @@ export function OrderForm() {
               {orderData.discountOptions && orderData.discountOptions.length > 0 && (
                 <>
                   {(() => {
-                    const reciprocalDiscountPercent = Math.min(
-                      orderData.discountOptions.reduce((total: number, sel: any) => {
-                        // Handle both object format and ID format
-                        if (sel.discountPercent !== undefined) {
-                          return total + sel.discountPercent;
-                        }
-                        const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                        return total + (discount?.discountPercent || 0);
-                      }, 0),
-                      23
-                    );
-                    const partnerDiscountPercent = (orderData as any).partnerDiscountPercent || 0;
                     const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    
+                    const rawReciprocal = orderData.discountOptions.reduce((total: number, sel: any) => {
+                      if (sel.discountPercent !== undefined) {
+                        return total + sel.discountPercent;
+                      }
+                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
+                      return total + (discount?.discountPercent || 0);
+                    }, 0);
+                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
+                    // Post-cap values so the line-items match the grand total below.
+                    const { reciprocal: reciprocalDiscountPercent, partner: partnerDiscountPercent } =
+                      getCombinedDiscount(rawReciprocal, rawPartner, subtotal);
+
                     return (
                       <>
                         {reciprocalDiscountPercent > 0 && (
@@ -1770,24 +2788,25 @@ export function OrderForm() {
                       </>
                     );
                   })()}
-                  
+
                   {(() => {
-                    const reciprocalDiscountPercent = Math.min(
-                      orderData.discountOptions.reduce((total: number, sel: any) => {
-                        if (sel.discountPercent !== undefined) {
-                          return total + sel.discountPercent;
-                        }
-                        const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                        return total + (discount?.discountPercent || 0);
-                      }, 0),
-                      23
-                    );
-                    const partnerDiscountPercent = (orderData as any).partnerDiscountPercent || 0;
-                    const totalDiscountPercent = Math.min(reciprocalDiscountPercent + partnerDiscountPercent, 35);
                     const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
+                    const rawReciprocal = orderData.discountOptions.reduce((total: number, sel: any) => {
+                      if (sel.discountPercent !== undefined) {
+                        return total + sel.discountPercent;
+                      }
+                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
+                      return total + (discount?.discountPercent || 0);
+                    }, 0);
+                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
+                    const { combined: totalDiscountPercent } = getCombinedDiscount(
+                      rawReciprocal,
+                      rawPartner,
+                      subtotal,
+                    );
                     const discountAmount = subtotal * (totalDiscountPercent / 100);
                     const subtotalAfterDiscount = subtotal - discountAmount;
-                    
+
                     return (
                       <div className="flex justify-between items-center font-medium">
                         <Label>Subtotal after savings:</Label>
@@ -1843,22 +2862,23 @@ export function OrderForm() {
                       );
                       if (!serviceOption?.chargeable) return formatPrice(0);
                       
-                      const reciprocalDiscountPercent = Math.min(
-                        orderData.discountOptions?.reduce((total: number, sel: any) => {
-                          if (sel.discountPercent !== undefined) {
-                            return total + sel.discountPercent;
-                          }
-                          const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                          return total + (discount?.discountPercent || 0);
-                        }, 0) || 0,
-                        23
-                      );
-                      const partnerDiscountPercent = (orderData as any).partnerDiscountPercent || 0;
-                      const totalDiscountPercent = Math.min(reciprocalDiscountPercent + partnerDiscountPercent, 35);
                       const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
+                      const rawReciprocal = orderData.discountOptions?.reduce((total: number, sel: any) => {
+                        if (sel.discountPercent !== undefined) {
+                          return total + sel.discountPercent;
+                        }
+                        const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
+                        return total + (discount?.discountPercent || 0);
+                      }, 0) || 0;
+                      const rawPartner = (orderData as any).partnerDiscountPercent || 0;
+                      const { combined: totalDiscountPercent } = getCombinedDiscount(
+                        rawReciprocal,
+                        rawPartner,
+                        subtotal,
+                      );
                       const discountAmount = subtotal * (totalDiscountPercent / 100);
                       const subtotalAfterDiscount = subtotal - discountAmount;
-                      
+
                       if (serviceOption?.value?.includes('%')) {
                         const rate = parseFloat(serviceOption.value.replace('%', ''));
                         return formatPrice(subtotalAfterDiscount * (rate / 100));
@@ -1877,19 +2897,21 @@ export function OrderForm() {
                   {(() => {
                     const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
                     
-                    // Calculate discount
-                    const reciprocalDiscountPercent = Math.min(
-                      orderData.discountOptions?.reduce((total: number, sel: any) => {
-                        if (sel.discountPercent !== undefined) {
-                          return total + sel.discountPercent;
-                        }
-                        const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                        return total + (discount?.discountPercent || 0);
-                      }, 0) || 0,
-                      23
+                    // Calculate discount — reciprocal is size-tiered (25–30%),
+                    // partner is flat-capped at 15%, combined is clamped at 40%.
+                    const rawReciprocal = orderData.discountOptions?.reduce((total: number, sel: any) => {
+                      if (sel.discountPercent !== undefined) {
+                        return total + sel.discountPercent;
+                      }
+                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
+                      return total + (discount?.discountPercent || 0);
+                    }, 0) || 0;
+                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
+                    const { combined: totalDiscountPercent } = getCombinedDiscount(
+                      rawReciprocal,
+                      rawPartner,
+                      subtotal,
                     );
-                    const partnerDiscountPercent = (orderData as any).partnerDiscountPercent || 0;
-                    const totalDiscountPercent = Math.min(reciprocalDiscountPercent + partnerDiscountPercent, 35);
                     const discountAmount = subtotal * (totalDiscountPercent / 100);
                     const subtotalAfterDiscount = subtotal - discountAmount;
                     
@@ -1961,40 +2983,43 @@ export function OrderForm() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <span className="text-green-800 font-medium">Technical Approval Completed</span>
+                      {/* One-line summary. Reads both the new signedBy/jobTitle
+                          shape and the legacy signature/signerJobTitle shape
+                          so orders signed before this migration still render. */}
+                      <span className="text-green-800 font-medium">
+                        Approved by {(orderData.technicalSignature as any).signedBy || (orderData.technicalSignature as any).signature}
+                        {((orderData.technicalSignature as any).jobTitle || (orderData.technicalSignature as any).signerJobTitle)
+                          ? ` (${(orderData.technicalSignature as any).jobTitle || (orderData.technicalSignature as any).signerJobTitle})`
+                          : ""}
+                        {" on "}
+                        {(orderData.technicalSignature as any).date || new Date((orderData.technicalSignature as any).signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <Label className="text-green-700 font-medium">Signed by:</Label>
-                        <p className="text-green-900 font-medium">{orderData.technicalSignature.signature}</p>
-                      </div>
-                      {orderData.technicalSignature.signerJobTitle && (
-                        <div>
-                          <Label className="text-green-700 font-medium">Job Position:</Label>
-                          <p className="text-green-900">{orderData.technicalSignature.signerJobTitle}</p>
-                        </div>
-                      )}
-                      {orderData.technicalSignature.signerMobile && (
+                      {((orderData.technicalSignature as any).signerMobile || (orderData.technicalSignature as any).mobile) && (
                         <div>
                           <Label className="text-green-700 font-medium">Mobile Number:</Label>
-                          <p className="text-green-900">{orderData.technicalSignature.signerMobile}</p>
+                          <p className="text-green-900">{(orderData.technicalSignature as any).signerMobile || (orderData.technicalSignature as any).mobile}</p>
                         </div>
                       )}
                       <div>
-                        <Label className="text-green-700 font-medium">Date & Time:</Label>
-                        <p className="text-green-900">{new Date(orderData.technicalSignature.signedAt).toLocaleString()}</p>
+                        <Label className="text-green-700 font-medium">Date &amp; Time:</Label>
+                        <p className="text-green-900">{new Date((orderData.technicalSignature as any).signedAt).toLocaleString()}</p>
                       </div>
                     </div>
-                    {orderData.technicalSignature.comments && (
+                    {(orderData.technicalSignature as any).comments && (
                       <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
                         <Label className="text-green-700 font-medium">Comments:</Label>
-                        <p className="text-green-900 mt-1">{orderData.technicalSignature.comments}</p>
+                        <p className="text-green-900 mt-1">{(orderData.technicalSignature as any).comments}</p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Pending magic-link for THIS section, if any: offers
+                      resend/revoke without blocking inline approval. */}
+                  {renderPendingTokenRow("technical", "")}
                   <div>
                     <Label htmlFor="technical-signature">Your Signature</Label>
                     <Textarea
@@ -2002,7 +3027,7 @@ export function OrderForm() {
                       value={technicalSignature}
                       onChange={(e) => setTechnicalSignature(e.target.value)}
                       placeholder="Type your full name to sign"
-                      className="resize-none"
+                      className="resize-none min-h-[44px]"
                       rows={2}
                     />
                   </div>
@@ -2014,7 +3039,13 @@ export function OrderForm() {
                         value={technicalSignerJobTitle}
                         onChange={(e) => setTechnicalSignerJobTitle(e.target.value)}
                         placeholder="Enter your job position"
+                        className="min-h-[44px] h-11"
                       />
+                      {userProfile?.jobTitle && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Pre-filled from your profile.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="technical-mobile">Mobile Number</Label>
@@ -2024,35 +3055,50 @@ export function OrderForm() {
                         onChange={(e) => setTechnicalSignerMobile(e.target.value)}
                         placeholder="Enter your mobile number"
                         type="tel"
+                        className="min-h-[44px] h-11"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="technical-comments">Comments (Optional)</Label>
-                    <Textarea
-                      id="technical-comments"
-                      value={technicalComments}
-                      onChange={(e) => setTechnicalComments(e.target.value)}
-                      placeholder="Add any technical notes or comments"
-                      className="resize-none"
-                      rows={3}
-                    />
-                  </div>
+                  {/* Rarely-used free-text comment fields live behind a
+                      disclosure so they don't bloat the default view. */}
+                  <details className="rounded-md border bg-white px-3 py-2 dark:bg-gray-950">
+                    <summary className="cursor-pointer select-none text-sm font-medium">
+                      Advanced order details
+                    </summary>
+                    <div className="mt-3">
+                      <Label htmlFor="technical-comments">Comments (Optional)</Label>
+                      <Textarea
+                        id="technical-comments"
+                        value={technicalComments}
+                        onChange={(e) => setTechnicalComments(e.target.value)}
+                        placeholder="Add any technical notes or comments"
+                        className="resize-none min-h-[44px]"
+                        rows={3}
+                      />
+                    </div>
+                  </details>
+                  {renderNextApproverBlock("technical")}
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={() => handleSignature('technical')}
-                      disabled={!technicalSignature.trim() || !technicalSignerJobTitle.trim() || !technicalSignerMobile.trim() || signOrderMutation.isPending}
-                      className="flex-1"
+                      disabled={
+                        !technicalSignature.trim() ||
+                        !technicalSignerJobTitle.trim() ||
+                        !technicalSignerMobile.trim() ||
+                        (!technicalSelfNext && !looksLikeEmail(technicalNextEmail)) ||
+                        signOrderMutation.isPending
+                      }
+                      className="min-h-[44px] flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold"
                     >
-                      Sign Technical Approval
+                      APPROVE
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         setRejectionType('technical');
                         setShowRejectionModal(true);
                       }}
                       variant="destructive"
-                      className="flex-1"
+                      className="min-h-[44px] flex-1"
                     >
                       Reject Order
                     </Button>
@@ -2061,9 +3107,14 @@ export function OrderForm() {
               )}
             </div>
 
-            {/* Marketing Approval - Only shown if discounts are selected */}
-            {orderData.discountOptions && orderData.discountOptions.length > 0 && (
-              <div className="border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800">
+            {/*
+              Marketing Approval. Previously gated behind "discounts selected"
+              because marketing sign-off was originally tied to value-
+              commitment discounts. The section-level approval rework makes
+              marketing an always-present third leg, parity with the PDF and
+              with Technical / Commercial.
+            */}
+            <div className="border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="font-medium flex items-center gap-2">
@@ -2084,40 +3135,61 @@ export function OrderForm() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <span className="text-green-800 font-medium">Marketing Approval Completed</span>
+                        {/* Tolerates new + legacy signature shapes; see Technical for rationale. */}
+                        <span className="text-green-800 font-medium">
+                          Approved by {(orderData.marketingSignature as any).signedBy || (orderData.marketingSignature as any).signature}
+                          {((orderData.marketingSignature as any).jobTitle || (orderData.marketingSignature as any).signerJobTitle)
+                            ? ` (${(orderData.marketingSignature as any).jobTitle || (orderData.marketingSignature as any).signerJobTitle})`
+                            : ""}
+                          {" on "}
+                          {(orderData.marketingSignature as any).date || new Date((orderData.marketingSignature as any).signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <Label className="text-green-700 font-medium">Signed by:</Label>
-                          <p className="text-green-900 font-medium">{orderData.marketingSignature.signature}</p>
-                        </div>
-                        {orderData.marketingSignature.signerJobTitle && (
-                          <div>
-                            <Label className="text-green-700 font-medium">Job Position:</Label>
-                            <p className="text-green-900">{orderData.marketingSignature.signerJobTitle}</p>
-                          </div>
-                        )}
-                        {orderData.marketingSignature.signerMobile && (
+                        {((orderData.marketingSignature as any).signerMobile || (orderData.marketingSignature as any).mobile) && (
                           <div>
                             <Label className="text-green-700 font-medium">Mobile Number:</Label>
-                            <p className="text-green-900">{orderData.marketingSignature.signerMobile}</p>
+                            <p className="text-green-900">{(orderData.marketingSignature as any).signerMobile || (orderData.marketingSignature as any).mobile}</p>
                           </div>
                         )}
                         <div>
-                          <Label className="text-green-700 font-medium">Date & Time:</Label>
-                          <p className="text-green-900">{new Date(orderData.marketingSignature.signedAt).toLocaleString()}</p>
+                          <Label className="text-green-700 font-medium">Date &amp; Time:</Label>
+                          <p className="text-green-900">{new Date((orderData.marketingSignature as any).signedAt).toLocaleString()}</p>
                         </div>
                       </div>
-                      {orderData.marketingSignature.comments && (
+                      {(orderData.marketingSignature as any).comments && (
                         <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
                           <Label className="text-green-700 font-medium">Comments:</Label>
-                          <p className="text-green-900 mt-1">{orderData.marketingSignature.comments}</p>
+                          <p className="text-green-900 mt-1">{(orderData.marketingSignature as any).comments}</p>
                         </div>
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {renderPendingTokenRow("marketing", "")}
+                    {selfUnlockedSections.has("marketing") && (
+                      <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                        You unlocked this section after the Commercial step.
+                      </div>
+                    )}
+                    {signoffMemory && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Using your details from a previous section —{" "}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearSignoffMemory();
+                            setMarketingSignature("");
+                            setMarketingSignerJobTitle("");
+                            setMarketingSignerMobile("");
+                          }}
+                          className="underline hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                          clear
+                        </button>
+                      </p>
+                    )}
                     <div>
                       <Label htmlFor="marketing-signature">Your Signature</Label>
                       <Textarea
@@ -2125,7 +3197,7 @@ export function OrderForm() {
                         value={marketingSignature}
                         onChange={(e) => setMarketingSignature(e.target.value)}
                         placeholder="Type your full name to sign"
-                        className="resize-none"
+                        className="resize-none min-h-[44px]"
                         rows={2}
                       />
                     </div>
@@ -2137,6 +3209,7 @@ export function OrderForm() {
                           value={marketingSignerJobTitle}
                           onChange={(e) => setMarketingSignerJobTitle(e.target.value)}
                           placeholder="Enter your job position"
+                          className="min-h-[44px] h-11"
                         />
                       </div>
                       <div>
@@ -2147,35 +3220,43 @@ export function OrderForm() {
                           onChange={(e) => setMarketingSignerMobile(e.target.value)}
                           placeholder="Enter your mobile number"
                           type="tel"
+                          className="min-h-[44px] h-11"
                         />
                       </div>
                     </div>
-                    <div>
-                      <Label htmlFor="marketing-comments">Comments (Optional)</Label>
-                      <Textarea
-                        id="marketing-comments"
-                        value={marketingComments}
-                        onChange={(e) => setMarketingComments(e.target.value)}
-                        placeholder="Add any marketing notes or comments about the value commitments"
-                        className="resize-none"
-                        rows={3}
-                      />
-                    </div>
+                    {/* Rarely-used free-text comment fields live behind a
+                        disclosure so they don't bloat the default view. */}
+                    <details className="rounded-md border bg-white px-3 py-2 dark:bg-gray-950">
+                      <summary className="cursor-pointer select-none text-sm font-medium">
+                        Advanced order details
+                      </summary>
+                      <div className="mt-3">
+                        <Label htmlFor="marketing-comments">Comments (Optional)</Label>
+                        <Textarea
+                          id="marketing-comments"
+                          value={marketingComments}
+                          onChange={(e) => setMarketingComments(e.target.value)}
+                          placeholder="Add any marketing notes or comments about the value commitments"
+                          className="resize-none min-h-[44px]"
+                          rows={3}
+                        />
+                      </div>
+                    </details>
                     <div className="flex gap-2">
-                      <Button 
+                      <Button
                         onClick={() => handleSignature('marketing')}
                         disabled={!marketingSignature.trim() || !marketingSignerJobTitle.trim() || !marketingSignerMobile.trim() || signOrderMutation.isPending}
-                        className="flex-1"
+                        className="min-h-[44px] flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold"
                       >
-                        Sign Marketing Approval
+                        APPROVE
                       </Button>
-                      <Button 
+                      <Button
                         onClick={() => {
                           setRejectionType('marketing');
                           setShowRejectionModal(true);
                         }}
                         variant="destructive"
-                        className="flex-1"
+                        className="min-h-[44px] flex-1"
                       >
                         Reject Order
                       </Button>
@@ -2183,7 +3264,6 @@ export function OrderForm() {
                   </div>
                 )}
               </div>
-            )}
 
             {/* Commercial Signature */}
             <div className="border rounded-lg p-4">
@@ -2207,40 +3287,61 @@ export function OrderForm() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <span className="text-green-800 font-medium">Commercial Approval Completed</span>
+                      {/* Tolerates new + legacy signature shapes; see Technical for rationale. */}
+                      <span className="text-green-800 font-medium">
+                        Approved by {(orderData.commercialSignature as any).signedBy || (orderData.commercialSignature as any).signature}
+                        {((orderData.commercialSignature as any).jobTitle || (orderData.commercialSignature as any).signerJobTitle)
+                          ? ` (${(orderData.commercialSignature as any).jobTitle || (orderData.commercialSignature as any).signerJobTitle})`
+                          : ""}
+                        {" on "}
+                        {(orderData.commercialSignature as any).date || new Date((orderData.commercialSignature as any).signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <Label className="text-green-700 font-medium">Signed by:</Label>
-                        <p className="text-green-900 font-medium">{orderData.commercialSignature.signature}</p>
-                      </div>
-                      {orderData.commercialSignature.signerJobTitle && (
-                        <div>
-                          <Label className="text-green-700 font-medium">Job Position:</Label>
-                          <p className="text-green-900">{orderData.commercialSignature.signerJobTitle}</p>
-                        </div>
-                      )}
-                      {orderData.commercialSignature.signerMobile && (
+                      {((orderData.commercialSignature as any).signerMobile || (orderData.commercialSignature as any).mobile) && (
                         <div>
                           <Label className="text-green-700 font-medium">Mobile Number:</Label>
-                          <p className="text-green-900">{orderData.commercialSignature.signerMobile}</p>
+                          <p className="text-green-900">{(orderData.commercialSignature as any).signerMobile || (orderData.commercialSignature as any).mobile}</p>
                         </div>
                       )}
                       <div>
-                        <Label className="text-green-700 font-medium">Date & Time:</Label>
-                        <p className="text-green-900">{new Date(orderData.commercialSignature.signedAt).toLocaleString()}</p>
+                        <Label className="text-green-700 font-medium">Date &amp; Time:</Label>
+                        <p className="text-green-900">{new Date((orderData.commercialSignature as any).signedAt).toLocaleString()}</p>
                       </div>
                     </div>
-                    {orderData.commercialSignature.comments && (
+                    {(orderData.commercialSignature as any).comments && (
                       <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
                         <Label className="text-green-700 font-medium">Comments:</Label>
-                        <p className="text-green-900 mt-1">{orderData.commercialSignature.comments}</p>
+                        <p className="text-green-900 mt-1">{(orderData.commercialSignature as any).comments}</p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {renderPendingTokenRow("commercial", "")}
+                  {selfUnlockedSections.has("commercial") && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                      You unlocked this section after the Technical step.
+                    </div>
+                  )}
+                  {signoffMemory && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Using your details from Technical —{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearSignoffMemory();
+                          setCommercialSignature("");
+                          setCommercialSignerJobTitle("");
+                          setCommercialSignerMobile("");
+                        }}
+                        className="underline hover:text-gray-700 dark:hover:text-gray-200"
+                      >
+                        clear
+                      </button>
+                    </p>
+                  )}
                   <div>
                     <Label htmlFor="commercial-signature">Your Signature</Label>
                     <Textarea
@@ -2248,7 +3349,7 @@ export function OrderForm() {
                       value={commercialSignature}
                       onChange={(e) => setCommercialSignature(e.target.value)}
                       placeholder="Type your full name to sign"
-                      className="resize-none"
+                      className="resize-none min-h-[44px]"
                       rows={2}
                     />
                   </div>
@@ -2260,6 +3361,7 @@ export function OrderForm() {
                         value={commercialSignerJobTitle}
                         onChange={(e) => setCommercialSignerJobTitle(e.target.value)}
                         placeholder="Enter your job position"
+                        className="min-h-[44px] h-11"
                       />
                     </div>
                     <div>
@@ -2270,35 +3372,50 @@ export function OrderForm() {
                         onChange={(e) => setCommercialSignerMobile(e.target.value)}
                         placeholder="Enter your mobile number"
                         type="tel"
+                        className="min-h-[44px] h-11"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="commercial-comments">Comments (Optional)</Label>
-                    <Textarea
-                      id="commercial-comments"
-                      value={commercialComments}
-                      onChange={(e) => setCommercialComments(e.target.value)}
-                      placeholder="Add any commercial notes or comments"
-                      className="resize-none"
-                      rows={3}
-                    />
-                  </div>
+                  {/* Rarely-used free-text comment fields live behind a
+                      disclosure so they don't bloat the default view. */}
+                  <details className="rounded-md border bg-white px-3 py-2 dark:bg-gray-950">
+                    <summary className="cursor-pointer select-none text-sm font-medium">
+                      Advanced order details
+                    </summary>
+                    <div className="mt-3">
+                      <Label htmlFor="commercial-comments">Comments (Optional)</Label>
+                      <Textarea
+                        id="commercial-comments"
+                        value={commercialComments}
+                        onChange={(e) => setCommercialComments(e.target.value)}
+                        placeholder="Add any commercial notes or comments"
+                        className="resize-none min-h-[44px]"
+                        rows={3}
+                      />
+                    </div>
+                  </details>
+                  {renderNextApproverBlock("commercial")}
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={() => handleSignature('commercial')}
-                      disabled={!commercialSignature.trim() || !commercialSignerJobTitle.trim() || !commercialSignerMobile.trim() || signOrderMutation.isPending}
-                      className="flex-1"
+                      disabled={
+                        !commercialSignature.trim() ||
+                        !commercialSignerJobTitle.trim() ||
+                        !commercialSignerMobile.trim() ||
+                        (!commercialSelfNext && !looksLikeEmail(commercialNextEmail)) ||
+                        signOrderMutation.isPending
+                      }
+                      className="min-h-[44px] flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold"
                     >
-                      Sign Commercial Approval
+                      APPROVE
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         setRejectionType('commercial');
                         setShowRejectionModal(true);
                       }}
                       variant="destructive"
-                      className="flex-1"
+                      className="min-h-[44px] flex-1"
                     >
                       Reject Order
                     </Button>
@@ -2306,6 +3423,10 @@ export function OrderForm() {
                 </div>
               )}
             </div>
+            {/* Approval history — collapsed by default, renders
+                the full audit trail for this order at the foot of the
+                Authorization card. */}
+            {id && <OrderAuditLog orderId={id} />}
           </CardContent>
         </Card>
 

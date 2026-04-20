@@ -9,7 +9,7 @@ const chat = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // GET /api/chat/conversations
 // ──────────────────────────────────────────────
-chat.get("/api/chat/conversations", authMiddleware, async (c) => {
+chat.get("/chat/conversations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -25,7 +25,7 @@ chat.get("/api/chat/conversations", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/chat/conversations
 // ──────────────────────────────────────────────
-chat.post("/api/chat/conversations", authMiddleware, async (c) => {
+chat.post("/chat/conversations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -47,7 +47,7 @@ chat.post("/api/chat/conversations", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // DELETE /api/chat/conversations/:id
 // ──────────────────────────────────────────────
-chat.delete("/api/chat/conversations/:id", authMiddleware, async (c) => {
+chat.delete("/chat/conversations/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -65,7 +65,7 @@ chat.delete("/api/chat/conversations/:id", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/chat/conversations/:id/messages
 // ──────────────────────────────────────────────
-chat.get("/api/chat/conversations/:id/messages", authMiddleware, async (c) => {
+chat.get("/chat/conversations/:id/messages", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -83,7 +83,7 @@ chat.get("/api/chat/conversations/:id/messages", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/chat/conversations/:id/messages
 // ──────────────────────────────────────────────
-chat.post("/api/chat/conversations/:id/messages", authMiddleware, async (c) => {
+chat.post("/chat/conversations/:id/messages", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -150,7 +150,7 @@ chat.post("/api/chat/conversations/:id/messages", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/chat/upload-image
 // ──────────────────────────────────────────────
-chat.post("/api/chat/upload-image", authMiddleware, async (c) => {
+chat.post("/chat/upload-image", authMiddleware, async (c) => {
   try {
     const formData = await c.req.formData();
     const imageFile = formData.get("image") as File | null;

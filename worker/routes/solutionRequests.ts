@@ -9,7 +9,7 @@ const solutionRequests = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // POST /api/solution-requests
 // ──────────────────────────────────────────────
-solutionRequests.post("/api/solution-requests", authMiddleware, async (c) => {
+solutionRequests.post("/solution-requests", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -42,7 +42,7 @@ solutionRequests.post("/api/solution-requests", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/solution-requests
 // ──────────────────────────────────────────────
-solutionRequests.get("/api/solution-requests", authMiddleware, async (c) => {
+solutionRequests.get("/solution-requests", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -58,7 +58,7 @@ solutionRequests.get("/api/solution-requests", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/solution-requests/:id
 // ──────────────────────────────────────────────
-solutionRequests.get("/api/solution-requests/:id", authMiddleware, async (c) => {
+solutionRequests.get("/solution-requests/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -86,7 +86,7 @@ solutionRequests.get("/api/solution-requests/:id", authMiddleware, async (c) => 
 // ──────────────────────────────────────────────
 // DELETE /api/solution-requests/:id
 // ──────────────────────────────────────────────
-solutionRequests.delete("/api/solution-requests/:id", authMiddleware, async (c) => {
+solutionRequests.delete("/solution-requests/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

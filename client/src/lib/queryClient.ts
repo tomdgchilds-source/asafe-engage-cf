@@ -91,7 +91,10 @@ queryClient.getQueryCache().subscribe((event) => {
     const error = event.query.state.error;
     const queryKey = event.query.queryKey[0];
     if (error instanceof Error && error.message.startsWith('401') && queryKey !== '/api/auth/user') {
-      window.location.href = "/";
+      // Don't redirect if already on landing page (prevents infinite loop)
+      if (window.location.pathname !== '/') {
+        window.location.href = "/";
+      }
     }
   }
 });

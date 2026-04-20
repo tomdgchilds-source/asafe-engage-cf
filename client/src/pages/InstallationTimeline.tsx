@@ -408,11 +408,13 @@ export default function InstallationTimeline() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
-          <Link href="/orders">
+          <Link href="/start-new-project">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              New Project
+            </Button>
+          </Link>
+          <Link href="/cart">
             <Button className="bg-[#FFC72C] hover:bg-[#FFB300] text-black">
               <Package className="h-4 w-4 mr-2" />
               View Orders

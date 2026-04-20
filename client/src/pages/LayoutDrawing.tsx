@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Package, ShoppingCart, PenTool, FileImage, Upload } from "lucide-react";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
-import { LayoutMarkupEditor } from "@/components/LayoutMarkupEditor";
+import { LayoutMarkupEditor } from "@/components/layout-markup";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import type { LayoutDrawing as LayoutDrawingType, CartItem as CartItemType } from "@shared/schema";

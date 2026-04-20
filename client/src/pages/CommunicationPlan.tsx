@@ -148,10 +148,34 @@ export default function CommunicationPlan() {
     }
 
     const finalMessage = replaceTemplateVariables(customMessage);
-    
+    const subject = `A-SAFE — ${recipientDetails.name ? `Hi ${recipientDetails.name}` : "Follow-up"}`;
+
+    // Actually open the user's email client or WhatsApp so the message is sent.
+    if (selectedChannel === "email" && recipientDetails.email) {
+      const url =
+        `mailto:${encodeURIComponent(recipientDetails.email)}` +
+        `?subject=${encodeURIComponent(subject)}` +
+        `&body=${encodeURIComponent(finalMessage)}`;
+      window.open(url, "_blank");
+    } else if (selectedChannel === "whatsapp" && recipientDetails.phone) {
+      const phone = recipientDetails.phone.replace(/[^0-9]/g, "");
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(finalMessage)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      toast({
+        title: "Missing Contact",
+        description:
+          selectedChannel === "email"
+            ? "An email address is required to open the email client."
+            : "A phone number is required to open WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
-      title: "Message Prepared",
-      description: `${selectedChannel === 'email' ? 'Email' : 'WhatsApp'} message ready for ${recipientDetails.name || 'recipient'}`,
+      title: "Opening " + (selectedChannel === "email" ? "email client" : "WhatsApp"),
+      description: `Message drafted for ${recipientDetails.name || "recipient"}. Review and send from the opened window.`,
     });
 
     // Reset form

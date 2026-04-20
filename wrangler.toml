@@ -5,15 +5,23 @@ compatibility_flags = ["nodejs_compat"]
 
 [assets]
 directory = "dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
 
 [[kv_namespaces]]
 binding = "KV_SESSIONS"
-id = "PLACEHOLDER_KV_ID"
-preview_id = "PLACEHOLDER_KV_PREVIEW_ID"
+id = "57fbf5ae68a54b718eb88802940e9415"
+preview_id = "bd84ede39c024211967ae53cf2391256"
 
+# R2 bucket for file storage (images, documents)
 [[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "asafe-engage-files"
+
+# KV-based file storage (works without R2)
+[[kv_namespaces]]
+binding = "FILES_STORE"
+id = "c56114bdecec4bc08cd4939b8c5f1d72"
 
 [vars]
 NODE_ENV = "production"
@@ -21,15 +29,15 @@ NODE_ENV = "production"
 # Secrets (set via: wrangler secret put <NAME>):
 # DATABASE_URL
 # SESSION_SECRET
-# SENDGRID_API_KEY
-# SENDGRID_FROM_EMAIL
+# RESEND_API_KEY
+# EMAIL_FROM
 # ADMIN_NOTIFICATION_EMAILS
 # OPENAI_API_KEY
-# SLACK_WEBHOOK_URL
-# SLACK_BOT_TOKEN
-# SLACK_SIGNING_SECRET
-# SLACK_CHANNEL_ID
-# SLACK_NOTIFICATION_CHANNEL_ID
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+# APPLE_CLIENT_ID
+# APPLE_CLIENT_SECRET
+# APP_URL
 # WHATSAPP_ACCESS_TOKEN
 # WHATSAPP_PHONE_NUMBER_ID
 # CONTACT_EMAIL

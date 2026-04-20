@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, createSession } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 
@@ -9,7 +9,7 @@ const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ──────────────────────────────────────────────
 // POST /api/admin/login
 // ──────────────────────────────────────────────
-admin.post("/api/admin/login", async (c) => {
+admin.post("/admin/login", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -27,10 +27,8 @@ admin.post("/api/admin/login", async (c) => {
       return c.json({ message: "Invalid credentials" }, 401);
     }
 
-    // TODO: port bcrypt password comparison - consider using a CF-compatible library
-    // For now, use a basic comparison placeholder
-    // const isValidPassword = await bcrypt.compare(password, adminUser.passwordHash);
-    const isValidPassword = false; // placeholder - implement with CF-compatible bcrypt
+    const bcrypt = await import("bcryptjs");
+    const isValidPassword = await bcrypt.compare(password, adminUser.passwordHash);
     if (!isValidPassword) {
       return c.json({ message: "Invalid credentials" }, 401);
     }
@@ -42,18 +40,40 @@ admin.post("/api/admin/login", async (c) => {
     // Update last login
     await storage.updateAdminLastLogin(adminUser.id);
 
-    // Store admin session in KV
-    const sessionId = crypto.randomUUID();
+    const adminEmail = (adminUser as any).email;
+    const adminFullName = (adminUser as any).fullName || adminUser.username;
+    const adminRole = (adminUser as any).role || "admin";
+
+    // Find or create a matching user in the users table so the regular
+    // session-based auth system works for admin pages too
+    let regularUser = adminEmail ? await storage.getUserByEmail(adminEmail) : null;
+    if (regularUser && regularUser.role !== "admin") {
+      // Promote existing user to admin role
+      await storage.updateUser(regularUser.id, { role: "admin" });
+      regularUser = await storage.getUser(regularUser.id);
+    }
+
+    // Create a regular session (sets the `sid` cookie that authMiddleware reads)
+    const userForSession = regularUser || {
+      id: adminUser.id,
+      email: adminEmail,
+      firstName: adminFullName.split(" ")[0],
+      lastName: adminFullName.split(" ").slice(1).join(" ") || null,
+    };
+    await createSession(c, userForSession);
+
+    // Also store admin-specific session data in KV for backward compat
+    const adminSessionId = crypto.randomUUID();
     const sessionData = {
       id: adminUser.id,
       username: adminUser.username,
-      fullName: (adminUser as any).fullName,
-      email: (adminUser as any).email,
-      role: (adminUser as any).role,
+      fullName: adminFullName,
+      email: adminEmail,
+      role: adminRole,
     };
 
     await c.env.KV_SESSIONS.put(
-      `admin:${sessionId}`,
+      `admin:${adminSessionId}`,
       JSON.stringify(sessionData),
       { expirationTtl: 86400 },
     );
@@ -66,12 +86,72 @@ admin.post("/api/admin/login", async (c) => {
 });
 
 // ──────────────────────────────────────────────
-// GET /api/admin/stats
+// GET /api/admin/session — verify admin session
 // ──────────────────────────────────────────────
-admin.get("/api/admin/stats", authMiddleware, async (c) => {
+admin.get("/admin/session", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const userRecord = await storage.getUser(userId);
+
+    // Check regular users table for admin role
+    if (userRecord?.role !== "admin") {
+      // Also check if this user's email matches an admin_users entry
+      const adminByEmail = userRecord?.email
+        ? await storage.getAdminByEmail(userRecord.email)
+        : null;
+      if (!adminByEmail) {
+        return c.json({ message: "Not an admin" }, 403);
+      }
+      // Promote the user to admin since they have a matching admin_users record
+      await storage.updateUser(userId, { role: "admin" });
+    }
+
+    return c.json({
+      id: userRecord!.id,
+      email: userRecord!.email,
+      firstName: userRecord!.firstName,
+      lastName: userRecord!.lastName,
+      fullName: [userRecord!.firstName, userRecord!.lastName].filter(Boolean).join(" ") || "Admin",
+      role: "admin",
+    });
+  } catch (error) {
+    console.error("Admin session check error:", error);
+    return c.json({ message: "Session invalid" }, 401);
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /api/admin/logout — clear admin session
+// ──────────────────────────────────────────────
+admin.post("/admin/logout", async (c) => {
+  try {
+    const { getCookie, deleteCookie } = await import("hono/cookie");
+    const sid = getCookie(c, "sid");
+    if (sid) {
+      await c.env.KV_SESSIONS.delete(`session:${sid}`);
+      await c.env.KV_SESSIONS.delete(`admin:${sid}`);
+      deleteCookie(c, "sid", { path: "/" });
+    }
+    return c.json({ message: "Logged out" });
+  } catch (error) {
+    console.error("Admin logout error:", error);
+    return c.json({ message: "Logout failed" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// GET /api/admin/stats
+// ──────────────────────────────────────────────
+admin.get("/admin/stats", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
 
     const allUsers = await storage.getAllUsers();
     const allOrders = await storage.getAllOrders();
@@ -112,10 +192,14 @@ admin.get("/api/admin/stats", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/users
 // ──────────────────────────────────────────────
-admin.get("/api/admin/users", authMiddleware, async (c) => {
+admin.get("/admin/users", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const users = await storage.getAllUsers();
     return c.json(users);
   } catch (error) {
@@ -127,10 +211,14 @@ admin.get("/api/admin/users", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/products
 // ──────────────────────────────────────────────
-admin.get("/api/admin/products", authMiddleware, async (c) => {
+admin.get("/admin/products", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const products = await storage.getProducts();
     return c.json(products);
   } catch (error) {
@@ -142,10 +230,14 @@ admin.get("/api/admin/products", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/calculations
 // ──────────────────────────────────────────────
-admin.get("/api/admin/calculations", authMiddleware, async (c) => {
+admin.get("/admin/calculations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const calculations = await storage.getAllCalculations();
     return c.json(calculations);
   } catch (error) {
@@ -157,10 +249,14 @@ admin.get("/api/admin/calculations", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/activities
 // ──────────────────────────────────────────────
-admin.get("/api/admin/activities", authMiddleware, async (c) => {
+admin.get("/admin/activities", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const activities = await storage.getAllUserActivities();
     return c.json(activities);
   } catch (error) {
@@ -172,10 +268,14 @@ admin.get("/api/admin/activities", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/users/:userId/activities
 // ──────────────────────────────────────────────
-admin.get("/api/admin/users/:userId/activities", authMiddleware, async (c) => {
+admin.get("/admin/users/:userId/activities", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const userId = c.req.param("userId");
     const activities = await storage.getUserActivities(userId);
     return c.json(activities);
@@ -188,10 +288,14 @@ admin.get("/api/admin/users/:userId/activities", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/admin/users/:userId/details
 // ──────────────────────────────────────────────
-admin.get("/api/admin/users/:userId/details", authMiddleware, async (c) => {
+admin.get("/admin/users/:userId/details", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
     const userId = c.req.param("userId");
 
     const user = await storage.getUser(userId);
@@ -199,7 +303,7 @@ admin.get("/api/admin/users/:userId/details", authMiddleware, async (c) => {
     const calculations = await storage.getUserCalculations(userId);
     const activities = await storage.getUserActivities(userId);
     const quoteRequests = await storage.getUserQuoteRequests(userId);
-    const solutionRequests = await storage.getUserSolutionRequests(userId);
+    const solutionRequests = await storage.getSolutionRequestsByUser(userId);
     const siteSurveys = await storage.getUserSiteSurveys(userId);
 
     return c.json({
@@ -220,7 +324,7 @@ admin.get("/api/admin/users/:userId/details", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/admin/case-studies
 // ──────────────────────────────────────────────
-admin.post("/api/admin/case-studies", authMiddleware, async (c) => {
+admin.post("/admin/case-studies", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -242,7 +346,7 @@ admin.post("/api/admin/case-studies", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/admin/resources
 // ──────────────────────────────────────────────
-admin.post("/api/admin/resources", authMiddleware, async (c) => {
+admin.post("/admin/resources", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -264,7 +368,7 @@ admin.post("/api/admin/resources", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // POST /api/admin/faqs
 // ──────────────────────────────────────────────
-admin.post("/api/admin/faqs", authMiddleware, async (c) => {
+admin.post("/admin/faqs", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -286,7 +390,7 @@ admin.post("/api/admin/faqs", authMiddleware, async (c) => {
 // ──────────────────────────────────────────────
 // GET /api/analytics/quotes
 // ──────────────────────────────────────────────
-admin.get("/api/analytics/quotes", authMiddleware, async (c) => {
+admin.get("/analytics/quotes", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

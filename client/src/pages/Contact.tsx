@@ -519,7 +519,7 @@ export default function Contact() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button asChild size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
-                    <a href={selectedOffice?.country === "Saudi Arabia" ? "tel:+966530356116" : "tel:+971503881285"}>
+                    <a href={selectedOffice?.country === "Saudi Arabia" ? "tel:+966530356116" : "tel:+97148842422"}>
                       Call Emergency Line
                     </a>
                   </Button>
