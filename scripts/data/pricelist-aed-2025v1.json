@@ -1,0 +1,428 @@
+{
+  "_meta": {
+    "source": "PRL-1019-ASF-AED-07112025-1",
+    "version": "2025v1",
+    "currency": "AED",
+    "effectiveDate": "2025-11-07",
+    "notes": [
+      "Length column listed as Ft on barriers but source-of-truth is mm (exact values on each row name).",
+      "Barriers priced per-length SKU. Bollards, guards, accessories priced per unit.",
+      "RackGuard row is a rate card — multiple profile sizes roll up to one base AED rate.",
+      "Hydraulic Swing Gate 'remaining sizes' require quote-system lookup."
+    ]
+  },
+  "categories": [
+    {
+      "category": "Pedestrian Barriers",
+      "products": [
+        {
+          "family": "eFlex Pedestrian Barrier",
+          "priceBy": "length",
+          "variants": [
+            { "name": "eFlex Pedestrian Barrier - 1000mm", "lengthMm": 1000, "priceAed": 1806.96 },
+            { "name": "eFlex Pedestrian Barrier - 1500mm", "lengthMm": 1500, "priceAed": 1926.12 },
+            { "name": "eFlex Pedestrian Barrier - 2000mm", "lengthMm": 2000, "priceAed": 2037.00 }
+          ]
+        },
+        {
+          "family": "iFlex Pedestrian 3 Rail",
+          "priceBy": "length",
+          "variants": [
+            { "name": "iFlex Pedestrian 3 Rail - 1000mm", "lengthMm": 1000, "priceAed": 2246.34 },
+            { "name": "iFlex Pedestrian 3 Rail - 1200mm", "lengthMm": 1200, "priceAed": 2334.00 },
+            { "name": "iFlex Pedestrian 3 Rail - 1600mm", "lengthMm": 1600, "priceAed": 2503.38 },
+            { "name": "iFlex Pedestrian 3 Rail - 1800mm", "lengthMm": 1800, "priceAed": 2550.18 },
+            { "name": "iFlex Pedestrian 3 Rail - 2200mm", "lengthMm": 2200, "priceAed": 2760.42 },
+            { "name": "iFlex Pedestrian 3 Rail - 2400mm", "lengthMm": 2400, "priceAed": 2842.14 }
+          ]
+        },
+        {
+          "family": "130-T0-P3",
+          "isNew": true,
+          "priceBy": "length",
+          "variants": [
+            { "name": "130-T0-P3 - 1000mm", "lengthMm": 1000, "priceAed": 2420.52 },
+            { "name": "130-T0-P3 - 1600mm", "lengthMm": 1600, "priceAed": 2672.52 },
+            { "name": "130-T0-P3 - 2200mm", "lengthMm": 2200, "priceAed": 2924.52 }
+          ]
+        },
+        {
+          "family": "eFlex Single Traffic+",
+          "priceBy": "length",
+          "variants": [
+            { "name": "eFlex Single Traffic + - 1000mm", "lengthMm": 1000, "priceAed": 2707.50 },
+            { "name": "eFlex Single Traffic + - 1500mm", "lengthMm": 1500, "priceAed": 2960.22 },
+            { "name": "eFlex Single Traffic + - 2000mm", "lengthMm": 2000, "priceAed": 3207.36 }
+          ]
+        },
+        {
+          "family": "iFlex Single Traffic+",
+          "priceBy": "length",
+          "variants": [
+            { "name": "iFlex Single Traffic+ - 1000mm", "lengthMm": 1000, "priceAed": 3776.40 },
+            { "name": "iFlex Single Traffic+ - 1200mm", "lengthMm": 1200, "priceAed": 3936.12 },
+            { "name": "iFlex Single Traffic+ - 1600mm", "lengthMm": 1600, "priceAed": 4241.76 },
+            { "name": "iFlex Single Traffic+ - 1800mm", "lengthMm": 1800, "priceAed": 4401.48 },
+            { "name": "iFlex Single Traffic+ - 2200mm", "lengthMm": 2200, "priceAed": 4720.74 },
+            { "name": "iFlex Single Traffic+ - 2400mm", "lengthMm": 2400, "priceAed": 4884.24 }
+          ]
+        },
+        {
+          "family": "iFlex Double Traffic+",
+          "priceBy": "length",
+          "variants": [
+            { "name": "iFlex Double Traffic+ - 1000mm", "lengthMm": 1000, "priceAed": 4945.14 },
+            { "name": "iFlex Double Traffic+ - 1200mm", "lengthMm": 1200, "priceAed": 5176.92 },
+            { "name": "iFlex Double Traffic+ - 1600mm", "lengthMm": 1600, "priceAed": 5618.82 },
+            { "name": "iFlex Double Traffic+ - 1800mm", "lengthMm": 1800, "priceAed": 5891.46 },
+            { "name": "iFlex Double Traffic+ - 2200mm", "lengthMm": 2200, "priceAed": 6319.74 },
+            { "name": "iFlex Double Traffic+ - 2400mm", "lengthMm": 2400, "priceAed": 6565.02 }
+          ]
+        },
+        {
+          "family": "190-T1-P2",
+          "isNew": true,
+          "priceBy": "length",
+          "variants": [
+            { "name": "190-T1-P2 - 1000mm", "lengthMm": 1000, "priceAed": 4249.20 },
+            { "name": "190-T1-P2 - 1600mm", "lengthMm": 1600, "priceAed": 4738.20 },
+            { "name": "190-T1-P2 - 2200mm", "lengthMm": 2200, "priceAed": 5227.20 }
+          ]
+        },
+        {
+          "family": "190-T2-P1",
+          "isNew": true,
+          "priceBy": "length",
+          "variants": [
+            { "name": "190-T2-P1 - 1000mm", "lengthMm": 1000, "priceAed": 4675.80 },
+            { "name": "190-T2-P1 - 1600mm", "lengthMm": 1600, "priceAed": 5401.80 },
+            { "name": "190-T2-P1 - 2200mm", "lengthMm": 2200, "priceAed": 6127.80 }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Traffic Barriers",
+      "products": [
+        {
+          "family": "eFlex Single Traffic Barrier",
+          "priceBy": "length",
+          "variants": [
+            { "name": "eFlex Single Traffic Barrier - 1000mm", "lengthMm": 1000, "priceAed": 1997.94 },
+            { "name": "eFlex Single Traffic Barrier - 1500mm", "lengthMm": 1500, "priceAed": 2171.22 },
+            { "name": "eFlex Single Traffic Barrier - 2000mm", "lengthMm": 2000, "priceAed": 2344.44 }
+          ]
+        },
+        {
+          "family": "iFlex Single Traffic",
+          "priceBy": "length",
+          "variants": [
+            { "name": "iFlex Single Traffic - 1000mm", "lengthMm": 1000, "priceAed": 2817.48 },
+            { "name": "iFlex Single Traffic - 1200mm", "lengthMm": 1200, "priceAed": 2918.76 },
+            { "name": "iFlex Single Traffic - 1600mm", "lengthMm": 1600, "priceAed": 3111.48 },
+            { "name": "iFlex Single Traffic - 1800mm", "lengthMm": 1800, "priceAed": 3240.00 },
+            { "name": "iFlex Single Traffic - 2200mm", "lengthMm": 2200, "priceAed": 3419.10 },
+            { "name": "iFlex Single Traffic - 2400mm", "lengthMm": 2400, "priceAed": 3528.12 }
+          ]
+        },
+        {
+          "family": "iFlex Double Traffic",
+          "priceBy": "length",
+          "variants": [
+            { "name": "iFlex Double Traffic - 1000mm", "lengthMm": 1000, "priceAed": 4445.76 },
+            { "name": "iFlex Double Traffic - 1200mm", "lengthMm": 1200, "priceAed": 4648.32 },
+            { "name": "iFlex Double Traffic - 1600mm", "lengthMm": 1600, "priceAed": 5033.76 },
+            { "name": "iFlex Double Traffic - 1800mm", "lengthMm": 1800, "priceAed": 5290.80 },
+            { "name": "iFlex Double Traffic - 2200mm", "lengthMm": 2200, "priceAed": 5649.00 },
+            { "name": "iFlex Double Traffic - 2400mm", "lengthMm": 2400, "priceAed": 5867.04 }
+          ]
+        },
+        {
+          "family": "190-T1-P0",
+          "isNew": true,
+          "priceBy": "length",
+          "variants": [
+            { "name": "190-T1-P0 - 1000mm", "lengthMm": 1000, "priceAed": 2922.12 },
+            { "name": "190-T1-P0 - 1600mm", "lengthMm": 1600, "priceAed": 3243.12 },
+            { "name": "190-T1-P0 - 2200mm", "lengthMm": 2200, "priceAed": 3564.12 }
+          ]
+        },
+        {
+          "family": "190-T2-P0",
+          "isNew": true,
+          "priceBy": "length",
+          "variants": [
+            { "name": "190-T2-P0 - 1000mm", "lengthMm": 1000, "priceAed": 4624.44 },
+            { "name": "190-T2-P0 - 1600mm", "lengthMm": 1600, "priceAed": 5266.44 },
+            { "name": "190-T2-P0 - 2200mm", "lengthMm": 2200, "priceAed": 5908.44 }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Topple Barrier",
+      "products": [
+        {
+          "family": "Topple Barrier 2.08m with ForkGuard",
+          "priceBy": "length",
+          "variants": [
+            { "name": "Topple Barrier 2.08m with ForkGuard - 1000mm", "lengthMm": 1000, "priceAed": 4705.20 },
+            { "name": "Topple Barrier 2.08m with ForkGuard - 1200mm", "lengthMm": 1200, "priceAed": 4894.92 },
+            { "name": "Topple Barrier 2.08m with ForkGuard - 1600mm", "lengthMm": 1600, "priceAed": 5235.84 },
+            { "name": "Topple Barrier 2.08m with ForkGuard - 1800mm", "lengthMm": 1800, "priceAed": 5480.10 },
+            { "name": "Topple Barrier 2.08m with ForkGuard - 2200mm", "lengthMm": 2200, "priceAed": 5867.52 },
+            { "name": "Topple Barrier 2.08m with ForkGuard - 2400mm", "lengthMm": 2400, "priceAed": 6094.14 }
+          ]
+        },
+        {
+          "family": "Topple Barrier 3.6m with ForkGuard",
+          "priceBy": "length",
+          "variants": [
+            { "name": "Topple Barrier 3.6m with ForkGuard - 1000mm", "lengthMm": 1000, "priceAed": 8514.72 },
+            { "name": "Topple Barrier 3.6m with ForkGuard - 1200mm", "lengthMm": 1200, "priceAed": 8786.16 },
+            { "name": "Topple Barrier 3.6m with ForkGuard - 1600mm", "lengthMm": 1600, "priceAed": 9261.54 },
+            { "name": "Topple Barrier 3.6m with ForkGuard - 1800mm", "lengthMm": 1800, "priceAed": 9628.38 },
+            { "name": "Topple Barrier 3.6m with ForkGuard - 2200mm", "lengthMm": 2200, "priceAed": 10185.18 },
+            { "name": "Topple Barrier 3.6m with ForkGuard - 2400mm", "lengthMm": 2400, "priceAed": 10493.52 }
+          ]
+        },
+        {
+          "family": "Topple Barrier 5.3m with ForkGuard",
+          "priceBy": "length",
+          "variants": [
+            { "name": "Topple Barrier 5.3m with ForkGuard - 1000mm", "lengthMm": 1000, "priceAed": 12324.24 },
+            { "name": "Topple Barrier 5.3m with ForkGuard - 1200mm", "lengthMm": 1200, "priceAed": 12677.40 },
+            { "name": "Topple Barrier 5.3m with ForkGuard - 1600mm", "lengthMm": 1600, "priceAed": 13287.24 },
+            { "name": "Topple Barrier 5.3m with ForkGuard - 1800mm", "lengthMm": 1800, "priceAed": 13776.66 },
+            { "name": "Topple Barrier 5.3m with ForkGuard - 2200mm", "lengthMm": 2200, "priceAed": 14502.90 },
+            { "name": "Topple Barrier 5.3m with ForkGuard - 2400mm", "lengthMm": 2400, "priceAed": 14892.90 }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Bollards / Posts",
+      "priceBy": "unit",
+      "items": [
+        { "name": "iFlex Post 130", "sku": "A-01-01-0372", "priceAed": 730.20 },
+        { "name": "Monoplex 130 Bollard", "sku": "MP-01-01-0001", "priceAed": 1200.00 },
+        { "name": "Monoplex 190 Bollard", "sku": "MP-01-01-0003", "priceAed": 2400.00 },
+        { "name": "iFlex 190 Bollard - 2m", "sku": "A-01-10-0050", "priceAed": 2507.28 },
+        { "name": "Sign Post, 1.2m - Yellow", "sku": "A-01-23-0001", "priceAed": 1404.48 }
+      ]
+    },
+    {
+      "category": "FlexiShield Column Guard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "FlexiShield Column Guard - 100mm x 100mm, Yellow", "sku": "A-01-14-0040", "priceAed": 1863.36 },
+        { "name": "FlexiShield Column Guard - 200mm x 200mm, Yellow", "sku": "A-01-14-0042", "priceAed": 1970.16 },
+        { "name": "FlexiShield Column Guard - 300mm x 300mm, Yellow", "sku": "A-01-14-0044", "priceAed": 2075.76 },
+        { "name": "FlexiShield Column Guard - 400mm x 400mm, Yellow", "sku": "A-01-14-0046", "priceAed": 2181.36 },
+        { "name": "FlexiShield Column Guard - 500mm x 500mm, Yellow", "sku": "A-01-14-0048", "priceAed": 2291.28 },
+        { "name": "FlexiShield Column Guard - 600mm x 600mm, Yellow", "sku": "A-01-14-0050", "priceAed": 2392.56 },
+        { "name": "FlexiShield Column Guard Spacer set - 100mm, Black", "sku": "A-01-14-0051", "priceAed": 612.96 },
+        { "name": "FlexiShield Column Guard Spacer set - 100mm, Yellow", "sku": "A-01-14-0052", "priceAed": 834.48 },
+        { "name": "FlexiShield Column Guard Spacer set - 150mm, Black", "sku": "A-01-14-0053", "priceAed": 640.92 },
+        { "name": "FlexiShield Column Guard Spacer set - 150mm, Yellow", "sku": "A-01-14-0054", "priceAed": 873.84 },
+        { "name": "FlexiShield Column Guard Spacer set - 300mm, Black", "sku": "A-01-14-0055", "priceAed": 701.88 },
+        { "name": "FlexiShield Column Guard Spacer set - 300mm, Yellow", "sku": "A-01-14-0056", "priceAed": 959.52 }
+      ]
+    },
+    {
+      "category": "FlexiShield Corner Guard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "FlexiShield Corner Guard - Yellow", "sku": "A-01-14-0036", "priceAed": 311.10 },
+        { "name": "FlexiShield Corner Guard - Black", "sku": "A-01-14-0037", "priceAed": 311.10 }
+      ]
+    },
+    {
+      "category": "Step Guard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "StepGuard 600mm", "sku": "A-01-22-0015", "priceAed": 1261.26 },
+        { "name": "StepGuard 900mm", "sku": "A-01-22-0014", "priceAed": 1876.14 },
+        { "name": "StepGuard 1200mm", "sku": "A-01-22-0013", "priceAed": 2423.58 }
+      ]
+    },
+    {
+      "category": "ForkGuard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "ForkGuard (v3), 765mm, BLK-YEL", "sku": "A-01-17-0535", "priceAed": 408.12 },
+        { "name": "ForkGuard (v3), 1365mm, BLK-YEL", "sku": "A-01-17-0541", "priceAed": 650.52 },
+        { "name": "ForkGuard (v3), 765mm, BLK-YEL (variant)", "sku": "A-01-17-0547", "priceAed": 892.92, "_note": "Second 765mm SKU at different price — treat as a distinct variant (possibly HD or 2-pc)." }
+      ]
+    },
+    {
+      "category": "Heavy Duty ForkGuard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "HD ForkGuard (v3), 765mm - BLK-YEL", "sku": "A-01-17-0581", "priceAed": 1187.34 },
+        { "name": "HD ForkGuard (v3) - 1600mm pc (1365mm) - BLK-YEL", "sku": "A-01-17-0595", "priceAed": 1547.22 },
+        { "name": "HD ForkGuard (v3) - 2000mm pc (970+970) - BLK-YEL", "sku": "A-01-17-0587", "priceAed": 2639.16 }
+      ]
+    },
+    {
+      "category": "Bollard Bumper",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Bollard Bumper", "sku": "A-01-22-0019", "priceAed": 965.34 }
+      ]
+    },
+    {
+      "category": "Rack End Barrier",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Rack End Barrier, Single Rail - 900mm, Yellow, CSK", "sku": "A-01-05-0078", "lengthMm": 900, "priceAed": 2148.54 },
+        { "name": "Rack End Barrier, Single Rail - 1100mm, Yellow, CSK", "sku": "A-01-05-0080", "lengthMm": 1100, "priceAed": 2173.92 },
+        { "name": "Rack End Barrier, Single Rail - 2000mm, Yellow, CSK", "sku": "A-01-05-0089", "lengthMm": 2000, "priceAed": 2290.68 },
+        { "name": "Rack End Barrier, Single Rail - 2400mm, Yellow, CSK", "sku": "A-01-05-0093", "lengthMm": 2400, "priceAed": 2341.32 },
+        { "name": "Rack End Barrier, Double Rail - 900mm, Yellow, CSK", "sku": "A-01-05-0193", "lengthMm": 900, "priceAed": 2389.80 },
+        { "name": "Rack End Barrier, Double Rail - 1100mm, Yellow, CSK", "sku": "A-01-05-0195", "lengthMm": 1100, "priceAed": 2440.56 },
+        { "name": "Rack End Barrier, Double Rail - 2000mm, Yellow, CSK", "sku": "A-01-05-0204", "lengthMm": 2000, "priceAed": 2674.08 },
+        { "name": "Rack End Barrier, Double Rail - 2400mm, Yellow, CSK", "sku": "A-01-05-02083", "lengthMm": 2400, "priceAed": 2775.36 }
+      ]
+    },
+    {
+      "category": "Height Restrictor",
+      "priceBy": "component",
+      "notes": "Height restrictor is assembled from posts + top rails; price per piece.",
+      "items": [
+        { "name": "iFlex Height Restrictor post, 2000mm, Yellow", "sku": "A-01-19-0001", "lengthMm": 2000, "priceAed": 2420.40, "kind": "post" },
+        { "name": "iFlex Height Restrictor post, 3000mm, Yellow", "sku": "A-01-19-0011", "lengthMm": 3000, "priceAed": 3216.24, "kind": "post" },
+        { "name": "iFlex Height Restrictor post, 4000mm, Yellow", "sku": "A-01-19-0021", "lengthMm": 4000, "priceAed": 3611.52, "kind": "post" },
+        { "name": "iFlex Height Restrictor post, 5000mm, Yellow", "sku": "A-01-19-0031", "lengthMm": 5000, "priceAed": 4407.36, "kind": "post" },
+        { "name": "iFlex Height Restrictor Top Rail, 2000mm, Yellow", "sku": "A-01-20-0009", "lengthMm": 2000, "priceAed": 977.34, "kind": "top-rail" },
+        { "name": "iFlex Height Restrictor Top Rail, 3000mm, Yellow", "sku": "A-01-20-0019", "lengthMm": 3000, "priceAed": 1962.12, "kind": "top-rail" },
+        { "name": "iFlex Height Restrictor Top Rail, 4000mm, Yellow", "sku": "A-01-20-0029", "lengthMm": 4000, "priceAed": 2417.64, "kind": "top-rail" },
+        { "name": "iFlex Height Restrictor Top Rail, 5000mm, Yellow", "sku": "A-01-20-0039", "lengthMm": 5000, "priceAed": 3223.38, "kind": "top-rail" },
+        { "name": "iFlex Height Restrictor Top Rail, 6000mm, Yellow", "sku": "A-01-20-0049", "lengthMm": 6000, "priceAed": 3653.58, "kind": "top-rail" }
+      ]
+    },
+    {
+      "category": "Swing Gate",
+      "priceBy": "component",
+      "notes": "Gate + post are separately-priced components. Additional sizes via quote system.",
+      "items": [
+        { "name": "Hydraulic Swing Gate (2R), Self-Close (N/S), 800mm", "sku": "S-01-09-0302", "widthMm": 800, "priceAed": 1975.98, "kind": "gate" },
+        { "name": "Hydraulic Swing Gate (2R), Self-Close (N/S), 1000mm", "sku": "S-01-09-0304", "widthMm": 1000, "priceAed": 2000.22, "kind": "gate" },
+        { "name": "Hydraulic Swing Gate (2R), Self-Close (N/S), 1200mm", "sku": "S-01-09-0306", "widthMm": 1200, "priceAed": 2042.34, "kind": "gate" },
+        { "name": "Hydraulic Swing Gate (2R) Post, Black", "sku": "A-01-12-0166", "priceAed": 1269.54, "kind": "post" }
+      ]
+    },
+    {
+      "category": "Traffic Gate",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Traffic Gate - 2m", "sku": "A-01-12-0368", "widthMm": 2000, "priceAed": 14804.10 },
+        { "name": "Traffic Gate - 2.5m", "sku": "A-01-12-0369", "widthMm": 2500, "priceAed": 16872.24 },
+        { "name": "Traffic Gate - 3m", "sku": "A-01-12-0371", "widthMm": 3000, "priceAed": 19456.92 }
+      ]
+    },
+    {
+      "category": "Retractable Barrier",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Retractable Barrier - Racking Maintenance Case - YEL/BLK", "sku": "S-01-02-0066", "priceAed": 2817.18 },
+        { "name": "Flex - Retractable Barrier (Belt Barrier) - Post to Post - YEL/BLK", "sku": "S-01-02-0067", "priceAed": 1239.60 },
+        { "name": "iFlex - Retractable Barrier (Belt Barrier) - Post to Wall - YEL/BLK", "sku": "S-01-02-0068", "priceAed": 1153.38 },
+        { "name": "Tape Barrier Kit - Wall to Wall - YEL/BLK", "sku": "S-01-02-0072", "priceAed": 1068.54 }
+      ]
+    },
+    {
+      "category": "Truck / Coach / Car Stops",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Truck Stop", "sku": "A-01-22-0005", "priceAed": 791.88 },
+        { "name": "Coach Stop", "sku": "A-01-22-0011", "priceAed": 590.58 },
+        { "name": "Car Stop", "sku": "A-01-22-0010", "priceAed": 325.44 }
+      ]
+    },
+    {
+      "category": "Slider Base Plates",
+      "priceBy": "unit",
+      "items": [
+        { "name": "230 x 230mm - 190mm OD iFlex Post Slider Plate", "sku": "B-03-01-0021", "priceAed": 513.00 },
+        { "name": "180 x 180mm / 130mm - 158mm eFlex OD Post Slider Plate", "sku": "B-03-01-0040", "priceAed": 327.00 }
+      ]
+    },
+    {
+      "category": "RackGuards",
+      "priceBy": "rate",
+      "notes": "Single rate-card entry; product has multiple height/profile variants that aren't itemised on the price list.",
+      "items": [
+        { "name": "RackGuard - Multiple height and profile sizes", "sku": null, "priceAed": 155.76 }
+      ]
+    },
+    {
+      "category": "Alarm Bar",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Alarm Bar", "sku": "S-02-02-0007", "priceAed": 3728.28 }
+      ]
+    },
+    {
+      "category": "Dock Buffer",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Dock Buffer (Pair)", "sku": "A-01-22-0002", "priceAed": 2287.08 }
+      ]
+    },
+    {
+      "category": "Cold Storage - Pedestrian Barriers",
+      "products": [
+        {
+          "family": "CS iFlex Pedestrian 3 Rail",
+          "priceBy": "length",
+          "variants": [
+            { "name": "CS iFlex Pedestrian 3 Rail - 1000mm", "lengthMm": 1000, "priceAed": 2703.06 },
+            { "name": "CS iFlex Pedestrian 3 Rail - 1400mm", "lengthMm": 1400, "priceAed": 2906.28 },
+            { "name": "CS iFlex Pedestrian 3 Rail - 1800mm", "lengthMm": 1800, "priceAed": 3067.56 },
+            { "name": "CS iFlex Pedestrian 3 Rail - 2200mm", "lengthMm": 2200, "priceAed": 3319.92 }
+          ]
+        },
+        {
+          "family": "CS iFlex Single Traffic+",
+          "priceBy": "length",
+          "variants": [
+            { "name": "CS iFlex Single Traffic + - 1000mm", "lengthMm": 1000, "priceAed": 4409.82 },
+            { "name": "CS iFlex Single Traffic + - 1400mm", "lengthMm": 1400, "priceAed": 4797.60 },
+            { "name": "CS iFlex Single Traffic + - 1800mm", "lengthMm": 1800, "priceAed": 5159.76 },
+            { "name": "CS iFlex Single Traffic + - 2200mm", "lengthMm": 2200, "priceAed": 5542.92 }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Cold Storage - Traffic Barriers",
+      "products": [
+        {
+          "family": "CS iFlex Single Traffic",
+          "priceBy": "length",
+          "variants": [
+            { "name": "CS iFlex Single Traffic - 1000mm", "lengthMm": 1000, "priceAed": 3302.10 },
+            { "name": "CS iFlex Single Traffic - 1400mm", "lengthMm": 1400, "priceAed": 3554.40 },
+            { "name": "CS iFlex Single Traffic - 1800mm", "lengthMm": 1800, "priceAed": 3809.04 },
+            { "name": "CS iFlex Single Traffic - 2200mm", "lengthMm": 2200, "priceAed": 4023.96 }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Cold Storage - Bollard",
+      "priceBy": "unit",
+      "items": [
+        { "name": "Cold Storage iFlex 190 Bollard", "sku": "S-04-07-0002", "priceAed": 1689.24 }
+      ]
+    },
+    {
+      "category": "Cold Storage - RackGuards",
+      "priceBy": "rate",
+      "items": [
+        { "name": "Cold Storage RackGuard - Multiple height and profile sizes", "sku": null, "priceAed": 186.90 }
+      ]
+    }
+  ]
+}

@@ -11,11 +11,17 @@ import {
   quoteRequestItems,
   cartItems,
   productPricing,
+  productVariants,
   discountOptions,
   userDiscountSelections,
+  partnerCodes,
+  partnerCodeRedemptions,
   serviceCareOptions,
   userServiceSelections,
   cartProjectInfo,
+  customerCompanies,
+  projects,
+  projectContacts,
   projectCaseStudies,
   layoutDrawings,
   layoutMarkups,
@@ -55,6 +61,8 @@ import {
   communicationSequences,
   communicationLogs,
   salesEngagements,
+  approvalTokens,
+  orderAuditLog,
   type User,
   type UpsertUser,
   type UserActivity,
@@ -109,6 +117,12 @@ import {
   type InsertUserServiceSelection,
   type InsertCartProjectInfo,
   type CartProjectInfo,
+  type CustomerCompany,
+  type InsertCustomerCompany,
+  type Project,
+  type InsertProject,
+  type ProjectContact,
+  type InsertProjectContact,
   type ProjectCaseStudy,
   type InsertProjectCaseStudy,
   type LayoutDrawing,
@@ -159,9 +173,38 @@ import {
   type InsertCommunicationLog,
   type SalesEngagement,
   type InsertSalesEngagement,
+  type ApprovalToken,
+  type InsertApprovalToken,
+  type OrderAuditLog,
+  type InsertOrderAuditLog,
 } from "@shared/schema";
-import { eq, desc, and, ilike, or, sql, isNull, isNotNull, lte, gte, asc, like, inArray } from "drizzle-orm";
+import { eq, desc, and, ilike, or, sql, isNull, isNotNull, lte, gte, asc, like, inArray, type SQL } from "drizzle-orm";
 import type { Database } from "./db";
+import {
+  PER_USER_SAME_CODE_WINDOW_MONTHS,
+  PER_USER_TOTAL_REDEMPTIONS_PER_WINDOW,
+} from "@shared/discountLimits";
+
+// Shape of a per-section signature stored in orders.technical_signature,
+// orders.commercial_signature, and orders.marketing_signature. We read these
+// back as `unknown` (jsonb) so callers type-narrow via the `signed` flag.
+export interface OrderSectionSignature {
+  signed: true;
+  signedBy: string;
+  jobTitle: string;
+  mobile?: string;
+  // ISO-8601 UTC timestamp; the server always wins here — clients may send a
+  // display-formatted date but it is stored alongside, not instead of, this.
+  signedAt: string;
+  date?: string;
+  ipAddress?: string;
+}
+
+export interface OrderApprovalStatus {
+  technical: OrderSectionSignature | null;
+  commercial: OrderSectionSignature | null;
+  marketing: OrderSectionSignature | null;
+}
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -172,6 +215,7 @@ export interface IStorage {
   
   // Admin user operations
   getAdminByUsername(username: string): Promise<AdminUser | undefined>;
+  getAdminByEmail(email: string): Promise<AdminUser | undefined>;
   updateAdminLastLogin(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   
@@ -202,6 +246,18 @@ export interface IStorage {
   getOrder(id: string): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, updates: Partial<InsertOrder>): Promise<Order>;
+  // Section-level sign-off: writes a signature object into the appropriate
+  // signature column. Returns the refreshed order so callers can echo the
+  // canonical state back to the client.
+  saveOrderSectionApproval(
+    orderId: string,
+    section: "technical" | "commercial" | "marketing",
+    signature: OrderSectionSignature,
+  ): Promise<Order>;
+  // Convenience read used by the live order-form view. Returning only the
+  // three signature objects keeps the payload small vs. re-sending the whole
+  // order after every approval.
+  getOrderApprovalStatus(orderId: string): Promise<OrderApprovalStatus | undefined>;
   
   // Product operations
   getProducts(filters?: { category?: string; industry?: string; search?: string }): Promise<Product[]>;
@@ -237,6 +293,7 @@ export interface IStorage {
   
   // Impact Calculation operations
   getUserCalculations(userId: string): Promise<ImpactCalculation[]>;
+  getAllCalculations(): Promise<ImpactCalculation[]>;
   getCalculation(id: string): Promise<ImpactCalculation | undefined>;
   getImpactCalculation(id: string): Promise<ImpactCalculation | undefined>;
   createCalculation(calculation: InsertImpactCalculation): Promise<ImpactCalculation>;
@@ -269,12 +326,32 @@ export interface IStorage {
   // Cart Project Information operations
   getCartProjectInfo(userId: string): Promise<CartProjectInfo | undefined>;
   saveCartProjectInfo(userId: string, data: Partial<InsertCartProjectInfo>): Promise<CartProjectInfo>;
+  // Customer / project / contact CRUD (new opportunity model)
+  listCustomerCompanies(userId: string): Promise<CustomerCompany[]>;
+  getCustomerCompany(id: string): Promise<CustomerCompany | undefined>;
+  createCustomerCompany(data: InsertCustomerCompany): Promise<CustomerCompany>;
+  updateCustomerCompany(id: string, data: Partial<InsertCustomerCompany>): Promise<CustomerCompany>;
+  listProjects(userId: string): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  getProjectWithDetails(id: string): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | undefined>;
+  createProject(data: InsertProject): Promise<Project>;
+  updateProject(id: string, data: Partial<InsertProject>): Promise<Project>;
+  touchProjectAccess(id: string): Promise<void>;
+  listProjectContacts(projectId: string): Promise<ProjectContact[]>;
+  createProjectContact(data: InsertProjectContact): Promise<ProjectContact>;
+  updateProjectContact(id: string, data: Partial<InsertProjectContact>): Promise<ProjectContact>;
+  deleteProjectContact(id: string): Promise<void>;
+  // Active project accessor — reads user.activeProjectId, lazily seeds a
+  // project from cartProjectInfo for existing reps who pre-date the
+  // projects model.
+  getOrSeedActiveProject(userId: string): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | null>;
+  setActiveProject(userId: string, projectId: string | null): Promise<void>;
   upsertCartProjectInfo(data: InsertCartProjectInfo): Promise<CartProjectInfo>;
   
   // Product Pricing operations
   getProductPricing(): Promise<ProductPricing[]>;
   getProductPricingByName(productName: string): Promise<ProductPricing | undefined>;
-  calculatePrice(productName: string, quantity: number): Promise<{ unitPrice: number; totalPrice: number; tier: string }>;
+  calculatePrice(productName: string, quantity: number): Promise<{ unitPrice: number; totalPrice: number; tier: string; requiresQuote?: boolean }>;
   createProductPricing(pricing: InsertProductPricing): Promise<ProductPricing>;
   updateProductPricing(id: string, updates: Partial<InsertProductPricing>): Promise<ProductPricing>;
   deleteProductPricing(id: string): Promise<void>;
@@ -283,6 +360,46 @@ export interface IStorage {
   getDiscountOptions(): Promise<DiscountOption[]>;
   getUserDiscountSelections(userId: string): Promise<UserDiscountSelection[]>;
   saveUserDiscountSelections(userId: string, selections: string[]): Promise<UserDiscountSelection[]>;
+
+  // Partner code operations
+  //
+  // `validatePartnerCode` is per-user because the two per-user rate limits
+  // (same-code-within-12mo, total-redemptions-within-12mo) must surface at
+  // validate time so the client can show a friendly error BEFORE the user
+  // tries to check out. `userId` is required, not optional — every caller
+  // is already in an authenticated route.
+  validatePartnerCode(code: string, userId: string): Promise<
+    | { valid: true; codeId: string; partnerName: string; discountPercent: number }
+    | {
+        valid: false;
+        reason:
+          | "invalid"
+          | "inactive"
+          | "expired"
+          | "notYetValid"
+          | "exhausted"
+          | "per_user_same_code_limit"
+          | "per_user_total_limit";
+      }
+  >;
+  redeemPartnerCode(
+    code: string,
+    userId: string,
+    orderId: string | null,
+    cartSubtotal: number | null
+  ): Promise<{ redemptionId: string; discountPercent: number } | null>;
+  listPartnerCodes(): Promise<any[]>;
+  createPartnerCode(input: {
+    code: string;
+    partnerName: string;
+    discountPercent: number;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+    usageCap?: number | null;
+    notes?: string | null;
+    createdBy?: string | null;
+  }): Promise<any>;
+  setPartnerCodeActive(id: string, isActive: boolean): Promise<void>;
   
   // LinkedIn Discount operations
   upsertLinkedInDiscount(userId: string, linkedinData: {
@@ -312,6 +429,7 @@ export interface IStorage {
   permanentlyDeleteLayoutDrawing(id: string): Promise<void>;
   updateLayoutDrawingScale(id: string, scaleData: { scale?: number; scaleLine?: any; isScaleSet?: boolean }): Promise<LayoutDrawing>;
   updateLayoutDrawingTitle(id: string, fileName: string): Promise<LayoutDrawing>;
+  updateLayoutDrawing(id: string, patch: Partial<LayoutDrawing>): Promise<LayoutDrawing>;
   
   // Layout Markup operations
   getLayoutMarkups(layoutDrawingId: string): Promise<LayoutMarkup[]>;
@@ -469,6 +587,53 @@ export interface IStorage {
   createProductApplicationCompatibility(compat: InsertProductApplicationCompatibility): Promise<ProductApplicationCompatibility>;
   updateProductApplicationCompatibility(id: string, updates: Partial<InsertProductApplicationCompatibility>): Promise<ProductApplicationCompatibility>;
   deleteProductApplicationCompatibility(id: string): Promise<void>;
+
+  // Password reset operations
+  createPasswordResetToken(email: string): Promise<{ token: string; user: any } | null>;
+  verifyPasswordResetToken(token: string): Promise<any | null>;
+  resetUserPassword(userId: string, newPasswordHash: string): Promise<void>;
+
+  // User creation
+  createUser(data: { email: string; passwordHash: string; firstName: string; lastName: string; company?: string | null; phone?: string | null; jobTitle?: string | null; role?: string }): Promise<any>;
+
+  // OAuth operations
+  getUserByOAuth(provider: string, oauthId: string): Promise<any | undefined>;
+  createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }): Promise<any>;
+  linkOAuthAccount(userId: string, provider: string, oauthId: string): Promise<void>;
+
+  // ── Approval-token / magic-link operations ─────────────────────────────
+  // Token endpoints are used by both authenticated routes (sales rep dispatches)
+  // and public routes (the magic-link consumer). Keep all write paths through
+  // these helpers so the audit-log stays in sync with token state.
+  createApprovalToken(input: InsertApprovalToken): Promise<ApprovalToken>;
+  getApprovalTokenByToken(token: string): Promise<ApprovalToken | undefined>;
+  getApprovalTokenById(id: string): Promise<ApprovalToken | undefined>;
+  getApprovalTokensForOrder(orderId: string): Promise<ApprovalToken[]>;
+  findActiveApprovalTokenForSection(
+    orderId: string,
+    section: string,
+  ): Promise<ApprovalToken | undefined>;
+  markApprovalTokenUsed(tokenId: string): Promise<void>;
+  revokeApprovalToken(tokenId: string): Promise<void>;
+
+  // ── Order audit log ────────────────────────────────────────────────────
+  appendOrderAuditLog(entry: InsertOrderAuditLog): Promise<OrderAuditLog>;
+  getOrderAuditLog(orderId: string): Promise<OrderAuditLog[]>;
+
+  // ── Shared section-approval helper ─────────────────────────────────────
+  // Single write path for both the authenticated /approve-section endpoint
+  // and the public magic-link consume endpoint. Bundles: write the signature,
+  // append an "approved" audit-log entry, and return the refreshed order.
+  applySectionApproval(input: {
+    orderId: string;
+    section: "technical" | "commercial" | "marketing";
+    signature: OrderSectionSignature;
+    actorUserId?: string | null;
+    actorEmail?: string | null;
+    tokenId?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<Order>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -486,7 +651,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
-    const [updatedUser] = await db
+    const [updatedUser] = await this.db
       .update(users)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(users.id, id))
@@ -495,7 +660,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
+    const [user] = await this.db
       .insert(users)
       .values(userData)
       .onConflictDoUpdate({
@@ -512,6 +677,11 @@ export class DatabaseStorage implements IStorage {
   // Admin user operations
   async getAdminByUsername(username: string): Promise<AdminUser | undefined> {
     const [admin] = await this.db.select().from(adminUsers).where(eq(adminUsers.username, username));
+    return admin;
+  }
+
+  async getAdminByEmail(email: string): Promise<AdminUser | undefined> {
+    const [admin] = await this.db.select().from(adminUsers).where(eq(adminUsers.email, email));
     return admin;
   }
   
@@ -533,8 +703,26 @@ export class DatabaseStorage implements IStorage {
     return await this.db.select().from(userActivityLogs).where(eq(userActivityLogs.userId, userId)).orderBy(desc(userActivityLogs.createdAt));
   }
   
-  async getAllUserActivities(): Promise<UserActivityLog[]> {
-    return await this.db.select().from(userActivityLogs).orderBy(desc(userActivityLogs.createdAt)).limit(1000);
+  async getAllUserActivities(): Promise<any[]> {
+    const rows = await this.db
+      .select({
+        id: userActivityLogs.id,
+        userId: userActivityLogs.userId,
+        activityType: userActivityLogs.activityType,
+        section: userActivityLogs.section,
+        details: userActivityLogs.details,
+        ipAddress: userActivityLogs.ipAddress,
+        userAgent: userActivityLogs.userAgent,
+        createdAt: userActivityLogs.createdAt,
+        userEmail: users.email,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+      })
+      .from(userActivityLogs)
+      .leftJoin(users, eq(userActivityLogs.userId, users.id))
+      .orderBy(desc(userActivityLogs.createdAt))
+      .limit(1000);
+    return rows;
   }
 
   // User activity tracking (for recent activity feature)
@@ -605,7 +793,7 @@ export class DatabaseStorage implements IStorage {
       whereConditions.push(eq(globalOffices.officeType, filters.officeType));
     }
     
-    return await db
+    return await this.db
       .select()
       .from(globalOffices)
       .where(and(...whereConditions))
@@ -618,7 +806,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGlobalOfficesByRegion(region: string): Promise<GlobalOffice[]> {
-    return await db
+    return await this.db
       .select()
       .from(globalOffices)
       .where(and(eq(globalOffices.region, region), eq(globalOffices.isActive, true)))
@@ -626,7 +814,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGlobalOfficesByCountry(country: string): Promise<GlobalOffice[]> {
-    return await db
+    return await this.db
       .select()
       .from(globalOffices)
       .where(and(eq(globalOffices.country, country), eq(globalOffices.isActive, true)))
@@ -634,7 +822,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDefaultOfficeForRegion(region: string): Promise<GlobalOffice | undefined> {
-    const [office] = await db
+    const [office] = await this.db
       .select()
       .from(globalOffices)
       .where(and(
@@ -651,7 +839,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGlobalOffice(id: string, updates: Partial<InsertGlobalOffice>): Promise<GlobalOffice> {
-    const [updatedOffice] = await db
+    const [updatedOffice] = await this.db
       .update(globalOffices)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(globalOffices.id, id))
@@ -665,7 +853,7 @@ export class DatabaseStorage implements IStorage {
 
   // Order operations
   async getUserOrders(userId: string): Promise<Order[]> {
-    return await db
+    return await this.db
       .select()
       .from(orders)
       .where(eq(orders.userId, userId))
@@ -683,14 +871,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllOrders(): Promise<Order[]> {
-    return await db
+    return await this.db
       .select()
       .from(orders)
       .orderBy(desc(orders.orderDate));
   }
 
   async getOrdersByStatus(status: string): Promise<Order[]> {
-    return await db
+    return await this.db
       .select()
       .from(orders)
       .where(eq(orders.status, status))
@@ -698,12 +886,52 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateOrder(id: string, updates: Partial<InsertOrder>): Promise<Order> {
-    const [updatedOrder] = await db
+    const [updatedOrder] = await this.db
       .update(orders)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(orders.id, id))
       .returning();
     return updatedOrder;
+  }
+
+  // Writes the signature to the correct column based on section. We funnel
+  // through updateOrder() rather than issuing a hand-rolled UPDATE so the
+  // updatedAt bump + returning semantics stay consistent with every other
+  // write path.
+  async saveOrderSectionApproval(
+    orderId: string,
+    section: "technical" | "commercial" | "marketing",
+    signature: OrderSectionSignature,
+  ): Promise<Order> {
+    const column =
+      section === "technical"
+        ? "technicalSignature"
+        : section === "commercial"
+          ? "commercialSignature"
+          : "marketingSignature";
+    return await this.updateOrder(orderId, {
+      [column]: signature,
+    } as Partial<InsertOrder>);
+  }
+
+  // Thin read that reuses getOrder() — returns null for any section that has
+  // never been signed, so the client can render `Approved by …` or the form
+  // off a single boolean check (`!!status.technical`).
+  async getOrderApprovalStatus(
+    orderId: string,
+  ): Promise<OrderApprovalStatus | undefined> {
+    const order = await this.getOrder(orderId);
+    if (!order) return undefined;
+    const normalize = (raw: unknown): OrderSectionSignature | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const sig = raw as Partial<OrderSectionSignature>;
+      return sig.signed ? (sig as OrderSectionSignature) : null;
+    };
+    return {
+      technical: normalize(order.technicalSignature),
+      commercial: normalize(order.commercialSignature),
+      marketing: normalize((order as any).marketingSignature),
+    };
   }
 
   // Product operations
@@ -725,7 +953,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductsByVehicleType(vehicleTypeId: string): Promise<Product[]> {
-    return await db
+    return await this.db
       .select({
         id: products.id,
         name: products.name,
@@ -792,7 +1020,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProducts(filters?: { category?: string; industry?: string; search?: string; vehicleTypeIds?: string[]; applicationTypeIds?: string[] }): Promise<Product[]> {
-    const whereConditions = [eq(products.isActive, true)];
+    const whereConditions: (SQL | undefined)[] = [eq(products.isActive, true)];
     
     if (filters?.category) {
       // Special handling for cold-storage category - check both category and subcategory
@@ -869,7 +1097,7 @@ export class DatabaseStorage implements IStorage {
     
     // Vehicle type filtering through compatibility table (multiple types)
     if (filters?.vehicleTypeIds && filters.vehicleTypeIds.length > 0) {
-      const compatibleProductIds = await db
+      const compatibleProductIds = await this.db
         .select({ productId: vehicleProductCompatibility.productId })
         .from(vehicleProductCompatibility)
         .where(and(
@@ -889,7 +1117,7 @@ export class DatabaseStorage implements IStorage {
     
     // Application type filtering through compatibility table (multiple types)
     if (filters?.applicationTypeIds && filters.applicationTypeIds.length > 0) {
-      const compatibleProductIds = await db
+      const compatibleProductIds = await this.db
         .select({ productId: productApplicationCompatibility.productId })
         .from(productApplicationCompatibility)
         .where(and(
@@ -907,7 +1135,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    return await db
+    return await this.db
       .select()
       .from(products)
       .where(and(...whereConditions))
@@ -915,7 +1143,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProduct(id: string): Promise<Product | undefined> {
-    const [product] = await db
+    const [product] = await this.db
       .select()
       .from(products)
       .where(and(eq(products.id, id), eq(products.isActive, true)));
@@ -923,7 +1151,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductByName(name: string): Promise<Product | undefined> {
-    const [product] = await db
+    const [product] = await this.db
       .select()
       .from(products)
       .where(and(eq(products.name, name), eq(products.isActive, true)));
@@ -945,7 +1173,7 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`Searching for product name similarity: "${cleanedSearch}"`);
     
-    const [similarProduct] = await db
+    const [similarProduct] = await this.db
       .select()
       .from(products)
       .where(and(
@@ -963,7 +1191,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product> {
-    const [updatedProduct] = await db
+    const [updatedProduct] = await this.db
       .update(products)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(products.id, id))
@@ -977,7 +1205,7 @@ export class DatabaseStorage implements IStorage {
 
   async getProductVariants(baseName: string): Promise<Product[]> {
     // Get all products that match the base name pattern
-    const allProducts = await db
+    const allProducts = await this.db
       .select()
       .from(products)
       .where(eq(products.isActive, true))
@@ -1007,7 +1235,7 @@ export class DatabaseStorage implements IStorage {
     console.log(`Required rating: ${requiredRating}J`);
     
     // Get all products that meet the impact rating requirement
-    const allProducts = await db
+    const allProducts = await this.db
       .select()
       .from(products)
       .where(
@@ -1127,7 +1355,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(caseStudies.contentType, contentType));
       }
       
-      const results = await db
+      const results = await this.db
         .select()
         .from(caseStudies)
         .where(and(...conditions))
@@ -1152,7 +1380,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCaseStudy(id: string, updates: Partial<InsertCaseStudy>): Promise<CaseStudy> {
-    const [updatedCaseStudy] = await db
+    const [updatedCaseStudy] = await this.db
       .update(caseStudies)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(caseStudies.id, id))
@@ -1176,7 +1404,7 @@ export class DatabaseStorage implements IStorage {
         whereConditions.push(eq(resources.resourceType, resourceType));
       }
       
-      const result = await db
+      const result = await this.db
         .select({
           id: resources.id,
           title: resources.title,
@@ -1215,7 +1443,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateResource(id: string, updates: Partial<InsertResource>): Promise<Resource> {
-    const [updatedResource] = await db
+    const [updatedResource] = await this.db
       .update(resources)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(resources.id, id))
@@ -1228,7 +1456,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementDownloadCount(id: string): Promise<void> {
-    await db
+    await this.db
       .update(resources)
       .set({ downloadCount: sql`${resources.downloadCount} + 1` })
       .where(eq(resources.id, id));
@@ -1242,7 +1470,7 @@ export class DatabaseStorage implements IStorage {
       whereConditions.push(eq(faqs.category, category));
     }
     
-    const query = db.select().from(faqs);
+    const query = this.db.select().from(faqs);
     
     if (whereConditions.length > 0) {
       return await query.where(and(...whereConditions)).orderBy(faqs.priority);
@@ -1262,7 +1490,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateFaq(id: string, updates: Partial<InsertFaq>): Promise<Faq> {
-    const [updatedFaq] = await db
+    const [updatedFaq] = await this.db
       .update(faqs)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(faqs.id, id))
@@ -1276,10 +1504,17 @@ export class DatabaseStorage implements IStorage {
 
   // Impact Calculation operations
   async getUserCalculations(userId: string): Promise<ImpactCalculation[]> {
-    return await db
+    return await this.db
       .select()
       .from(impactCalculations)
       .where(eq(impactCalculations.userId, userId))
+      .orderBy(desc(impactCalculations.createdAt));
+  }
+
+  async getAllCalculations(): Promise<ImpactCalculation[]> {
+    return await this.db
+      .select()
+      .from(impactCalculations)
       .orderBy(desc(impactCalculations.createdAt));
   }
 
@@ -1316,14 +1551,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllQuoteRequests(): Promise<QuoteRequest[]> {
-    return await db
+    return await this.db
       .select()
       .from(quoteRequests)
       .orderBy(desc(quoteRequests.createdAt));
   }
 
   async getQuoteRequestsByStatus(status: string): Promise<QuoteRequest[]> {
-    return await db
+    return await this.db
       .select()
       .from(quoteRequests)
       .where(eq(quoteRequests.status, status))
@@ -1403,7 +1638,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateQuoteRequest(id: string, updates: Partial<InsertQuoteRequest>): Promise<QuoteRequest> {
-    const [updatedRequest] = await db
+    const [updatedRequest] = await this.db
       .update(quoteRequests)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(quoteRequests.id, id))
@@ -1424,7 +1659,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getQuoteRequestStats(): Promise<{ total: number; pending: number; inProgress: number; completed: number }> {
-    const [stats] = await db
+    const [stats] = await this.db
       .select({
         total: sql<number>`COUNT(*)`,
         pending: sql<number>`COUNT(CASE WHEN status = 'pending' THEN 1 END)`,
@@ -1443,7 +1678,7 @@ export class DatabaseStorage implements IStorage {
 
   // Order Form Request Item operations
   async getQuoteRequestItems(quoteRequestId: string): Promise<QuoteRequestItem[]> {
-    return await db
+    return await this.db
       .select()
       .from(quoteRequestItems)
       .where(eq(quoteRequestItems.quoteRequestId, quoteRequestId))
@@ -1457,7 +1692,7 @@ export class DatabaseStorage implements IStorage {
 
   // Cart operations
   async getUserCart(userId: string): Promise<CartItem[]> {
-    return await db
+    return await this.db
       .select()
       .from(cartItems)
       .where(eq(cartItems.userId, userId))
@@ -1482,16 +1717,31 @@ export class DatabaseStorage implements IStorage {
       
       // Recalculate pricing with new quantity
       const pricingResult = await this.calculatePrice(currentItem.productName, updates.quantity);
-      
-      // Update with recalculated pricing
-      updates.unitPrice = pricingResult.unitPrice;
-      updates.totalPrice = pricingResult.totalPrice;
-      updates.pricingTier = pricingResult.tier;
-      
-      console.log(`Updated pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`);
+
+      if (pricingResult.requiresQuote) {
+        // Fall back to the existing stored unit price (e.g. for variant-specific
+        // items whose name does not match a pricing tier).
+        const existingUnit = parseFloat(currentItem.unitPrice as any);
+        if (!isNaN(existingUnit) && existingUnit > 0) {
+          const newTotal = Math.round(existingUnit * updates.quantity * 100) / 100;
+          updates.totalPrice = newTotal;
+          updates.unitPrice = Math.round(existingUnit * 100) / 100;
+          updates.pricingTier = currentItem.pricingTier || "Variant Price";
+          console.log(`Used existing variant price for update: Unit=${updates.unitPrice}, Total=${updates.totalPrice}`);
+        } else {
+          throw new Error("No pricing available for this product. Please request a quote.");
+        }
+      } else {
+        // Update with recalculated pricing
+        updates.unitPrice = pricingResult.unitPrice;
+        updates.totalPrice = pricingResult.totalPrice;
+        updates.pricingTier = pricingResult.tier;
+
+        console.log(`Updated pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`);
+      }
     }
     
-    const [updatedItem] = await db
+    const [updatedItem] = await this.db
       .update(cartItems)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(cartItems.id, id))
@@ -1509,22 +1759,42 @@ export class DatabaseStorage implements IStorage {
 
   // Product Pricing operations
   async getProductPricing(): Promise<ProductPricing[]> {
-    return await db
+    return await this.db
       .select()
       .from(productPricing)
       .where(eq(productPricing.isActive, true))
       .orderBy(productPricing.productName);
   }
 
+  async getProductVariants(productId?: string): Promise<any[]> {
+    const rows = productId
+      ? await this.db
+          .select()
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.productId, productId),
+              eq(productVariants.isActive, true),
+            ),
+          )
+          .orderBy(productVariants.lengthMm, productVariants.name)
+      : await this.db
+          .select()
+          .from(productVariants)
+          .where(eq(productVariants.isActive, true))
+          .orderBy(productVariants.productId, productVariants.lengthMm);
+    return rows;
+  }
+
   async getProductPricingByName(productName: string): Promise<any | undefined> {
-    const [pricing] = await db
+    const [pricing] = await this.db
       .select()
       .from(productPricing)
       .where(and(eq(productPricing.productName, productName), eq(productPricing.isActive, true)));
     return pricing;
   }
 
-  async calculatePrice(productName: string, quantity: number): Promise<{ unitPrice: number; totalPrice: number; tier: string }> {
+  async calculatePrice(productName: string, quantity: number): Promise<{ unitPrice: number; totalPrice: number; tier: string; requiresQuote?: boolean }> {
     console.log(`Calculating price for product: "${productName}" with quantity: ${quantity}`);
     
     // Clean up product name - handle duplicate dimensions issue
@@ -1537,22 +1807,8 @@ export class DatabaseStorage implements IStorage {
       console.log(`Cleaned product name from "${productName}" to "${cleanProductName}"`);
     }
     
-    // Check if this is a traffic barrier product that should have quantity-based tiered pricing
-    const isTrafficBarrier = (name: string): boolean => {
-      const lowerName = name.toLowerCase();
-      return lowerName.includes('forkguard kerb') ||
-             lowerName.includes('traffic barrier') ||
-             lowerName.includes('pedestrian barrier') ||
-             lowerName.includes('single traffic') ||
-             lowerName.includes('double traffic') ||
-             lowerName.includes('traffic plus') ||
-             lowerName.includes('atlas') ||
-             lowerName.includes('alarm bar') ||
-             lowerName.includes('car park barrier');
-    };
-    
     // First try exact match with cleaned name
-    const exactMatch = await db
+    const exactMatch = await this.db
       .select()
       .from(productPricing)
       .where(and(eq(productPricing.productName, cleanProductName), eq(productPricing.isActive, true)));
@@ -1562,7 +1818,7 @@ export class DatabaseStorage implements IStorage {
     // If no exact match, try fuzzy matching (remove special characters and normalize)
     if (!pricing) {
       const normalizedProductName = cleanProductName.replace(/[™®+]/g, '').trim();
-      const allPricing = await db
+      const allPricing = await this.db
         .select()
         .from(productPricing)
         .where(eq(productPricing.isActive, true));
@@ -1576,20 +1832,20 @@ export class DatabaseStorage implements IStorage {
     // Default base price calculation
     let basePrice: number;
     let unitPrice: number;
-    let tier: string;
+    let tier: string = "";
     
     if (!pricing) {
       console.log(`No pricing found for product: "${cleanProductName}", checking base product price...`);
       
       // Fallback to base product price from products table - try cleaned name first
-      let [product] = await db
+      let [product] = await this.db
         .select()
         .from(products)
         .where(and(eq(products.name, cleanProductName), eq(products.isActive, true)));
       
       // If not found with cleaned name, try original name
       if (!product && cleanProductName !== productName) {
-        [product] = await db
+        [product] = await this.db
           .select()
           .from(products)
           .where(and(eq(products.name, productName), eq(products.isActive, true)));
@@ -1600,18 +1856,23 @@ export class DatabaseStorage implements IStorage {
         console.log(`Using base product price: ${basePrice} AED for "${cleanProductName}"`);
       } else {
         console.error(`No pricing found for product: "${productName}" in either pricing or products table`);
-        // Last resort fallback
-        basePrice = 100; // Conservative fallback instead of 1000
+        // No pricing available - return a "requires quote" response instead of a fake price
+        return {
+          unitPrice: 0,
+          totalPrice: 0,
+          tier: "No pricing available",
+          requiresQuote: true,
+        };
       }
     } else {
-      // Use existing tier-based pricing logic
-      const tier1Min = parseFloat(pricing.tier1Min);
-      const tier1Max = parseFloat(pricing.tier1Max);
-      const tier2Min = parseFloat(pricing.tier2Min);
-      const tier2Max = parseFloat(pricing.tier2Max);
-      const tier3Min = parseFloat(pricing.tier3Min);
-      const tier3Max = parseFloat(pricing.tier3Max);
-      const tier4Min = parseFloat(pricing.tier4Min);
+      // Use existing tier-based pricing logic (with NaN safety)
+      const tier1Min = pricing.tier1Min ? parseFloat(pricing.tier1Min) : 0;
+      const tier1Max = pricing.tier1Max ? parseFloat(pricing.tier1Max) : 0;
+      const tier2Min = pricing.tier2Min ? parseFloat(pricing.tier2Min) : 0;
+      const tier2Max = pricing.tier2Max ? parseFloat(pricing.tier2Max) : 0;
+      const tier3Min = pricing.tier3Min ? parseFloat(pricing.tier3Min) : 0;
+      const tier3Max = pricing.tier3Max ? parseFloat(pricing.tier3Max) : 0;
+      const tier4Min = pricing.tier4Min ? parseFloat(pricing.tier4Min) : 0;
       
       if (quantity >= tier1Min && quantity < tier2Min) {
         basePrice = parseFloat(pricing.tier1Price);
@@ -1632,45 +1893,30 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Apply quantity-based tiered discounts for traffic barrier products
-    if (isTrafficBarrier(cleanProductName)) {
-      let discountPercent = 0;
-      let discountTier = "";
-      
-      if (quantity >= 20) {
-        discountPercent = 30;
-        discountTier = "20+ units (30% off)";
-      } else if (quantity >= 10) {
-        discountPercent = 20;
-        discountTier = "10-20 units (20% off)";
-      } else if (quantity > 2) {
-        discountPercent = 10;
-        discountTier = "3-10 units (10% off)";
-      } else {
-        discountPercent = 0;
-        discountTier = "1-2 units (standard price)";
-      }
-      
-      // Apply discount to the base price
-      unitPrice = basePrice * (1 - discountPercent / 100);
-      unitPrice = Math.round(unitPrice * 100) / 100; // Round to 2 decimal places
-      
-      // Update tier description to include discount information
-      tier = pricing ? `${tier || ''} - ${discountTier}` : discountTier;
-      
-      console.log(`Traffic barrier product "${cleanProductName}" - Quantity: ${quantity}, Discount: ${discountPercent}%, Original: ${basePrice} AED, Discounted: ${unitPrice} AED`);
-    } else {
-      // For non-traffic barrier products, use the base price as-is
-      unitPrice = basePrice;
-      if (!tier) {
-        tier = pricing ? "Standard pricing" : "Base Product Price";
-      }
+    // All quantity-based discounts are handled by the DB-driven tiered pricing
+    // in the product_pricing table (tiers 1-4 with quantity ranges).
+    // To configure quantity discounts for any product (including traffic barriers),
+    // set the appropriate tier ranges and prices in the product_pricing table.
+    unitPrice = basePrice;
+    if (!tier) {
+      tier = pricing ? "Standard pricing" : "Base Product Price";
     }
-    
-    const totalPrice = unitPrice * quantity;
+
+    // NaN safety: if basePrice couldn't be parsed, treat as requires-quote
+    if (isNaN(unitPrice) || unitPrice <= 0) {
+      console.error(`calculatePrice: unitPrice is NaN or zero for "${productName}"`);
+      return {
+        unitPrice: 0,
+        totalPrice: 0,
+        tier: "No pricing available",
+        requiresQuote: true,
+      };
+    }
+
+    const totalPrice = Math.round(unitPrice * quantity * 100) / 100;
 
     return {
-      unitPrice,
+      unitPrice: Math.round(unitPrice * 100) / 100,
       totalPrice,
       tier
     };
@@ -1691,7 +1937,7 @@ export class DatabaseStorage implements IStorage {
 
   // Discount operations
   async getDiscountOptions(): Promise<DiscountOption[]> {
-    return await db
+    return await this.db
       .select()
       .from(discountOptions)
       .where(eq(discountOptions.isActive, true))
@@ -1699,7 +1945,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserDiscountSelections(userId: string): Promise<UserDiscountSelection[]> {
-    return await db
+    return await this.db
       .select()
       .from(userDiscountSelections)
       .where(and(
@@ -1710,7 +1956,7 @@ export class DatabaseStorage implements IStorage {
 
   async saveUserDiscountSelections(userId: string, selections: string[]): Promise<UserDiscountSelection[]> {
     // First, clear all existing selections for this user
-    await db
+    await this.db
       .delete(userDiscountSelections)
       .where(eq(userDiscountSelections.userId, userId));
 
@@ -1728,7 +1974,195 @@ export class DatabaseStorage implements IStorage {
     // Return the updated selections
     return await this.getUserDiscountSelections(userId);
   }
-  
+
+  // ────────────────────────────────────────────────────────────────
+  // Partner code operations
+  //
+  // Security model:
+  //  - `validatePartnerCode` NEVER returns the list of valid codes; it only
+  //    returns whether a given input is valid plus the partner name / %.
+  //  - Usage count is incremented only on `redeemPartnerCode`, which is
+  //    called server-side when an order is created. That makes the cap a
+  //    real limit rather than a reservation.
+  //  - `listPartnerCodes` / `createPartnerCode` / `setPartnerCodeActive`
+  //    are admin-only (routes guard this).
+  // ────────────────────────────────────────────────────────────────
+  async validatePartnerCode(code: string, userId: string) {
+    const trimmed = (code || "").trim();
+    if (!trimmed) {
+      return { valid: false, reason: "invalid" as const };
+    }
+
+    // Case-insensitive match against indexed LOWER(code).
+    const [row] = await this.db
+      .select()
+      .from(partnerCodes)
+      .where(sql`LOWER(${partnerCodes.code}) = LOWER(${trimmed})`)
+      .limit(1);
+
+    if (!row) return { valid: false, reason: "invalid" as const };
+    if (!row.isActive) return { valid: false, reason: "inactive" as const };
+
+    const now = new Date();
+    if (row.validFrom && row.validFrom > now) {
+      return { valid: false, reason: "notYetValid" as const };
+    }
+    if (row.validTo && row.validTo < now) {
+      return { valid: false, reason: "expired" as const };
+    }
+    if (row.usageCap !== null && row.usageCap !== undefined && row.usageCount >= row.usageCap) {
+      return { valid: false, reason: "exhausted" as const };
+    }
+
+    // Per-user limits (rolling 12-month window, evaluated in Postgres so the
+    // clock is the DB server's and not the Worker's — Workers run on many
+    // edges and a per-request `new Date()` would give inconsistent cutoffs).
+    //
+    // Rule 1: same user + same code within the window → lock out.
+    // Rule 2: same user + ANY partner code, N redemptions within the
+    // window → lock out. Rule 2 is evaluated second so a user who has
+    // already used THIS code sees the more-specific message.
+    if (userId) {
+      const windowCutoff = sql`NOW() - (${PER_USER_SAME_CODE_WINDOW_MONTHS} || ' months')::interval`;
+
+      const [sameCodeRow] = await this.db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(partnerCodeRedemptions)
+        .where(
+          and(
+            eq(partnerCodeRedemptions.userId, userId),
+            eq(partnerCodeRedemptions.partnerCodeId, row.id),
+            sql`${partnerCodeRedemptions.redeemedAt} >= ${windowCutoff}`,
+          ),
+        );
+      if ((sameCodeRow?.c ?? 0) >= 1) {
+        return { valid: false, reason: "per_user_same_code_limit" as const };
+      }
+
+      const [totalRow] = await this.db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(partnerCodeRedemptions)
+        .where(
+          and(
+            eq(partnerCodeRedemptions.userId, userId),
+            sql`${partnerCodeRedemptions.redeemedAt} >= ${windowCutoff}`,
+          ),
+        );
+      if ((totalRow?.c ?? 0) >= PER_USER_TOTAL_REDEMPTIONS_PER_WINDOW) {
+        return { valid: false, reason: "per_user_total_limit" as const };
+      }
+    }
+
+    return {
+      valid: true as const,
+      codeId: row.id,
+      partnerName: row.partnerName,
+      discountPercent: row.discountPercent,
+    };
+  }
+
+  async redeemPartnerCode(
+    code: string,
+    userId: string,
+    orderId: string | null,
+    cartSubtotal: number | null
+  ) {
+    // Re-validate inside the txn to avoid TOCTOU: code could have been
+    // deactivated or exhausted between validate() and redeem(), and — since
+    // validate is now per-user — the same user could have slipped in a
+    // second redemption between the two calls.
+    const v = await this.validatePartnerCode(code, userId);
+    if (!v.valid) return null;
+
+    // Atomic increment: only succeeds if the cap hasn't been hit. This is
+    // the enforcement point — validate() above is a convenience, redeem()
+    // is the lock.
+    const incremented = await this.db
+      .update(partnerCodes)
+      .set({
+        usageCount: sql`${partnerCodes.usageCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(partnerCodes.id, v.codeId),
+          eq(partnerCodes.isActive, true),
+          // Enforce cap at the SQL level so two concurrent redemptions can't
+          // both slip through.
+          or(
+            isNull(partnerCodes.usageCap),
+            sql`${partnerCodes.usageCount} < ${partnerCodes.usageCap}`
+          ) as SQL
+        )
+      )
+      .returning({ id: partnerCodes.id });
+
+    if (incremented.length === 0) {
+      // Another request got there first and exhausted the cap.
+      return null;
+    }
+
+    const [redemption] = await this.db
+      .insert(partnerCodeRedemptions)
+      .values({
+        partnerCodeId: v.codeId,
+        userId,
+        orderId,
+        cartSubtotal: cartSubtotal !== null ? String(cartSubtotal) : null,
+        discountPercentApplied: v.discountPercent,
+      })
+      .returning({ id: partnerCodeRedemptions.id });
+
+    return { redemptionId: redemption.id, discountPercent: v.discountPercent };
+  }
+
+  async listPartnerCodes() {
+    return await this.db
+      .select()
+      .from(partnerCodes)
+      .orderBy(desc(partnerCodes.createdAt));
+  }
+
+  async createPartnerCode(input: {
+    code: string;
+    partnerName: string;
+    discountPercent: number;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+    usageCap?: number | null;
+    notes?: string | null;
+    createdBy?: string | null;
+  }) {
+    if (
+      !Number.isFinite(input.discountPercent) ||
+      input.discountPercent < 1 ||
+      input.discountPercent > 35
+    ) {
+      throw new Error("discountPercent must be between 1 and 35");
+    }
+    const [row] = await this.db
+      .insert(partnerCodes)
+      .values({
+        code: input.code.trim(),
+        partnerName: input.partnerName.trim(),
+        discountPercent: input.discountPercent,
+        validFrom: input.validFrom ?? null,
+        validTo: input.validTo ?? null,
+        usageCap: input.usageCap ?? null,
+        notes: input.notes ?? null,
+        createdBy: input.createdBy ?? null,
+      })
+      .returning();
+    return row;
+  }
+
+  async setPartnerCodeActive(id: string, isActive: boolean): Promise<void> {
+    await this.db
+      .update(partnerCodes)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(partnerCodes.id, id));
+  }
+
   // LinkedIn Discount operations
   async upsertLinkedInDiscount(userId: string, linkedinData: {
     companyUrl: string;
@@ -1851,7 +2285,7 @@ export class DatabaseStorage implements IStorage {
 
   // Service Care operations
   async getServiceCareOptions(): Promise<ServiceCareOption[]> {
-    return await db
+    return await this.db
       .select()
       .from(serviceCareOptions)
       .where(eq(serviceCareOptions.isActive, true))
@@ -1859,7 +2293,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserServiceSelection(userId: string): Promise<UserServiceSelection | undefined> {
-    const [selection] = await db
+    const [selection] = await this.db
       .select()
       .from(userServiceSelections)
       .where(and(
@@ -1871,12 +2305,12 @@ export class DatabaseStorage implements IStorage {
 
   async saveUserServiceSelection(userId: string, serviceOptionId: string): Promise<UserServiceSelection> {
     // First, clear any existing selection for this user
-    await db
+    await this.db
       .delete(userServiceSelections)
       .where(eq(userServiceSelections.userId, userId));
 
     // Insert new selection
-    const [newSelection] = await db
+    const [newSelection] = await this.db
       .insert(userServiceSelections)
       .values({
         userId,
@@ -1890,7 +2324,7 @@ export class DatabaseStorage implements IStorage {
 
   // Cart Project Information operations
   async getCartProjectInfo(userId: string): Promise<CartProjectInfo | undefined> {
-    const [projectInfo] = await db
+    const [projectInfo] = await this.db
       .select()
       .from(cartProjectInfo)
       .where(eq(cartProjectInfo.userId, userId));
@@ -1900,10 +2334,10 @@ export class DatabaseStorage implements IStorage {
   async saveCartProjectInfo(userId: string, data: Partial<InsertCartProjectInfo>): Promise<CartProjectInfo> {
     // Check if project info already exists for this user
     const existing = await this.getCartProjectInfo(userId);
-    
+
     if (existing) {
       // Update existing record
-      const [updated] = await db
+      const [updated] = await this.db
         .update(cartProjectInfo)
         .set({
           ...data,
@@ -1914,7 +2348,7 @@ export class DatabaseStorage implements IStorage {
       return updated;
     } else {
       // Create new record
-      const [newProjectInfo] = await db
+      const [newProjectInfo] = await this.db
         .insert(cartProjectInfo)
         .values({
           userId,
@@ -1923,6 +2357,185 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return newProjectInfo;
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Customer companies / Projects / Project contacts
+  //
+  // The opportunity model. Sales reps build up a library of customers
+  // (Dnata, Emirates Flight Catering, …), start projects against them,
+  // and attach per-project contacts with roles. Everything downstream
+  // (Order Form, Layout Drawing title block, Site Survey client
+  // block) reads defaults from the active project.
+  // ─────────────────────────────────────────────────────────────
+
+  async listCustomerCompanies(userId: string): Promise<CustomerCompany[]> {
+    return await this.db
+      .select()
+      .from(customerCompanies)
+      .where(eq(customerCompanies.userId, userId))
+      .orderBy(customerCompanies.name);
+  }
+
+  async getCustomerCompany(id: string): Promise<CustomerCompany | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(customerCompanies)
+      .where(eq(customerCompanies.id, id));
+    return row;
+  }
+
+  async createCustomerCompany(data: InsertCustomerCompany): Promise<CustomerCompany> {
+    const [row] = await this.db
+      .insert(customerCompanies)
+      .values(data)
+      .returning();
+    return row;
+  }
+
+  async updateCustomerCompany(id: string, data: Partial<InsertCustomerCompany>): Promise<CustomerCompany> {
+    const [row] = await this.db
+      .update(customerCompanies)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(customerCompanies.id, id))
+      .returning();
+    return row;
+  }
+
+  async listProjects(userId: string): Promise<Project[]> {
+    return await this.db
+      .select()
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(desc(projects.lastAccessedAt));
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    const [row] = await this.db.select().from(projects).where(eq(projects.id, id));
+    return row;
+  }
+
+  async getProjectWithDetails(id: string): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | undefined> {
+    const project = await this.getProject(id);
+    if (!project) return undefined;
+    const [customer, contactsList] = await Promise.all([
+      project.customerCompanyId ? this.getCustomerCompany(project.customerCompanyId) : Promise.resolve(undefined),
+      this.listProjectContacts(id),
+    ]);
+    return {
+      ...project,
+      customerCompany: customer || null,
+      contacts: contactsList,
+    };
+  }
+
+  async createProject(data: InsertProject): Promise<Project> {
+    const [row] = await this.db.insert(projects).values(data).returning();
+    return row;
+  }
+
+  async updateProject(id: string, data: Partial<InsertProject>): Promise<Project> {
+    const [row] = await this.db
+      .update(projects)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    return row;
+  }
+
+  async touchProjectAccess(id: string): Promise<void> {
+    await this.db
+      .update(projects)
+      .set({ lastAccessedAt: new Date() })
+      .where(eq(projects.id, id));
+  }
+
+  async listProjectContacts(projectId: string): Promise<ProjectContact[]> {
+    return await this.db
+      .select()
+      .from(projectContacts)
+      .where(eq(projectContacts.projectId, projectId))
+      .orderBy(desc(projectContacts.lastInteractedAt), projectContacts.name);
+  }
+
+  async createProjectContact(data: InsertProjectContact): Promise<ProjectContact> {
+    const [row] = await this.db.insert(projectContacts).values(data).returning();
+    return row;
+  }
+
+  async updateProjectContact(id: string, data: Partial<InsertProjectContact>): Promise<ProjectContact> {
+    const [row] = await this.db
+      .update(projectContacts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projectContacts.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteProjectContact(id: string): Promise<void> {
+    await this.db.delete(projectContacts).where(eq(projectContacts.id, id));
+  }
+
+  async setActiveProject(userId: string, projectId: string | null): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ activeProjectId: projectId as any, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    if (projectId) {
+      await this.touchProjectAccess(projectId);
+    }
+  }
+
+  // Backward-compat: reps who used cartProjectInfo pre-projects-model
+  // have a loose "company + location + logo" record. On first access
+  // after this deploy, mint a real customer_company + project for them
+  // so the UI has something to hand. This only runs if they have NO
+  // projects yet and cartProjectInfo is populated.
+  async getOrSeedActiveProject(
+    userId: string,
+  ): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    if (!user) return null;
+
+    // Fast path — user already has an active project.
+    if ((user as any).activeProjectId) {
+      const full = await this.getProjectWithDetails((user as any).activeProjectId);
+      if (full) return full;
+      // Orphaned ref — clear it and fall through to re-seed logic.
+      await this.setActiveProject(userId, null);
+    }
+
+    // Next — pick their most-recently-accessed project if any.
+    const existing = await this.listProjects(userId);
+    if (existing.length > 0) {
+      await this.setActiveProject(userId, existing[0].id);
+      return (await this.getProjectWithDetails(existing[0].id)) || null;
+    }
+
+    // Lazy seed from cartProjectInfo so the UI has context day-one.
+    const legacy = await this.getCartProjectInfo(userId);
+    if (legacy && (legacy.company || legacy.location)) {
+      let company: CustomerCompany | undefined;
+      if (legacy.company) {
+        company = await this.createCustomerCompany({
+          userId,
+          name: legacy.company,
+          logoUrl: (legacy as any).companyLogoUrl || null,
+        } as any);
+      }
+      const project = await this.createProject({
+        userId,
+        customerCompanyId: company?.id || null,
+        name: legacy.company || "Unnamed project",
+        location: legacy.location || null,
+        description: (legacy as any).projectDescription || null,
+        status: "active",
+      } as any);
+      await this.setActiveProject(userId, project.id);
+      return (await this.getProjectWithDetails(project.id)) || null;
+    }
+
+    return null;
   }
 
   // Alias for saveCartProjectInfo to match the expected interface
@@ -1934,7 +2547,7 @@ export class DatabaseStorage implements IStorage {
 
   // Project Case Study operations
   async getProjectCaseStudies(userId: string): Promise<ProjectCaseStudy[]> {
-    return await db
+    return await this.db
       .select()
       .from(projectCaseStudies)
       .where(eq(projectCaseStudies.userId, userId))
@@ -1943,7 +2556,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateProjectCaseStudies(userId: string, caseStudyIds: string[]): Promise<ProjectCaseStudy[]> {
     // Delete existing selections
-    await db
+    await this.db
       .delete(projectCaseStudies)
       .where(eq(projectCaseStudies.userId, userId));
     
@@ -1953,7 +2566,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Insert new selections
-    const newSelections = await db
+    const newSelections = await this.db
       .insert(projectCaseStudies)
       .values(
         caseStudyIds.map(caseStudyId => ({
@@ -1968,7 +2581,7 @@ export class DatabaseStorage implements IStorage {
 
   // Layout Drawing operations
   async getLayoutDrawings(userId: string): Promise<LayoutDrawing[]> {
-    return await db
+    return await this.db
       .select()
       .from(layoutDrawings)
       .where(and(
@@ -1979,7 +2592,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLayoutDrawing(id: string): Promise<LayoutDrawing | undefined> {
-    const [drawing] = await db
+    const [drawing] = await this.db
       .select()
       .from(layoutDrawings)
       .where(and(
@@ -1999,7 +2612,7 @@ export class DatabaseStorage implements IStorage {
     fileType: string; 
     thumbnailUrl?: string 
   }): Promise<LayoutDrawing> {
-    const [newDrawing] = await db
+    const [newDrawing] = await this.db
       .insert(layoutDrawings)
       .values(drawing)
       .returning();
@@ -2011,13 +2624,13 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
     
     // First soft delete all associated markups
-    await db
+    await this.db
       .update(layoutMarkups)
       .set({ deletedAt: now })
       .where(eq(layoutMarkups.layoutDrawingId, id));
     
     // Then soft delete the drawing
-    await db
+    await this.db
       .update(layoutDrawings)
       .set({ deletedAt: now })
       .where(eq(layoutDrawings.id, id));
@@ -2025,7 +2638,7 @@ export class DatabaseStorage implements IStorage {
 
   // Get trashed layout drawings
   async getTrashedLayoutDrawings(userId: string): Promise<LayoutDrawing[]> {
-    return await db
+    return await this.db
       .select()
       .from(layoutDrawings)
       .where(and(
@@ -2038,13 +2651,13 @@ export class DatabaseStorage implements IStorage {
   // Restore layout drawing from trash
   async restoreLayoutDrawing(id: string): Promise<void> {
     // Restore the drawing
-    await db
+    await this.db
       .update(layoutDrawings)
       .set({ deletedAt: null })
       .where(eq(layoutDrawings.id, id));
     
     // Restore all associated markups
-    await db
+    await this.db
       .update(layoutMarkups)
       .set({ deletedAt: null })
       .where(eq(layoutMarkups.layoutDrawingId, id));
@@ -2053,12 +2666,12 @@ export class DatabaseStorage implements IStorage {
   // Permanently delete layout drawing
   async permanentlyDeleteLayoutDrawing(id: string): Promise<void> {
     // First delete all associated markups permanently
-    await db
+    await this.db
       .delete(layoutMarkups)
       .where(eq(layoutMarkups.layoutDrawingId, id));
     
     // Then delete the drawing permanently
-    await db
+    await this.db
       .delete(layoutDrawings)
       .where(eq(layoutDrawings.id, id));
   }
@@ -2069,7 +2682,7 @@ export class DatabaseStorage implements IStorage {
     scaleLine?: any; 
     isScaleSet?: boolean 
   }): Promise<LayoutDrawing> {
-    const [updatedDrawing] = await db
+    const [updatedDrawing] = await this.db
       .update(layoutDrawings)
       .set({
         scale: scaleData.scale,
@@ -2084,7 +2697,7 @@ export class DatabaseStorage implements IStorage {
 
   // Update layout drawing title
   async updateLayoutDrawingTitle(id: string, fileName: string): Promise<LayoutDrawing> {
-    const [updatedDrawing] = await db
+    const [updatedDrawing] = await this.db
       .update(layoutDrawings)
       .set({
         fileName: fileName,
@@ -2095,9 +2708,23 @@ export class DatabaseStorage implements IStorage {
     return updatedDrawing;
   }
 
+  /**
+   * Partial update on a layout drawing record. Used by the title-block
+   * editor to persist any subset of the frame metadata (dwg no / revision /
+   * author / etc) without wiping adjacent fields.
+   */
+  async updateLayoutDrawing(id: string, patch: Partial<LayoutDrawing>): Promise<LayoutDrawing> {
+    const [updated] = await this.db
+      .update(layoutDrawings)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(layoutDrawings.id, id))
+      .returning();
+    return updated;
+  }
+
   // Layout Markup operations
   async getLayoutMarkups(layoutDrawingId: string): Promise<LayoutMarkup[]> {
-    return await db
+    return await this.db
       .select()
       .from(layoutMarkups)
       .where(and(
@@ -2119,7 +2746,7 @@ export class DatabaseStorage implements IStorage {
     comment?: string;
     calculatedLength?: number 
   }): Promise<LayoutMarkup> {
-    const [newMarkup] = await db
+    const [newMarkup] = await this.db
       .insert(layoutMarkups)
       .values(markup)
       .returning();
@@ -2137,7 +2764,7 @@ export class DatabaseStorage implements IStorage {
     comment?: string;
     calculatedLength?: number 
   }): Promise<LayoutMarkup> {
-    const [updatedMarkup] = await db
+    const [updatedMarkup] = await this.db
       .update(layoutMarkups)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(layoutMarkups.id, id))
@@ -2147,7 +2774,7 @@ export class DatabaseStorage implements IStorage {
 
   // Soft delete layout markup
   async deleteLayoutMarkup(id: string): Promise<void> {
-    await db
+    await this.db
       .update(layoutMarkups)
       .set({ deletedAt: new Date() })
       .where(eq(layoutMarkups.id, id));
@@ -2155,7 +2782,7 @@ export class DatabaseStorage implements IStorage {
 
   // Restore layout markup
   async restoreLayoutMarkup(id: string): Promise<void> {
-    await db
+    await this.db
       .update(layoutMarkups)
       .set({ deletedAt: null })
       .where(eq(layoutMarkups.id, id));
@@ -2163,14 +2790,14 @@ export class DatabaseStorage implements IStorage {
 
   // Permanently delete layout markup
   async permanentlyDeleteLayoutMarkup(id: string): Promise<void> {
-    await db
+    await this.db
       .delete(layoutMarkups)
       .where(eq(layoutMarkups.id, id));
   }
 
   // Draft Project operations
   async getUserDraftProjects(userId: string): Promise<DraftProject[]> {
-    return await db
+    return await this.db
       .select()
       .from(draftProjects)
       .where(eq(draftProjects.userId, userId))
@@ -2188,7 +2815,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateDraftProject(id: string, updates: Partial<InsertDraftProject>): Promise<DraftProject> {
-    const [updatedDraft] = await db
+    const [updatedDraft] = await this.db
       .update(draftProjects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(draftProjects.id, id))
@@ -2210,7 +2837,7 @@ export class DatabaseStorage implements IStorage {
     expiryTime.setMinutes(expiryTime.getMinutes() + 10);
     
     // Store OTP in database
-    await db
+    await this.db
       .update(users)
       .set({
         otpCode,
@@ -2233,7 +2860,7 @@ export class DatabaseStorage implements IStorage {
     // Check if OTP has expired
     if (new Date() > user.otpExpiry) {
       // Clear expired OTP
-      await db
+      await this.db
         .update(users)
         .set({
           otpCode: null,
@@ -2253,7 +2880,7 @@ export class DatabaseStorage implements IStorage {
     // Check if max attempts reached
     if (maxAttemptsReached) {
       // Clear OTP after max attempts
-      await db
+      await this.db
         .update(users)
         .set({
           otpCode: null,
@@ -2271,7 +2898,7 @@ export class DatabaseStorage implements IStorage {
     
     if (success) {
       // Clear OTP on successful verification
-      await db
+      await this.db
         .update(users)
         .set({
           otpCode: null,
@@ -2283,7 +2910,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(users.id, userId));
     } else {
       // Update attempts
-      await db
+      await this.db
         .update(users)
         .set({
           otpAttempts: newAttempts,
@@ -2296,7 +2923,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markPhoneAsVerified(userId: string): Promise<User> {
-    const [user] = await db
+    const [user] = await this.db
       .update(users)
       .set({
         phoneVerified: true,
@@ -2315,7 +2942,7 @@ export class DatabaseStorage implements IStorage {
 
   // Chat operations
   async getChatConversations(userId: string): Promise<ChatConversation[]> {
-    return await db
+    return await this.db
       .select()
       .from(chatConversations)
       .where(eq(chatConversations.userId, userId))
@@ -2323,7 +2950,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createChatConversation(conversation: InsertChatConversation): Promise<ChatConversation> {
-    const [newConversation] = await db
+    const [newConversation] = await this.db
       .insert(chatConversations)
       .values(conversation)
       .returning();
@@ -2332,12 +2959,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChatConversation(conversationId: string, userId: string): Promise<void> {
     // Delete all messages in the conversation first
-    await db
+    await this.db
       .delete(chatMessages)
       .where(eq(chatMessages.conversationId, conversationId));
     
     // Delete the conversation
-    await db
+    await this.db
       .delete(chatConversations)
       .where(
         and(
@@ -2349,7 +2976,7 @@ export class DatabaseStorage implements IStorage {
 
   async getChatMessages(conversationId: string, userId: string): Promise<ChatMessage[]> {
     // First verify the conversation belongs to the user
-    const conversation = await db
+    const conversation = await this.db
       .select()
       .from(chatConversations)
       .where(
@@ -2364,7 +2991,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Conversation not found or access denied');
     }
     
-    return await db
+    return await this.db
       .select()
       .from(chatMessages)
       .where(eq(chatMessages.conversationId, conversationId))
@@ -2372,13 +2999,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
-    const [newMessage] = await db
+    const [newMessage] = await this.db
       .insert(chatMessages)
       .values(message)
       .returning();
     
     // Update conversation's updatedAt timestamp
-    await db
+    await this.db
       .update(chatConversations)
       .set({ updatedAt: new Date() })
       .where(eq(chatConversations.id, message.conversationId));
@@ -2388,7 +3015,7 @@ export class DatabaseStorage implements IStorage {
 
   // Solution Request operations
   async getSolutionRequestsByUser(userId: string): Promise<SolutionRequest[]> {
-    return await db
+    return await this.db
       .select()
       .from(solutionRequests)
       .where(eq(solutionRequests.userId, userId))
@@ -2396,7 +3023,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSolutionRequest(id: string, userId: string): Promise<SolutionRequest | undefined> {
-    const [request] = await db
+    const [request] = await this.db
       .select()
       .from(solutionRequests)
       .where(
@@ -2409,7 +3036,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSolutionRequest(request: InsertSolutionRequest): Promise<SolutionRequest> {
-    const [newRequest] = await db
+    const [newRequest] = await this.db
       .insert(solutionRequests)
       .values(request)
       .returning();
@@ -2417,7 +3044,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSolutionRequest(id: string, updates: Partial<InsertSolutionRequest>): Promise<SolutionRequest> {
-    const [updatedRequest] = await db
+    const [updatedRequest] = await this.db
       .update(solutionRequests)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(solutionRequests.id, id))
@@ -2426,7 +3053,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSolutionRequest(id: string, userId: string): Promise<void> {
-    await db
+    await this.db
       .delete(solutionRequests)
       .where(
         and(
@@ -2554,13 +3181,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
-    const [created] = await this.db.insert(messages).values(message).returning();
-    
+    const result = await this.db.insert(messages).values(message).returning();
+    const created = (result as Message[])[0];
+
     // Update conversation timestamp
-    await this.db.update(conversations)
-      .set({ updatedAt: new Date() })
-      .where(eq(conversations.id, message.conversationId));
-    
+    if (message.conversationId) {
+      await this.db.update(conversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversations.id, String(message.conversationId)));
+    }
+
     return created;
   }
 
@@ -2781,7 +3411,7 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await this.db.update(userTrainingProgress)
         .set({ 
           progressPercentage,
-          timeSpent: existing[0].timeSpent + timeSpent,
+          timeSpent: (existing[0].timeSpent ?? 0) + timeSpent,
           status: progressPercentage >= 100 ? "completed" : "in_progress",
           updatedAt: new Date()
         })
@@ -2873,7 +3503,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createForumReply(reply: Omit<ForumReply, 'id' | 'createdAt'>): Promise<ForumReply> {
-    const [created] = await this.db.insert(forumReplies).values(reply).returning();
+    const result = await this.db.insert(forumReplies).values(reply).returning();
+    const created = (result as ForumReply[])[0];
     
     // Update topic reply count and last reply info
     await this.db.update(forumTopics)
@@ -2920,17 +3551,15 @@ export class DatabaseStorage implements IStorage {
 
   // Business Intelligence implementation
   async getMarketTrends(region?: string, industry?: string, isPublic?: boolean): Promise<MarketTrend[]> {
-    let query = db.select().from(marketTrends);
-    
-    const conditions = [];
+    const conditions: (SQL | undefined)[] = [];
     if (region) conditions.push(eq(marketTrends.region, region));
     if (industry) conditions.push(eq(marketTrends.industry, industry));
     if (isPublic !== undefined) conditions.push(eq(marketTrends.isPublic, isPublic));
-    
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-    
+
+    const query = conditions.length > 0
+      ? this.db.select().from(marketTrends).where(and(...conditions))
+      : this.db.select().from(marketTrends);
+
     return await query.orderBy(desc(marketTrends.publishedAt));
   }
 
@@ -2998,7 +3627,7 @@ export class DatabaseStorage implements IStorage {
   
   // Site Survey operations
   async getUserSiteSurveys(userId: string): Promise<SiteSurvey[]> {
-    const surveys = await db
+    const surveys = await this.db
       .select()
       .from(siteSurveys)
       .where(eq(siteSurveys.userId, userId))
@@ -3051,12 +3680,12 @@ export class DatabaseStorage implements IStorage {
     return surveysWithStats;
   }
 
-  async getSiteSurvey(id: string): Promise<SiteSurvey | undefined> {
+  async getSiteSurvey(id: string): Promise<(SiteSurvey & Record<string, any>) | undefined> {
     const [survey] = await this.db.select().from(siteSurveys).where(eq(siteSurveys.id, id));
     if (!survey) return undefined;
     
     // Update lastViewed timestamp
-    await db
+    await this.db
       .update(siteSurveys)
       .set({ lastViewed: new Date() })
       .where(eq(siteSurveys.id, id));
@@ -3110,7 +3739,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSiteSurvey(id: string, updates: Partial<InsertSiteSurvey>): Promise<SiteSurvey> {
-    const [updatedSurvey] = await db
+    const [updatedSurvey] = await this.db
       .update(siteSurveys)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(siteSurveys.id, id))
@@ -3130,7 +3759,7 @@ export class DatabaseStorage implements IStorage {
 
 
   async getCartItems(userId: string): Promise<CartItem[]> {
-    return await db
+    return await this.db
       .select()
       .from(cartItems)
       .where(eq(cartItems.userId, userId))
@@ -3157,7 +3786,7 @@ export class DatabaseStorage implements IStorage {
       return sum + (parseFloat(area.estimatedCost || '0'));
     }, 0);
 
-    const [updatedSurvey] = await db
+    const [updatedSurvey] = await this.db
       .update(siteSurveys)
       .set({
         status: 'completed',
@@ -3175,7 +3804,7 @@ export class DatabaseStorage implements IStorage {
 
   // Site Survey Area operations
   async getSiteSurveyAreas(siteSurveyId: string): Promise<SiteSurveyArea[]> {
-    return await db
+    return await this.db
       .select()
       .from(siteSurveyAreas)
       .where(eq(siteSurveyAreas.siteSurveyId, siteSurveyId))
@@ -3193,7 +3822,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSiteSurveyArea(id: string, updates: Partial<InsertSiteSurveyArea>): Promise<SiteSurveyArea> {
-    const [updatedArea] = await db
+    const [updatedArea] = await this.db
       .update(siteSurveyAreas)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(siteSurveyAreas.id, id))
@@ -3207,7 +3836,7 @@ export class DatabaseStorage implements IStorage {
   
   // Communication Template operations
   async getCommunicationTemplates(category?: string): Promise<CommunicationTemplate[]> {
-    const query = db.select().from(communicationTemplates);
+    const query = this.db.select().from(communicationTemplates);
     if (category) {
       return await query.where(eq(communicationTemplates.category, category));
     }
@@ -3246,7 +3875,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSalesEngagement(id: string, updates: Partial<InsertSalesEngagement>): Promise<SalesEngagement> {
-    const [updatedEngagement] = await db
+    const [updatedEngagement] = await this.db
       .update(salesEngagements)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(salesEngagements.id, id))
@@ -3269,7 +3898,7 @@ export class DatabaseStorage implements IStorage {
     
     const normalizedSearchTerm = `%${normalizedQuery}%`;
     
-    const results = await db
+    const results = await this.db
       .select()
       .from(products)
       .where(
@@ -3292,7 +3921,7 @@ export class DatabaseStorage implements IStorage {
     
     const searchTerm = `%${query.toLowerCase()}%`;
     
-    const results = await db
+    const results = await this.db
       .select()
       .from(resources)
       .where(
@@ -3313,7 +3942,7 @@ export class DatabaseStorage implements IStorage {
     
     const searchTerm = `%${query.toLowerCase()}%`;
     
-    const results = await db
+    const results = await this.db
       .select()
       .from(caseStudies)
       .where(
@@ -3336,7 +3965,7 @@ export class DatabaseStorage implements IStorage {
     
     const searchTerm = `%${query.toLowerCase()}%`;
     
-    let queryBuilder = db
+    let queryBuilder = this.db
       .select()
       .from(orders);
     
@@ -3367,7 +3996,7 @@ export class DatabaseStorage implements IStorage {
     
     const searchTerm = `%${query.toLowerCase()}%`;
     
-    const results = await db
+    const results = await this.db
       .select()
       .from(faqs)
       .where(
@@ -3418,23 +4047,12 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
   
-  // Vehicle Type operations implementation
-  async getVehicleTypes(): Promise<VehicleType[]> {
-    return await this.db.select().from(vehicleTypes)
-      .where(eq(vehicleTypes.isActive, true))
-      .orderBy(vehicleTypes.sortOrder, vehicleTypes.name);
-  }
-  
+  // Vehicle Type operations implementation (additional methods)
   async getVehicleType(id: string): Promise<VehicleType | undefined> {
     const [vehicle] = await this.db.select().from(vehicleTypes).where(eq(vehicleTypes.id, id));
     return vehicle;
   }
-  
-  async createVehicleType(vehicle: InsertVehicleType): Promise<VehicleType> {
-    const [newVehicle] = await this.db.insert(vehicleTypes).values(vehicle).returning();
-    return newVehicle;
-  }
-  
+
   async updateVehicleType(id: string, updates: Partial<InsertVehicleType>): Promise<VehicleType> {
     const [updated] = await this.db.update(vehicleTypes)
       .set({ ...updates, updatedAt: new Date() })
@@ -3478,25 +4096,14 @@ export class DatabaseStorage implements IStorage {
   
   // Vehicle-Product Compatibility operations implementation
   async getVehicleProductCompatibilities(productId?: string, vehicleTypeId?: string): Promise<VehicleProductCompatibility[]> {
-    let query = db.select().from(vehicleProductCompatibility);
-    
-    const conditions = [];
+    const conditions: (SQL | undefined)[] = [eq(vehicleProductCompatibility.isActive, true)];
     if (productId) conditions.push(eq(vehicleProductCompatibility.productId, productId));
     if (vehicleTypeId) conditions.push(eq(vehicleProductCompatibility.vehicleTypeId, vehicleTypeId));
-    conditions.push(eq(vehicleProductCompatibility.isActive, true));
-    
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-    
-    return await query;
+
+    return await this.db.select().from(vehicleProductCompatibility)
+      .where(and(...conditions));
   }
-  
-  async createVehicleProductCompatibility(compat: InsertVehicleProductCompatibility): Promise<VehicleProductCompatibility> {
-    const [newCompat] = await this.db.insert(vehicleProductCompatibility).values(compat).returning();
-    return newCompat;
-  }
-  
+
   async updateVehicleProductCompatibility(id: string, updates: Partial<InsertVehicleProductCompatibility>): Promise<VehicleProductCompatibility> {
     const [updated] = await this.db.update(vehicleProductCompatibility)
       .set(updates)
@@ -3511,18 +4118,12 @@ export class DatabaseStorage implements IStorage {
   
   // Product-Application Compatibility operations implementation
   async getProductApplicationCompatibilities(productId?: string, applicationTypeId?: string): Promise<ProductApplicationCompatibility[]> {
-    let query = db.select().from(productApplicationCompatibility);
-    
-    const conditions = [];
+    const conditions: (SQL | undefined)[] = [eq(productApplicationCompatibility.isActive, true)];
     if (productId) conditions.push(eq(productApplicationCompatibility.productId, productId));
     if (applicationTypeId) conditions.push(eq(productApplicationCompatibility.applicationTypeId, applicationTypeId));
-    conditions.push(eq(productApplicationCompatibility.isActive, true));
-    
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-    
-    return await query;
+
+    return await this.db.select().from(productApplicationCompatibility)
+      .where(and(...conditions));
   }
   
   async createProductApplicationCompatibility(compat: InsertProductApplicationCompatibility): Promise<ProductApplicationCompatibility> {
@@ -3541,6 +4142,235 @@ export class DatabaseStorage implements IStorage {
   async deleteProductApplicationCompatibility(id: string): Promise<void> {
     await this.db.delete(productApplicationCompatibility).where(eq(productApplicationCompatibility.id, id));
   }
+
+  // Password reset operations
+  async createPasswordResetToken(email: string): Promise<{ token: string; user: any } | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.email, email));
+    if (!user) return null;
+
+    const token = crypto.randomUUID();
+    const hashedToken = await sha256(token);
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await this.db
+      .update(users)
+      .set({ passwordResetToken: hashedToken, passwordResetExpiry: expiry, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    return { token, user };
+  }
+
+  async verifyPasswordResetToken(token: string): Promise<any | null> {
+    const hashedToken = await sha256(token);
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.passwordResetToken, hashedToken),
+          gte(users.passwordResetExpiry, new Date())
+        )
+      );
+    return user || null;
+  }
+
+  async resetUserPassword(userId: string, newPasswordHash: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        passwordHash: newPasswordHash,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  // OAuth operations
+  async getUserByOAuth(provider: string, oauthId: string) {
+    const [user] = await this.db.select().from(users).where(
+      and(eq(users.oauthProvider, provider), eq(users.oauthId, oauthId))
+    );
+    return user;
+  }
+
+  async createUser(data: { email: string; passwordHash: string; firstName: string; lastName: string; company?: string | null; phone?: string | null; jobTitle?: string | null; role?: string }) {
+    const id = crypto.randomUUID();
+    const [user] = await this.db.insert(users).values({
+      id,
+      email: data.email,
+      passwordHash: data.passwordHash,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      company: data.company || null,
+      phone: data.phone || null,
+      jobTitle: data.jobTitle || null,
+      role: data.role || "customer",
+      emailVerified: false,
+      mustCompleteProfile: false,
+    }).returning();
+    return user;
+  }
+
+  async createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }) {
+    const id = crypto.randomUUID();
+    const [user] = await this.db.insert(users).values({
+      id,
+      email: profile.email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      oauthProvider: profile.provider,
+      oauthId: profile.oauthId,
+      emailVerified: true,
+      mustCompleteProfile: true,
+    }).returning();
+    return user;
+  }
+
+  async linkOAuthAccount(userId: string, provider: string, oauthId: string) {
+    await this.db.update(users).set({ oauthProvider: provider, oauthId: oauthId }).where(eq(users.id, userId));
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Approval-token helpers
+  //
+  // Validity-checking intentionally lives in the route handlers (they need to
+  // produce distinct `not_found` / `expired` / `used` / `revoked` reasons);
+  // this layer is plumbing: create / read / flip-used / flip-revoked.
+  // ──────────────────────────────────────────────────────────────────────
+  async createApprovalToken(input: InsertApprovalToken): Promise<ApprovalToken> {
+    const [row] = await this.db.insert(approvalTokens).values(input).returning();
+    return row;
+  }
+
+  async getApprovalTokenByToken(token: string): Promise<ApprovalToken | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(approvalTokens)
+      .where(eq(approvalTokens.token, token));
+    return row;
+  }
+
+  async getApprovalTokenById(id: string): Promise<ApprovalToken | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(approvalTokens)
+      .where(eq(approvalTokens.id, id));
+    return row;
+  }
+
+  async getApprovalTokensForOrder(orderId: string): Promise<ApprovalToken[]> {
+    return await this.db
+      .select()
+      .from(approvalTokens)
+      .where(eq(approvalTokens.orderId, orderId))
+      .orderBy(desc(approvalTokens.issuedAt));
+  }
+
+  // Find the currently-active (unused, unrevoked) token for a given section.
+  // Used when sales asks "revoke whatever's outstanding for commercial" — so
+  // they can hand us `{section}` instead of a specific tokenId.
+  async findActiveApprovalTokenForSection(
+    orderId: string,
+    section: string,
+  ): Promise<ApprovalToken | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(approvalTokens)
+      .where(
+        and(
+          eq(approvalTokens.orderId, orderId),
+          eq(approvalTokens.section, section),
+          isNull(approvalTokens.usedAt),
+          isNull(approvalTokens.revokedAt),
+        ),
+      )
+      .orderBy(desc(approvalTokens.issuedAt));
+    return row;
+  }
+
+  async markApprovalTokenUsed(tokenId: string): Promise<void> {
+    await this.db
+      .update(approvalTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(approvalTokens.id, tokenId));
+  }
+
+  async revokeApprovalToken(tokenId: string): Promise<void> {
+    await this.db
+      .update(approvalTokens)
+      .set({ revokedAt: new Date() })
+      .where(eq(approvalTokens.id, tokenId));
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Order audit log
+  // ──────────────────────────────────────────────────────────────────────
+  async appendOrderAuditLog(entry: InsertOrderAuditLog): Promise<OrderAuditLog> {
+    const [row] = await this.db.insert(orderAuditLog).values(entry).returning();
+    return row;
+  }
+
+  async getOrderAuditLog(orderId: string): Promise<OrderAuditLog[]> {
+    return await this.db
+      .select()
+      .from(orderAuditLog)
+      .where(eq(orderAuditLog.orderId, orderId))
+      .orderBy(desc(orderAuditLog.createdAt));
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Shared section-approval helper
+  //
+  // Both the authenticated approve-section endpoint and the magic-link
+  // consume endpoint route through here. The audit-log write is best-effort
+  // relative to the signature write: we never want a log hiccup to fail a
+  // sign-off the user already confirmed, so we catch+log any audit error.
+  // ──────────────────────────────────────────────────────────────────────
+  async applySectionApproval(input: {
+    orderId: string;
+    section: "technical" | "commercial" | "marketing";
+    signature: OrderSectionSignature;
+    actorUserId?: string | null;
+    actorEmail?: string | null;
+    tokenId?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<Order> {
+    const updated = await this.saveOrderSectionApproval(
+      input.orderId,
+      input.section,
+      input.signature,
+    );
+
+    try {
+      await this.appendOrderAuditLog({
+        orderId: input.orderId,
+        eventType: "approved",
+        section: input.section,
+        actorUserId: input.actorUserId ?? null,
+        actorEmail: input.actorEmail ?? null,
+        details: {
+          signedBy: input.signature.signedBy,
+          jobTitle: input.signature.jobTitle,
+          signedAt: input.signature.signedAt,
+          tokenId: input.tokenId ?? null,
+        },
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      });
+    } catch (err) {
+      // Don't fail the approval over a logging blip; surface in server logs.
+      console.error("Audit log append failed for approved event:", err);
+    }
+
+    return updated;
+  }
+}
+
+async function sha256(str: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 // In Workers, create storage per-request: new DatabaseStorage(getDb(c.env.DATABASE_URL))

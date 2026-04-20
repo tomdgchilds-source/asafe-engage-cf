@@ -64,9 +64,16 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
           )}
         </div>
         <div className="space-y-1">
-          <h3 className="font-bold text-gray-900 dark:text-white text-sm sm:text-base lg:text-lg leading-tight" data-testid={`product-name-${product.id}`}>
-            {product.name}
-          </h3>
+          <div className="flex items-start gap-2">
+            <h3 className="font-bold text-gray-900 dark:text-white text-sm sm:text-base lg:text-lg leading-tight flex-1" data-testid={`product-name-${product.id}`}>
+              {product.name}
+            </h3>
+            {(product as any).isNew && (
+              <Badge className="bg-[#FFC72C] text-black shrink-0 text-[10px] px-1.5 py-0.5 font-bold tracking-wider">
+                NEW
+              </Badge>
+            )}
+          </div>
           {(product as any).hasVariants && (product as any).productVariants && (
             <div className="flex items-center gap-2 mt-1">
               <Badge className="bg-blue-500 text-white text-xs">
@@ -91,6 +98,11 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
             {product.subcategory && (
               <Badge variant="outline" className="text-xs px-2 py-1">
                 {product.subcategory}
+              </Badge>
+            )}
+            {(product as any).isColdStorage && (
+              <Badge className="bg-cyan-500 text-white text-xs px-2 py-1">
+                Cold Storage
               </Badge>
             )}
           </div>

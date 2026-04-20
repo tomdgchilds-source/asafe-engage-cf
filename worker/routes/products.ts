@@ -67,6 +67,35 @@ products.get("/product-media/:productId", async (c) => {
   }
 });
 
+// GET /api/product-variants
+// Returns every variant row. Pass ?productId=xxx to scope to one family;
+// pass ?productName=xxx for a name-based lookup (case-insensitive).
+products.get("/product-variants", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const productId = c.req.query("productId");
+    const productName = c.req.query("productName");
+
+    let scopedProductId = productId;
+    if (!scopedProductId && productName) {
+      // Resolve productName → productId (case-insensitive).
+      const matches = await storage.getProducts({ search: productName });
+      const exact = matches.find(
+        (p) => p.name.toLowerCase() === productName.toLowerCase(),
+      );
+      scopedProductId = exact?.id;
+      if (!scopedProductId) return c.json([]);
+    }
+
+    const variants = await storage.getProductVariants(scopedProductId);
+    return c.json(variants);
+  } catch (error) {
+    console.error("Error fetching product variants:", error);
+    return c.json({ message: "Failed to fetch product variants" }, 500);
+  }
+});
+
 // =============================================
 // APPLICATION TYPE ROUTES
 // =============================================
@@ -200,6 +229,27 @@ products.get("/products", async (c) => {
     // Fetch pricing tier data once (not per product) — N+1 fix
     const allPricingData = await storage.getProductPricing();
 
+    // Fetch all per-length/per-SKU price variants once and index by product id.
+    // `variants` below is the legacy quantity-tier shape (from product_pricing);
+    // we expose the new table separately as `priceVariants` so existing consumers
+    // keep working unchanged. The try/catch covers the window before
+    // `product_variants` has been migrated onto the target DB.
+    let allPriceVariants: any[] = [];
+    try {
+      allPriceVariants = await storage.getProductVariants();
+    } catch (e) {
+      console.warn(
+        "product_variants unavailable (table missing or query failed); falling back to tiered pricing.",
+        e,
+      );
+    }
+    const priceVariantsByProductId: Record<string, any[]> = {};
+    for (const v of allPriceVariants) {
+      const key = v.productId as string;
+      if (!priceVariantsByProductId[key]) priceVariantsByProductId[key] = [];
+      priceVariantsByProductId[key].push(v);
+    }
+
     const productsWithVariants = allProducts.map((product) => {
       let variants: any[] = [];
       let specifications: any = product.specifications;
@@ -224,11 +274,58 @@ products.get("/products", async (c) => {
         }
       }
 
-      // Look up pricing tier data for this product from pre-fetched data
+      // NEW: if this product has explicit price-list variants (loaded from
+      // the official price list into product_variants), those are the source
+      // of truth for the variant picker. Build the `variants` array from them
+      // and skip the product_pricing tier fallback below.
+      const priceVariants = priceVariantsByProductId[product.id] ?? [];
+      let usedPriceVariants = false;
+      if (priceVariants.length > 0) {
+        variants = priceVariants.map((pv) => ({
+          id: pv.id,
+          itemId: pv.id,
+          sku: pv.sku,
+          code: pv.sku ?? undefined, // AddToCartModal expects `code`
+          variant: pv.name, // legacy display string
+          name: pv.name,
+          length: pv.lengthMm ?? undefined,
+          length_mm: pv.lengthMm ?? undefined,
+          width: pv.widthMm ?? undefined,
+          width_mm: pv.widthMm ?? undefined,
+          height: pv.heightMm ?? undefined,
+          dimensionLabel: pv.dimensionLabel ?? undefined,
+          colorLabel: pv.colorLabel ?? undefined,
+          kind: pv.kind ?? undefined,
+          variantType: pv.variantType,
+          price: Number(pv.priceAed),
+          currency: pv.currency ?? "AED",
+          isNew: pv.isNew ?? false,
+          measurement: pv.lengthMm
+            ? `${pv.lengthMm}mm`
+            : pv.dimensionLabel ?? pv.name,
+        }));
+        specifications = {
+          ...(specifications || {}),
+          priceListSource: product.priceListSource ?? null,
+          priceListVersion: product.priceListVersion ?? null,
+          measurementType:
+            product.pricingLogic === "per_length" ? "Length" : "Variant",
+          measurementUnit:
+            product.pricingLogic === "per_length" ? "mm" : "unit",
+          priceCalculation: product.pricingLogic ?? "per_unit",
+          variations: variants,
+        };
+        usedPriceVariants = true;
+      }
+
+      // Look up pricing tier data for this product from pre-fetched data.
+      // Skip if we already built variants from the authoritative price-list
+      // table — tiered legacy pricing can only override when the new data
+      // hasn't been loaded for this product.
       try {
-        const pricingData = allPricingData.find(
-          (p) => p.productName === product.name
-        );
+        const pricingData = !usedPriceVariants
+          ? allPricingData.find((p) => p.productName === product.name)
+          : undefined;
 
         if (pricingData) {
           // Create variations based on pricing tiers
@@ -305,9 +402,14 @@ products.get("/products", async (c) => {
 
       return {
         ...product,
+        // Keep the legacy family-* id so the frontend's routing still works,
+        // but expose the real DB id as `productId` so variant lookups can
+        // resolve it without a name round-trip.
+        productId: product.id,
         id: `family-${product.name.replace(/\s+/g, "-").toLowerCase()}`,
         specifications,
         variants,
+        priceVariants,
       };
     });
 

@@ -40,7 +40,17 @@ export const users = pgTable("users", {
   address: text("address"),
   city: varchar("city"),
   country: varchar("country"),
-  role: varchar("role").default("customer"), // customer, admin
+  role: varchar("role").default("customer"), // customer, admin — controls PERMISSIONS only
+  // Job role = the person's day-job description (e.g. "BDM", "Engineering
+  // Manager", "Procurement Lead"). Shown in email signatures, quote
+  // headers, on-screen contact cards. Decoupled from `role` because
+  // permission level and job title are different axes.
+  jobRole: varchar("job_role").default("BDM"),
+  // The rep's currently-active project. Header chip + every form
+  // default reads from this. Set when the rep creates, opens, or
+  // switches a project. Nullable — new reps won't have one until they
+  // create their first project.
+  activeProjectId: varchar("active_project_id"),
   // Verification fields
   emailVerified: boolean("email_verified").default(false),
   phoneVerified: boolean("phone_verified").default(false),
@@ -52,6 +62,10 @@ export const users = pgTable("users", {
   profileCompleted: boolean("profile_completed").default(false),
   mustCompleteProfile: boolean("must_complete_profile").default(true),
   passwordHash: varchar("password_hash"),
+  passwordResetToken: varchar("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
+  oauthProvider: varchar("oauth_provider"),
+  oauthId: varchar("oauth_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -117,8 +131,13 @@ export const orders = pgTable("orders", {
   reciprocalCommitments: jsonb("reciprocal_commitments"), // Full commitment details
   serviceCareDetails: jsonb("service_care_details"), // Breakdown of service package services
   // Signature tracking with comments
-  technicalSignature: jsonb("technical_signature"), // {signed: boolean, signedAt: timestamp, signedBy: string}
-  commercialSignature: jsonb("commercial_signature"), // {signed: boolean, signedAt: timestamp, signedBy: string}
+  technicalSignature: jsonb("technical_signature"), // {signed: boolean, signedAt: timestamp, signedBy: string, jobTitle?: string, mobile?: string}
+  commercialSignature: jsonb("commercial_signature"), // {signed: boolean, signedAt: timestamp, signedBy: string, jobTitle?: string, mobile?: string}
+  // Marketing sign-off is the third leg of the section-level approval trio and
+  // historically lived only as free-form comments; we track signatures here so
+  // the live order-form view and the PDF can render "Approved by X on Y" the
+  // same way Technical/Commercial do.
+  marketingSignature: jsonb("marketing_signature"), // {signed: boolean, signedAt: timestamp, signedBy: string, jobTitle?: string, mobile?: string}
   technicalComments: text("technical_comments"), // Optional comments from technical approver
   marketingComments: text("marketing_comments"), // Optional comments from marketing approver
   // Rejection tracking
@@ -134,14 +153,84 @@ export const orders = pgTable("orders", {
   projectName: varchar("project_name"),
   projectLocation: varchar("project_location"),
   projectDescription: text("project_description"),
-  // Slack integration tracking
-  slackMessageId: varchar("slack_message_id"), // Slack message timestamp for tracking
-  slackThreadId: varchar("slack_thread_id"), // Slack thread for updates
-  slackNotificationSent: boolean("slack_notification_sent").default(false),
-  slackLastUpdate: timestamp("slack_last_update"),
+  // Magic-link approval flow: captures the email the PREVIOUS approver (or the
+  // sales rep, when kicking off technical) entered for the next section. We
+  // store it per-section here rather than on approvalTokens so we can render
+  // "sent to …" in the live order view without joining on the tokens table
+  // every refresh, and so revoking+reissuing a token doesn't wipe the
+  // UI-level "pending with X" state.
+  // Shape: { technical?: email, commercial?: email, marketing?: email }
+  nextApproverEmails: jsonb("next_approver_emails"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ──────────────────────────────────────────────
+// Magic-link approval tokens
+//
+// Each row is an out-of-band invitation to approve a specific order section.
+// Tokens are 32-char hex (128 bits of entropy) — large enough to resist
+// enumeration without being brutal to type if someone ever has to copy one
+// from an email client that didn't autolink. Single-use: `usedAt` gets stamped
+// on successful approval; revoking a token (sales rep re-sends to a different
+// email) sets `revokedAt`.
+//
+// The `token` column is the only thing the recipient ever sees — it's the
+// bearer credential. Never log it, never return it from any API surface after
+// it's dispatched.
+// ──────────────────────────────────────────────
+export const approvalTokens = pgTable("approval_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: varchar("token").notNull().unique(),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  // Which section this link approves — we don't infer it from order state
+  // because multiple sections can be in-flight simultaneously (e.g. the sales
+  // rep re-issued technical while commercial was also outstanding).
+  section: varchar("section").notNull(), // "technical" | "commercial" | "marketing"
+  // We compare case-insensitively at use time; storing the canonical form the
+  // sender entered gives us a stable audit display ("sent to John.Doe@...").
+  expectedEmail: varchar("expected_email").notNull(),
+  issuedAt: timestamp("issued_at").defaultNow().notNull(),
+  // 30-day window. Materialized here (vs. computed at read time) so retroactive
+  // policy changes don't silently shorten previously-dispatched links.
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_approval_tokens_token").on(table.token),
+  index("idx_approval_tokens_order").on(table.orderId),
+]);
+
+// ──────────────────────────────────────────────
+// Order audit log
+//
+// Append-only record of everything-that-happened to an order's approval
+// lifecycle. Intentionally denormalized — we store `actorEmail` alongside
+// `actorUserId` because magic-link approvers have no account, so userId is
+// frequently null. The `details` jsonb is freeform per-event so we can add
+// new event types without a migration (e.g. tokenId on email_sent,
+// rejectReason on rejected, nextApproverEmail on approver_email_captured).
+// ──────────────────────────────────────────────
+export const orderAuditLog = pgTable("order_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  // Event taxonomy — keep this list tight; unexpected values indicate a bug.
+  // "approved" | "rejected" | "email_sent" | "magic_link_clicked"
+  //   | "self_approved_next" | "approver_email_captured" | "token_revoked"
+  eventType: varchar("event_type").notNull(),
+  section: varchar("section"), // nullable — not every event is section-scoped
+  actorUserId: varchar("actor_user_id").references(() => users.id),
+  actorEmail: varchar("actor_email"),
+  details: jsonb("details"),
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_order_audit_log_order").on(table.orderId),
+  index("idx_order_audit_log_created").on(table.createdAt),
+]);
 
 // Vehicle Types table - Comprehensive vehicle catalog with weight specifications
 export const vehicleTypes = pgTable("vehicle_types", {
@@ -258,21 +347,65 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }),
   basePricePerMeter: decimal("base_price_per_meter", { precision: 10, scale: 2 }), // Per-meter pricing for barriers
   currency: varchar("currency").default("AED"),
+  // Primary SKU (for per_unit products this is the only SKU; for per_length
+  // families this is the canonical/preferred variant SKU — see product_variants
+  // for the full list).
+  sku: varchar("sku"),
   // Media
   imageUrl: varchar("image_url"),
   technicalSheetUrl: varchar("technical_sheet_url"),
+  installationGuideUrl: varchar("installation_guide_url"),
   // Classification and filtering
   applications: jsonb("applications"), // Array of application areas
   industries: jsonb("industries"), // Array of suitable industries
   features: jsonb("features"), // Array of key features
   // Pricing logic and ordering
-  pricingLogic: varchar("pricing_logic"), // "per_meter", "per_unit", etc.
+  pricingLogic: varchar("pricing_logic"), // per_unit | per_meter | per_length | per_component | per_rate
   minimumOrderMeters: decimal("minimum_order_meters", { precision: 8, scale: 2 }),
+  // Catalog taxonomy flags
+  isColdStorage: boolean("is_cold_storage").default(false), // CS variants (white rails, cold-rated elastomer)
+  isNew: boolean("is_new").default(false), // Matches the "NEW" badge on the price list
+  // Price-list audit trail so we can detect stale pricing after a rev
+  priceListSource: varchar("price_list_source"), // e.g. PRL-1019-ASF-AED-07112025-1
+  priceListVersion: varchar("price_list_version"), // e.g. 2025v1
+  priceListEffectiveDate: timestamp("price_list_effective_date"),
   // Metadata
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// product_variants — one row per priced SKU. A family like "iFlex Single Traffic"
+// has 6 rows here (one per length). A family like "iFlex Post 130" has a single
+// row. Height restrictor + swing gate families have rows tagged with `kind` so
+// the quote/cart UI can assemble full-height-restrictor setups from post+rail.
+export const productVariants = pgTable("product_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  sku: varchar("sku"), // A-SAFE part number; may be null for the RackGuard rate-card row
+  name: varchar("name").notNull(), // "iFlex Single Traffic - 1600mm"
+  variantType: varchar("variant_type").notNull(), // length | size | color | component | rate
+  kind: varchar("kind"), // post | top-rail | gate | variant (for multi-part families)
+  lengthMm: integer("length_mm"),
+  widthMm: integer("width_mm"),
+  heightMm: integer("height_mm"),
+  dimensionLabel: varchar("dimension_label"), // "100mm x 100mm" for square column guards
+  colorLabel: varchar("color_label"), // "Yellow" | "Black"
+  priceAed: decimal("price_aed", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency").default("AED"),
+  isNew: boolean("is_new").default(false),
+  isActive: boolean("is_active").default(true),
+  metadata: jsonb("metadata"), // free-form extras (e.g. CSK flag, sided designation)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  productIdx: index("product_variants_product_idx").on(t.productId),
+  skuIdx: index("product_variants_sku_idx").on(t.sku),
+  lengthIdx: index("product_variants_length_idx").on(t.productId, t.lengthMm),
+}));
+
+export type ProductVariant = typeof productVariants.$inferSelect;
+export type InsertProductVariant = typeof productVariants.$inferInsert;
 
 // Case Studies table - Updated to match actual database structure
 export const caseStudies = pgTable("case_studies", {
@@ -446,6 +579,16 @@ export const cartItems = pgTable("cart_items", {
   // FlexiShield spacer options
   lengthSpacers: integer("length_spacers"), // Number of 100mm spacer pairs for length
   widthSpacers: integer("width_spacers"),   // Number of 100mm spacer pairs for width
+  // Height restrictor specific options
+  restrictorHeight: decimal("restrictor_height"),
+  restrictorWidth: decimal("restrictor_width"),
+  // Topple Barrier specific options
+  toppleHeight: decimal("topple_height"),
+  toppleWidth: decimal("topple_width"),
+  // Calculator images from product configurator
+  calculatorImages: jsonb("calculator_images"), // Array of image URL strings
+  // Selected variant details
+  selectedVariant: jsonb("selected_variant"), // Object with variant info (itemId, variant, length, width, height, price, code)
   // Impact calculation linkage
   impactCalculationId: varchar("impact_calculation_id").references(() => impactCalculations.id),
   calculationContext: jsonb("calculation_context"), // Store calculation details for display
@@ -559,6 +702,8 @@ export const siteSurveyAreas = pgTable("site_survey_areas", {
   recommendedProducts: jsonb("recommended_products"), // Array of {productId, productName, imageUrl, reason}
   // Solution matching results
   justification: text("justification"), // Why these products were recommended
+  matterportUrl: varchar("matterport_url"),
+  matterportModelId: varchar("matterport_model_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -580,6 +725,17 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertApprovalTokenSchema = createInsertSchema(approvalTokens).omit({
+  id: true,
+  issuedAt: true,
+  createdAt: true,
+});
+
+export const insertOrderAuditLogSchema = createInsertSchema(orderAuditLog).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertVehicleTypeSchema = createInsertSchema(vehicleTypes).omit({
@@ -703,6 +859,50 @@ export const userDiscountSelections = pgTable("user_discount_selections", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Partner discount codes — channel-partner / reseller rates. Codes are stored
+// case-insensitively (compared via LOWER()); the client can't enumerate them.
+export const partnerCodes = pgTable("partner_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  partnerName: varchar("partner_name").notNull(),
+  discountPercent: integer("discount_percent").notNull(), // 1..35
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  usageCap: integer("usage_cap"),          // null = unlimited
+  usageCount: integer("usage_count").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // case-insensitive lookup index
+  codeLowerIdx: index("partner_codes_code_lower_idx").on(sql`lower(${t.code})`),
+}));
+
+// Every time a partner code is actually *applied* to an order we write a row
+// here. This gives sales ops a clean audit trail and lets us enforce usage
+// caps atomically (increment on this write, not on validate).
+export const partnerCodeRedemptions = pgTable("partner_code_redemptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerCodeId: varchar("partner_code_id").notNull().references(() => partnerCodes.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  orderId: varchar("order_id"), // set when the redemption is tied to a created order
+  cartSubtotal: decimal("cart_subtotal", { precision: 12, scale: 2 }),
+  discountPercentApplied: integer("discount_percent_applied").notNull(),
+  redeemedAt: timestamp("redeemed_at").defaultNow().notNull(),
+});
+
+export const insertPartnerCodeSchema = createInsertSchema(partnerCodes).omit({
+  id: true,
+  usageCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type PartnerCode = typeof partnerCodes.$inferSelect;
+export type InsertPartnerCode = z.infer<typeof insertPartnerCodeSchema>;
+export type PartnerCodeRedemption = typeof partnerCodeRedemptions.$inferSelect;
+
 export const insertDiscountOptionSchema = createInsertSchema(discountOptions).omit({
   createdAt: true,
   updatedAt: true,
@@ -760,6 +960,18 @@ export const layoutDrawings = pgTable("layout_drawings", {
   scale: real("scale"), // Scale factor (pixels per mm)
   scaleLine: jsonb("scale_line"), // {start: {x, y}, end: {x, y}, actualLength: number, zoomLevel: number}
   isScaleSet: boolean("is_scale_set").default(false),
+  // ── Title-block / frame metadata (matches the A-SAFE DWC LLC drawing template) ──
+  // Populated when a drawing is created; editable from the LayoutMarkupEditor.
+  // When blank we fall back to placeholders at render time (TBD, today's date, etc.).
+  dwgNumber: varchar("dwg_number"),            // e.g. "DWGAE002882"
+  revision: varchar("revision"),                // e.g. "03"
+  drawingDate: varchar("drawing_date"),         // stored as "DD-MMM-YYYY" string for exact match to the printed format
+  drawingTitle: varchar("drawing_title"),       // e.g. "A-SAFE BARRIER PROPOSAL"
+  drawingScale: varchar("drawing_scale"),       // "NTS" / "1:100" / etc.
+  author: varchar("author"),                    // initials e.g. "VM"
+  checkedBy: varchar("checked_by"),             // initials e.g. "SS"
+  revisionHistory: jsonb("revision_history"),   // [{ rev: "01", date: "12-JAN-2026", notes: "STB-CS added" }, ...]
+  notesSection: text("notes_section"),          // free-text bulleted note list for the "Notes Section" block
   deletedAt: timestamp("deleted_at"), // For soft delete functionality
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -807,10 +1019,120 @@ export const cartProjectInfo = pgTable("cart_project_info", {
   company: varchar("company"),
   location: varchar("location"),
   projectDescription: text("project_description"),
+  companyLogoUrl: varchar("company_logo_url"), // Customer company logo (shown in app header + PDFs)
   // Social media commitment data
   socialCommitment: jsonb("social_commitment"), // { linkedin: { companyUrl, followers, postCommitment, postUrl, proofUrls, status } }
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// OPPORTUNITY / PROJECT / CONTACT MODEL
+//
+// Built so sales reps don't retype the same company, site, and
+// customer-contact details across Site Survey, Layout Drawing, Order
+// Form, and PDF cover pages. Entities are separate so a single customer
+// (e.g. Dnata) can have multiple concurrent projects (warehouse A,
+// warehouse B, office fit-out) that share the company profile and logo
+// but have distinct sites, contacts, and orders.
+// ═══════════════════════════════════════════════════════════════════
+
+// A customer company — persistent across projects. One Dnata record
+// feeds logo + billing address into every Dnata project. Owned by the
+// sales rep who created it (to avoid cross-rep data bleed on a shared
+// tenancy); exposure to other reps is a future permissions feature.
+export const customerCompanies = pgTable("customer_companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: varchar("name").notNull(),
+  logoUrl: varchar("logo_url"),
+  industry: varchar("industry"),
+  billingAddress: text("billing_address"),
+  city: varchar("city"),
+  country: varchar("country"),
+  website: varchar("website"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  userIdx: index("customer_companies_user_idx").on(t.userId),
+  nameLowerIdx: index("customer_companies_name_lower_idx").on(sql`lower(${t.name})`),
+}));
+
+// A project = one opportunity against one customer. Sales reps may have
+// many active projects in parallel, and can switch between them via
+// the header chip. `lastAccessedAt` drives the "Recent projects" list.
+export const projects = pgTable("projects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  customerCompanyId: varchar("customer_company_id").references(() => customerCompanies.id),
+  name: varchar("name").notNull(),
+  location: varchar("location"),
+  description: text("description"),
+  status: varchar("status").default("active"), // active | won | lost | on_hold
+  defaultDeliveryAddress: text("default_delivery_address"),
+  defaultInstallationComplexity: varchar("default_installation_complexity"), // simple | standard | complex
+  // Free-form per-project templates — lets a rep save their go-to
+  // reciprocal commitments and service tier for one-click reapplication.
+  preferredReciprocalCommitmentIds: jsonb("preferred_reciprocal_commitment_ids"), // string[]
+  preferredServiceOptionId: varchar("preferred_service_option_id"),
+  lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  userIdx: index("projects_user_idx").on(t.userId),
+  customerIdx: index("projects_customer_idx").on(t.customerCompanyId),
+  lastAccessedIdx: index("projects_last_accessed_idx").on(t.lastAccessedAt),
+}));
+
+// Customer contacts, attached to projects (and, through the project, to
+// the customer company). Roles drive which contact is suggested when we
+// dispatch the Technical / Commercial / Marketing approval emails.
+// lastInteractedAt updates whenever a contact approves, rejects, or is
+// manually selected — so the "usual suspects" bubble to the top.
+export const projectContacts = pgTable("project_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  customerCompanyId: varchar("customer_company_id").references(() => customerCompanies.id),
+  name: varchar("name").notNull(),
+  jobTitle: varchar("job_title"),
+  email: varchar("email"),
+  mobile: varchar("mobile"),
+  // Contact role. `primary` = day-to-day PM / main liaison.
+  // technical_approver / commercial_approver / marketing_lead feed the
+  // approval-chain email dispatch default suggestions.
+  role: varchar("role"), // primary | technical_approver | commercial_approver | marketing_lead | pm | other
+  notes: text("notes"),
+  lastInteractedAt: timestamp("last_interacted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  projectIdx: index("project_contacts_project_idx").on(t.projectId),
+  emailIdx: index("project_contacts_email_idx").on(sql`lower(${t.email})`),
+}));
+
+export const insertCustomerCompanySchema = createInsertSchema(customerCompanies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastAccessedAt: true,
+});
+export const insertProjectContactSchema = createInsertSchema(projectContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastInteractedAt: true,
+});
+export type CustomerCompany = typeof customerCompanies.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type ProjectContact = typeof projectContacts.$inferSelect;
+export type InsertCustomerCompany = z.infer<typeof insertCustomerCompanySchema>;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type InsertProjectContact = z.infer<typeof insertProjectContactSchema>;
 
 // Project Case Studies table - for associating case studies with user projects
 export const projectCaseStudies = pgTable("project_case_studies", {
@@ -1273,6 +1595,10 @@ export type InsertProductApplicationCompatibility = z.infer<typeof insertProduct
 export type ProductApplicationCompatibility = typeof productApplicationCompatibility.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof orders.$inferSelect;
+export type ApprovalToken = typeof approvalTokens.$inferSelect;
+export type InsertApprovalToken = z.infer<typeof insertApprovalTokenSchema>;
+export type OrderAuditLog = typeof orderAuditLog.$inferSelect;
+export type InsertOrderAuditLog = z.infer<typeof insertOrderAuditLogSchema>;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;

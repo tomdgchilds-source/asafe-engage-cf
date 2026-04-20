@@ -101,30 +101,13 @@ export function CompanyLogoFinder({
     }
   };
 
-  const handleConfirmLogo = async (logoUrl: string) => {
-    try {
-      const res = await apiRequest("/api/company-logo/confirm", "POST", {
-        companyName,
-        logoUrl
-      });
-      const response = await res.json();
-
-      if (response.success) {
-        onLogoConfirmed(logoUrl);
-        toast({
-          title: "Logo confirmed",
-          description: "Company logo has been saved successfully.",
-          variant: "default"
-        });
-      }
-    } catch (error) {
-      console.error("Error confirming logo:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save logo. Please try again.",
-        variant: "destructive"
-      });
-    }
+  const handleConfirmLogo = (logoUrl: string) => {
+    onLogoConfirmed(logoUrl);
+    toast({
+      title: "Logo confirmed",
+      description: "Company logo has been saved successfully.",
+      variant: "default",
+    });
   };
 
   const handleCustomUrlSubmit = () => {
