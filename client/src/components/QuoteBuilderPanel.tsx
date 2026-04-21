@@ -61,13 +61,32 @@ export type BuilderMode =
   | "height-restrictor"
   | "swing-gate";
 
+// Any pricingLogic that encodes "priced by the linear metre / length" — we
+// accept the spelling variants we've shipped historically (per_length is the
+// pricelist-loader convention; per_meter / per_metre / per_linear_metre were
+// earlier seed rows) so a row tagged with any of these surfaces the total-LM
+// input. New rows should be written as `per_length` but the UI shouldn't
+// break if a synonym sneaks in.
+const LINEAR_PRICING_LOGICS = new Set([
+  "per_length",
+  "per_meter",
+  "per_metre",
+  "per_linear_metre",
+  "per_linear_meter",
+]);
+
+export function isLinearPricing(pricingLogic: string | null | undefined): boolean {
+  if (!pricingLogic) return false;
+  return LINEAR_PRICING_LOGICS.has(pricingLogic.toLowerCase());
+}
+
 export function detectBuilderMode(
   product: CatalogProduct,
 ): BuilderMode | null {
   const n = (product.name || "").toLowerCase();
   if (/height restrictor/.test(n) && /post/.test(n)) return "height-restrictor";
   if (/swing gate/.test(n) && /self-close/.test(n)) return "swing-gate";
-  if (product.pricingLogic === "per_length") return "length";
+  if (isLinearPricing(product.pricingLogic)) return "length";
 
   // Per-unit family where every variant carries a distinct lengthMm. Covers
   // Rack End Barrier, Step Guard, ForkGuard, Heavy Duty ForkGuard — "how

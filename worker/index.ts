@@ -1342,6 +1342,78 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
   }
 });
 
+// One-off: normalise `pricing_logic` on barrier families that were tagged
+// with a legacy synonym (per_meter) so the Add-to-Cart UI exposes a total
+// linear-metre input (QuoteBuilderPanel keys off per_length). The patch
+// entries are canonicalised in scripts/data/barrier-pricing-fix.json.
+// Gated by MIGRATION_TOKEN (bearer); idempotent — running it twice is a
+// no-op because updates converge on the target pricing_logic.
+app.post("/api/admin/fix-barrier-pricing", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    const patchModule: any = await import(
+      "../scripts/data/barrier-pricing-fix.json"
+    );
+    const patch = patchModule.default || patchModule;
+    const updatesList: Array<{
+      id: string;
+      name: string;
+      current_pricingType: string;
+      correct_pricingType: string;
+    }> = patch.updates || [];
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const updated: Array<{
+      id: string;
+      name: string;
+      from: string | null;
+      to: string;
+    }> = [];
+    const unmatched: Array<{ id: string; name: string }> = [];
+
+    for (const entry of updatesList) {
+      const rows = (await sqlClient`
+        SELECT id, name, pricing_logic
+        FROM products
+        WHERE id = ${entry.id}
+      `) as any[];
+      if (!rows.length) {
+        unmatched.push({ id: entry.id, name: entry.name });
+        continue;
+      }
+      const row = rows[0];
+      await sqlClient(
+        `UPDATE products SET pricing_logic = $1, updated_at = now() WHERE id = $2`,
+        [entry.correct_pricingType, entry.id],
+      );
+      updated.push({
+        id: row.id,
+        name: row.name,
+        from: row.pricing_logic,
+        to: entry.correct_pricingType,
+      });
+    }
+
+    return c.json({ ok: true, updated, unmatched });
+  } catch (e: any) {
+    console.error("fix-barrier-pricing failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Seed resources — populates resources table with A-SAFE technical docs, videos, guides
 app.get("/api/admin/seed-resources", authMiddleware, async (c) => {
   if (!(await requireAdmin(c))) return c.json({ message: "Admin access required" }, 403);

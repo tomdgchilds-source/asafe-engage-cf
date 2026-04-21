@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "description": "One-off patch: normalise `pricing_logic` on barrier families that were tagged `per_meter` (legacy seed naming) so the Add-to-Cart QuoteBuilderPanel treats them as linear-metre barriers and exposes a total-LM input. These are all traffic barriers sold by the linear metre; the spelling drift between per_meter (older seed rows) and per_length (newer pricelist-loader rows) caused the UI to render a unit-quantity spinner instead of the metres input.",
+    "source": "scripts/data/pricelist-aed-2025v1.json + seedData.ts audit",
+    "author": "Claude Opus 4.7",
+    "date": "2026-04-22"
+  },
+  "updates": [
+    {
+      "id": "family-atlas-double-traffic-barrier",
+      "name": "Atlas Double Traffic Barrier",
+      "current_pricingType": "per_meter",
+      "correct_pricingType": "per_length"
+    },
+    {
+      "id": "family-atlas-double-traffic-barrier+",
+      "name": "Atlas Double Traffic Barrier+",
+      "current_pricingType": "per_meter",
+      "correct_pricingType": "per_length"
+    },
+    {
+      "id": "family-mflex-single-traffic-barrier",
+      "name": "mFlex Single Traffic Barrier",
+      "current_pricingType": "per_meter",
+      "correct_pricingType": "per_length"
+    },
+    {
+      "id": "family-mflex-double-traffic-barrier",
+      "name": "mFlex Double Traffic Barrier",
+      "current_pricingType": "per_meter",
+      "correct_pricingType": "per_length"
+    }
+  ]
+}
