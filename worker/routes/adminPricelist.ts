@@ -571,6 +571,7 @@ async function ensureSchema(db: ReturnType<typeof drizzle>) {
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_list_version varchar;`);
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_list_effective_date timestamp;`);
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS installation_guide_url varchar;`);
+  await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS lifestyle_image_url varchar;`);
 }
 
 async function applyPlan(db: ReturnType<typeof drizzle>, plan: PlanEntry[]) {
@@ -965,6 +966,147 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
     // (400mm + 600mm Normal, 400mm + 600mm Cold Storage). Price per-unit
     // stays on the family rate card (AED 155.76 / AED 186.90); the variant
     // just carries the chosen height so the quote line is explicit.
+    // Normalise product images onto the clean hero / in-situ split we agreed
+    // with the customer: products.imageUrl is always the product-only hero
+    // (thumbnails, grid, cart, spec card top half); products.lifestyleImageUrl
+    // is the optional in-situ photo used only as a secondary context strip
+    // in the Proposed Solutions card. This run flips the 6 families whose
+    // live hero is actually an in-situ shot, and fills in hero URLs for the
+    // 9 families that were missing an image entirely. All URLs resolved
+    // from the scraped asafe.com catalog's imageUrls array.
+    if (c.req.query("normaliseImages") === "1") {
+      const MAP: Array<{
+        name: string;
+        hero: string;
+        lifestyle?: string;
+      }> = [
+        // 6 currently in-situ — move in-situ to lifestyle, replace hero.
+        {
+          name: "ForkGuard",
+          hero: "https://webcdn.asafe.com/media/0lkhom3p/forkguard_qutr1.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/2hljhqtr/forkguard_insitu_1.jpg",
+        },
+        {
+          name: "iFlex Height Restrictor - Post",
+          hero:
+            "https://webcdn.asafe.com/media/5675/iflexheightrestrict_quarter1156x556.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/5679/iflexheightrestrictsitu1156x556_03.jpg",
+        },
+        {
+          name: "RackGuard - Multiple height and profile sizes",
+          hero:
+            "https://webcdn.asafe.com/media/2979/rackguard-rack-leg-protector_qu.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/hy4npla5/rackguard-in-situ.png",
+        },
+        {
+          name: "Sign Post, 1.2m - Yellow",
+          hero:
+            "https://webcdn.asafe.com/media/7988/signpost_qutr_1156x556.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/7984/signpost_situ03_1156x556.jpg",
+        },
+        {
+          name: "Topple Barrier 2.08m with ForkGuard",
+          hero:
+            "https://webcdn.asafe.com/media/uwndr1vn/topple_barrier_front.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/krgdfmlm/topple_barrier_insitu.jpg",
+        },
+        {
+          name: "Topple Barrier 3.6m with ForkGuard",
+          hero:
+            "https://webcdn.asafe.com/media/4rllscls/heavy_duty_topple_qutr.jpg",
+          lifestyle:
+            "https://webcdn.asafe.com/media/6942/iflexheavydutytopple_situ_1156x556_01.jpg",
+        },
+
+        // 9 families that had no image at all — source hero from sibling pages.
+        {
+          name: "Hydraulic Swing Gate (2R) - Post",
+          hero:
+            "https://webcdn.asafe.com/media/2974/iflex-swinggate_short_qu.jpg",
+        },
+        {
+          name: "iFlex Post 130",
+          hero:
+            "https://webcdn.asafe.com/media/rgbkmxgr/130_monoplex_bollard_product_image-1-min.jpg",
+        },
+        {
+          name: "FlexiShield Column Guard - Spacer Set",
+          hero:
+            "https://webcdn.asafe.com/media/2956/flexishield-column-guard-wraparound-_qu.jpg",
+        },
+        {
+          name: "Tape Barrier Kit - Wall to Wall - YEL/BLK",
+          hero:
+            "https://webcdn.asafe.com/media/obkbw0gw/8753_postunit01_scr.jpg",
+        },
+        {
+          name:
+            "iFlex - Retractable Barrier (Belt Barrier) - Post to Wall - YEL/BLK",
+          hero:
+            "https://webcdn.asafe.com/media/obkbw0gw/8753_postunit01_scr.jpg",
+        },
+        {
+          name: "iFlex Height Restrictor - Top Rail",
+          hero:
+            "https://webcdn.asafe.com/media/5675/iflexheightrestrict_quarter1156x556.jpg",
+        },
+        {
+          name: "180 x 180mm / 130mm - 158mm eFlex OD Post Slider Plate",
+          hero:
+            "https://webcdn.asafe.com/media/2937/sliderplates_158_front.jpg",
+        },
+        {
+          name: "Topple Barrier 5.3m with ForkGuard",
+          hero:
+            "https://webcdn.asafe.com/media/4rllscls/heavy_duty_topple_qutr.jpg",
+        },
+        // 1 more: Bollard Bumper is en-us only on asafe.com. Point its hero
+        // at the Monoplex 190 plan photo as a placeholder until proper art
+        // lands.
+        {
+          name: "Bollard Bumper",
+          hero:
+            "https://webcdn.asafe.com/media/lthn25rg/190_monoplex_bollard_product_image-7-min.jpg",
+        },
+      ];
+
+      const results: Array<{
+        name: string;
+        updated: boolean;
+        set: Record<string, string>;
+      }> = [];
+      for (const m of MAP) {
+        const patch: Record<string, unknown> = {
+          imageUrl: m.hero,
+          updatedAt: new Date(),
+        };
+        if (m.lifestyle) patch.lifestyleImageUrl = m.lifestyle;
+        const res = await db
+          .update(products)
+          .set(patch as any)
+          .where(eq(products.name, m.name))
+          .returning({ id: products.id });
+        results.push({
+          name: m.name,
+          updated: res.length > 0,
+          set: {
+            imageUrl: m.hero,
+            ...(m.lifestyle ? { lifestyleImageUrl: m.lifestyle } : {}),
+          },
+        });
+      }
+      report.normaliseImages = {
+        attempted: MAP.length,
+        applied: results.filter((r) => r.updated).length,
+        missed: results.filter((r) => !r.updated).map((r) => r.name),
+      };
+    }
+
     // Hide every quote-only (unpriced) catalog entry. Preserves the row
     // for later re-enable if a price lands, but the product list, cart,
     // and search stop surfacing them.

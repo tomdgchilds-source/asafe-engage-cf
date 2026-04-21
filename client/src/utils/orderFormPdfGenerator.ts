@@ -681,18 +681,25 @@ export async function generateOrderFormPDF(
     orderData.layoutDrawingId ? fetchLayoutDrawing(orderData.layoutDrawingId) : Promise.resolve(null),
   ]);
 
-  // Cross-reference each item against the catalog + preload product images
+  // Cross-reference each item against the catalog + preload product images.
+  // `img` is the clean hero used for the main thumbnail; `lifestyle` is the
+  // optional in-situ photo rendered as a narrow context strip below the
+  // hero. Both come from the catalog (the DB splits them into two columns
+  // after the image-normalisation pass).
   interface ResolvedItem {
     item: OrderItem;
     cat: CatalogProduct | null;
     img: { dataUrl: string; width: number; height: number } | null;
+    lifestyle: { dataUrl: string; width: number; height: number } | null;
   }
   const resolvedItems: ResolvedItem[] = await Promise.all(
     orderData.items.map(async (item) => {
       const cat = matchCatalogEntry(item.productName, catalog);
       const imageUrl = pickProductImageUrl(item, cat);
       const img = await tryLoadImage(imageUrl);
-      return { item, cat, img };
+      const lifestyleUrl = (cat as any)?.lifestyleImageUrl || null;
+      const lifestyle = lifestyleUrl ? await tryLoadImage(lifestyleUrl) : null;
+      return { item, cat, img, lifestyle };
     }),
   );
 
@@ -1054,7 +1061,7 @@ export async function generateOrderFormPDF(
   const cardHeight = 90;
 
   for (let i = 0; i < resolvedItems.length; i++) {
-    const { item, cat, img } = resolvedItems[i];
+    const { item, cat, img, lifestyle } = resolvedItems[i];
     needSpace(cardHeight + 10);
 
     const cardY = yPosition;
@@ -1066,6 +1073,11 @@ export async function generateOrderFormPDF(
     // test) — sits flush with the right margin inside the card.
     const statsColW = 42;
     const infoColW = textW - statsColW - 4;
+    // Split the image column into a hero frame (top) and a context strip
+    // (bottom) whenever a lifestyle photo exists. Otherwise the hero gets
+    // the full 86mm drawable height (imgBoxH - 4 padding).
+    const lifestyleStripH = lifestyle ? 22 : 0;
+    const heroFrameH = imgBoxH - 4 - lifestyleStripH - (lifestyle ? 2 : 0);
 
     setFont(8, "bold");
     setText(brand.yellowDark);
@@ -1079,20 +1091,20 @@ export async function generateOrderFormPDF(
     );
     hr(cardY, ink.line, 0.3);
 
-    // LEFT — image frame
+    // LEFT — hero frame (product-only)
     if (img) {
       const r = img.width / img.height;
       let iw = imgBoxW;
       let ih = iw / r;
-      if (ih > imgBoxH - 4) {
-        ih = imgBoxH - 4;
+      if (ih > heroFrameH) {
+        ih = heroFrameH;
         iw = ih * r;
       }
       const ox = margin + (imgBoxW - iw) / 2;
-      const oy = cardY + (imgBoxH - ih) / 2;
+      const oy = cardY + 2 + (heroFrameH - ih) / 2;
       setStroke(ink.line);
       pdf.setLineWidth(0.2);
-      pdf.rect(margin, cardY + 2, imgBoxW, imgBoxH - 4);
+      pdf.rect(margin, cardY + 2, imgBoxW, heroFrameH);
       try {
         pdf.addImage(img.dataUrl, "JPEG", ox, oy, iw, ih);
       } catch {
@@ -1100,11 +1112,68 @@ export async function generateOrderFormPDF(
       }
     } else {
       setFill(ink.surface);
-      pdf.rect(margin, cardY + 2, imgBoxW, imgBoxH - 4, "F");
+      pdf.rect(margin, cardY + 2, imgBoxW, heroFrameH, "F");
       setFont(8, "italic");
       setText(ink.subtle);
-      pdf.text("Image unavailable", margin + imgBoxW / 2, cardY + imgBoxH / 2, {
+      pdf.text("Image unavailable", margin + imgBoxW / 2, cardY + 2 + heroFrameH / 2, {
         align: "center",
+      });
+    }
+
+    // LEFT — lifestyle strip (optional in-situ photo beneath the hero)
+    if (lifestyle && lifestyleStripH > 0) {
+      const stripY = cardY + 2 + heroFrameH + 2;
+      setStroke(ink.line);
+      pdf.setLineWidth(0.2);
+      pdf.rect(margin, stripY, imgBoxW, lifestyleStripH);
+      // Cover-fit: fill the strip, cropping whichever axis overflows.
+      const r = lifestyle.width / lifestyle.height;
+      const boxR = imgBoxW / lifestyleStripH;
+      let iw: number, ih: number, ox: number, oy: number;
+      if (r > boxR) {
+        // photo wider than strip aspect — fit by height, crop sides
+        ih = lifestyleStripH;
+        iw = ih * r;
+        ox = margin - (iw - imgBoxW) / 2;
+        oy = stripY;
+      } else {
+        iw = imgBoxW;
+        ih = iw / r;
+        ox = margin;
+        oy = stripY - (ih - lifestyleStripH) / 2;
+      }
+      // Clip with a rect so the cover-fit doesn't bleed outside the strip.
+      // jsPDF's rect() alone doesn't clip; we approximate by drawing the
+      // image and then stroking the frame over it.
+      try {
+        pdf.addImage(lifestyle.dataUrl, "JPEG", ox, oy, iw, ih);
+      } catch {
+        /* ignore */
+      }
+      setFill([255, 255, 255]);
+      // Cover any bleed above/below the strip by painting white bars.
+      if (oy < stripY) {
+        pdf.rect(margin, oy, imgBoxW, stripY - oy, "F");
+      }
+      if (oy + ih > stripY + lifestyleStripH) {
+        pdf.rect(
+          margin,
+          stripY + lifestyleStripH,
+          imgBoxW,
+          oy + ih - (stripY + lifestyleStripH),
+          "F",
+        );
+      }
+      setStroke(ink.line);
+      pdf.setLineWidth(0.2);
+      pdf.rect(margin, stripY, imgBoxW, lifestyleStripH);
+      // "IN SITU" eyebrow tag lower-left
+      setFill([0, 0, 0]);
+      pdf.rect(margin, stripY + lifestyleStripH - 4, 12, 4, "F");
+      setFont(6, "bold");
+      setText(brand.yellow);
+      pdf.text("IN SITU", margin + 1.5, stripY + lifestyleStripH - 1.2, {
+        charSpace: 0.3,
       });
     }
 

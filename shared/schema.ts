@@ -352,7 +352,13 @@ export const products = pgTable("products", {
   // for the full list).
   sku: varchar("sku"),
   // Media
+  // imageUrl is the clean product-only hero (studio / catalog-render shot).
+  // lifestyleImageUrl is the optional in-situ photo used as a supplementary
+  // context strip beneath the hero on product detail pages + order-form
+  // Proposed Solutions cards. Keeping them split enforces visual consistency
+  // on thumbnails/grids (always hero) without losing the context photography.
   imageUrl: varchar("image_url"),
+  lifestyleImageUrl: varchar("lifestyle_image_url"),
   technicalSheetUrl: varchar("technical_sheet_url"),
   installationGuideUrl: varchar("installation_guide_url"),
   // Classification and filtering
