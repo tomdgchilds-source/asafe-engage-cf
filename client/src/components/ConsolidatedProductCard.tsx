@@ -5,13 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, Star, ArrowRight, Package, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
+import { ProductImpactBadges } from "@/components/ProductImpactBadges";
 
+// Widened to carry the schema impact/PAS13/height/cold-storage fields so
+// the unified <ProductImpactBadges> can render consistently with
+// ProductCard + GroupedProductCard. Existing call-sites that only pass
+// id/name/description/impactRating/price continue to work — all the new
+// fields are optional.
 interface ProductVariant {
   id: string;
   name: string;
   description: string;
-  impactRating?: number;
+  impactRating?: number | null;
   price?: number;
+  pas13Compliant?: boolean | null;
+  pas13TestMethod?: string | null;
+  pas13TestJoules?: number | null;
+  heightMin?: number | null;
+  heightMax?: number | null;
+  isColdStorage?: boolean;
+  category?: string | null;
+  subcategory?: string | null;
 }
 
 interface ConsolidatedProductCardProps {
@@ -132,20 +146,24 @@ export function ConsolidatedProductCard({
           </div>
         )}
 
-        {/* Impact rating display */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm">
-            <span className="font-medium">Impact: </span>
-            {impactRange && impactRange.min !== impactRange.max && !showVariants ? (
-              <span className="text-primary font-bold">
-                {impactRange.min.toLocaleString()} - {impactRange.max.toLocaleString()} J
-              </span>
-            ) : (
-              <span className="text-primary font-bold">
-                {selectedVariant.impactRating?.toLocaleString() || 'N/A'} J
-              </span>
-            )}
-          </div>
+        {/* Unified impact + PAS 13 + height + cold-storage badge row */}
+        <div className="mt-4 mb-3">
+          <ProductImpactBadges
+            impactRating={selectedVariant.impactRating}
+            impactRange={!showVariants ? impactRange || null : null}
+            pas13Compliant={selectedVariant.pas13Compliant}
+            pas13TestMethod={selectedVariant.pas13TestMethod}
+            pas13TestJoules={selectedVariant.pas13TestJoules}
+            heightMin={selectedVariant.heightMin}
+            heightMax={selectedVariant.heightMax}
+            isColdStorage={selectedVariant.isColdStorage}
+            category={selectedVariant.category}
+            subcategory={selectedVariant.subcategory}
+            enrichFromName={selectedVariant.name || baseProductName}
+          />
+        </div>
+
+        <div className="flex items-center justify-end">
           <Link href={`/products/${selectedVariant.id}`}>
             <Button size="sm" variant="outline" data-testid={`button-view-product-${selectedVariant.id}`}>
               View Details

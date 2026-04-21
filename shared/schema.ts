@@ -1669,7 +1669,10 @@ export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type InsertCartProjectInfo = z.infer<typeof insertCartProjectInfoSchema>;
 export type CartProjectInfo = typeof cartProjectInfo.$inferSelect;
 
-// Product type with proper nullable field handling
+// Product type with proper nullable field handling. Kept hand-written
+// (rather than `typeof products.$inferSelect`) so the card components
+// can consume it without dragging in the full pg column-type machinery.
+// Must stay in sync with the `products` table columns above.
 export interface Product {
   id: string;
   name: string;
@@ -1680,6 +1683,13 @@ export interface Product {
   impactRating?: number | null;
   heightMin?: number | null;
   heightMax?: number | null;
+  // PAS 13:2017 (mirrors products table lines 366-371)
+  pas13Compliant?: boolean | null;
+  pas13TestMethod?: string | null;
+  pas13TestJoules?: number | null;
+  pas13Sections?: unknown;
+  pas13CertificationDate?: Date | null;
+  deflectionZone?: number | null;
   price?: string | null;
   currency?: string | null;
   imageUrl?: string | null;

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Download, ShoppingCart } from "lucide-react";
 import { AddToCartModal } from "@/components/AddToCartModal";
+import { ProductImpactBadges } from "@/components/ProductImpactBadges";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import type { Product } from "@shared/schema";
 import { getPriceDisplay, extractPricingData } from "@shared/pricingUtils";
@@ -139,26 +140,18 @@ export function GroupedProductCard({ product, variants, onViewDetails }: Grouped
             }
             return null;
           })()}
-          <div className="flex gap-1 sm:gap-2 flex-wrap items-center">
-            {product.impactRating && product.impactRating > 0 && (
-              <Badge className="bg-yellow-400 text-black hover:bg-yellow-500 shrink-0 text-xs px-2 py-1">
-                {product.impactRating.toLocaleString()}J
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs px-2 py-1">
-              {product.category}
-            </Badge>
-            {product.subcategory && (
-              <Badge variant="outline" className="text-xs px-2 py-1">
-                {product.subcategory}
-              </Badge>
-            )}
-            {(product as any).isColdStorage && (
-              <Badge className="bg-cyan-500 text-white text-xs px-2 py-1">
-                Cold Storage
-              </Badge>
-            )}
-          </div>
+          <ProductImpactBadges
+            impactRating={product.impactRating}
+            pas13Compliant={product.pas13Compliant}
+            pas13TestMethod={product.pas13TestMethod}
+            pas13TestJoules={product.pas13TestJoules}
+            heightMin={product.heightMin}
+            heightMax={product.heightMax}
+            isColdStorage={(product as any).isColdStorage}
+            category={product.category}
+            subcategory={product.subcategory}
+            enrichFromName={product.name}
+          />
         </div>
       </CardHeader>
       
