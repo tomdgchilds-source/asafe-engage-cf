@@ -1150,7 +1150,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             </Button>
           )}
         </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto add-to-cart-modal-content" data-testid={`modal-add-to-cart-${product.id}`}>
+        <DialogContent className="sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto add-to-cart-modal-content" data-testid={`modal-add-to-cart-${product.id}`}>
           <DialogHeader>
             <DialogTitle>{isEditMode ? "Modify Cart Item" : "Add to Cart"}</DialogTitle>
             <DialogDescription>
@@ -2597,11 +2597,11 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-4 sticky bottom-0 bg-background border-t pt-3 -mx-6 px-6 pb-2 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:border-0 sm:pt-4">
             <Button
               variant="outline"
               onClick={() => setOpen(false)}
-              className="flex-1"
+              className="flex-1 min-h-[44px]"
               data-testid="button-cancel"
             >
               Cancel
@@ -2613,7 +2613,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                   // Navigate to the products page where the quote modal can be triggered
                   setLocation(`/products?requestQuote=${encodeURIComponent(product.name)}`);
                 }}
-                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                className="flex-1 min-h-[44px] bg-amber-600 hover:bg-amber-700"
                 data-testid="button-request-quote"
               >
                 Request Quote
@@ -2622,7 +2622,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
               <Button
                 onClick={() => addToCartMutation.mutate()}
                 disabled={!pricingData || addToCartMutation.isPending || (isColumnGuard && configurationMode === 'custom' && (!columnLength || !columnWidth)) || (hasVariants && !isLinearMeter && !selectedVariant)}
-                className="flex-1"
+                className="flex-1 min-h-[44px]"
                 data-testid="button-confirm-add-to-cart"
               >
                 {addToCartMutation.isPending

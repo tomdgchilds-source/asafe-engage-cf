@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cart } from "@/components/Cart";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calculator, RotateCcw, FileText, Calendar, Save } from "lucide-react";
+import { Calculator, RotateCcw, FileText, Calendar, Save, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +28,17 @@ export default function CartPage() {
     queryKey: ["/api/cart"],
     enabled: !!user,
   });
+
+  // Toggle body padding so the mobile floating "Proceed to Order" CTA
+  // doesn't obscure the last row of cart content. Rule itself lives in
+  // mobile-fixes.css under `body.cart-mobile-floating-cta`.
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      document.body.classList.add("cart-mobile-floating-cta");
+      return () => document.body.classList.remove("cart-mobile-floating-cta");
+    }
+    return undefined;
+  }, [cartItems.length]);
 
   const handleShowReportSelection = () => {
     if (calculations.length === 0) {
@@ -179,6 +190,26 @@ export default function CartPage() {
           onOpenChange={setIsDraftDialogOpen}
           cartItemsCount={cartItems.length}
         />
+
+        {/* Mobile-only floating "Proceed to Order" CTA. Hidden on sm+ where
+            the order-form entry point lives inside the Cart component's
+            desktop summary panel. The `/order-form` route is owned by the
+            orders sibling; we simply link into it. */}
+        {Boolean(user) && cartItems.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden border-t bg-background shadow-[0_-6px_16px_rgba(0,0,0,0.08)]">
+            <div className="px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+              <Link href="/order-form">
+                <Button
+                  className="w-full min-h-[48px] bg-[#FFC72C] hover:bg-[#F0B800] text-black font-semibold flex items-center justify-center gap-2"
+                  data-testid="button-mobile-proceed-to-order"
+                >
+                  Proceed to Order
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

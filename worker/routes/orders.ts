@@ -8,6 +8,7 @@ import {
   sendOrderSubmittedNotification,
   sendOrderRejectionEmail,
   sendApprovalRequestEmail,
+  sendOrderPdfEmail,
 } from "../services/email";
 
 const orders = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -1690,6 +1691,579 @@ orders.post("/orders/:id/revoke-token", authMiddleware, async (c) => {
   } catch (error) {
     console.error("Error revoking approval token:", error);
     return c.json({ message: "Failed to revoke token" }, 500);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Order lifecycle v2 — status transitions, share-link, email-to-customer,
+// admin kanban. Additive to the legacy PUT /admin/orders/:id/status flow;
+// new clients should prefer the PATCH endpoint below so the transition is
+// enforced server-side and an audit-log entry is always written.
+// ══════════════════════════════════════════════════════════════════════════
+
+// The v2 lifecycle taxonomy. Persisted in orders.status. The legacy values
+// (pending, submitted_for_review, processing, …) still exist in historical
+// rows — the PATCH endpoint only accepts transitions between the v2 values,
+// but queries over the table tolerate either.
+const LIFECYCLE_STATUSES = [
+  "draft",
+  "submitted",
+  "approved",
+  "in_production",
+  "delivered",
+  "installed",
+  "invoiced",
+  "paid",
+  "cancelled",
+] as const;
+type LifecycleStatus = (typeof LIFECYCLE_STATUSES)[number];
+
+// Role-gated transition table. Each `from` lists the allowed `to` values;
+// attempts outside this table are rejected with 400. We encode "ANY →
+// cancelled" explicitly rather than as a wildcard so the check is a simple
+// lookup — keeps the authorization logic boring.
+//
+// Keyed as "from": { to: requiredRole }, where requiredRole is "owner" or
+// "admin". "owner" means order.userId === session user.
+const ALLOWED_TRANSITIONS: Record<
+  string,
+  Partial<Record<LifecycleStatus, "owner" | "admin">>
+> = {
+  draft: { submitted: "owner", cancelled: "admin" },
+  submitted: { approved: "admin", cancelled: "admin" },
+  approved: { in_production: "admin", cancelled: "admin" },
+  in_production: { delivered: "admin", cancelled: "admin" },
+  delivered: { installed: "admin", cancelled: "admin" },
+  installed: { invoiced: "admin", cancelled: "admin" },
+  invoiced: { paid: "admin", cancelled: "admin" },
+  paid: { cancelled: "admin" },
+  // Legacy statuses — treat as "submitted" for transition purposes so
+  // in-flight orders can still progress. Admins can move anything to
+  // approved / cancelled; owners can move back to submitted.
+  pending: { submitted: "owner", approved: "admin", cancelled: "admin" },
+  submitted_for_review: { approved: "admin", cancelled: "admin", in_production: "admin" },
+  processing: { approved: "admin", in_production: "admin", cancelled: "admin" },
+  rejected: { submitted: "owner", cancelled: "admin" },
+  revision_requested: { submitted: "owner", cancelled: "admin" },
+};
+
+function isLifecycleStatus(v: unknown): v is LifecycleStatus {
+  return typeof v === "string" && (LIFECYCLE_STATUSES as readonly string[]).includes(v);
+}
+
+// 16-char hex. Uses getRandomValues so the source of entropy is the runtime's
+// CSPRNG (required for bearer-token material in the Workers runtime).
+function hex16(): string {
+  const buf = new Uint8Array(8);
+  crypto.getRandomValues(buf);
+  return Array.from(buf)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// ──────────────────────────────────────────────
+// PATCH /api/orders/:id/status
+// Role-gated transitions. Owner can submit a draft; admins run the rest
+// of the chain. Appends an "status_change" audit-log entry with before/
+// after + optional note.
+// ──────────────────────────────────────────────
+orders.patch("/orders/:id/status", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const orderId = c.req.param("id");
+
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return c.json({ message: "Order not found" }, 404);
+    }
+
+    const user = await storage.getUser(userId);
+    const isAdmin = user?.role === "admin";
+    const isOwner = order.userId === userId;
+
+    const body = await c.req.json<{ status?: string; note?: string }>();
+    const nextStatus = body.status;
+    if (!isLifecycleStatus(nextStatus)) {
+      return c.json(
+        {
+          message: `Invalid status — expected one of ${LIFECYCLE_STATUSES.join(", ")}`,
+        },
+        400,
+      );
+    }
+
+    const currentStatus = (order.status || "draft") as string;
+    const allowedFrom = ALLOWED_TRANSITIONS[currentStatus];
+    const requiredRole = allowedFrom?.[nextStatus];
+    if (!requiredRole) {
+      return c.json(
+        { message: `Transition ${currentStatus} → ${nextStatus} is not allowed` },
+        400,
+      );
+    }
+
+    // Authorization — "owner" transitions also allow admins (admins can do
+    // anything an owner can), but "admin" transitions do NOT allow owners.
+    if (requiredRole === "admin" && !isAdmin) {
+      return c.json({ message: "Admin access required for this transition" }, 403);
+    }
+    if (requiredRole === "owner" && !isOwner && !isAdmin) {
+      return c.json({ message: "Only the order owner can perform this transition" }, 403);
+    }
+
+    const now = new Date();
+    const updated = await storage.updateOrder(orderId, {
+      status: nextStatus,
+      statusChangedAt: now,
+      statusChangedBy: userId,
+    } as any);
+
+    // Audit log — append before returning so the client sees the new state
+    // alongside a written history. Failure here is non-fatal (DB/network
+    // hiccup shouldn't undo a status change), but we surface in server logs.
+    try {
+      const ipAddress =
+        c.req.header("cf-connecting-ip") ||
+        c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+        null;
+      await storage.appendOrderAuditLog({
+        orderId,
+        eventType: "status_change",
+        section: null as any,
+        actorUserId: userId,
+        actorEmail: user?.email || null,
+        details: {
+          from: currentStatus,
+          to: nextStatus,
+          note: body.note?.trim() || null,
+        },
+        ipAddress,
+        userAgent: c.req.header("user-agent") || null,
+      } as any);
+    } catch (err) {
+      console.error("Audit log (status_change) failed:", err);
+    }
+
+    return c.json(updated);
+  } catch (error) {
+    console.error("Error patching order status:", error);
+    return c.json({ message: "Failed to update order status" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /api/orders/:id/share-link — owner-only
+// Generates a high-entropy share token with a configurable TTL. Returns
+// the URL so the UI can copy it straight to clipboard.
+// ──────────────────────────────────────────────
+orders.post("/orders/:id/share-link", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const orderId = c.req.param("id");
+
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return c.json({ message: "Order not found" }, 404);
+    }
+    if (order.userId !== userId) {
+      return c.json({ message: "Only the order owner can create a share link" }, 403);
+    }
+
+    const body = await c.req
+      .json<{ expiresInDays?: number }>()
+      .catch(() => ({}) as { expiresInDays?: number });
+
+    // Clamp to 1..90 days. Default 30. We coerce via Number() rather than
+    // parseInt so "0.5" becomes 0 and gets clamped — safer than letting a
+    // decimal day become a token that expires in hours.
+    const rawDays = Number(body.expiresInDays);
+    const days = Math.max(
+      1,
+      Math.min(90, Number.isFinite(rawDays) && rawDays > 0 ? Math.floor(rawDays) : 30),
+    );
+
+    // Token = uuid + "-" + 16 hex chars. Combined ~160 bits of entropy.
+    const token = `${crypto.randomUUID()}-${hex16()}`;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    await storage.updateOrder(orderId, {
+      shareToken: token,
+      shareTokenCreatedAt: now,
+      shareTokenCreatedBy: userId,
+      shareTokenExpiresAt: expiresAt,
+    } as any);
+
+    const appUrl = (c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev").replace(
+      /\/$/,
+      "",
+    );
+    const url = `${appUrl}/share/order/${token}`;
+
+    return c.json({ token, url, expiresAt: expiresAt.toISOString() });
+  } catch (error) {
+    console.error("Error creating share link:", error);
+    return c.json({ message: "Failed to create share link" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// DELETE /api/orders/:id/share-link — owner-only. Nulls out all 4 cols.
+// ──────────────────────────────────────────────
+orders.delete("/orders/:id/share-link", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const orderId = c.req.param("id");
+
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return c.json({ message: "Order not found" }, 404);
+    }
+    if (order.userId !== userId) {
+      return c.json({ message: "Only the order owner can revoke a share link" }, 403);
+    }
+
+    await storage.updateOrder(orderId, {
+      shareToken: null,
+      shareTokenCreatedAt: null,
+      shareTokenCreatedBy: null,
+      shareTokenExpiresAt: null,
+    } as any);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error revoking share link:", error);
+    return c.json({ message: "Failed to revoke share link" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// GET /api/public/orders/:token — NO auth required
+//
+// Returns a sanitised read-only view of an order for the anonymous
+// customer behind a share link. We explicitly strip everything that
+// could leak PII or internal workflow state: customer email/mobile,
+// internal notes, magic-link tokens, full reciprocal commitments
+// detail (we surface only the total amount), any ...Token or
+// ...Secret field.
+// ──────────────────────────────────────────────
+orders.get("/public/orders/:token", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const tokenStr = c.req.param("token");
+    const order = await storage.getOrderByShareToken(tokenStr);
+    if (!order) {
+      return c.json({ message: "Link expired or revoked" }, 404);
+    }
+
+    const expires = (order as any).shareTokenExpiresAt as Date | null;
+    if (expires && new Date(expires).getTime() < Date.now()) {
+      return c.json({ message: "Link expired or revoked" }, 410);
+    }
+
+    // Sanitise: only surface fields that belong on the customer's side.
+    // Reciprocal commitments kept as `{ totalDiscountPercent }` only — the
+    // detail block (per-commitment promises) is internal.
+    const reciprocal = (order as any).reciprocalCommitments as
+      | { totalDiscountPercent?: number }
+      | null
+      | undefined;
+
+    const items = Array.isArray(order.items) ? order.items : [];
+    const sanitisedItems = (items as any[]).map((item: any) => {
+      // Strip any field that smells like a token/secret; belt-and-suspenders
+      // because items is a freeform jsonb.
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(item || {})) {
+        if (/token|secret/i.test(k)) continue;
+        cleaned[k] = v;
+      }
+      return cleaned;
+    });
+
+    // Recompute delivery / installation charges using the same logic as the
+    // client. Safer than trusting cached numbers on the order row — the
+    // sanitiser is the only place that hits the customer so the math must
+    // be deterministic.
+    const subtotal = sanitisedItems.reduce(
+      (sum: number, item: any) => sum + (Number(item.totalPrice) || 0),
+      0,
+    );
+    const deliveryCharge = sanitisedItems
+      .filter((i: any) => i.requiresDelivery)
+      .reduce((sum: number, i: any) => sum + (Number(i.totalPrice) || 0) * 0.096271916, 0);
+    const installationRate =
+      order.installationComplexity === "simple"
+        ? 0.1148264
+        : order.installationComplexity === "complex"
+          ? 0.26289773
+          : 0.1938872;
+    const installationCharge = sanitisedItems
+      .filter((i: any) => i.requiresInstallation)
+      .reduce((sum: number, i: any) => sum + (Number(i.totalPrice) || 0) * installationRate, 0);
+
+    return c.json({
+      isPublicView: true,
+      orderNumber: order.orderNumber,
+      customOrderNumber: order.customOrderNumber,
+      customerCompany: order.customerCompany,
+      customerName: order.customerName,
+      // Deliberately omit: customerEmail, customerMobile, internal notes.
+      orderDate: order.orderDate,
+      status: order.status,
+      statusChangedAt: (order as any).statusChangedAt,
+      currency: order.currency,
+      subtotal,
+      grandTotal: Number(order.totalAmount) || subtotal + deliveryCharge + installationCharge,
+      totalAmount: order.totalAmount,
+      deliveryCharge,
+      installationCharge,
+      installationComplexity: order.installationComplexity,
+      items: sanitisedItems,
+      companyLogoUrl: order.companyLogoUrl,
+      projectName: order.projectName,
+      projectLocation: order.projectLocation,
+      projectDescription: order.projectDescription,
+      servicePackage: order.servicePackage,
+      serviceCareDetails: order.serviceCareDetails,
+      applicationAreas: order.applicationAreas,
+      layoutMarkups: order.layoutMarkups,
+      uploadedImages: order.uploadedImages,
+      reciprocalCommitments: reciprocal
+        ? { totalDiscountPercent: reciprocal.totalDiscountPercent || 0 }
+        : null,
+      approvalStatus: {
+        technical: (order.technicalSignature as any)?.signed ? "approved" : "pending",
+        commercial: (order.commercialSignature as any)?.signed ? "approved" : "pending",
+        marketing: (order.marketingSignature as any)?.signed ? "approved" : "pending",
+      },
+      shareTokenExpiresAt: (order as any).shareTokenExpiresAt,
+    });
+  } catch (error) {
+    console.error("Error loading public order view:", error);
+    return c.json({ message: "Failed to load order" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /api/orders/:id/email — owner-only
+// Body: { to?, ccSelf?, pdfBase64 }. Client generates the PDF and hands
+// us the base64 bytes so we can attach via Resend.
+// ──────────────────────────────────────────────
+orders.post("/orders/:id/email", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const orderId = c.req.param("id");
+
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return c.json({ message: "Order not found" }, 404);
+    }
+    if (order.userId !== userId) {
+      return c.json({ message: "Only the order owner can email this order" }, 403);
+    }
+
+    const body = await c.req.json<{
+      to?: string;
+      ccSelf?: boolean;
+      pdfBase64?: string;
+    }>();
+
+    const to = (body.to || order.customerEmail || "").trim();
+    if (!to) {
+      return c.json(
+        { message: "No recipient — provide `to` or set customerEmail on the order" },
+        400,
+      );
+    }
+    if (!body.pdfBase64) {
+      return c.json({ message: "pdfBase64 is required" }, 400);
+    }
+
+    const ownerUser = await storage.getUser(order.userId);
+    const repName =
+      [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(" ") ||
+      ownerUser?.email ||
+      null;
+    const repEmail = ownerUser?.email || null;
+
+    // Share URL — surfaces only if there's an active, unexpired share token.
+    const appUrl = (c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev").replace(
+      /\/$/,
+      "",
+    );
+    const tokenExp = (order as any).shareTokenExpiresAt as Date | null;
+    const shareUrl =
+      order.shareToken && (!tokenExp || new Date(tokenExp).getTime() > Date.now())
+        ? `${appUrl}/share/order/${order.shareToken}`
+        : null;
+
+    const displayRef = order.customOrderNumber || order.orderNumber;
+
+    const result = await sendOrderPdfEmail({
+      to,
+      customerName: order.customerName ?? null,
+      orderRef: displayRef,
+      customerCompany: order.customerCompany ?? null,
+      repName,
+      repEmail,
+      shareUrl,
+      pdfBase64: body.pdfBase64,
+      pdfFilename: `A-SAFE_Order_${displayRef.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
+      env: {
+        RESEND_API_KEY: c.env.RESEND_API_KEY,
+        EMAIL_FROM: c.env.EMAIL_FROM,
+        ADMIN_NOTIFICATION_EMAILS: c.env.ADMIN_NOTIFICATION_EMAILS,
+      },
+    });
+
+    // Copy-to-self: send the same message to the rep's own inbox. Best-
+    // effort — if the primary succeeded, we don't flip ok=false on a
+    // ccSelf failure.
+    if (result.ok && body.ccSelf && repEmail && repEmail.toLowerCase() !== to.toLowerCase()) {
+      try {
+        await sendOrderPdfEmail({
+          to: repEmail,
+          customerName: order.customerName ?? null,
+          orderRef: displayRef,
+          customerCompany: order.customerCompany ?? null,
+          repName,
+          repEmail,
+          shareUrl,
+          pdfBase64: body.pdfBase64,
+          pdfFilename: `A-SAFE_Order_${displayRef.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`,
+          env: {
+            RESEND_API_KEY: c.env.RESEND_API_KEY,
+            EMAIL_FROM: c.env.EMAIL_FROM,
+            ADMIN_NOTIFICATION_EMAILS: c.env.ADMIN_NOTIFICATION_EMAILS,
+          },
+        });
+      } catch (err) {
+        console.error("ccSelf email failed (non-blocking):", err);
+      }
+    }
+
+    if (result.ok) {
+      try {
+        const ipAddress =
+          c.req.header("cf-connecting-ip") ||
+          c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+          null;
+        await storage.appendOrderAuditLog({
+          orderId,
+          eventType: "email_sent",
+          section: null as any,
+          actorUserId: userId,
+          actorEmail: ownerUser?.email || null,
+          details: { to, messageId: result.messageId || null, ccSelf: !!body.ccSelf },
+          ipAddress,
+          userAgent: c.req.header("user-agent") || null,
+        } as any);
+      } catch (err) {
+        console.error("Audit log (email_sent) failed:", err);
+      }
+      return c.json({ ok: true, messageId: result.messageId });
+    }
+
+    return c.json({ ok: false, error: result.error || "send_failed" }, 502);
+  } catch (error) {
+    console.error("Error emailing order PDF:", error);
+    return c.json({ ok: false, error: "Failed to email order" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// GET /api/admin/orders/kanban — admin-only
+// Returns all 9 buckets even when empty so the client can render
+// consistent columns without extra null-handling.
+// ──────────────────────────────────────────────
+orders.get("/admin/orders/kanban", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const user = await storage.getUser(c.get("user").claims.sub);
+    if (user?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
+
+    const all = await storage.getAllOrders();
+
+    type Summary = {
+      id: string;
+      orderNumber: string;
+      customOrderNumber: string | null;
+      customerCompany: string | null;
+      customerName: string | null;
+      grandTotal: string | null;
+      currency: string;
+      status: string;
+      statusChangedAt: string | null;
+      createdAt: string | null;
+    };
+
+    // Initialise every bucket to [] so the response shape is stable even
+    // when zero orders occupy a column — keeps the client grid simple.
+    const result: Record<string, Summary[]> = {};
+    for (const s of LIFECYCLE_STATUSES) result[s] = [];
+
+    for (const o of all) {
+      const status = (o.status || "draft") as string;
+      // Route legacy statuses into their closest v2 bucket so the board
+      // doesn't hide in-flight work.
+      const bucket: LifecycleStatus =
+        isLifecycleStatus(status)
+          ? (status as LifecycleStatus)
+          : status === "pending"
+            ? "draft"
+            : status === "submitted_for_review"
+              ? "submitted"
+              : status === "processing"
+                ? "approved"
+                : status === "shipped"
+                  ? "delivered"
+                  : status === "installation_in_progress"
+                    ? "delivered"
+                    : status === "fulfilled"
+                      ? "installed"
+                      : status === "rejected" || status === "revision_requested"
+                        ? "submitted"
+                        : "draft";
+
+      result[bucket].push({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customOrderNumber: o.customOrderNumber ?? null,
+        customerCompany: o.customerCompany ?? null,
+        customerName: o.customerName ?? null,
+        grandTotal: o.totalAmount ?? null,
+        currency: o.currency || "AED",
+        status,
+        statusChangedAt: (o as any).statusChangedAt
+          ? new Date((o as any).statusChangedAt).toISOString()
+          : null,
+        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : null,
+      });
+    }
+
+    return c.json(result);
+  } catch (error) {
+    console.error("Error building kanban view:", error);
+    return c.json({ message: "Failed to build kanban view" }, 500);
   }
 });
 

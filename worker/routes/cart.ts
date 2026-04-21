@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
+import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 
@@ -22,7 +23,7 @@ cart.get("/cart", authMiddleware, async (c) => {
 });
 
 // POST /api/cart - add item to cart
-cart.post("/cart", authMiddleware, async (c) => {
+cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -141,7 +142,7 @@ cart.post("/cart", authMiddleware, async (c) => {
 });
 
 // POST /api/cart/bulk-add - bulk add items from Build Project
-cart.post("/cart/bulk-add", authMiddleware, async (c) => {
+cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -220,7 +221,7 @@ cart.post("/cart/bulk-add", authMiddleware, async (c) => {
 });
 
 // PATCH /api/cart/items - update cart item fields
-cart.patch("/cart/items", authMiddleware, async (c) => {
+cart.patch("/cart/items", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -250,7 +251,7 @@ cart.patch("/cart/items", authMiddleware, async (c) => {
 });
 
 // PUT /api/cart/:id - update cart item by id
-cart.put("/cart/:id", authMiddleware, async (c) => {
+cart.put("/cart/:id", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -265,7 +266,7 @@ cart.put("/cart/:id", authMiddleware, async (c) => {
 });
 
 // DELETE /api/cart/:id - remove single cart item
-cart.delete("/cart/:id", authMiddleware, async (c) => {
+cart.delete("/cart/:id", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -293,7 +294,7 @@ cart.delete("/cart/:id", authMiddleware, async (c) => {
 });
 
 // DELETE /api/cart - clear all cart items for user
-cart.delete("/cart", authMiddleware, async (c) => {
+cart.delete("/cart", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -308,7 +309,7 @@ cart.delete("/cart", authMiddleware, async (c) => {
 });
 
 // POST /api/cart/check-existing-data - check for existing cart data before loading drafts
-cart.post("/cart/check-existing-data", authMiddleware, async (c) => {
+cart.post("/cart/check-existing-data", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -376,7 +377,7 @@ cart.get("/cart-project-info", authMiddleware, async (c) => {
 });
 
 // POST /api/cart-project-info - save project info for current cart
-cart.post("/cart-project-info", authMiddleware, async (c) => {
+cart.post("/cart-project-info", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -437,7 +438,7 @@ cart.get("/draft-projects/:id", authMiddleware, async (c) => {
 });
 
 // POST /api/draft-projects - create draft project from current cart
-cart.post("/draft-projects", authMiddleware, async (c) => {
+cart.post("/draft-projects", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -534,7 +535,7 @@ cart.post("/draft-projects", authMiddleware, async (c) => {
 });
 
 // PUT /api/draft-projects/:id - update draft project
-cart.put("/draft-projects/:id", authMiddleware, async (c) => {
+cart.put("/draft-projects/:id", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -560,7 +561,7 @@ cart.put("/draft-projects/:id", authMiddleware, async (c) => {
 });
 
 // DELETE /api/draft-projects/:id - delete draft project
-cart.delete("/draft-projects/:id", authMiddleware, async (c) => {
+cart.delete("/draft-projects/:id", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -582,7 +583,7 @@ cart.delete("/draft-projects/:id", authMiddleware, async (c) => {
 });
 
 // POST /api/draft-projects/:id/load - load draft project back into cart
-cart.post("/draft-projects/:id/load", authMiddleware, async (c) => {
+cart.post("/draft-projects/:id/load", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

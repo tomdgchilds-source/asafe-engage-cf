@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
+import {
+  mutationRateLimit,
+  heavyMutationRateLimit,
+} from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { sendEmail } from "../services/email";
@@ -8,7 +12,10 @@ import { sendEmail } from "../services/email";
 const quotes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // POST /api/quote-requests - create a new quote request
-quotes.post("/quote-requests", authMiddleware, async (c) => {
+// Heavy tier: this path writes DB rows AND dispatches customer + admin
+// emails, which makes it one of the most expensive endpoints the app
+// has.
+quotes.post("/quote-requests", authMiddleware, heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -282,7 +289,7 @@ quotes.get("/quote-requests/:id/items", authMiddleware, async (c) => {
 });
 
 // DELETE /api/quote-requests/:id - delete a specific quote request
-quotes.delete("/quote-requests/:id", authMiddleware, async (c) => {
+quotes.delete("/quote-requests/:id", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -309,7 +316,7 @@ quotes.delete("/quote-requests/:id", authMiddleware, async (c) => {
 });
 
 // DELETE /api/quote-requests - clear all quote requests for current user
-quotes.delete("/quote-requests", authMiddleware, async (c) => {
+quotes.delete("/quote-requests", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -351,7 +358,7 @@ quotes.get("/admin/quote-requests", authMiddleware, async (c) => {
 });
 
 // PUT /api/admin/quote-requests/:id/status - admin: update quote request status
-quotes.put("/admin/quote-requests/:id/status", authMiddleware, async (c) => {
+quotes.put("/admin/quote-requests/:id/status", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

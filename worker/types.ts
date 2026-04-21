@@ -64,4 +64,14 @@ export type Variables = {
   // Set by requireProjectAccess — "owner" | "editor" | "viewer".
   // Downstream handlers use this to gate mutations by role.
   projectRole?: string;
+  // Stamped by requestContext middleware on every request. Used by
+  // handlers that want to correlate DB writes / external calls with
+  // the originating request, and echoed back as X-Request-Id.
+  requestId?: string;
+  // Per-request structured logger. See worker/lib/logger.ts. Typed as
+  // `unknown` here to avoid a circular type import between types.ts
+  // and lib/logger.ts — call sites that need the concrete `Logger`
+  // shape should `import type { Logger } from "./lib/logger"` and
+  // cast locally.
+  log?: unknown;
 };

@@ -187,3 +187,44 @@ html, body {
 * {
   -webkit-overflow-scrolling: touch;
 }
+
+/* ─── iOS-zoom fix: guarantee the AddToCartModal's Input / Textarea fields
+ *     render at >=16px on narrow viewports so the field doesn't trigger a
+ *     forced zoom. The `.add-to-cart-modal-content` container is defined on
+ *     the DialogContent of AddToCartModal.                                ─── */
+@media (max-width: 640px) {
+  .add-to-cart-modal-content input,
+  .add-to-cart-modal-content select,
+  .add-to-cart-modal-content textarea {
+    font-size: 16px !important; /* Safari lock — overrides any text-sm / text-xs utility classes */
+  }
+}
+
+/* ─── Dialog sticky footer polish ─── Dialogs using the
+ *     `.flex.justify-end ... .sticky.bottom-0` pattern need a touch more
+ *     breathing room on phones so the action row doesn't collide with the
+ *     home indicator. Safe-area inset already applied globally; this layers
+ *     an explicit minimum tap height on the wrapped buttons.             ─── */
+@media (max-width: 640px) {
+  [role="dialog"] .sticky.bottom-0 button,
+  [role="dialog"] .sticky.bottom-0 [role="button"] {
+    min-height: 44px;
+  }
+}
+
+/* ─── Cart page mobile: floating "Proceed to Order" CTA room ─── */
+@media (max-width: 640px) {
+  body.cart-mobile-floating-cta {
+    /* Add bottom padding so the floating CTA doesn't cover page content */
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ─── SiteSurvey page: prevent fixed top headers from eating the first
+ *     input on small screens. Most pages rely on Layout's padding; this is
+ *     a defensive guard for the SiteSurvey `.container.mx-auto` root.   ─── */
+@media (max-width: 640px) {
+  .container.mx-auto > .flex.flex-col.lg\:flex-row:first-child {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}

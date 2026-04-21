@@ -23,6 +23,13 @@ bucket_name = "asafe-engage-files"
 binding = "FILES_STORE"
 id = "c56114bdecec4bc08cd4939b8c5f1d72"
 
+# Scheduled cron triggers. Runs the `scheduled` handler exported from
+# worker/index.ts, which kicks off the weekly CSV backup of core tables to
+# the R2 bucket (see worker/scheduled/backupExporter.ts and
+# scripts/data/BACKUP-NOTES.md).
+[triggers]
+crons = ["0 3 * * SUN"]   # 03:00 UTC every Sunday
+
 [vars]
 NODE_ENV = "production"
 # TURNSTILE_SITE_KEY = "0x4AAAAAAA..."   # public; safe to commit. Pair with TURNSTILE_SECRET_KEY secret (wrangler secret put TURNSTILE_SECRET_KEY).

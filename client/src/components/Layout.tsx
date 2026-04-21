@@ -46,6 +46,7 @@ import { CurrencySelector } from "@/components/CurrencySelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 
 interface LayoutProps {
@@ -376,10 +377,17 @@ export function Layout({ children }: LayoutProps) {
 
               {/* User Welcome & Settings - Desktop */}
               <div className="hidden md:flex items-center space-x-4">
+                {/* Global header search (⌘K) — visible to authed users */}
+                {isAuthenticated && (
+                  <div className="w-72 lg:w-80">
+                    <GlobalSearch />
+                  </div>
+                )}
+
                 <span className="text-sm text-foreground font-medium" data-testid="user-welcome">
                   Welcome, {(user as any)?.name || (user as any)?.email?.split('@')[0] || 'User'}
                 </span>
-                
+
                 {/* Notification Center */}
                 <NotificationCenter />
 

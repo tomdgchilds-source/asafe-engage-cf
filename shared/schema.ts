@@ -162,9 +162,34 @@ export const orders = pgTable("orders", {
   // UI-level "pending with X" state.
   // Shape: { technical?: email, commercial?: email, marketing?: email }
   nextApproverEmails: jsonb("next_approver_emails"),
+  // ──────────────────────────────────────────────
+  // Full order lifecycle beyond approvals. Drives the Admin Kanban + a
+  // timeline on the order page. Each stage is tagged with the user + ts
+  // in orderAuditLog (existing). `status` (above) is reused — we index it
+  // here so the admin board grouping query is cheap. Lifecycle values:
+  //   draft | submitted | approved | in_production | delivered |
+  //   installed | invoiced | paid | cancelled
+  // The existing legacy values (pending, submitted_for_review, …) are
+  // preserved for in-flight rows; new orders should adopt the lifecycle
+  // taxonomy via the PATCH /api/orders/:id/status endpoint.
+  // ──────────────────────────────────────────────
+  statusChangedAt: timestamp("status_changed_at"),
+  statusChangedBy: varchar("status_changed_by").references(() => users.id),
+
+  // ──────────────────────────────────────────────
+  // Public, tokenised share link — customer views the order + PDF without
+  // auth. Revocable by any order owner. Token is high-entropy hex.
+  // ──────────────────────────────────────────────
+  shareToken: varchar("share_token"),
+  shareTokenExpiresAt: timestamp("share_token_expires_at"),
+  shareTokenCreatedAt: timestamp("share_token_created_at"),
+  shareTokenCreatedBy: varchar("share_token_created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("orders_status_idx").on(table.status),
+  index("orders_share_token_idx").on(table.shareToken),
+]);
 
 // ──────────────────────────────────────────────
 // Magic-link approval tokens

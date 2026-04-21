@@ -25,7 +25,8 @@ import {
   RefreshCw,
   TrendingUp,
   UserCheck,
-  Clock
+  Clock,
+  ImageOff
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -101,6 +102,12 @@ export default function AdminDashboard() {
   // Fetch admin stats
   const { data: stats } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
+    enabled: !!adminUser,
+  });
+
+  // Photography backlog — count used to render a badge on the tile.
+  const { data: imageReviewBacklog = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/admin/image-review"],
     enabled: !!adminUser,
   });
 
@@ -276,6 +283,36 @@ export default function AdminDashboard() {
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Admin tool tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <button
+            type="button"
+            onClick={() => setLocation("/admin/image-review")}
+            className="text-left"
+            data-testid="tile-image-review"
+          >
+            <Card className="hover:border-primary transition-colors cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Image review</CardTitle>
+                <ImageOff className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold">{imageReviewBacklog.length}</div>
+                  {imageReviewBacklog.length > 0 && (
+                    <Badge variant="destructive" className="text-[10px]">
+                      Needs photos
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Products flagged for photography review
+                </p>
+              </CardContent>
+            </Card>
+          </button>
         </div>
 
         {/* Main Content Tabs */}

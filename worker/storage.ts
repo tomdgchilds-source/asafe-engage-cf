@@ -247,6 +247,10 @@ export interface IStorage {
   getAllOrders(): Promise<Order[]>;
   getOrdersByStatus(status: string): Promise<Order[]>;
   getOrder(id: string): Promise<Order | undefined>;
+  /** Lookup by the share-link token. Returns undefined if the token is
+   * unknown (or has been nulled-out via DELETE /share-link). Expiry is
+   * enforced at the route layer so the caller sees a crisp 410. */
+  getOrderByShareToken(token: string): Promise<Order | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, updates: Partial<InsertOrder>): Promise<Order>;
   // Section-level sign-off: writes a signature object into the appropriate
@@ -898,6 +902,14 @@ export class DatabaseStorage implements IStorage {
 
   async getOrder(id: string): Promise<Order | undefined> {
     const [order] = await this.db.select().from(orders).where(eq(orders.id, id));
+    return order;
+  }
+
+  async getOrderByShareToken(token: string): Promise<Order | undefined> {
+    const [order] = await this.db
+      .select()
+      .from(orders)
+      .where(eq(orders.shareToken, token));
     return order;
   }
 

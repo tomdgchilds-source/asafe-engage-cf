@@ -456,6 +456,200 @@ function escapeAttr(raw: string): string {
   return escapeHtml(raw).replace(/`/g, "&#96;");
 }
 
+// ──────────────────────────────────────────────
+// sendOrderPdfEmail — customer-facing quote delivery with a PDF attachment
+//
+// Used by POST /api/orders/:id/email. The PDF is generated client-side
+// (in-browser jsPDF) and forwarded as base64 so Resend can attach it
+// directly. The rep name + email drive the friendly "via A-SAFE Engage"
+// sender label and the Reply-To so the customer's response goes to the
+// rep, not the generic inbox.
+// ──────────────────────────────────────────────
+interface SendOrderPdfEmailParams {
+  to: string;
+  customerName?: string | null;
+  orderRef: string;
+  customerCompany?: string | null;
+  repName?: string | null;
+  repEmail?: string | null;
+  shareUrl?: string | null;
+  /** Base64-encoded PDF bytes (no data URI prefix). */
+  pdfBase64: string;
+  pdfFilename?: string;
+  env: {
+    RESEND_API_KEY: string;
+    EMAIL_FROM?: string;
+    ADMIN_NOTIFICATION_EMAILS?: string;
+  };
+}
+
+export async function sendOrderPdfEmail(
+  params: SendOrderPdfEmailParams,
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    customerName,
+    orderRef,
+    customerCompany,
+    repName,
+    repEmail,
+    shareUrl,
+    pdfBase64,
+    pdfFilename,
+    env,
+  } = params;
+
+  const apiKey = env.RESEND_API_KEY;
+  const fromAddr = env.EMAIL_FROM ?? "quotes@asafe.ae";
+
+  if (!apiKey) {
+    const msg = "RESEND_API_KEY not configured";
+    console.warn(`Order-PDF email skipped (${msg}) — would have emailed ${to}`);
+    return { ok: false, error: msg };
+  }
+  if (!pdfBase64) {
+    return { ok: false, error: "pdfBase64 is required" };
+  }
+
+  const displayGreetingName = (customerName || "").trim();
+  const displayCompany = (customerCompany || "").trim();
+  const displayRepName = (repName || "").trim();
+  const displayRepEmail = (repEmail || "").trim();
+  const filename = pdfFilename || `A-SAFE_Order_${orderRef}.pdf`;
+
+  const fromLabel = displayRepName
+    ? `${displayRepName} via A-SAFE Engage`
+    : "A-SAFE Engage";
+  const from = `${fromLabel} <${fromAddr}>`;
+
+  const subject = `Your A-SAFE quote: ${displayCompany || orderRef}`;
+
+  // HTML body — A-SAFE yellow CTA template, mirrors the approval email style
+  // so customer-facing messages feel coherent.
+  const shareUrlHtml = shareUrl
+    ? `
+      <tr>
+        <td align="center" style="padding: 0 24px 24px 24px;">
+          <a href="${escapeAttr(shareUrl)}" style="display:inline-block;background-color:#FFC72C;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 28px;border-radius:6px;">
+            View your order online &rarr;
+          </a>
+        </td>
+      </tr>`
+    : "";
+
+  const signatureBlock = displayRepName || displayRepEmail
+    ? `
+      <tr>
+        <td style="padding:0 24px 24px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9f9fb;border-radius:6px;">
+            <tr><td style="padding:16px;font-size:13px;color:#1a1a2e;line-height:1.5;">
+              <div style="font-weight:bold;margin-bottom:4px;">Your A-SAFE contact:</div>
+              ${displayRepName ? `<div>${escapeHtml(displayRepName)}</div>` : ""}
+              ${displayRepEmail ? `<div><a href="mailto:${escapeAttr(displayRepEmail)}" style="color:#1a1a2e;">${escapeHtml(displayRepEmail)}</a></div>` : ""}
+            </td></tr>
+          </table>
+        </td>
+      </tr>`
+    : "";
+
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background-color:#FFC72C;padding:20px 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:18px;font-weight:bold;color:#1a1a2e;letter-spacing:0.5px;">A-SAFE</td>
+                <td align="right" style="font-size:12px;font-weight:bold;color:#1a1a2e;letter-spacing:1px;">YOUR QUOTE</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;font-size:15px;line-height:1.5;color:#1a1a2e;">
+            <p style="margin:0 0 12px 0;">${displayGreetingName ? `Hi ${escapeHtml(displayGreetingName)},` : "Hello,"}</p>
+            <p style="margin:0 0 8px 0;">
+              Please find attached your A-SAFE quote${displayCompany ? ` for <strong>${escapeHtml(displayCompany)}</strong>` : ""}.
+            </p>
+            <p style="margin:0;">
+              Order reference: <strong>${escapeHtml(orderRef)}</strong>. The attached PDF
+              contains the full breakdown — line items, delivery, installation, and terms.
+            </p>
+          </td>
+        </tr>
+        ${shareUrlHtml}
+        ${signatureBlock}
+        <tr>
+          <td style="padding:16px 24px;background-color:#f9f9f9;border-top:3px solid #FFC72C;font-size:11px;color:#888;line-height:1.5;">
+            <div style="color:#FFC72C;font-weight:bold;">www.asafe.com</div>
+            <div>A-SAFE &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park &nbsp;|&nbsp; Tel: +971 (4) 8842 422</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  // Plain-text fallback — some corporate mail clients downrank HTML-only
+  // messages and vision-impaired recipients lean on this.
+  const text = [
+    displayGreetingName ? `Hi ${displayGreetingName},` : "Hello,",
+    "",
+    `Please find attached your A-SAFE quote${displayCompany ? ` for ${displayCompany}` : ""}.`,
+    `Order reference: ${orderRef}.`,
+    shareUrl ? `View online: ${shareUrl}` : "",
+    "",
+    displayRepName || displayRepEmail ? "Your A-SAFE contact:" : "",
+    displayRepName ? displayRepName : "",
+    displayRepEmail ? displayRepEmail : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      // AbortSignal.timeout is available in the Workers runtime — keep the
+      // call short so a slow Resend API can't block the response to the
+      // user. 10s is generous relative to normal Resend round-trip.
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        ...(displayRepEmail ? { reply_to: displayRepEmail } : {}),
+        subject,
+        html,
+        text,
+        attachments: [
+          {
+            filename,
+            content: pdfBase64,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Resend API error (order-PDF email): ${res.status} ${errText}`);
+      return { ok: false, error: errText };
+    }
+
+    const payload = (await res.json().catch(() => ({}))) as { id?: string };
+    return { ok: true, messageId: payload.id };
+  } catch (err) {
+    console.error("Order-PDF email send error:", err);
+    return { ok: false, error: err instanceof Error ? err.message : "unknown" };
+  }
+}
+
 interface OrderRejectionParams {
   to: string;
   orderNumber: string;

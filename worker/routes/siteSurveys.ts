@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
+import {
+  mutationRateLimit,
+  heavyMutationRateLimit,
+} from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 
@@ -47,8 +51,8 @@ siteSurveys.get("/site-surveys/:id", async (c) => {
   }
 });
 
-// POST /api/site-surveys
-siteSurveys.post("/site-surveys", async (c) => {
+// POST /api/site-surveys — survey creation, heavy tier.
+siteSurveys.post("/site-surveys", heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -82,8 +86,8 @@ siteSurveys.post("/site-surveys", async (c) => {
   }
 });
 
-// PUT /api/site-surveys/:id
-siteSurveys.put("/site-surveys/:id", async (c) => {
+// PUT /api/site-surveys/:id — survey write, heavy tier.
+siteSurveys.put("/site-surveys/:id", heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -104,7 +108,7 @@ siteSurveys.put("/site-surveys/:id", async (c) => {
 });
 
 // POST /api/site-surveys/:id/complete
-siteSurveys.post("/site-surveys/:id/complete", async (c) => {
+siteSurveys.post("/site-surveys/:id/complete", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -122,7 +126,7 @@ siteSurveys.post("/site-surveys/:id/complete", async (c) => {
 });
 
 // DELETE /api/site-surveys/:id
-siteSurveys.delete("/site-surveys/:id", async (c) => {
+siteSurveys.delete("/site-surveys/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -161,8 +165,8 @@ siteSurveys.get("/site-surveys/:id/areas", async (c) => {
   }
 });
 
-// POST /api/site-surveys/:id/areas
-siteSurveys.post("/site-surveys/:id/areas", async (c) => {
+// POST /api/site-surveys/:id/areas — area creation, heavy tier.
+siteSurveys.post("/site-surveys/:id/areas", heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -188,7 +192,7 @@ siteSurveys.post("/site-surveys/:id/areas", async (c) => {
 });
 
 // PUT /api/site-survey-areas/:id
-siteSurveys.put("/site-survey-areas/:id", async (c) => {
+siteSurveys.put("/site-survey-areas/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -241,7 +245,7 @@ siteSurveys.put("/site-survey-areas/:id", async (c) => {
 });
 
 // POST /api/site-survey-areas/:id/calculate-impact
-siteSurveys.post("/site-survey-areas/:id/calculate-impact", async (c) => {
+siteSurveys.post("/site-survey-areas/:id/calculate-impact", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -445,7 +449,7 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", async (c) => {
 });
 
 // DELETE /api/site-survey-areas/:id
-siteSurveys.delete("/site-survey-areas/:id", async (c) => {
+siteSurveys.delete("/site-survey-areas/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

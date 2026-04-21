@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
+import {
+  mutationRateLimit,
+  heavyMutationRateLimit,
+} from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 
@@ -83,8 +87,8 @@ layoutDrawings.get("/layout-drawings/:id", async (c) => {
   }
 });
 
-// POST /api/layout-drawings
-layoutDrawings.post("/layout-drawings", async (c) => {
+// POST /api/layout-drawings — drawing upload, heavy-tier limit.
+layoutDrawings.post("/layout-drawings", heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -123,8 +127,8 @@ layoutDrawings.post("/layout-drawings", async (c) => {
   }
 });
 
-// POST /api/layout-drawings/blank-canvas
-layoutDrawings.post("/layout-drawings/blank-canvas", async (c) => {
+// POST /api/layout-drawings/blank-canvas — equivalent to upload, heavy-tier.
+layoutDrawings.post("/layout-drawings/blank-canvas", heavyMutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -150,7 +154,7 @@ layoutDrawings.post("/layout-drawings/blank-canvas", async (c) => {
 });
 
 // DELETE /api/layout-drawings/:id (soft delete)
-layoutDrawings.delete("/layout-drawings/:id", async (c) => {
+layoutDrawings.delete("/layout-drawings/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -168,7 +172,7 @@ layoutDrawings.delete("/layout-drawings/:id", async (c) => {
 });
 
 // POST /api/layout-drawings/:id/restore
-layoutDrawings.post("/layout-drawings/:id/restore", async (c) => {
+layoutDrawings.post("/layout-drawings/:id/restore", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -186,7 +190,7 @@ layoutDrawings.post("/layout-drawings/:id/restore", async (c) => {
 });
 
 // DELETE /api/layout-drawings/:id/permanent
-layoutDrawings.delete("/layout-drawings/:id/permanent", async (c) => {
+layoutDrawings.delete("/layout-drawings/:id/permanent", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -204,7 +208,7 @@ layoutDrawings.delete("/layout-drawings/:id/permanent", async (c) => {
 });
 
 // PUT /api/layout-drawings/:id/scale
-layoutDrawings.put("/layout-drawings/:id/scale", async (c) => {
+layoutDrawings.put("/layout-drawings/:id/scale", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -233,7 +237,7 @@ layoutDrawings.put("/layout-drawings/:id/scale", async (c) => {
 // toolbar) OR the richer title-block metadata payload used by the frame
 // editor (dwgNumber / revision / author / etc). Fields not present in
 // the body are left untouched so partial updates are safe.
-layoutDrawings.patch("/layout-drawings/:id", async (c) => {
+layoutDrawings.patch("/layout-drawings/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -313,7 +317,7 @@ layoutDrawings.get("/layout-drawings/:drawingId/markups", async (c) => {
 });
 
 // POST /api/layout-drawings/:drawingId/markups
-layoutDrawings.post("/layout-drawings/:drawingId/markups", async (c) => {
+layoutDrawings.post("/layout-drawings/:drawingId/markups", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -355,7 +359,7 @@ layoutDrawings.post("/layout-drawings/:drawingId/markups", async (c) => {
 });
 
 // PUT /api/layout-markups/:id — owner only
-layoutDrawings.put("/layout-markups/:id", async (c) => {
+layoutDrawings.put("/layout-markups/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
@@ -399,7 +403,7 @@ layoutDrawings.put("/layout-markups/:id", async (c) => {
 });
 
 // DELETE /api/layout-markups/:id — owner only
-layoutDrawings.delete("/layout-markups/:id", async (c) => {
+layoutDrawings.delete("/layout-markups/:id", mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

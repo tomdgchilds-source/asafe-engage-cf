@@ -38,7 +38,34 @@ import { ObjectUploader } from '@/components/ObjectUploader';
 import { AddToCartModal } from '@/components/AddToCartModal';
 import { CompanyLogoFinder } from '@/components/CompanyLogoFinder';
 import { MatterportViewer, parseMatterportUrl } from '@/components/MatterportViewer';
+import { useOfflineSurvey } from '@/hooks/useOfflineSurvey';
 import type { UploadResult } from '@uppy/core';
+
+// Shape of the draft carried by useOfflineSurvey — mirrors the in-dialog
+// `newSurvey` form state so an offline user can resume creation on reconnect.
+type NewSurveyDraft = {
+  title: string;
+  facilityName: string;
+  facilityLocation: string;
+  description: string;
+  requestedByName: string;
+  requestedByPosition: string;
+  requestedByEmail: string;
+  requestedByMobile: string;
+  companyLogoUrl: string;
+};
+
+const EMPTY_SURVEY_DRAFT: NewSurveyDraft = {
+  title: '',
+  facilityName: '',
+  facilityLocation: '',
+  description: '',
+  requestedByName: '',
+  requestedByPosition: '',
+  requestedByEmail: '',
+  requestedByMobile: '',
+  companyLogoUrl: '',
+};
 
 // Application areas from the impact calculator with risk & benefit data
 const APPLICATION_AREAS = [
@@ -206,17 +233,46 @@ export default function SiteSurvey() {
   const [showAreaDialog, setShowAreaDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showLoadSurveyDropdown, setShowLoadSurveyDropdown] = useState(false);
-  const [newSurvey, setNewSurvey] = useState({
-    title: '',
-    facilityName: '',
-    facilityLocation: '',
-    description: '',
-    requestedByName: '',
-    requestedByPosition: '',
-    requestedByEmail: '',
-    requestedByMobile: '',
-    companyLogoUrl: ''
+  const [newSurvey, setNewSurvey] = useState<NewSurveyDraft>({ ...EMPTY_SURVEY_DRAFT });
+
+  // Offline-first draft store — buffers the in-progress "new survey" form in
+  // localStorage so edits survive network drops / refreshes. Autosaves every
+  // 500ms; flushes the draft to the API on reconnect when there's something
+  // pending. The real create request still runs via createSurveyMutation on
+  // explicit submit (online behaviour unchanged).
+  const offlineSurvey = useOfflineSurvey<NewSurveyDraft>({
+    surveyId: 'new-survey-draft',
+    autosaveMs: 500,
+    onOnlineFlush: async (draft) => {
+      // Only auto-flush if the user has meaningful content. Avoid creating
+      // empty surveys when the tab just regains connectivity.
+      if (!draft?.title && !draft?.facilityName) return;
+      await apiRequest('/api/site-surveys', 'POST', draft);
+      queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
+    },
   });
+
+  // On mount, if there's a persisted draft, restore it into the visible form
+  // so the user sees their pending changes. Runs once per mount — subsequent
+  // edits are driven via setNewSurveyAndDraft below.
+  useEffect(() => {
+    if (offlineSurvey.draft) {
+      setNewSurvey({ ...EMPTY_SURVEY_DRAFT, ...offlineSurvey.draft });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep local form state + offline draft in lockstep. All existing callers
+  // go through this helper instead of setNewSurvey directly.
+  const setNewSurveyAndDraft = (
+    next: NewSurveyDraft | ((prev: NewSurveyDraft) => NewSurveyDraft)
+  ) => {
+    setNewSurvey((prev) => {
+      const resolved = typeof next === 'function' ? (next as any)(prev) : next;
+      offlineSurvey.replaceDraft(resolved);
+      return resolved;
+    });
+  };
   const [newArea, setNewArea] = useState({
     zoneName: '',
     areaName: '',
@@ -426,7 +482,15 @@ export default function SiteSurvey() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
       setShowCreateDialog(false);
-      setNewSurvey({ title: '', facilityName: '', facilityLocation: '', description: '', requestedByName: '', requestedByPosition: '', requestedByEmail: '', requestedByMobile: '', companyLogoUrl: '' });
+      setNewSurvey({ ...EMPTY_SURVEY_DRAFT });
+      // Wipe the offline draft — this survey was successfully created upstream.
+      offlineSurvey.replaceDraft({ ...EMPTY_SURVEY_DRAFT });
+      try {
+        localStorage.removeItem('survey-draft-new-survey-draft');
+        localStorage.removeItem('survey-draft-new-survey-draft-meta');
+      } catch {
+        /* ignore */
+      }
       haptic.success();
       toast({
         title: 'Survey Created',
@@ -652,12 +716,43 @@ export default function SiteSurvey() {
     ?.sort((a, b) => new Date(b.lastViewed).getTime() - new Date(a.lastViewed).getTime())
     ?.slice(0, 5);
 
+  // Label for the offline-draft status pill shown in the page header.
+  const syncPillLabel = (() => {
+    if (!offlineSurvey.online) return 'Offline';
+    if (offlineSurvey.status === 'syncing') return 'Syncing…';
+    if (offlineSurvey.status === 'error') return 'Sync error';
+    if (offlineSurvey.pendingPushCount > 0) {
+      return `Saved locally · ${offlineSurvey.pendingPushCount} change${offlineSurvey.pendingPushCount === 1 ? '' : 's'} pending sync`;
+    }
+    if (offlineSurvey.status === 'saving-local') return 'Saving locally…';
+    if (offlineSurvey.status === 'synced') return 'Synced';
+    return null;
+  })();
+  const syncPillTone = !offlineSurvey.online
+    ? 'bg-gray-100 text-gray-700 border-gray-300'
+    : offlineSurvey.status === 'error'
+      ? 'bg-red-50 text-red-700 border-red-200'
+      : offlineSurvey.pendingPushCount > 0 || offlineSurvey.status === 'saving-local'
+        ? 'bg-yellow-50 text-yellow-800 border-yellow-200'
+        : 'bg-green-50 text-green-700 border-green-200';
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Site Survey</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Site Survey</h1>
+            {syncPillLabel && (
+              <span
+                className={`inline-flex items-center text-xs px-2 py-1 rounded-full border ${syncPillTone}`}
+                data-testid="pill-offline-status"
+                aria-live="polite"
+              >
+                {syncPillLabel}
+              </span>
+            )}
+          </div>
           <p className="text-gray-600 mt-2">
             Conduct facility walkthroughs and identify areas requiring safety protection
           </p>
@@ -708,7 +803,7 @@ export default function SiteSurvey() {
                 New Survey
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Site Survey</DialogTitle>
               <DialogDescription>
@@ -721,7 +816,7 @@ export default function SiteSurvey() {
                 <Input
                   id="title"
                   value={newSurvey.title}
-                  onChange={(e) => setNewSurvey({ ...newSurvey, title: e.target.value })}
+                  onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, title: e.target.value })}
                   placeholder="e.g., Monthly Safety Assessment"
                   data-testid="input-survey-title"
                 />
@@ -731,28 +826,28 @@ export default function SiteSurvey() {
                 <Input
                   id="facilityName"
                   value={newSurvey.facilityName}
-                  onChange={(e) => setNewSurvey({ ...newSurvey, facilityName: e.target.value })}
+                  onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, facilityName: e.target.value })}
                   placeholder="e.g., DHL, Amazon, Coca-Cola, Emirates"
                   data-testid="input-facility-name"
                 />
               </div>
-              
+
               {/* Company Logo Finder */}
               {newSurvey.facilityName && (
                 <CompanyLogoFinder
                   companyName={newSurvey.facilityName}
                   currentLogoUrl={newSurvey.companyLogoUrl}
-                  onLogoConfirmed={(logoUrl) => setNewSurvey({ ...newSurvey, companyLogoUrl: logoUrl })}
+                  onLogoConfirmed={(logoUrl) => setNewSurveyAndDraft({ ...newSurvey, companyLogoUrl: logoUrl })}
                   className="mt-2"
                 />
               )}
-              
+
               <div>
                 <Label htmlFor="facilityLocation">Location</Label>
                 <Input
                   id="facilityLocation"
                   value={newSurvey.facilityLocation}
-                  onChange={(e) => setNewSurvey({ ...newSurvey, facilityLocation: e.target.value })}
+                  onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, facilityLocation: e.target.value })}
                   placeholder="e.g., Dubai, UAE"
                   data-testid="input-facility-location"
                 />
@@ -762,13 +857,13 @@ export default function SiteSurvey() {
                 <Textarea
                   id="description"
                   value={newSurvey.description}
-                  onChange={(e) => setNewSurvey({ ...newSurvey, description: e.target.value })}
+                  onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, description: e.target.value })}
                   placeholder="Brief description of this survey..."
                   rows={3}
                   data-testid="textarea-survey-description"
                 />
               </div>
-              
+
               <div className="border-t pt-4 mt-4">
                 <h4 className="font-medium mb-3">Requested By</h4>
                 <div className="space-y-3">
@@ -777,7 +872,7 @@ export default function SiteSurvey() {
                     <Input
                       id="requestedByName"
                       value={newSurvey.requestedByName}
-                      onChange={(e) => setNewSurvey({ ...newSurvey, requestedByName: e.target.value })}
+                      onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, requestedByName: e.target.value })}
                       placeholder="Customer name"
                       data-testid="input-requested-by-name"
                     />
@@ -787,7 +882,7 @@ export default function SiteSurvey() {
                     <Input
                       id="requestedByPosition"
                       value={newSurvey.requestedByPosition}
-                      onChange={(e) => setNewSurvey({ ...newSurvey, requestedByPosition: e.target.value })}
+                      onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, requestedByPosition: e.target.value })}
                       placeholder="Job role"
                       data-testid="input-requested-by-position"
                     />
@@ -798,7 +893,7 @@ export default function SiteSurvey() {
                       id="requestedByEmail"
                       type="email"
                       value={newSurvey.requestedByEmail}
-                      onChange={(e) => setNewSurvey({ ...newSurvey, requestedByEmail: e.target.value })}
+                      onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, requestedByEmail: e.target.value })}
                       placeholder="Email address"
                       data-testid="input-requested-by-email"
                     />
@@ -808,7 +903,7 @@ export default function SiteSurvey() {
                     <Input
                       id="requestedByMobile"
                       value={newSurvey.requestedByMobile}
-                      onChange={(e) => setNewSurvey({ ...newSurvey, requestedByMobile: e.target.value })}
+                      onChange={(e) => setNewSurveyAndDraft({ ...newSurvey, requestedByMobile: e.target.value })}
                       placeholder="Mobile number"
                       data-testid="input-requested-by-mobile"
                     />
@@ -816,13 +911,14 @@ export default function SiteSurvey() {
                 </div>
               </div>
               
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              <div className="flex justify-end space-x-2 sticky bottom-0 bg-background border-t pt-3 -mx-6 px-6 pb-2 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:border-0">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="min-h-[44px]">
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleCreateSurvey}
                   disabled={createSurveyMutation.isPending}
+                  className="min-h-[44px]"
                   data-testid="button-create-survey"
                 >
                   {createSurveyMutation.isPending ? 'Creating...' : 'Create Survey'}
@@ -1467,7 +1563,7 @@ export default function SiteSurvey() {
           setSelectedCalculation('');
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingArea ? 'Edit' : 'Add'} Area of Concern</DialogTitle>
             <DialogDescription>
@@ -1767,8 +1863,8 @@ export default function SiteSurvey() {
               )}
             </div>
 
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => {
+            <div className="flex justify-end space-x-2 sticky bottom-0 bg-background border-t pt-3 -mx-6 px-6 pb-2 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:border-0">
+              <Button variant="outline" className="min-h-[44px]" onClick={() => {
                 setShowAreaDialog(false);
                 setEditingArea(null);
                 setNewArea({
@@ -1788,13 +1884,14 @@ export default function SiteSurvey() {
               }}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleSubmitArea}
                 disabled={createAreaMutation.isPending || updateAreaMutation.isPending}
+                className="min-h-[44px]"
                 data-testid={editingArea ? 'button-update-area' : 'button-create-area'}
               >
-                {(createAreaMutation.isPending || updateAreaMutation.isPending) ? 
-                  (editingArea ? 'Updating...' : 'Adding...') : 
+                {(createAreaMutation.isPending || updateAreaMutation.isPending) ?
+                  (editingArea ? 'Updating...' : 'Adding...') :
                   (editingArea ? 'Update Area' : 'Add Area')
                 }
               </Button>

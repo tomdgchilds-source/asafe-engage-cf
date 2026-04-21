@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import { and, eq, desc } from "drizzle-orm";
 import type { Env, Variables } from "../types";
 import { authMiddleware, createSession } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { verifyTurnstile } from "../lib/turnstile";
+import { products } from "@shared/schema";
 
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -495,6 +497,93 @@ admin.get("/analytics/quotes", authMiddleware, async (c) => {
   } catch (error) {
     console.error("Error fetching analytics:", error);
     return c.json({ error: "Failed to fetch analytics" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// GET /api/admin/image-review
+//
+// Lists every product currently flagged `needsImageReview`. Admins use
+// this backlog to upload real hero + lifestyle photography so the
+// catalog stops rendering sibling-family placeholders. Admin-only.
+// ──────────────────────────────────────────────
+admin.get("/admin/image-review", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
+
+    const rows = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        category: products.category,
+        imageUrl: products.imageUrl,
+        lifestyleImageUrl: products.lifestyleImageUrl,
+        updatedAt: products.updatedAt,
+      })
+      .from(products)
+      .where(eq(products.needsImageReview, true))
+      .orderBy(desc(products.updatedAt));
+
+    return c.json(rows);
+  } catch (error) {
+    console.error("Error fetching image-review backlog:", error);
+    return c.json({ message: "Failed to fetch backlog" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// PATCH /api/admin/image-review/:id
+//
+// Updates a flagged product: replace imageUrl and/or lifestyleImageUrl,
+// optionally clear the needsImageReview flag once photography is in
+// place. Admin-only.
+// ──────────────────────────────────────────────
+admin.patch("/admin/image-review/:id", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userRecord = await storage.getUser(c.get("user").claims.sub);
+    if (userRecord?.role !== "admin") {
+      return c.json({ message: "Admin access required" }, 403);
+    }
+
+    const id = c.req.param("id");
+    const body = await c.req.json<{
+      imageUrl?: string;
+      lifestyleImageUrl?: string;
+      clearFlag?: boolean;
+    }>();
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (typeof body.imageUrl === "string") updates.imageUrl = body.imageUrl;
+    if (typeof body.lifestyleImageUrl === "string") {
+      updates.lifestyleImageUrl = body.lifestyleImageUrl;
+    }
+    if (body.clearFlag === true) updates.needsImageReview = false;
+
+    if (Object.keys(updates).length === 1) {
+      // Only `updatedAt` set — nothing meaningful to change.
+      return c.json({ message: "No changes supplied" }, 400);
+    }
+
+    const [updated] = await db
+      .update(products)
+      .set(updates)
+      .where(eq(products.id, id))
+      .returning();
+
+    if (!updated) {
+      return c.json({ message: "Product not found" }, 404);
+    }
+    return c.json(updated);
+  } catch (error) {
+    console.error("Error updating image-review product:", error);
+    return c.json({ message: "Failed to update product" }, 500);
   }
 });
 

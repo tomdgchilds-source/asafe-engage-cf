@@ -214,6 +214,18 @@ export function OrderForm() {
   const [rejectionType, setRejectionType] = useState<'technical' | 'commercial' | 'marketing'>('technical');
   const [rejectionReason, setRejectionReason] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
+  // ── Order-lifecycle v2 (status pill + email + share link) ────────────
+  // Dialog + panel state for the additions to the action row. Kept in
+  // this component so they persist across tab switches without routing.
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailCcSelf, setEmailCcSelf] = useState(true);
+  const [emailSending, setEmailSending] = useState(false);
+  const [shareLinkInfo, setShareLinkInfo] = useState<null | {
+    url: string;
+    expiresAt: string;
+  }>(null);
+  const [shareLinkBusy, setShareLinkBusy] = useState(false);
   const [customOrderNumber, setCustomOrderNumber] = useState("");
   // Controls the optional 2-3 page "About A-SAFE" brand appendix on the
   // generated PDF. Off by default so standard quotes don't ship ten pages
@@ -352,6 +364,16 @@ export function OrderForm() {
     queryKey: ["/api/orders", id],
     enabled: !!id,
   });
+
+  // Seed the "Email to customer" dialog's recipient from the order's
+  // customerEmail when loaded. Only seed on the first render with data so
+  // the user's manual edits aren't clobbered on re-renders.
+  useEffect(() => {
+    if (orderData && !emailTo) {
+      setEmailTo(orderData.customerEmail || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderData?.id]);
 
   // Active project drives the top-of-page prefill banner + approver-chain
   // autocomplete. Returns null when no project is active; we gate every use
@@ -1058,6 +1080,275 @@ export function OrderForm() {
     }
   };
 
+  // ── Lifecycle v2: status pill, email-PDF-to-customer, share link ──
+  //
+  // Status display + transition machinery is colocated here so the pill
+  // colour, the allowed transitions for the dropdown, and the PATCH call
+  // all live in one place. Allowed transitions mirror the server's
+  // ALLOWED_TRANSITIONS table verbatim — keep them in sync.
+  const statusPillStyle = (status: string | undefined): string => {
+    switch (status) {
+      case "draft":
+        return "bg-gray-200 text-gray-800";
+      case "submitted":
+        return "bg-blue-100 text-blue-800";
+      case "approved":
+        return "bg-yellow-100 text-yellow-900";
+      case "in_production":
+        return "bg-amber-100 text-amber-900";
+      case "delivered":
+        return "bg-green-100 text-green-700";
+      case "installed":
+        return "bg-green-200 text-green-900";
+      case "invoiced":
+        return "bg-purple-100 text-purple-700";
+      case "paid":
+        return "bg-teal-100 text-teal-700";
+      case "cancelled":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+  const statusLabel = (status: string | undefined): string => {
+    switch (status) {
+      case "draft":
+        return "Draft";
+      case "submitted":
+        return "Submitted";
+      case "approved":
+        return "Approved";
+      case "in_production":
+        return "In production";
+      case "delivered":
+        return "Delivered";
+      case "installed":
+        return "Installed";
+      case "invoiced":
+        return "Invoiced";
+      case "paid":
+        return "Paid";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return status || "—";
+    }
+  };
+
+  // Fetch admin session opportunistically — determines which transitions
+  // the dropdown offers. 401 → null → owner-only transitions shown.
+  const { data: adminSession } = useQuery<any>({
+    queryKey: ["/api/admin/session"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const isAdmin = !!adminSession?.id;
+
+  // Build the allowed transitions for the current user from the current
+  // status. Mirrors the server-side ALLOWED_TRANSITIONS.
+  const availableTransitions = (current: string | undefined): string[] => {
+    const base = current || "draft";
+    const table: Record<string, Array<{ to: string; role: "owner" | "admin" }>> = {
+      draft: [
+        { to: "submitted", role: "owner" },
+        { to: "cancelled", role: "admin" },
+      ],
+      submitted: [
+        { to: "approved", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      approved: [
+        { to: "in_production", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      in_production: [
+        { to: "delivered", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      delivered: [
+        { to: "installed", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      installed: [
+        { to: "invoiced", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      invoiced: [
+        { to: "paid", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      paid: [{ to: "cancelled", role: "admin" }],
+      pending: [
+        { to: "submitted", role: "owner" },
+        { to: "approved", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      submitted_for_review: [
+        { to: "approved", role: "admin" },
+        { to: "cancelled", role: "admin" },
+      ],
+      rejected: [
+        { to: "submitted", role: "owner" },
+        { to: "cancelled", role: "admin" },
+      ],
+      revision_requested: [
+        { to: "submitted", role: "owner" },
+        { to: "cancelled", role: "admin" },
+      ],
+    };
+    const list = table[base] || [];
+    return list
+      .filter((t) => (t.role === "admin" ? isAdmin : true))
+      .map((t) => t.to);
+  };
+
+  const changeStatus = async (next: string) => {
+    try {
+      await apiRequest(`/api/orders/${id}/status`, "PATCH", { status: next });
+      toast({ title: "Status updated", description: statusLabel(next) });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders", id] });
+    } catch (err: any) {
+      toast({
+        title: "Status change failed",
+        description: err?.message || "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Generate a PDF of the current order and return the base64 bytes (no
+  // data-URI prefix). Mirrors `downloadPDF` but uses pdf.output("datauristring")
+  // to capture bytes in-memory instead of calling pdf.save().
+  //
+  // Implementation: the server-owned jsPDF generator always triggers a
+  // file save. The simplest non-invasive hook is to intercept the save
+  // path: we monkey-patch `jsPDF.prototype.save` to capture the pdf's
+  // datauristring, run the generator, then restore the prototype. No
+  // change to the generator itself required.
+  const generatePdfBase64 = async (): Promise<string> => {
+    if (!orderData) throw new Error("Order data not available");
+
+    // Dynamic import so the generator's bundle only loads when needed.
+    const mod = await import("@/utils/orderFormPdfGenerator");
+    const jsPdfMod = await import("jspdf");
+    const jsPDF = (jsPdfMod as any).default || (jsPdfMod as any).jsPDF;
+
+    // Rebuild the same pdfData the Download path uses. We can't hoist this
+    // because `downloadPDF` has a lot of local helpers; instead we run the
+    // full downloadPDF pipeline but intercept the final save().
+    let capturedDataUri: string | null = null;
+    const originalSave = jsPDF.prototype.save;
+    // Replace save with a no-op that captures the payload. We only need to
+    // intercept once — the generator calls save exactly once at the end.
+    jsPDF.prototype.save = function patchedSave(this: any) {
+      try {
+        capturedDataUri = this.output("datauristring");
+      } catch (err) {
+        console.error("PDF capture failed:", err);
+      }
+      // Do NOT call the original save — suppressing it is the point.
+      return this;
+    };
+
+    try {
+      await downloadPDF({ includeBrandOverview });
+    } finally {
+      jsPDF.prototype.save = originalSave;
+    }
+
+    if (!capturedDataUri) throw new Error("PDF capture failed");
+    // Strip the "data:application/pdf;base64," prefix; what remains is the
+    // base64 payload Resend will accept verbatim as the attachment content.
+    const idx = (capturedDataUri as string).indexOf(",");
+    const base64 = idx >= 0 ? (capturedDataUri as string).slice(idx + 1) : (capturedDataUri as string);
+    return base64;
+  };
+
+  const sendEmailToCustomer = async () => {
+    if (!emailTo.trim()) {
+      toast({
+        title: "Missing recipient",
+        description: "Please enter a recipient email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const pdfBase64 = await generatePdfBase64();
+      const res = await apiRequest(`/api/orders/${id}/email`, "POST", {
+        to: emailTo.trim(),
+        ccSelf: emailCcSelf,
+        pdfBase64,
+      });
+      const payload = (await res.json()) as { ok: boolean; messageId?: string; error?: string };
+      if (payload.ok) {
+        toast({
+          title: "Email sent",
+          description: `Order PDF sent to ${emailTo.trim()}.`,
+        });
+        setShowEmailDialog(false);
+      } else {
+        toast({
+          title: "Email failed",
+          description: payload.error || "Could not send the email.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Email failed",
+        description: err?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const createShareLink = async () => {
+    setShareLinkBusy(true);
+    try {
+      const res = await apiRequest(`/api/orders/${id}/share-link`, "POST", {});
+      const payload = (await res.json()) as { token: string; url: string; expiresAt: string };
+      setShareLinkInfo({ url: payload.url, expiresAt: payload.expiresAt });
+      try {
+        await navigator.clipboard.writeText(payload.url);
+        toast({
+          title: "Share link created",
+          description: "Link copied to clipboard.",
+        });
+      } catch {
+        toast({ title: "Share link created" });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Could not create link",
+        description: err?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setShareLinkBusy(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    setShareLinkBusy(true);
+    try {
+      await apiRequest(`/api/orders/${id}/share-link`, "DELETE");
+      setShareLinkInfo(null);
+      toast({ title: "Share link revoked" });
+    } catch (err: any) {
+      toast({
+        title: "Could not revoke link",
+        description: err?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setShareLinkBusy(false);
+    }
+  };
+
   // ── Resend/revoke helpers for outstanding magic-link tokens ──
   // These intentionally don't take an error path UI of their own beyond a
   // toast — the authoritative state is the server's, and we invalidate the
@@ -1709,6 +2000,36 @@ export function OrderForm() {
                       A-SAFE Ref: {orderData.customOrderNumber}
                     </Badge>
                   )}
+                  {/* Lifecycle v2 status pill + inline role-gated transitions. */}
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    <span
+                      className={`text-xs font-semibold px-2 py-1 rounded ${statusPillStyle((orderData as any).status)}`}
+                      data-testid="order-status-pill"
+                    >
+                      {statusLabel((orderData as any).status)}
+                    </span>
+                    {availableTransitions((orderData as any).status).length > 0 && (
+                      <select
+                        className="text-xs border rounded px-2 py-1 bg-white dark:bg-gray-800"
+                        value=""
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v) {
+                            void changeStatus(v);
+                            e.target.value = "";
+                          }
+                        }}
+                        data-testid="order-status-dropdown"
+                      >
+                        <option value="">Change status…</option>
+                        {availableTransitions((orderData as any).status).map((s) => (
+                          <option key={s} value={s}>
+                            {statusLabel(s)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 text-center sm:text-left">
                   Created: {new Date(orderData.createdAt).toLocaleDateString()}
@@ -1743,12 +2064,77 @@ export function OrderForm() {
                     Include brand overview
                   </label>
                 </div>
+                {/* Lifecycle v2: email the PDF to the customer. Opens a
+                    tiny dialog rather than navigating away so the user
+                    never loses their place on the order. */}
+                <Button
+                  onClick={() => setShowEmailDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-email-to-customer"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email to customer
+                </Button>
+                {/* Lifecycle v2: create/copy/revoke an anonymous share link. */}
+                <Button
+                  onClick={createShareLink}
+                  variant="outline"
+                  size="sm"
+                  disabled={shareLinkBusy}
+                  data-testid="button-create-share-link"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Create share link
+                </Button>
                 <Button onClick={handleReviseOrder} variant="outline" size="sm" className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800">
                   <Edit3 className="h-4 w-4 mr-2" />
                   Revise Order
                 </Button>
               </div>
             </div>
+
+            {/* Inline share-link panel. Appears after createShareLink() and
+                stays until revoke or page reload. */}
+            {shareLinkInfo && (
+              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <Label className="text-sm font-medium text-green-800 dark:text-green-300">
+                  Share link active
+                </Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    value={shareLinkInfo.url}
+                    readOnly
+                    className="text-sm bg-white"
+                    data-testid="input-share-link-url"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareLinkInfo.url).then(
+                        () => toast({ title: "Copied" }),
+                        () => toast({ title: "Copy failed", variant: "destructive" }),
+                      );
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={revokeShareLink}
+                    disabled={shareLinkBusy}
+                    data-testid="button-revoke-share-link"
+                  >
+                    Revoke
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  Expires: {new Date(shareLinkInfo.expiresAt).toLocaleDateString()}
+                </div>
+              </div>
+            )}
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <Label className="text-sm font-medium text-blue-800 dark:text-blue-300">Shareable Order Form URL:</Label>
               <div className="flex items-center gap-2 mt-1">
@@ -3685,6 +4071,58 @@ export function OrderForm() {
         customerEmail={customer.email}
         customerMobile={customer.phone}
       />
+
+      {/* Lifecycle v2: Email-to-customer dialog. Small, focused — just
+          recipient + ccSelf. The PDF is generated in-memory at send time. */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Email order to customer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="email-to" className="text-sm">
+                Recipient email
+              </Label>
+              <Input
+                id="email-to"
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="customer@example.com"
+                data-testid="input-email-to"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={emailCcSelf}
+                onChange={(e) => setEmailCcSelf(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+                data-testid="checkbox-cc-self"
+              />
+              Include a copy to myself
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEmailDialog(false)}
+                disabled={emailSending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendEmailToCustomer}
+                disabled={emailSending || !emailTo.trim()}
+                className="bg-[#FFC72C] hover:bg-yellow-300 text-black"
+                data-testid="button-send-email"
+              >
+                {emailSending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

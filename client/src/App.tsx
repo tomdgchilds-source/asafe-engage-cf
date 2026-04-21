@@ -33,6 +33,7 @@ const Help = lazy(() => import("@/pages/Help"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const ImageReviewBacklog = lazy(() => import("@/pages/admin/ImageReviewBacklog"));
 const Cart = lazy(() => import("@/pages/Cart"));
 const CalculationsHistory = lazy(() => import("@/pages/CalculationsHistory"));
 const OrderForm = lazy(() => import("@/pages/OrderForm").then(m => ({ default: m.OrderForm })));
@@ -51,6 +52,12 @@ const AnalyticsDashboard = lazy(() => import("@/pages/AnalyticsDashboard"));
 const InstallationTimeline = lazy(() => import("@/pages/InstallationTimeline"));
 const LayoutDrawing = lazy(() => import("@/pages/LayoutDrawing"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+// New public + admin-gated pages for the order-share + kanban flow.
+// SharedOrderView renders anonymously (like ApprovalLanding) — it sits
+// outside the auth gate in AppContent below so external customers don't
+// hit the auth check.
+const SharedOrderView = lazy(() => import("@/pages/SharedOrderView"));
+const OrderKanban = lazy(() => import("@/pages/admin/OrderKanban"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading fallback component - use mobile optimized version
@@ -88,6 +95,13 @@ function Router() {
         <Route path="/admin/dashboard">
           <AdminRoute><AdminDashboard /></AdminRoute>
         </Route>
+        <Route path="/admin/image-review">
+          <AdminRoute><ImageReviewBacklog /></AdminRoute>
+        </Route>
+        {/* Admin-only Kanban board — same guard the rest of /admin/* uses. */}
+        <Route path="/admin/orders">
+          <AdminRoute><OrderKanban /></AdminRoute>
+        </Route>
         {/* Haptic test is a dev tool — only registered in development builds */}
         {import.meta.env.DEV && (
           <Route path="/haptic-test" component={HapticTestPage} />
@@ -104,6 +118,10 @@ function Router() {
           is rendered for the anonymous approver.
         */}
         <Route path="/approve/:token" component={ApprovalLanding} />
+        {/* Public share route — bypassed by AppContent above so it never
+            renders inside the authed Layout, but registered here too so
+            wouter matches the path if someone lands here after sign-in. */}
+        <Route path="/share/order/:token" component={SharedOrderView} />
         <Route path="/start-new-project" component={StartNewProject} />
         <Route path="/projects" component={Projects} />
         <Route path="/site-survey" component={SiteSurvey} />
@@ -151,6 +169,20 @@ function AppContent() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/approve/:token" component={ApprovalLanding} />
+        </Switch>
+      </Suspense>
+    );
+  }
+
+  // Public share-order view. Same rationale as /approve/ above — the
+  // anonymous customer has no A-SAFE account and the page calls a public
+  // backend endpoint (/api/public/orders/:token). Must bypass the auth
+  // gate so it never renders the loading screen forever.
+  if (location.startsWith("/share/order/")) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/share/order/:token" component={SharedOrderView} />
         </Switch>
       </Suspense>
     );

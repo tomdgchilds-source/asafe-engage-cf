@@ -3,8 +3,10 @@ import { cors } from "hono/cors";
 import type { Env, Variables } from "./types";
 import { authMiddleware } from "./middleware/auth";
 import { securityHeaders } from "./middleware/securityHeaders";
+import { requestContext } from "./middleware/requestContext";
 import { getDb } from "./db";
 import { createStorage } from "./storage";
+import { runBackups } from "./scheduled/backupExporter";
 
 // Route imports
 import auth from "./routes/auth";
@@ -34,11 +36,19 @@ import analytics from "./routes/analytics";
 import adminPricelist from "./routes/adminPricelist";
 import collaborators from "./routes/collaborators";
 import barrierLadders from "./routes/barrierLadders";
+import me from "./routes/me";
+import search from "./routes/search";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Request-scoped context + logger. Mounted FIRST so every request —
+// including ones that get rejected downstream by CORS/auth/limiters —
+// is tagged with X-Request-Id and shows up in logs with timing + status.
+app.use("*", requestContext);
+
 // Security headers on EVERY response — including the SPA shell served
-// via the ASSETS fallback. Mounted first so it wraps all routes below.
+// via the ASSETS fallback. Mounted right after requestContext so it
+// wraps all routes below.
 app.use("*", securityHeaders);
 
 // CORS for API routes — restricted to the deployed origin + localhost
@@ -96,6 +106,8 @@ app.route("/api", analytics);
 app.route("/api", adminPricelist);
 app.route("/api", collaborators);
 app.route("/api", barrierLadders);
+app.route("/api", me);
+app.route("/api", search);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -1342,4 +1354,19 @@ app.get("*", async (c) => {
   }
 });
 
-export default app;
+// ─── Worker Exports ──────────────────────────────────────
+// `fetch` is the HTTP handler (Hono app). `scheduled` is the cron handler —
+// runs weekly per the trigger in wrangler.toml and dumps four core tables
+// to R2 as CSV. See worker/scheduled/backupExporter.ts for details.
+export default {
+  fetch: app.fetch,
+  scheduled: async (
+    _event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext
+  ) => {
+    // waitUntil keeps the worker alive past the event handler return so the
+    // dump can finish even if it takes tens of seconds.
+    ctx.waitUntil(runBackups(env));
+  },
+};

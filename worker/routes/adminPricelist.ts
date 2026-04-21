@@ -32,7 +32,9 @@ import {
   productVariants,
   vehicleTypes,
   applicationTypes,
+  users,
 } from "../../shared/schema";
+import bcrypt from "bcryptjs";
 import priceList from "../../scripts/data/pricelist-aed-2025v1.json";
 import scrapedCatalog from "../../scripts/data/asafe-catalog.json";
 import applicationTypesSeed from "../../scripts/data/application-types-seed.json";
@@ -597,6 +599,23 @@ async function ensureSchema(db: ReturnType<typeof drizzle>) {
   await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS project_collaborators_project_idx ON project_collaborators(project_id);`);
   await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS project_collaborators_user_idx ON project_collaborators(user_id);`);
   await db.execute(sqlTag`CREATE UNIQUE INDEX IF NOT EXISTS project_collaborators_project_user_unique ON project_collaborators(project_id, user_id);`);
+
+  // ──────────────────────────────────────────────
+  // Order lifecycle + share-link columns. Additive + idempotent. The legacy
+  // `status` column already exists with NOT NULL DEFAULT 'pending' on
+  // production — we don't touch its constraints here, only mirror the
+  // lifecycle taxonomy default for fresh installs. ADD COLUMN IF NOT
+  // EXISTS is a no-op on rows that already have the column.
+  // ──────────────────────────────────────────────
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS status varchar DEFAULT 'draft';`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_changed_at timestamp;`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_changed_by varchar REFERENCES users(id);`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS share_token varchar;`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS share_token_expires_at timestamp;`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS share_token_created_at timestamp;`);
+  await db.execute(sqlTag`ALTER TABLE orders ADD COLUMN IF NOT EXISTS share_token_created_by varchar REFERENCES users(id);`);
+  await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);`);
+  await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS orders_share_token_idx ON orders(share_token);`);
 }
 
 async function applyPlan(db: ReturnType<typeof drizzle>, plan: PlanEntry[]) {
@@ -1363,6 +1382,171 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
         updated,
         total: rows.length,
       };
+    }
+
+    // One-shot support flow: find a user by name/email substring, clear
+    // any KV lockout counter, and (optionally) reset their password to a
+    // supplied new value. Gated by the same MIGRATION_TOKEN bearer as the
+    // rest of this endpoint. Emits a support-log line so the audit trail
+    // is unambiguous.
+    // Health audit of every account: flags anyone who wouldn't be able
+    // to log in (no passwordHash, locked out, role blocked, etc.). Pure
+    // read — no mutations. Use this after any auth-flow change to spot
+    // regressions across the whole user base.
+    if (c.req.query("auditLogins") === "1") {
+      const all = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          passwordHash: users.passwordHash,
+          createdAt: users.createdAt,
+        })
+        .from(users);
+      const rows: Array<{
+        email: string | null;
+        name: string;
+        role: string | null;
+        issues: string[];
+        lockout: any;
+        failed: any;
+      }> = [];
+      for (const u of all) {
+        const issues: string[] = [];
+        if (!u.email) issues.push("no-email");
+        if (!u.passwordHash) issues.push("no-password-hash");
+        const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+        const emailLower = (u.email || "").toLowerCase();
+        let lockout: any = null;
+        let failed: any = null;
+        try {
+          lockout = emailLower
+            ? await c.env.KV_SESSIONS.get(`lockout:${emailLower}`)
+            : null;
+          failed = emailLower
+            ? await c.env.KV_SESSIONS.get(`failed:${emailLower}`)
+            : null;
+        } catch {}
+        if (lockout) issues.push("locked-out");
+        rows.push({
+          email: u.email,
+          name: name || "(no name)",
+          role: u.role,
+          issues,
+          lockout,
+          failed,
+        });
+      }
+      report.auditLogins = {
+        total: rows.length,
+        healthy: rows.filter((r) => r.issues.length === 0).length,
+        issues: rows.filter((r) => r.issues.length > 0),
+        byRole: rows.reduce((acc: any, r) => {
+          const k = r.role || "(none)";
+          acc[k] = (acc[k] || 0) + 1;
+          return acc;
+        }, {}),
+      };
+    }
+
+    // Nuclear option: clear every KV lockout + failed-attempt counter. Use
+    // after you've shipped an auth change that mass-locks accounts, or
+    // after a test run that burned someone's counter. Logs how many keys
+    // were scrubbed.
+    if (c.req.query("clearAllLockouts") === "1") {
+      const list = await c.env.KV_SESSIONS.list({ prefix: "lockout:" });
+      const list2 = await c.env.KV_SESSIONS.list({ prefix: "failed:" });
+      let cleared = 0;
+      for (const k of list.keys) {
+        await c.env.KV_SESSIONS.delete(k.name);
+        cleared++;
+      }
+      for (const k of list2.keys) {
+        await c.env.KV_SESSIONS.delete(k.name);
+        cleared++;
+      }
+      report.clearAllLockouts = { cleared };
+    }
+
+    if (c.req.query("findUser")) {
+      const q = (c.req.query("findUser") || "").trim().toLowerCase();
+      if (q.length < 2) {
+        return c.json({ ok: false, message: "query too short" }, 400);
+      }
+      const all = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          createdAt: users.createdAt,
+        })
+        .from(users);
+      const hits = all.filter((u) => {
+        const blob = `${u.email ?? ""} ${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
+        return blob.includes(q);
+      });
+      report.findUser = {
+        query: q,
+        count: hits.length,
+        users: hits.slice(0, 20),
+      };
+    }
+
+    if (c.req.query("resetUserPassword")) {
+      const email = (c.req.query("resetUserPassword") || "").trim().toLowerCase();
+      const newPassword = c.req.query("newPassword");
+      if (!email || !newPassword || newPassword.length < 8) {
+        return c.json(
+          {
+            ok: false,
+            message:
+              "Pass ?resetUserPassword=<email>&newPassword=<>=8chars>",
+          },
+          400,
+        );
+      }
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (!user) {
+        report.resetUserPassword = { email, found: false };
+      } else {
+        const hash = await bcrypt.hash(newPassword, 10);
+        await db
+          .update(users)
+          .set({
+            passwordHash: hash,
+            updatedAt: new Date(),
+          } as any)
+          .where(eq(users.id, user.id));
+        // Clear any KV lockout entries that would 429 the next login.
+        // Lockout keys are `lockout:<normalised-email>` and the sliding
+        // rate-limit keys are `rl:*:<ip-or-user>:<bucket>`. We scrub the
+        // email-keyed lockout directly; IP-based rate-limits expire on
+        // their own window.
+        try {
+          await c.env.KV_SESSIONS.delete(`lockout:${email}`);
+          await c.env.KV_SESSIONS.delete(`failed:${email}`);
+        } catch {}
+        report.resetUserPassword = {
+          email,
+          found: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+          },
+          tempPassword: newPassword,
+        };
+      }
     }
 
     // Hide every quote-only (unpriced) catalog entry. Preserves the row

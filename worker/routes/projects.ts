@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
+import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 
@@ -24,7 +25,7 @@ projectsRoutes.get("/customer-companies", authMiddleware, async (c) => {
   return c.json(rows);
 });
 
-projectsRoutes.post("/customer-companies", authMiddleware, async (c) => {
+projectsRoutes.post("/customer-companies", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
@@ -45,7 +46,7 @@ projectsRoutes.post("/customer-companies", authMiddleware, async (c) => {
   return c.json(row, 201);
 });
 
-projectsRoutes.patch("/customer-companies/:id", authMiddleware, async (c) => {
+projectsRoutes.patch("/customer-companies/:id", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
@@ -135,7 +136,7 @@ projectsRoutes.get("/projects/:id", authMiddleware, async (c) => {
   });
 });
 
-projectsRoutes.post("/projects", authMiddleware, async (c) => {
+projectsRoutes.post("/projects", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
@@ -189,7 +190,7 @@ projectsRoutes.post("/projects", authMiddleware, async (c) => {
   return c.json(project, 201);
 });
 
-projectsRoutes.patch("/projects/:id", authMiddleware, async (c) => {
+projectsRoutes.patch("/projects/:id", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
@@ -228,7 +229,7 @@ projectsRoutes.get("/projects/:id/contacts", authMiddleware, async (c) => {
   return c.json(rows);
 });
 
-projectsRoutes.post("/projects/:id/contacts", authMiddleware, async (c) => {
+projectsRoutes.post("/projects/:id/contacts", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
@@ -261,7 +262,7 @@ projectsRoutes.post("/projects/:id/contacts", authMiddleware, async (c) => {
   return c.json(row, 201);
 });
 
-projectsRoutes.patch("/project-contacts/:id", authMiddleware, async (c) => {
+projectsRoutes.patch("/project-contacts/:id", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const id = c.req.param("id");
@@ -287,7 +288,7 @@ projectsRoutes.patch("/project-contacts/:id", authMiddleware, async (c) => {
   return c.json(updated);
 });
 
-projectsRoutes.delete("/project-contacts/:id", authMiddleware, async (c) => {
+projectsRoutes.delete("/project-contacts/:id", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const id = c.req.param("id");
@@ -308,7 +309,7 @@ projectsRoutes.get("/active-project", authMiddleware, async (c) => {
   return c.json(project);
 });
 
-projectsRoutes.post("/active-project", authMiddleware, async (c) => {
+projectsRoutes.post("/active-project", authMiddleware, mutationRateLimit, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
