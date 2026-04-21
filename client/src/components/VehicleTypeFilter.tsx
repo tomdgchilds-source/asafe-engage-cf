@@ -36,6 +36,7 @@ interface VehicleType {
   capacityMin: number;
   capacityMax: number;
   iconUrl?: string;
+  thumbnailUrl?: string | null;
   hexColor?: string;
   sortOrder: number;
   isPopular?: boolean;
@@ -190,6 +191,19 @@ export function VehicleTypeFilter({
                   className="data-[state=checked]:bg-[#FFC72C] data-[state=checked]:border-[#FFC72C] mt-0.5"
                   onClick={(e) => e.stopPropagation()}
                 />
+                {(vehicle.thumbnailUrl || vehicle.iconUrl) && (
+                  <img
+                    src={vehicle.thumbnailUrl || vehicle.iconUrl}
+                    alt={vehicle.name}
+                    className={`h-10 w-12 flex-shrink-0 rounded bg-gray-50 dark:bg-gray-800 ${
+                      vehicle.thumbnailUrl ? 'object-cover' : 'object-contain p-1'
+                    }`}
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium leading-tight truncate">
                     {vehicle.name}

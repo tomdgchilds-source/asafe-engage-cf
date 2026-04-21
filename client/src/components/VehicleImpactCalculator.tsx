@@ -1487,9 +1487,17 @@ export function VehicleImpactCalculator() {
                                   </div>
                                 )}
                                 
-                                {/* Vehicle image */}
-                                <div className="aspect-square mb-2 bg-gray-100 rounded flex items-center justify-center">
-                                  {vehicle.iconUrl ? (
+                                {/* Vehicle image — photo (thumbnailUrl) if seeded,
+                                    else iconify silhouette (iconUrl). */}
+                                <div className="aspect-square mb-2 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                                  {vehicle.thumbnailUrl ? (
+                                    <AuthenticatedImage
+                                      src={vehicle.thumbnailUrl}
+                                      alt={vehicle.name}
+                                      className="w-full h-full object-cover"
+                                      category={vehicle.category}
+                                    />
+                                  ) : vehicle.iconUrl ? (
                                     <AuthenticatedImage
                                       src={vehicle.iconUrl}
                                       alt={vehicle.name}

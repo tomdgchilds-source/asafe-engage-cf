@@ -1,0 +1,171 @@
+{
+  "_meta": {
+    "sourcedAt": "2026-04-20",
+    "licenseNotes": "All images are Wikimedia Commons files, sized via the /thumb/ 400px endpoint for web-friendly payloads. Public Domain or Creative Commons (CC BY / CC BY-SA). No manufacturer marketing material — everything here is reusable commercially with attribution. Two rows (High-Level Order Picker, Very Narrow Aisle Truck) have no good Commons match; the UI falls back to the iconify silhouette for those.",
+    "thumbnailStrategy": "upload.wikimedia.org/wikipedia/commons/thumb/<hash>/<file>/400px-<file> — scales down dynamically at the Wikimedia edge."
+  },
+  "vehicles": [
+    {
+      "id": "1bdd9636-1ef8-4652-b98a-e443605e2509",
+      "name": "Pedestrians",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Warehouse_workers_prepare_packages_for_shipment_at_Sharpe_Army_Depot_-_DPLA_-_414220df83b823977c05c01a4b6b4106.jpeg/400px-Warehouse_workers_prepare_packages_for_shipment_at_Sharpe_Army_Depot_-_DPLA_-_414220df83b823977c05c01a4b6b4106.jpeg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Warehouse_workers_prepare_packages_for_shipment_at_Sharpe_Army_Depot_-_DPLA_-_414220df83b823977c05c01a4b6b4106.jpeg",
+      "licence": "Public Domain (U.S. federal government work)"
+    },
+    {
+      "id": "877cbb11-f27a-4286-b5d0-87ee746cbd41",
+      "name": "Manual Pallet Truck",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Pallet_jack.PNG/400px-Pallet_jack.PNG",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Pallet_jack.PNG",
+      "licence": "CC BY-SA 3.0 (Kruckenberg.1)"
+    },
+    {
+      "id": "e86cb321-0e55-4079-bbb9-eba9902a7db6",
+      "name": "Electric Pallet Truck",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Electric_pallet_jack.jpg/400px-Electric_pallet_jack.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Electric_pallet_jack.jpg",
+      "licence": "CC BY-SA 3.0"
+    },
+    {
+      "id": "5f538b83-e15d-4883-8e39-c69d5fc39ca7",
+      "name": "Rider Pallet Truck",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/20150916-OSEC-LSC-0128_%2821017588433%29.jpg/400px-20150916-OSEC-LSC-0128_%2821017588433%29.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:20150916-OSEC-LSC-0128_(21017588433).jpg",
+      "licence": "Public Domain (U.S. Department of Agriculture)"
+    },
+    {
+      "id": "ae72bb1c-81bc-4004-a443-9c20bde57961",
+      "name": "Walkie Stacker",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Toyota_Walkie_Stacker_Forklift_on_Pepsi_Truck_in_Irvine%2C_FL.jpg/400px-Toyota_Walkie_Stacker_Forklift_on_Pepsi_Truck_in_Irvine%2C_FL.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Toyota_Walkie_Stacker_Forklift_on_Pepsi_Truck_in_Irvine,_FL.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "a8f40c09-4998-4bb4-a2a1-1e4044539af4",
+      "name": "Low-Level Order Picker",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Jungheinrich_ECE_225.jpg/400px-Jungheinrich_ECE_225.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Jungheinrich_ECE_225.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "ba6e9a31-f791-4f88-ad7b-275466260bcc",
+      "name": "High-Level Order Picker",
+      "imageUrl": null,
+      "source": null,
+      "sourceFile": null,
+      "licence": null,
+      "notes": "No clean Commons match found for a high-level order picker (Crown SP-class, Jungheinrich EKS-class). UI falls back to iconify silhouette."
+    },
+    {
+      "id": "1a4960f4-f28f-49db-ae68-110652af0538",
+      "name": "Counterbalance Forklift (1.5T)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Toyota_forklift_vehicle.jpg/400px-Toyota_forklift_vehicle.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Toyota_forklift_vehicle.jpg",
+      "licence": "Public Domain (author Leon Brooks)"
+    },
+    {
+      "id": "7817d5c7-6949-4dd7-9965-2f6ad7b78427",
+      "name": "Counterbalance Forklift (2.5T)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Hyster_50XT_forklift_parked_in_downtown_Campbell.jpg/400px-Hyster_50XT_forklift_parked_in_downtown_Campbell.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Hyster_50XT_forklift_parked_in_downtown_Campbell.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "21b45678-973c-4ee9-b552-561dfb5f842e",
+      "name": "Counterbalance Forklift (5T)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Carretilla_elevadora_Hyster.jpg/400px-Carretilla_elevadora_Hyster.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Carretilla_elevadora_Hyster.jpg",
+      "licence": "CC BY-SA 4.0 (Bene Riobó)"
+    },
+    {
+      "id": "18a43f23-d96a-4650-b94c-1875edf58ef1",
+      "name": "Reach Truck",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/ETV214.jpg/400px-ETV214.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:ETV214.jpg",
+      "licence": "CC BY-SA 3.0 de (Jungheinrich ETV 214)"
+    },
+    {
+      "id": "0e89efb7-a6d2-4d8f-8215-cfe3704af016",
+      "name": "Very Narrow Aisle (VNA) Truck",
+      "imageUrl": null,
+      "source": null,
+      "sourceFile": null,
+      "licence": null,
+      "notes": "No clean Commons match for a turret/VNA truck. UI falls back to iconify silhouette."
+    },
+    {
+      "id": "0633c437-a7e5-4dac-867b-df1a8e84ecfe",
+      "name": "Heavy-Duty Forklift (10T+)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Linde_H80_forklift.JPG/400px-Linde_H80_forklift.JPG",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Linde_H80_forklift.JPG",
+      "licence": "CC BY 3.0 DE"
+    },
+    {
+      "id": "04569524-e4a7-48d1-b780-aba832c387d0",
+      "name": "Telehandler",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Weidemann_Teleskoplader_T4512_CC40.jpg/400px-Weidemann_Teleskoplader_T4512_CC40.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Weidemann_Teleskoplader_T4512_CC40.jpg",
+      "licence": "CC BY-SA 3.0 (Wacker Neuson, VRT-confirmed)"
+    },
+    {
+      "id": "8baa64bc-4019-403f-b323-545781f71879",
+      "name": "Tow Tractor / Tugger",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/MB-4_Aircraft_Towing_Tractor%2C_Museum_of_Aviation.jpg/400px-MB-4_Aircraft_Towing_Tractor%2C_Museum_of_Aviation.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:MB-4_Aircraft_Towing_Tractor,_Museum_of_Aviation.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "f93aa857-e398-4f97-920a-424be2f449fd",
+      "name": "AGV (Automated Guided Vehicle)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/AGV_-_Automated_Guided_Vehicle.jpg/400px-AGV_-_Automated_Guided_Vehicle.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:AGV_-_Automated_Guided_Vehicle.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "96beebbb-acaf-409b-ada2-06b75042e294",
+      "name": "Scissor Lift / MEWP",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Genie_GS-2032.jpg/400px-Genie_GS-2032.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Genie_GS-2032.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "eb9bcf13-2364-495b-a490-f0bcdf7c24ee",
+      "name": "HGV / Rigid Truck (7.5T)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Belfor_box_truck.jpg/400px-Belfor_box_truck.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Belfor_box_truck.jpg",
+      "licence": "CC BY-SA 4.0"
+    },
+    {
+      "id": "855e435c-305a-40aa-a950-cd7be5af8e98",
+      "name": "HGV / Articulated Truck (40T)",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/GXO_articulated_lorry%2C_Ponthir%2C_Torfaen_-_geograph.org.uk_-_7996022.jpg/400px-GXO_articulated_lorry%2C_Ponthir%2C_Torfaen_-_geograph.org.uk_-_7996022.jpg",
+      "source": "Wikimedia Commons (geograph.org.uk)",
+      "sourceFile": "File:GXO_articulated_lorry,_Ponthir,_Torfaen_-_geograph.org.uk_-_7996022.jpg",
+      "licence": "CC BY-SA 2.0"
+    },
+    {
+      "id": "8809a8c7-b1a8-426c-ad29-641029f3923b",
+      "name": "Delivery Van / Light Commercial",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Delivery_vans_-_geograph.org.uk_-_1130216.jpg/400px-Delivery_vans_-_geograph.org.uk_-_1130216.jpg",
+      "source": "Wikimedia Commons (geograph.org.uk)",
+      "sourceFile": "File:Delivery_vans_-_geograph.org.uk_-_1130216.jpg",
+      "licence": "CC BY-SA 2.0 (Keith Evans)"
+    }
+  ]
+}

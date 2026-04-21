@@ -25,11 +25,12 @@
 import { Hono } from "hono";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { and, eq, ilike, sql as sqlTag } from "drizzle-orm";
+import { and, eq, ilike, or, sql as sqlTag } from "drizzle-orm";
 import type { Env, Variables } from "../types";
 import {
   products,
   productVariants,
+  vehicleTypes,
 } from "../../shared/schema";
 import priceList from "../../scripts/data/pricelist-aed-2025v1.json";
 import scrapedCatalog from "../../scripts/data/asafe-catalog.json";
@@ -988,6 +989,150 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
     // (400mm + 600mm Normal, 400mm + 600mm Cold Storage). Price per-unit
     // stays on the family rate card (AED 155.76 / AED 186.90); the variant
     // just carries the chosen height so the quote line is explicit.
+    // Seed photo-realistic imagery on the vehicle_types table (used by the
+    // Impact Calculator / Site Survey / Solution Finder vehicle selector).
+    // vehicle_types.icon_url already holds an iconify silhouette per row;
+    // vehicle_types.thumbnail_url is the nullable column we use for the
+    // real-world photograph. The UI falls back from thumbnail → icon so
+    // unseeded rows still render.
+    //
+    // All URLs sourced from Wikimedia Commons (public-domain or CC/CC-BY-SA),
+    // served via the /thumb/ 400px edge-resize endpoint. Full mapping lives in
+    // scripts/data/vehicle-image-map.json. Rows with no licence-safe match
+    // (High-Level Order Picker, VNA Truck) are intentionally omitted so the
+    // icon fallback continues to cover them.
+    if (c.req.query("seedVehicleImages") === "1") {
+      const MAP: Array<{ id: string; name: string; imageUrl: string }> = [
+        {
+          id: "1bdd9636-1ef8-4652-b98a-e443605e2509",
+          name: "Pedestrians",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Warehouse_workers_prepare_packages_for_shipment_at_Sharpe_Army_Depot_-_DPLA_-_414220df83b823977c05c01a4b6b4106.jpeg/400px-Warehouse_workers_prepare_packages_for_shipment_at_Sharpe_Army_Depot_-_DPLA_-_414220df83b823977c05c01a4b6b4106.jpeg",
+        },
+        {
+          id: "877cbb11-f27a-4286-b5d0-87ee746cbd41",
+          name: "Manual Pallet Truck",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Pallet_jack.PNG/400px-Pallet_jack.PNG",
+        },
+        {
+          id: "e86cb321-0e55-4079-bbb9-eba9902a7db6",
+          name: "Electric Pallet Truck",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Electric_pallet_jack.jpg/400px-Electric_pallet_jack.jpg",
+        },
+        {
+          id: "5f538b83-e15d-4883-8e39-c69d5fc39ca7",
+          name: "Rider Pallet Truck",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/20150916-OSEC-LSC-0128_%2821017588433%29.jpg/400px-20150916-OSEC-LSC-0128_%2821017588433%29.jpg",
+        },
+        {
+          id: "ae72bb1c-81bc-4004-a443-9c20bde57961",
+          name: "Walkie Stacker",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Toyota_Walkie_Stacker_Forklift_on_Pepsi_Truck_in_Irvine%2C_FL.jpg/400px-Toyota_Walkie_Stacker_Forklift_on_Pepsi_Truck_in_Irvine%2C_FL.jpg",
+        },
+        {
+          id: "a8f40c09-4998-4bb4-a2a1-1e4044539af4",
+          name: "Low-Level Order Picker",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Jungheinrich_ECE_225.jpg/400px-Jungheinrich_ECE_225.jpg",
+        },
+        {
+          id: "1a4960f4-f28f-49db-ae68-110652af0538",
+          name: "Counterbalance Forklift (1.5T)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Toyota_forklift_vehicle.jpg/400px-Toyota_forklift_vehicle.jpg",
+        },
+        {
+          id: "7817d5c7-6949-4dd7-9965-2f6ad7b78427",
+          name: "Counterbalance Forklift (2.5T)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Hyster_50XT_forklift_parked_in_downtown_Campbell.jpg/400px-Hyster_50XT_forklift_parked_in_downtown_Campbell.jpg",
+        },
+        {
+          id: "21b45678-973c-4ee9-b552-561dfb5f842e",
+          name: "Counterbalance Forklift (5T)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Carretilla_elevadora_Hyster.jpg/400px-Carretilla_elevadora_Hyster.jpg",
+        },
+        {
+          id: "18a43f23-d96a-4650-b94c-1875edf58ef1",
+          name: "Reach Truck",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/ETV214.jpg/400px-ETV214.jpg",
+        },
+        {
+          id: "0633c437-a7e5-4dac-867b-df1a8e84ecfe",
+          name: "Heavy-Duty Forklift (10T+)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Linde_H80_forklift.JPG/400px-Linde_H80_forklift.JPG",
+        },
+        {
+          id: "04569524-e4a7-48d1-b780-aba832c387d0",
+          name: "Telehandler",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Weidemann_Teleskoplader_T4512_CC40.jpg/400px-Weidemann_Teleskoplader_T4512_CC40.jpg",
+        },
+        {
+          id: "8baa64bc-4019-403f-b323-545781f71879",
+          name: "Tow Tractor / Tugger",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/MB-4_Aircraft_Towing_Tractor%2C_Museum_of_Aviation.jpg/400px-MB-4_Aircraft_Towing_Tractor%2C_Museum_of_Aviation.jpg",
+        },
+        {
+          id: "f93aa857-e398-4f97-920a-424be2f449fd",
+          name: "AGV (Automated Guided Vehicle)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/AGV_-_Automated_Guided_Vehicle.jpg/400px-AGV_-_Automated_Guided_Vehicle.jpg",
+        },
+        {
+          id: "96beebbb-acaf-409b-ada2-06b75042e294",
+          name: "Scissor Lift / MEWP",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Genie_GS-2032.jpg/400px-Genie_GS-2032.jpg",
+        },
+        {
+          id: "eb9bcf13-2364-495b-a490-f0bcdf7c24ee",
+          name: "HGV / Rigid Truck (7.5T)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Belfor_box_truck.jpg/400px-Belfor_box_truck.jpg",
+        },
+        {
+          id: "855e435c-305a-40aa-a950-cd7be5af8e98",
+          name: "HGV / Articulated Truck (40T)",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/GXO_articulated_lorry%2C_Ponthir%2C_Torfaen_-_geograph.org.uk_-_7996022.jpg/400px-GXO_articulated_lorry%2C_Ponthir%2C_Torfaen_-_geograph.org.uk_-_7996022.jpg",
+        },
+        {
+          id: "8809a8c7-b1a8-426c-ad29-641029f3923b",
+          name: "Delivery Van / Light Commercial",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Delivery_vans_-_geograph.org.uk_-_1130216.jpg/400px-Delivery_vans_-_geograph.org.uk_-_1130216.jpg",
+        },
+      ];
+
+      let applied = 0;
+      const missed: string[] = [];
+      for (const m of MAP) {
+        const res = await db
+          .update(vehicleTypes)
+          .set({ thumbnailUrl: m.imageUrl, updatedAt: new Date() })
+          .where(or(eq(vehicleTypes.id, m.id), eq(vehicleTypes.name, m.name)))
+          .returning({ id: vehicleTypes.id });
+        if (res.length > 0) applied++;
+        else missed.push(m.name);
+      }
+      report.seedVehicleImages = {
+        attempted: MAP.length,
+        applied,
+        missed,
+        note:
+          "Photo stored on vehicle_types.thumbnail_url (nullable). icon_url remains the iconify silhouette fallback. 2 rows (High-Level Order Picker, VNA Truck) intentionally skipped — no licence-safe Commons match, UI falls back to icon.",
+      };
+    }
+
     // Normalise product images onto the clean hero / in-situ split we agreed
     // with the customer: products.imageUrl is always the product-only hero
     // (thumbnails, grid, cart, spec card top half); products.lifestyleImageUrl
