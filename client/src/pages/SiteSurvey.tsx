@@ -36,7 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { ObjectUploader } from '@/components/ObjectUploader';
 import { AddToCartModal } from '@/components/AddToCartModal';
-import { CompanyLogoFinder } from '@/components/CompanyLogoFinder';
+import { LogoSuggestions } from '@/components/LogoSuggestions';
 import { MatterportViewer, parseMatterportUrl } from '@/components/MatterportViewer';
 import { useOfflineSurvey } from '@/hooks/useOfflineSurvey';
 import type { UploadResult } from '@uppy/core';
@@ -832,15 +832,19 @@ export default function SiteSurvey() {
                 />
               </div>
 
-              {/* Company Logo Finder */}
-              {newSurvey.facilityName && (
-                <CompanyLogoFinder
-                  companyName={newSurvey.facilityName}
-                  currentLogoUrl={newSurvey.companyLogoUrl}
-                  onLogoConfirmed={(logoUrl) => setNewSurveyAndDraft({ ...newSurvey, companyLogoUrl: logoUrl })}
-                  className="mt-2"
-                />
-              )}
+              {/* Company logo picker — same inline grid-of-suggestions
+                  component used by NewProjectDialog. The old
+                  CompanyLogoFinder only surfaced a single "possible
+                  match" and was hard to see in dark mode. */}
+              <LogoSuggestions
+                query={newSurvey.facilityName || ''}
+                value={newSurvey.companyLogoUrl || null}
+                onChange={(logoUrl) =>
+                  setNewSurveyAndDraft({ ...newSurvey, companyLogoUrl: logoUrl ?? '' })
+                }
+                label="Company Logo"
+                className="mt-2"
+              />
 
               <div>
                 <Label htmlFor="facilityLocation">Location</Label>
