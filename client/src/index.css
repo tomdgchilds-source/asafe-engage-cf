@@ -556,14 +556,18 @@ img {
   box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.2) !important;
 }
 
-/* Buttons and interactive elements */
-.dark button[type="button"]:not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary) {
+/* Buttons and interactive elements
+ * NOTE: excludes [role="switch"] so Radix Switch toggles can paint their own
+ * data-[state=checked]:bg-[#FFC72C] / data-[state=unchecked]:bg-gray-600
+ * backgrounds without being steamrolled by this blanket dark-button override.
+ */
+.dark button[type="button"]:not([role="switch"]):not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary) {
   background-color: #1a1a1a !important;
   color: #ffffff !important;
   border-color: #2a2a2a !important;
 }
 
-.dark button[type="button"]:not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary):hover {
+.dark button[type="button"]:not([role="switch"]):not(.bg-yellow-600):not(.bg-yellow-500):not(.bg-primary):hover {
   background-color: #242424 !important;
   border-color: #3a3a3a !important;
 }
