@@ -3,6 +3,11 @@ import { pdfjs } from "react-pdf";
 import asafeLogoImg from "../../../attached_assets/A-SAFE_Logo_Strapline_Secondary_Version_1767686263231.png";
 import { renderAboutAsafe, type AppendixContext } from "./aboutAsafeAppendix";
 import { computeBarrierSymbol } from "./barrierSymbol";
+import {
+  findLadderForFamily,
+  safetyMargin,
+  SAFETY_FACTORS,
+} from "./barrierLadders";
 
 // Reuse the pdfjs instance react-pdf already loads for the layout-markup
 // viewer. Importing from "react-pdf" gives us the exact build its worker is
@@ -81,6 +86,15 @@ interface OrderItem {
   specifications?: any;
   description?: string;
   layoutDrawingId?: string;
+  // Optional fields used to render the Good/Better/Best tier badge on the
+  // spec card. `impactCalculationId` is the id of the saved kinetic-energy
+  // calc the item was recommended against; `calculationContext.requiredJoules`
+  // is the required energy threshold used to compute the safety margin.
+  impactCalculationId?: string;
+  calculationContext?: {
+    requiredJoules?: number | null;
+    [key: string]: any;
+  };
 }
 
 interface DiscountDetail {
@@ -1202,6 +1216,117 @@ export async function generateOrderFormPDF(
       pdf.text(nameLines[1], textX, ty);
     }
     ty += 5;
+
+    // ───── Tier badge (Good / Better / Best)
+    //
+    // Only drawn when the product family resolves to a ladder in
+    // barrier-ladders.json. Items that aren't on a ladder (e.g. accessories,
+    // signage, loose stops) get nothing — we don't want an empty placeholder
+    // shifting the layout.
+    //
+    // The margin % prefers an actual product-vs-required-joules comparison
+    // (via the saved impact calc on the item); when that's not present we
+    // fall back to the static SAFETY_FACTORS target for the tier and append
+    // the word "target" to signal it's the design margin, not a live calc.
+    const ladderMatch = findLadderForFamily(item.productName);
+    if (ladderMatch) {
+      const { tier } = ladderMatch;
+      const tierUpper = tier.toUpperCase();
+
+      const requiredJoules = item.impactCalculationId
+        ? (item.calculationContext?.requiredJoules ?? null)
+        : null;
+      const productJoules = cat?.impactRating ?? item.impactRating ?? null;
+
+      // Preferred: actual calc vs required. Fallback: static safety factor.
+      let marginFraction: number | null = null;
+      let marginIsStatic = false;
+      if (requiredJoules != null && requiredJoules > 0) {
+        marginFraction = safetyMargin(productJoules, requiredJoules);
+      } else {
+        marginFraction = SAFETY_FACTORS[tier] - 1;
+        marginIsStatic = true;
+      }
+
+      const marginPct = Math.round((marginFraction ?? 0) * 100);
+      const marginSign = marginPct >= 0 ? "+" : "";
+      const marginText = marginIsStatic
+        ? `${marginSign}${marginPct}% target`
+        : `${marginSign}${marginPct}%`;
+      // Green when the product comfortably exceeds its threshold, amber
+      // otherwise. For the live-calc path we check that the product meets
+      // the tier's design safety factor; for the static-target fallback
+      // the margin is the target itself, so any positive target reads as
+      // green (the product is specified to hit it by design).
+      const tierFactor = SAFETY_FACTORS[tier] ?? 1;
+      const exceedsThreshold = marginIsStatic
+        ? marginFraction! >= 0
+        : marginFraction! >= tierFactor - 1;
+      const marginColour = exceedsThreshold ? accent.green : brand.yellowDark;
+
+      const labelText = `TIER · ${tierUpper}`;
+      const sepText = " · ";
+
+      // Measure against the product name line so the badge never overruns
+      // past the right edge of the info column, capped at 60mm.
+      const maxBadgeW = Math.min(60, infoColW);
+      const padX = 3;
+      const barW = 1.5;
+      const barGap = 2;
+
+      setFont(7, "bold");
+      const labelW = pdf.getTextWidth(labelText);
+      setFont(7, "normal");
+      const sepW = pdf.getTextWidth(sepText);
+      const marginW = pdf.getTextWidth(marginText);
+
+      const contentW = labelW + sepW + marginW;
+      const fullBadgeW = barW + barGap + contentW + padX * 2;
+      // If the full badge (label + margin) would overflow, try label-only.
+      let showMargin = true;
+      let badgeW = fullBadgeW;
+      if (badgeW > maxBadgeW) {
+        const labelOnlyW = barW + barGap + labelW + padX * 2;
+        if (labelOnlyW <= maxBadgeW) {
+          showMargin = false;
+          badgeW = labelOnlyW;
+        } else {
+          badgeW = maxBadgeW;
+        }
+      }
+
+      const badgeH = 4.2;
+      const badgeX = textX;
+      const badgeY = ty - 3.2;
+
+      // Soft yellow pill background.
+      setFill(brand.yellowSoft);
+      pdf.roundedRect(badgeX, badgeY, badgeW, badgeH, 0.8, 0.8, "F");
+      // Dark yellow bar on the left edge.
+      setFill(brand.yellowDark);
+      pdf.rect(badgeX, badgeY, barW, badgeH, "F");
+
+      // Text: "TIER · BETTER" bold, then " · +35% margin" normal in status colour.
+      const textStartX = badgeX + barW + barGap + padX - 1.5;
+      const textBaseY = badgeY + badgeH - 1.2;
+      setFont(7, "bold");
+      setText(brand.yellowDark);
+      pdf.text(labelText, textStartX, textBaseY, { charSpace: 0.2 });
+
+      if (showMargin) {
+        setFont(7, "normal");
+        setText(ink.muted);
+        pdf.text(sepText, textStartX + labelW, textBaseY);
+        setFont(7, "bold");
+        setText(marginColour);
+        pdf.text(marginText, textStartX + labelW + sepW, textBaseY);
+      }
+
+      // Advance cursor below the badge so the description starts on a
+      // fresh line. Keep it tight — ~5mm matches the name-to-description
+      // rhythm on cards that don't have the badge.
+      ty += 5;
+    }
 
     // Description (2 lines max)
     const description = cat?.description || item.description || "";

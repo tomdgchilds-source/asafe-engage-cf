@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "purpose": "Good / Better / Best ladder definitions driving the tier-switcher in the cart + PDF + Impact Calculator.",
+    "safetyFactors": { "good": 1.15, "better": 1.35, "best": 1.70 }
+  },
+  "ladders": [
+    {
+      "id": "pedestrian",
+      "label": "Pedestrian Barrier",
+      "applicationAreas": ["Pedestrian Walkways", "Crossing Points", "Workstation Segregation"],
+      "tiers": {
+        "good":   { "family": "eFlex Pedestrian Barrier",    "rationale": "Light-duty walkway segregation for low-speed, low-volume foot + MHE traffic." },
+        "better": { "family": "iFlex Pedestrian 3 Rail",      "rationale": "Standard 3-rail pedestrian barrier for typical mixed forklift + pedestrian aisles." },
+        "best":   { "family": "130-T0-P3",                    "rationale": "Newer high-rated pedestrian barrier for critical or high-frequency zones." }
+      }
+    },
+    {
+      "id": "single-traffic",
+      "label": "Single Traffic Barrier",
+      "applicationAreas": ["Traffic Management", "Perimeter Protection", "Single-Rail Aisles"],
+      "tiers": {
+        "good":   { "family": "eFlex Single Traffic",   "rationale": "Entry-level single-rail traffic barrier for low-speed vehicles." },
+        "better": { "family": "iFlex Single Traffic",   "rationale": "Standard A-SAFE single-rail traffic barrier for typical forklift zones." },
+        "best":   { "family": "iFlex Double Traffic",   "rationale": "Upgrade to double-rail for heavier vehicles + higher impact speeds." }
+      }
+    },
+    {
+      "id": "ped-plus-traffic",
+      "label": "Pedestrian + Traffic Combo",
+      "applicationAreas": ["Pedestrian Walkways", "Mixed Traffic Zones"],
+      "tiers": {
+        "good":   { "family": "eFlex Single Traffic+",  "rationale": "Entry-level combo barrier with one traffic rail + one pedestrian rail." },
+        "better": { "family": "iFlex Single Traffic+",  "rationale": "Standard combo barrier balancing traffic and pedestrian protection." },
+        "best":   { "family": "iFlex Double Traffic+",  "rationale": "Dual traffic rails + pedestrian rail for heaviest mixed-traffic aisles." }
+      }
+    },
+    {
+      "id": "rack-end",
+      "label": "Rack End Barrier",
+      "applicationAreas": ["Racking Protection", "Aisle Entry", "Rack End Frame Protection"],
+      "tiers": {
+        "good":   { "family": "Rack End Barrier - Single Rail", "rationale": "Single-rail rack-end protection for standard aisles." },
+        "better": { "family": "Rack End Barrier - Double Rail", "rationale": "Double-rail for deeper forklift impacts on rack end frames." },
+        "best":   { "family": "Topple Barrier 2.08m with ForkGuard", "rationale": "Full-height topple protection for critical racking or shared aisles." }
+      }
+    },
+    {
+      "id": "column",
+      "label": "Column Protection",
+      "applicationAreas": ["Column Protection", "Corner Protection", "Equipment Guarding"],
+      "tiers": {
+        "good":   { "family": "FlexiShield Corner Guard",        "rationale": "90° corner guard for light side impacts on walls and equipment edges." },
+        "better": { "family": "FlexiShield Column Guard",        "rationale": "Wrap-around column guard for typical warehouse columns." },
+        "best":   { "family": "FlexiShield Column Guard - Spacer Set", "rationale": "Extended wrap with spacer sets for heavy impacts on wider columns." }
+      }
+    },
+    {
+      "id": "topple",
+      "label": "Topple / High Containment",
+      "applicationAreas": ["Racking Protection", "Cross-Aisle Protection", "Storage Protection"],
+      "tiers": {
+        "good":   { "family": "Topple Barrier 2.08m with ForkGuard", "rationale": "Baseline topple protection for low/medium-bay racking." },
+        "better": { "family": "Topple Barrier 3.6m with ForkGuard",  "rationale": "Taller topple barrier for medium-bay warehouses." },
+        "best":   { "family": "Topple Barrier 5.3m with ForkGuard",  "rationale": "Full-height topple protection for high-bay or critical zones." }
+      }
+    }
+  ]
+}

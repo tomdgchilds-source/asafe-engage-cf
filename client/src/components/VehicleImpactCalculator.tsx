@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import type { Product, VehicleType } from "@shared/schema";
 import type { UploadResult } from "@uppy/core";
+import {
+  findLadderForApplication,
+  recommendTier,
+  SAFETY_FACTORS,
+  safetyMargin,
+  type BarrierLadder,
+  type BarrierTier,
+} from "@/utils/barrierLadders";
+import { useBarrierLadders } from "@/hooks/useBarrierLadders";
 import {
   Dialog,
   DialogContent,
@@ -343,6 +352,25 @@ export function VehicleImpactCalculator() {
   const [result, setResult] = useState<CalculationResult | null>(savedState?.result || null);
   const [savedCalculationId, setSavedCalculationId] = useState<string | null>(savedState?.savedCalculationId || null);
   const [operationalZoneImageUrls, setOperationalZoneImageUrls] = useState<string[]>(savedState?.operationalZoneImageUrls || []);
+
+  // -------------------------------------------------------------------
+  // Good / Better / Best tier recommender state
+  // -------------------------------------------------------------------
+  // The calc's applicationArea already drives ladder auto-selection via
+  // `findLadderForApplication`. When no match is found (or the user
+  // wants to override) we expose a manual ladder picker above the cards.
+  // Default = "single-traffic", per the brief.
+  const [manualLadderId, setManualLadderId] = useState<string | null>(null);
+  const [manualRiskLevel, setManualRiskLevel] = useState<
+    "critical" | "high" | "medium" | "low"
+  >("medium");
+  const {
+    ladders: allLadders,
+    findProductsForFamily,
+    priceForFamily,
+    joulesForFamily,
+    heroProductForFamily,
+  } = useBarrierLadders();
   
   // Fetch vehicle types
   const { data: vehicleTypes, isLoading: loadingVehicleTypes } = useQuery({

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,19 @@ import { Trash2, Plus, Minus, ShoppingCart, MapPin, Wrench, Calculator, ChevronD
 import { useAutoMinimize } from "@/hooks/useAutoMinimize";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { AddToCartModal } from "@/components/AddToCartModal";
+import { TierSwitcher } from "@/components/TierSwitcher";
+import {
+  findLadderForFamily,
+  recommendTier,
+  type BarrierTier,
+} from "@/utils/barrierLadders";
+import {
+  useBarrierLadders,
+  pickRowForLength,
+} from "@/hooks/useBarrierLadders";
+import { apiRequest } from "@/lib/queryClient";
 
 interface CartItemProps {
   item: any;
@@ -70,10 +82,231 @@ export function CartItem({
   const [referenceImages, setReferenceImages] = useState<string[]>(item.referenceImages || []);
   const [uploadingImage, setUploadingImage] = useState(false);
   const { toast } = useToast();
-  
+  const queryClient = useQueryClient();
+
   // Get product details to find the product ID
   const productDetails = getProductDetails(item.productName);
   const productId = productDetails?.id;
+
+  // -------------------------------------------------------------------
+  // Good / Better / Best tier switcher wiring
+  // -------------------------------------------------------------------
+  // Resolve the ladder for this line item's productName. When no ladder
+  // matches we skip the switcher entirely. The ladder match is tolerant
+  // of trailing suffixes ("- 1600mm", "- Yellow") via the sibling
+  // `findLadderForFamily` helper.
+  const ladderMatch = useMemo(
+    () => findLadderForFamily(item.productName),
+    [item.productName],
+  );
+  const {
+    ladders,
+    findProductsForFamily,
+    priceForFamily,
+    joulesForFamily,
+  } = useBarrierLadders();
+  const [swappingTier, setSwappingTier] = useState(false);
+
+  // Extract the target lengthMm from this item (if it's a lengthed SKU)
+  // so we can keep the length fixed when swapping tiers.
+  const targetLengthMm: number | null = useMemo(() => {
+    const sv = item.selectedVariant || item.specifications?.selectedVariant;
+    const fromVariant = sv?.lengthMm ?? sv?.length_mm;
+    if (typeof fromVariant === "number" && fromVariant > 0) return fromVariant;
+    // Fallback: parse a "1600mm" suffix out of the product name.
+    const m = String(item.productName || "").match(/\b(\d{3,5})\s*mm\b/i);
+    if (m) {
+      const mm = parseInt(m[1], 10);
+      if (Number.isFinite(mm) && mm > 0) return mm;
+    }
+    return null;
+  }, [item.productName, item.selectedVariant, item.specifications]);
+
+  // Per-tier unit-price + impact joules lookup. When the line item is a
+  // per-length SKU we pick the variant row matching `targetLengthMm`,
+  // otherwise we fall back to the family-level helpers.
+  const pricesByTier = useMemo((): Record<BarrierTier, number | null> => {
+    const out: Record<BarrierTier, number | null> = {
+      good: null,
+      better: null,
+      best: null,
+    };
+    if (!ladderMatch) return out;
+    (Object.keys(ladderMatch.ladder.tiers) as BarrierTier[]).forEach((tier) => {
+      const family = ladderMatch.ladder.tiers[tier].family;
+      const rows = findProductsForFamily(family);
+      if (rows.length === 0) {
+        out[tier] = null;
+        return;
+      }
+      if (targetLengthMm != null) {
+        const picked = pickRowForLength(rows, targetLengthMm);
+        if (picked) {
+          const priceRaw = picked.row.price ?? picked.row.basePricePerMeter;
+          const n =
+            priceRaw == null
+              ? null
+              : typeof priceRaw === "number"
+                ? priceRaw
+                : parseFloat(String(priceRaw).split("-")[0]);
+          out[tier] = Number.isFinite(n as number) ? (n as number) : null;
+          return;
+        }
+      }
+      out[tier] = priceForFamily(family);
+    });
+    return out;
+  }, [ladderMatch, findProductsForFamily, priceForFamily, targetLengthMm]);
+
+  const joulesByTier = useMemo((): Record<BarrierTier, number | null> => {
+    const out: Record<BarrierTier, number | null> = {
+      good: null,
+      better: null,
+      best: null,
+    };
+    if (!ladderMatch) return out;
+    (Object.keys(ladderMatch.ladder.tiers) as BarrierTier[]).forEach((tier) => {
+      const family = ladderMatch.ladder.tiers[tier].family;
+      out[tier] = joulesForFamily(family);
+    });
+    return out;
+  }, [ladderMatch, joulesForFamily]);
+
+  // Auto-recommendation. Pull required joules + riskLevel from the
+  // item's linked impact calculation context when present. Normalise
+  // "Low Risk" / "high" etc. to the lowercase 4-value enum the sibling
+  // helper expects.
+  const recommendedTier: BarrierTier | undefined = useMemo(() => {
+    if (!ladderMatch) return undefined;
+    const ctx = item.calculationContext as
+      | { kineticEnergy?: number; riskLevel?: string }
+      | undefined;
+    const requiredJoules: number | null =
+      typeof ctx?.kineticEnergy === "number"
+        ? ctx.kineticEnergy
+        : typeof item.impactRating === "number"
+          ? item.impactRating
+          : null;
+    const rawRisk = (ctx?.riskLevel ?? item.riskLevel ?? "")
+      .toString()
+      .toLowerCase();
+    const riskLevel: "critical" | "high" | "medium" | "low" | null =
+      rawRisk.includes("critical") || rawRisk.includes("extreme")
+        ? "critical"
+        : rawRisk.includes("high")
+          ? "high"
+          : rawRisk.includes("medium")
+            ? "medium"
+            : rawRisk.includes("low")
+              ? "low"
+              : null;
+    try {
+      return recommendTier(
+        requiredJoules,
+        riskLevel,
+        ladderMatch.ladder,
+        (family) => joulesForFamily(family),
+      );
+    } catch {
+      return undefined;
+    }
+  }, [ladderMatch, item, joulesForFamily]);
+
+  // Handle tier selection: PATCH the existing cart line with the new
+  // family's name + price. When the backend rejects the productName
+  // change we fall back to DELETE + POST with the same quantity/options.
+  const handleTierSelect = async (newTier: BarrierTier) => {
+    if (!ladderMatch) return;
+    if (newTier === ladderMatch.tier) return;
+    setSwappingTier(true);
+    try {
+      const family = ladderMatch.ladder.tiers[newTier].family;
+      const rows = findProductsForFamily(family);
+      if (rows.length === 0) {
+        throw new Error(`No catalog product matches family "${family}"`);
+      }
+      const picked =
+        targetLengthMm != null
+          ? pickRowForLength(rows, targetLengthMm)
+          : { row: rows[0], lengthMm: null };
+      if (!picked) throw new Error("No suitable variant found");
+
+      // Compose the new productName: "<family> - <length>mm" when the
+      // line item was length-specific, else plain family name from the
+      // picked row (which may already carry the suffix for lengthed
+      // catalog rows).
+      const baseName =
+        picked.row.name && picked.row.name.trim().length > 0
+          ? picked.row.name
+          : family;
+      const pickedLen = picked.lengthMm ?? targetLengthMm ?? null;
+      const productName =
+        targetLengthMm != null && pickedLen != null
+          ? /\d{3,5}\s*mm/i.test(baseName)
+            ? baseName
+            : `${family} - ${pickedLen}mm`
+          : baseName;
+
+      const priceRaw = picked.row.price ?? picked.row.basePricePerMeter;
+      const unitPrice =
+        priceRaw == null
+          ? null
+          : typeof priceRaw === "number"
+            ? priceRaw
+            : parseFloat(String(priceRaw).split("-")[0]);
+      if (unitPrice == null || !Number.isFinite(unitPrice)) {
+        throw new Error("Unit price unavailable for the chosen tier");
+      }
+      const totalPrice = unitPrice * Number(item.quantity || 1);
+
+      // Try PATCH first — the standard path.
+      try {
+        await apiRequest(`/api/cart/${item.id}`, "PATCH", {
+          productName,
+          unitPrice,
+          totalPrice,
+          pricingTier: newTier,
+        });
+      } catch (patchErr) {
+        // Fallback path: if the backend refuses productName rename via
+        // PATCH we re-create the line.
+        await apiRequest(`/api/cart/${item.id}`, "DELETE");
+        await apiRequest("/api/cart", "POST", {
+          productName,
+          quantity: item.quantity,
+          pricingType: item.pricingType,
+          unitPrice,
+          totalPrice,
+          pricingTier: newTier,
+          notes: item.notes,
+          applicationArea: item.applicationArea,
+          requiresDelivery: item.requiresDelivery,
+          deliveryAddress: item.deliveryAddress,
+          requiresInstallation: item.requiresInstallation,
+          impactCalculationId: item.impactCalculationId,
+          calculationContext: item.calculationContext,
+          referenceImages: item.referenceImages,
+          calculatorImages: item.calculatorImages,
+        });
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      toast({
+        title: `Switched to ${newTier.charAt(0).toUpperCase() + newTier.slice(1)}`,
+        description: `Now using ${family}.`,
+      });
+    } catch (err: any) {
+      console.error("Tier swap failed:", err);
+      toast({
+        title: "Tier change failed",
+        description:
+          err?.message ?? "Unable to switch tiers. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSwappingTier(false);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, itemId: string) => {
     const file = e.target.files?.[0];
@@ -445,6 +678,40 @@ export function CartItem({
                 </div>
               </div>
             </div>
+
+            {/* Good / Better / Best Tier Switcher — visible only when
+                this line item's productName resolves to a known ladder. */}
+            {ladderMatch && (
+              <div className="md:col-span-12">
+                <div className="border rounded-lg p-3 bg-yellow-50/40 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-900/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                        <Shield className="h-4 w-4 text-[#B8860B]" />
+                        {ladderMatch.ladder.label} · Good / Better / Best
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Swap this line to a different tier of the same family.
+                      </p>
+                    </div>
+                    {recommendedTier && recommendedTier !== ladderMatch.tier && (
+                      <Badge className="bg-[#FFC72C] text-black hover:bg-[#FFC72C] text-[10px] uppercase tracking-wider">
+                        Suggest {recommendedTier}
+                      </Badge>
+                    )}
+                  </div>
+                  <TierSwitcher
+                    ladder={ladderMatch.ladder}
+                    currentTier={ladderMatch.tier}
+                    recommendedTier={recommendedTier}
+                    pricesByTier={pricesByTier}
+                    joulesByTier={joulesByTier}
+                    onSelect={handleTierSelect}
+                    disabled={swappingTier || updateItemMutation.isPending}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Reference Images Section - Full width */}
             {(referenceImages.length > 0 || item.calculatorImages?.length > 0) && (
