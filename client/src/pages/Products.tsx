@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Package, Zap, ArrowLeft, ExternalLink, ChevronLeft, Download, ShoppingCart, FileText, Truck, Shield, Info, Camera, Play, Car, SlidersHorizontal, GitCompare, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { GroupedProductCard } from "@/components/GroupedProductCard";
+import { HeightRestrictorKitCard } from "@/components/HeightRestrictorKitCard";
 import { EnhancedQuoteRequestModal } from "@/components/EnhancedQuoteRequestModal";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { ProductComparison } from "@/components/ProductComparison";
@@ -678,24 +679,71 @@ export default function Products() {
         ) : products && products.length > 0 ? (
           <>
             {(() => {
-              const groupedProducts = groupProducts(products);
+              // Discover Height Restrictor kit families. A family is any
+              // pair of products where one name ends " - Post" and the
+              // sibling ends " - Top Rail" with the same family prefix.
+              // Installed as 2 posts + 1 top rail per gantry, so we
+              // render one kit card per family instead of 2 cards.
+              type KitFamily = {
+                label: string;
+                postProduct: Product;
+                topRailProduct: Product;
+              };
+              const kitFamilies: KitFamily[] = [];
+              const kitConstituentIds = new Set<string>();
+              const postByPrefix = new Map<string, Product>();
+              const railByPrefix = new Map<string, Product>();
+              (products as Product[]).forEach((p) => {
+                if (p.name.endsWith(" - Post")) {
+                  postByPrefix.set(p.name.slice(0, -" - Post".length), p);
+                } else if (p.name.endsWith(" - Top Rail")) {
+                  railByPrefix.set(p.name.slice(0, -" - Top Rail".length), p);
+                }
+              });
+              postByPrefix.forEach((postProduct, prefix) => {
+                const topRailProduct = railByPrefix.get(prefix);
+                if (topRailProduct) {
+                  kitFamilies.push({ label: prefix, postProduct, topRailProduct });
+                  kitConstituentIds.add(postProduct.id);
+                  kitConstituentIds.add(topRailProduct.id);
+                }
+              });
+
+              // Filter out constituents BEFORE grouping so GroupedProductCard
+              // doesn't render them as standalone cards.
+              const visibleProducts = (products as Product[]).filter(
+                (p) => !kitConstituentIds.has(p.id),
+              );
+              const groupedProducts = groupProducts(visibleProducts);
+              const totalCount = kitFamilies.length + groupedProducts.length;
+
               return (
                 <>
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                       <p className="text-gray-600 text-sm">
-                        Showing {groupedProducts.length} product{groupedProducts.length !== 1 ? 's' : ''}
+                        Showing {totalCount} product{totalCount !== 1 ? 's' : ''}
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6" data-testid="products-grid">
+                    {kitFamilies.map((kit) => (
+                      <div key={`kit-${kit.postProduct.id}`} className="min-w-0">
+                        <HeightRestrictorKitCard
+                          familyLabel={kit.label}
+                          postProduct={kit.postProduct}
+                          topRailProduct={kit.topRailProduct}
+                          onViewDetails={handleProductDetails}
+                        />
+                      </div>
+                    ))}
                     {groupedProducts.map((item) => {
                       if (item.variants && item.variants.length > 1) {
                         // Check if this is a server-provided grouped product
                         const productData = item.product as any;
                         const hasServerVariants = productData.hasVariants && productData.productVariants;
-                        
+
                         return (
                           <div key={item.product.id} className="min-w-0">
                             <GroupedProductCard
