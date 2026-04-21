@@ -744,6 +744,123 @@ export function VehicleImpactCalculator() {
     }));
   };
 
+  // -------------------------------------------------------------------
+  // Good / Better / Best tier resolution for the recommendation cards.
+  // -------------------------------------------------------------------
+  // Ladder choice: prefer a manual user pick, else resolve from the
+  // selected application area, else default to "single-traffic".
+  const resolvedLadder: BarrierLadder | null = useMemo(() => {
+    if (manualLadderId) {
+      return allLadders.find((l) => l.id === manualLadderId) ?? null;
+    }
+    const appArea =
+      inputs.applicationArea === "Other"
+        ? inputs.customApplicationArea
+        : inputs.applicationArea;
+    const fromArea = appArea ? findLadderForApplication(appArea) : null;
+    if (fromArea) return fromArea;
+    return allLadders.find((l) => l.id === "single-traffic") ?? allLadders[0] ?? null;
+  }, [manualLadderId, inputs.applicationArea, inputs.customApplicationArea, allLadders]);
+
+  // Risk level: map the calculator's own descriptive riskLevel
+  // ("Low Risk" / "Medium Risk" / …) to the sibling API's 4-value
+  // enum. When no calculation has run yet, use the manual picker.
+  const riskLevelEnum: "critical" | "high" | "medium" | "low" = useMemo(() => {
+    const r = (result?.riskLevel ?? "").toLowerCase();
+    if (r.includes("extreme") || r.includes("critical")) return "critical";
+    if (r.includes("high")) return "high";
+    if (r.includes("medium")) return "medium";
+    if (r.includes("low")) return "low";
+    return manualRiskLevel;
+  }, [result?.riskLevel, manualRiskLevel]);
+
+  // Recommended tier for the current calculation + ladder.
+  const calcRecommendedTier: BarrierTier | undefined = useMemo(() => {
+    if (!resolvedLadder || !result) return undefined;
+    return recommendTier(
+      result.kineticEnergy,
+      riskLevelEnum,
+      resolvedLadder,
+      (family) => joulesForFamily(family),
+    );
+  }, [resolvedLadder, result, riskLevelEnum, joulesForFamily]);
+
+  // Add-to-cart handler for a given tier card. Re-uses the existing
+  // /api/cart POST contract with the chosen family's unit price +
+  // impactRating, carrying the calculation context through.
+  const addTierToCart = async (ladder: BarrierLadder, tier: BarrierTier) => {
+    const family = ladder.tiers[tier].family;
+    const hero = heroProductForFamily(family);
+    const unitPrice = priceForFamily(family);
+    if (!hero) {
+      toast({
+        title: "Unavailable",
+        description: `No catalog product matches "${family}".`,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (unitPrice == null) {
+      toast({
+        title: "Price on request",
+        description: `${family} does not have a published unit price.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      haptic.addToCart();
+      const finalApplicationArea =
+        inputs.applicationArea === "Other"
+          ? inputs.customApplicationArea
+          : inputs.applicationArea;
+      const calcContext = result
+        ? {
+            operatingZone: finalApplicationArea,
+            vehicleMass: inputs.vehicleMass,
+            loadMass: inputs.loadMass,
+            speed: inputs.speed,
+            speedUnit: inputs.speedUnit,
+            impactAngle: inputs.impactAngle,
+            kineticEnergy: result.kineticEnergy,
+            riskLevel: result.riskLevel,
+            totalMass: result.totalMass,
+            speedMs: result.speedMs,
+            pas13Compliant: result.pas13Compliant,
+            pas13AdjustedEnergy: result.pas13AdjustedEnergy,
+          }
+        : undefined;
+      await apiRequest("/api/cart", "POST", {
+        productName: hero.name,
+        quantity: 1,
+        pricingType:
+          hero.basePricePerMeter && !hero.price ? "linear_meter" : "single_item",
+        unitPrice,
+        totalPrice: unitPrice,
+        pricingTier: tier,
+        applicationArea: finalApplicationArea || undefined,
+        impactCalculationId: savedCalculationId ?? undefined,
+        calculationContext: calcContext,
+        notes: `Selected from Good/Better/Best (${tier.toUpperCase()}) for ${ladder.label}`,
+        calculatorImages: operationalZoneImageUrls,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      haptic.success();
+      toast({
+        title: "Added to cart",
+        description: `${hero.name} (${tier.toUpperCase()})`,
+      });
+    } catch (err: any) {
+      console.error("Failed to add tier to cart:", err);
+      haptic.error();
+      toast({
+        title: "Could not add to cart",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
 
@@ -1427,6 +1544,159 @@ export function VehicleImpactCalculator() {
                 No specific product recommendations available for this energy level.
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recommended Barrier Options — 3-tier ladder */}
+      {result && resolvedLadder && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-[#B8860B]" />
+              Recommended Barrier Options
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Ladder + risk-level controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <Label className="text-xs text-gray-600 dark:text-gray-400">
+                  Barrier Family
+                </Label>
+                <Select
+                  value={resolvedLadder.id}
+                  onValueChange={(v) => setManualLadderId(v)}
+                >
+                  <SelectTrigger data-testid="select-ladder">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allLadders.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-600 dark:text-gray-400">
+                  Risk Level
+                </Label>
+                <Select
+                  value={riskLevelEnum}
+                  onValueChange={(v) =>
+                    setManualRiskLevel(v as "critical" | "high" | "medium" | "low")
+                  }
+                >
+                  <SelectTrigger data-testid="select-risk-level">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {(["good", "better", "best"] as BarrierTier[]).map((tier) => {
+                const cfg = resolvedLadder.tiers[tier];
+                const family = cfg.family;
+                const hero = heroProductForFamily(family);
+                const unitPrice = priceForFamily(family);
+                const ratedJoules = joulesForFamily(family);
+                const margin = safetyMargin(ratedJoules, result.kineticEnergy);
+                const marginPct = Math.round(margin * 100);
+                const isRecommended = calcRecommendedTier === tier;
+                return (
+                  <div
+                    key={tier}
+                    data-testid={`calc-tier-card-${tier}`}
+                    className={[
+                      "relative rounded-lg border p-4 bg-white dark:bg-gray-900 flex flex-col",
+                      isRecommended
+                        ? "ring-2 ring-[#FFC72C] border-[#FFC72C]"
+                        : "border-gray-200 dark:border-gray-700",
+                    ].join(" ")}
+                  >
+                    {isRecommended && (
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#B8860B] mb-1">
+                        Recommended
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="text-base font-semibold capitalize">
+                        {tier}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        · +{Math.round((SAFETY_FACTORS[tier] - 1) * 100)}% factor
+                      </span>
+                    </div>
+                    {/* Hero image */}
+                    <div className="h-24 w-full bg-gray-50 dark:bg-gray-800 rounded mb-2 flex items-center justify-center overflow-hidden">
+                      {hero?.imageUrl ? (
+                        <img
+                          src={hero.imageUrl}
+                          alt={family}
+                          className="h-full w-full object-contain p-1"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Package className="h-8 w-8 text-gray-300" />
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-tight">
+                      {family}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                      {cfg.rationale}
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-gray-500">Rated</div>
+                        <div className="font-semibold">
+                          {ratedJoules != null
+                            ? `${ratedJoules.toLocaleString()}J`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Margin</div>
+                        <div
+                          className={
+                            marginPct >= 0 ? "font-semibold text-green-600" : "font-semibold text-red-600"
+                          }
+                        >
+                          {ratedJoules != null
+                            ? `${marginPct >= 0 ? "+" : ""}${marginPct}%`
+                            : "—"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-sm font-bold">
+                        {unitPrice != null ? formatPrice(unitPrice) : "—"}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="mt-3 w-full bg-yellow-400 text-black hover:bg-yellow-500 font-semibold"
+                      onClick={() => addTierToCart(resolvedLadder, tier)}
+                      disabled={!hero || unitPrice == null}
+                      data-testid={`calc-tier-add-${tier}`}
+                    >
+                      <ShoppingCart className="w-3 h-3 mr-1" />
+                      Add to cart
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
