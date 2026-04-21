@@ -177,20 +177,26 @@ export function ProjectSwitcher() {
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full",
+              "flex items-center rounded-full",
               "bg-primary/10 dark:bg-primary/20 border border-primary/30",
               "hover:bg-primary/20 transition-colors",
               "min-h-[44px] md:min-h-[40px]",
+              // Compact on mobile: just the logo chip + tiny chevron, tap
+              // targets still 44x44. Grows on md+ to show the two-line
+              // project/company block.
+              "gap-1 pl-1 pr-1.5 py-0.5 sm:gap-2 sm:pl-1.5 sm:pr-2 sm:py-1",
             )}
             data-testid="project-switcher-trigger"
-            aria-label="Switch project"
+            aria-label={`Switch project — currently ${customer?.name || active.name}`}
           >
             <CustomerAvatar
               name={customer?.name ?? active.name}
               logoUrl={customer?.logoUrl ?? null}
               size={28}
             />
-            <div className="flex flex-col leading-tight text-left max-w-[160px]">
+            {/* Text block hidden below md so the switcher fits in the
+                mobile header alongside the currency selector + cart. */}
+            <div className="hidden md:flex flex-col leading-tight text-left max-w-[160px]">
               <span className="text-xs font-semibold text-foreground truncate">
                 {customer?.name || "No customer"}
               </span>

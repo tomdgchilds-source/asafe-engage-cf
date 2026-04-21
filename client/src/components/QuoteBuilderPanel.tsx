@@ -55,7 +55,11 @@ type CatalogProduct = {
   priceVariants?: PriceVariant[];
 };
 
-export type BuilderMode = "length" | "height-restrictor" | "swing-gate";
+export type BuilderMode =
+  | "length"             // per_meter / per_length barrier — one cart line at linear_meter pricing
+  | "length-segmented"   // per_unit family whose variants are different LENGTHS (Rack End Barrier, Step Guard, ForkGuard). Rep enters total metres; we build a SKU mix and add one cart line per SKU.
+  | "height-restrictor"
+  | "swing-gate";
 
 export function detectBuilderMode(
   product: CatalogProduct,
@@ -64,6 +68,30 @@ export function detectBuilderMode(
   if (/height restrictor/.test(n) && /post/.test(n)) return "height-restrictor";
   if (/swing gate/.test(n) && /self-close/.test(n)) return "swing-gate";
   if (product.pricingLogic === "per_length") return "length";
+
+  // Per-unit family where every variant carries a distinct lengthMm. Covers
+  // Rack End Barrier, Step Guard, ForkGuard, Heavy Duty ForkGuard — "how
+  // many metres of linear protection do you need?" is how reps actually
+  // think about them. Exclude families that technically have a lengthMm
+  // but aren't linear runs (e.g. column guards have 100/200/300 labels
+  // that read like lengths but describe column cross-section).
+  if (product.pricingLogic === "per_unit") {
+    const variants = product.priceVariants ?? [];
+    const lens = variants
+      .map((v) => Number((v as any).length_mm ?? v.lengthMm ?? v.length ?? 0))
+      .filter((l) => l > 0);
+    const distinct = new Set(lens);
+    if (
+      variants.length >= 2 &&
+      lens.length === variants.length &&
+      distinct.size >= 2 &&
+      !/column guard/i.test(n) &&
+      !/corner guard/i.test(n) &&
+      !/bollard/i.test(n)
+    ) {
+      return "length-segmented";
+    }
+  }
   return null;
 }
 
@@ -110,7 +138,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
   // transparent ("we'll supply 3× 2400mm + 1× 1600mm runs") without locking
   // the rep in — they can always revise in-cart.
   const mix = useMemo(() => {
-    if (mode !== "length" || !totalLength) return null;
+    if ((mode !== "length" && mode !== "length-segmented") || !totalLength)
+      return null;
     const totalMm = Math.round(Number(totalLength) * 1000);
     if (!Number.isFinite(totalMm) || totalMm <= 0) return null;
     const variants = (product.priceVariants ?? [])
@@ -205,6 +234,63 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
       toast({
         title: "Added to cart",
         description: `${meters} m of ${product.name} · AED ${totalPrice.toLocaleString()}`,
+      });
+      onComplete?.();
+    } catch (err: any) {
+      toast({
+        title: "Could not add",
+        description: err?.message || "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Per-unit families with length variants (Rack End Barrier, Step Guard,
+  // ForkGuard, HD ForkGuard): rep enters a total length in metres, we run
+  // the same SKU-mix algorithm as `mix`, and submit ONE cart line per SKU
+  // in the mix. Unlike the linear_meter path, every line is priced as a
+  // fixed unit count × per-piece price — so the cart shows the exact pieces
+  // being supplied rather than a meters-quantity the backend can't price.
+  const addLengthSegmentedLines = async () => {
+    if (!mix || mix.chosen.length === 0) {
+      toast({
+        title: "Enter a total length in metres",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSubmitting(true);
+    const addedLines: string[] = [];
+    try {
+      // Resolve each mix row back to its variant so we send the actual
+      // variant name (e.g. "Rack End Barrier, Single Rail - 2000mm, Yellow,
+      // CSK") rather than the family name — the cart prices per-SKU.
+      for (const row of mix.chosen) {
+        const variant = (product.priceVariants ?? []).find(
+          (v) =>
+            Number(v.lengthMm ?? (v as any).length_mm ?? v.length ?? 0) ===
+            row.length,
+        );
+        const productName = variant?.name ?? product.name;
+        const unitPrice = Number(variant?.priceAed ?? variant?.price ?? row.price);
+        const totalPrice = Math.round(unitPrice * row.qty * 100) / 100;
+        await apiRequest("/api/cart", "POST", {
+          productName,
+          quantity: row.qty,
+          pricingType: "single_item",
+          unitPrice,
+          totalPrice,
+          pricingTier: "Length-derived",
+          notes: `Part of ${Number(totalLength).toFixed(2)} m total run of ${product.name}`,
+        });
+        addedLines.push(`${row.qty}× ${row.length}mm`);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      toast({
+        title: "Added to cart",
+        description: `${addedLines.join(" + ")} · AED ${mix.skuTotal.toLocaleString()}`,
       });
       onComplete?.();
     } catch (err: any) {
@@ -357,7 +443,7 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
   return (
     <div className="border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 space-y-3">
       <div className="flex items-center gap-2">
-        {mode === "length" ? (
+        {mode === "length" || mode === "length-segmented" ? (
           <Ruler className="h-4 w-4 text-yellow-700" />
         ) : (
           <Wrench className="h-4 w-4 text-yellow-700" />
@@ -365,14 +451,16 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         <span className="text-sm font-bold text-yellow-900 dark:text-yellow-200">
           {mode === "length"
             ? "Quote by total length"
-            : mode === "height-restrictor"
-              ? "Build Height Restrictor kit"
-              : "Build Swing Gate kit"}
+            : mode === "length-segmented"
+              ? "Quote by total length (auto-pick pieces)"
+              : mode === "height-restrictor"
+                ? "Build Height Restrictor kit"
+                : "Build Swing Gate kit"}
         </span>
         <Badge className="bg-[#FFC72C] text-black text-[10px]">Recommended</Badge>
       </div>
 
-      {mode === "length" && (
+      {(mode === "length" || mode === "length-segmented") && (
         <>
           <div className="flex items-end gap-3">
             <div className="flex-1">
@@ -390,11 +478,19 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
                 data-testid="input-qb-total-length"
               />
             </div>
-            {perMeterRate > 0 && (
+            {mode === "length" && perMeterRate > 0 && (
               <div className="text-right text-xs text-gray-600 dark:text-gray-400">
                 <div>Linear metre rate</div>
                 <div className="text-base font-bold text-gray-900 dark:text-white">
                   AED {perMeterRate.toLocaleString()}/m
+                </div>
+              </div>
+            )}
+            {mode === "length-segmented" && (
+              <div className="text-right text-xs text-gray-600 dark:text-gray-400">
+                <div>Supplied as pieces</div>
+                <div className="text-[11px] text-gray-500 dark:text-gray-500">
+                  Auto-picks the longest available variants first
                 </div>
               </div>
             )}
@@ -425,13 +521,22 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
             </div>
           )}
           <Button
-            onClick={addTotalLengthLine}
-            disabled={submitting || !totalLength || perMeterRate <= 0}
+            onClick={
+              mode === "length-segmented" ? addLengthSegmentedLines : addTotalLengthLine
+            }
+            disabled={
+              submitting ||
+              !totalLength ||
+              (mode === "length" && perMeterRate <= 0) ||
+              (mode === "length-segmented" && (!mix || mix.chosen.length === 0))
+            }
             className="w-full bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold"
             data-testid="button-qb-add-length"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
+            ) : mode === "length-segmented" && mix ? (
+              `Add ${mix.chosen.reduce((s, c) => s + c.qty, 0)} pieces (${totalLength || "…"} m) to cart`
             ) : (
               `Add ${totalLength || "…"} m to cart`
             )}

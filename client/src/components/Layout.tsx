@@ -355,6 +355,13 @@ export function Layout({ children }: LayoutProps) {
 
             {/* Right Section - User Info & Cart */}
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {/* Project switcher — mobile: just the client logo chip that
+                   expands on tap. Desktop version lives in the centre
+                   section above; this one only renders below md. */}
+              <div className="md:hidden">
+                <ProjectSwitcher />
+              </div>
+
               {/* Currency Selector - Mobile (always visible) */}
               <div className="md:hidden">
                 <CurrencySelector />

@@ -241,27 +241,27 @@
       "category": "Step Guard",
       "priceBy": "unit",
       "items": [
-        { "name": "StepGuard 600mm", "sku": "A-01-22-0015", "priceAed": 1261.26 },
-        { "name": "StepGuard 900mm", "sku": "A-01-22-0014", "priceAed": 1876.14 },
-        { "name": "StepGuard 1200mm", "sku": "A-01-22-0013", "priceAed": 2423.58 }
+        { "name": "StepGuard 600mm", "sku": "A-01-22-0015", "lengthMm": 600, "priceAed": 1261.26 },
+        { "name": "StepGuard 900mm", "sku": "A-01-22-0014", "lengthMm": 900, "priceAed": 1876.14 },
+        { "name": "StepGuard 1200mm", "sku": "A-01-22-0013", "lengthMm": 1200, "priceAed": 2423.58 }
       ]
     },
     {
       "category": "ForkGuard",
       "priceBy": "unit",
       "items": [
-        { "name": "ForkGuard (v3), 765mm, BLK-YEL", "sku": "A-01-17-0535", "priceAed": 408.12 },
-        { "name": "ForkGuard (v3), 1365mm, BLK-YEL", "sku": "A-01-17-0541", "priceAed": 650.52 },
-        { "name": "ForkGuard (v3), 765mm, BLK-YEL (variant)", "sku": "A-01-17-0547", "priceAed": 892.92, "_note": "Second 765mm SKU at different price — treat as a distinct variant (possibly HD or 2-pc)." }
+        { "name": "ForkGuard (v3), 765mm, BLK-YEL", "sku": "A-01-17-0535", "lengthMm": 765, "priceAed": 408.12 },
+        { "name": "ForkGuard (v3), 1365mm, BLK-YEL", "sku": "A-01-17-0541", "lengthMm": 1365, "priceAed": 650.52 },
+        { "name": "ForkGuard (v3), 765mm, BLK-YEL (variant)", "sku": "A-01-17-0547", "lengthMm": 765, "priceAed": 892.92, "_note": "Second 765mm SKU at different price — treat as a distinct variant (possibly HD or 2-pc)." }
       ]
     },
     {
       "category": "Heavy Duty ForkGuard",
       "priceBy": "unit",
       "items": [
-        { "name": "HD ForkGuard (v3), 765mm - BLK-YEL", "sku": "A-01-17-0581", "priceAed": 1187.34 },
-        { "name": "HD ForkGuard (v3) - 1600mm pc (1365mm) - BLK-YEL", "sku": "A-01-17-0595", "priceAed": 1547.22 },
-        { "name": "HD ForkGuard (v3) - 2000mm pc (970+970) - BLK-YEL", "sku": "A-01-17-0587", "priceAed": 2639.16 }
+        { "name": "HD ForkGuard (v3), 765mm - BLK-YEL", "sku": "A-01-17-0581", "lengthMm": 765, "priceAed": 1187.34 },
+        { "name": "HD ForkGuard (v3) - 1600mm pc (1365mm) - BLK-YEL", "sku": "A-01-17-0595", "lengthMm": 1365, "priceAed": 1547.22 },
+        { "name": "HD ForkGuard (v3) - 2000mm pc (970+970) - BLK-YEL", "sku": "A-01-17-0587", "lengthMm": 1940, "priceAed": 2639.16 }
       ]
     },
     {
