@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { Document, Page } from 'react-pdf';
 import { Button } from "@/components/ui/button";
 import { X, Pen, Wand2, Move, Trash2, ShoppingCart } from "lucide-react";
 import { pdfOptions } from "../constants";
 import { generatePathString, parsePathData } from "../utils";
-import type { DrawingPoint, MarkupPath, LayoutMarkup } from "../types";
+import { computeBarrierSymbol } from "@/utils/barrierSymbol";
+import type { CartItem, DrawingPoint, MarkupPath, LayoutMarkup } from "../types";
 
 interface CanvasOverlayProps {
   // Drawing metadata
@@ -46,6 +48,15 @@ interface CanvasOverlayProps {
   isDragging: boolean;
   isMiddleMouseDown: boolean;
   isHighQualityRender: boolean;
+
+  // Rendering view mode for barrier markups. "technical" renders the
+  // scale-accurate post + rail top view; "schematic" renders the legacy
+  // flat polyline.
+  viewMode: "technical" | "schematic";
+  /** Pixels per mm for the calibrated drawing. Null/0 falls back to schematic. */
+  drawingScale: number | null;
+  /** Cart items used as a fallback for resolving a markup's product name. */
+  cartItems: CartItem[];
 
   // Scale calibration state
   isSettingScale: boolean;
@@ -120,6 +131,9 @@ export function CanvasOverlay({
   isDragging,
   isMiddleMouseDown,
   isHighQualityRender,
+  viewMode,
+  drawingScale,
+  cartItems,
   isSettingScale,
   scaleStartPoint,
   scaleEndPoint,
@@ -156,6 +170,29 @@ export function CanvasOverlay({
   onRepositionStart,
   toast,
 }: CanvasOverlayProps) {
+  // Pre-parse + pre-compute the Technical-view top-view symbol for every
+  // markup. Each markup's points are a flat array inside pathData, which
+  // parsePathData already returns — memoise so we don't re-parse-and-compute
+  // on every unrelated re-render (pan, zoom, selection, hover state). The
+  // cartItems dependency is for the productName fallback lookup.
+  const markupSymbols = useMemo(() => {
+    return markups.map((markup) => {
+      const points = parsePathData(markup);
+      const productName =
+        (markup as any).productName ??
+        cartItems.find((ci) => ci.id === markup.cartItemId)?.productName ??
+        null;
+      const symbol =
+        viewMode === "technical" && productName && drawingScale
+          ? computeBarrierSymbol(points, drawingScale, productName)
+          : null;
+      return { points, symbol };
+    });
+    // markups itself is the identity we key on — React Query returns a new
+    // array on refetch, and the user's in-session edits also produce a new
+    // array. viewMode / drawingScale / cartItems all force a recompute too.
+  }, [markups, viewMode, drawingScale, cartItems]);
+
   return (
     <div className="flex-1 relative bg-gray-50 dark:bg-gray-800 overflow-hidden">
       <div
@@ -437,28 +474,74 @@ export function CanvasOverlay({
 
           {/* Existing markup paths */}
           {markups.map((markup, index) => {
-            const points = parsePathData(markup);
+            const { points, symbol } = markupSymbols[index];
             const color = markup.cartItemId ? getProductColor(markup.cartItemId) : '#6B7280';
             const pathString = generatePathString(points);
 
             return (
               <g key={markup.id}>
-                <path
-                  d={pathString}
-                  stroke={invalidMarkups.has(markup.id) ? '#EF4444' : color}
-                  strokeWidth={getStrokeWidth(isBlankCanvas ? 2.5 : 2.0)}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                  opacity={isBlankCanvas ? 0.85 : (isHighQualityRender ? 1 : 0.8)}
-                  style={{
-                    filter: isBlankCanvas
-                      ? 'drop-shadow(0 1px 2px rgba(0,0,50,0.3)) drop-shadow(0 0 1px rgba(0,0,100,0.2))'
-                      : invalidMarkups.has(markup.id)
-                        ? 'drop-shadow(0 0 2px rgba(239,68,68,0.8))'
-                        : 'drop-shadow(0 0 1px rgba(0,0,0,0.6))'
-                  }}
-                />
+                {symbol ? (
+                  <>
+                    {/* Rails first so posts sit on top. Each rail is
+                        a rectangle rotated to the segment's angle and
+                        trimmed at its ends to the post circumference. */}
+                    {symbol.rails.map((r, ri) => {
+                      const dx = r.x2 - r.x1;
+                      const dy = r.y2 - r.y1;
+                      const len = Math.hypot(dx, dy);
+                      if (len < 0.1) return null;
+                      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                      const mx = (r.x1 + r.x2) / 2;
+                      const my = (r.y1 + r.y2) / 2;
+                      return (
+                        <rect
+                          key={ri}
+                          x={mx - len / 2}
+                          y={my - r.widthPx / 2}
+                          width={len}
+                          height={r.widthPx}
+                          fill={r.colour}
+                          stroke="#000"
+                          strokeWidth={0.6}
+                          transform={`rotate(${angle} ${mx} ${my})`}
+                          opacity={0.95}
+                        />
+                      );
+                    })}
+                    {symbol.posts.map((p, pi) => (
+                      <circle
+                        key={pi}
+                        cx={p.x}
+                        cy={p.y}
+                        r={p.radiusPx}
+                        fill={p.colour}
+                        stroke="#000"
+                        strokeWidth={0.6}
+                      />
+                    ))}
+                    {/* Hover label: family + total length + post / rail counts */}
+                    <title>
+                      {`${symbol.spec.family} · ${(symbol.totalLengthMm / 1000).toFixed(2)} m · ${symbol.postCount} posts · ${symbol.railCount} rails`}
+                    </title>
+                  </>
+                ) : (
+                  <path
+                    d={pathString}
+                    stroke={invalidMarkups.has(markup.id) ? '#EF4444' : color}
+                    strokeWidth={getStrokeWidth(isBlankCanvas ? 2.5 : 2.0)}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={isBlankCanvas ? 0.85 : (isHighQualityRender ? 1 : 0.8)}
+                    style={{
+                      filter: isBlankCanvas
+                        ? 'drop-shadow(0 1px 2px rgba(0,0,50,0.3)) drop-shadow(0 0 1px rgba(0,0,100,0.2))'
+                        : invalidMarkups.has(markup.id)
+                          ? 'drop-shadow(0 0 2px rgba(239,68,68,0.8))'
+                          : 'drop-shadow(0 0 1px rgba(0,0,0,0.6))'
+                    }}
+                  />
+                )}
                 {points.length > 0 && (
                   <g
                     onClick={(e) => {

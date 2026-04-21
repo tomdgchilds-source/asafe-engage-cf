@@ -107,6 +107,11 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
   // Track if help guide has been shown for this drawing session
   const [hasShownHelpGuide, setHasShownHelpGuide] = useState<boolean>(false);
 
+  // Rendering view mode: "technical" shows scale-accurate post+rail top-view
+  // geometry for product-linked markups; "schematic" is the legacy flat
+  // polyline rendering. Defaults to "technical".
+  const [viewMode, setViewMode] = useState<"technical" | "schematic">("technical");
+
   // Scale calibration
   const scale = useScaleCalibration();
 
@@ -1012,6 +1017,22 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
         return currentMarkups;
       });
     }
+    // "V" toggles between technical and schematic rendering. Bail out when
+    // the user is typing into an input / textarea / contentEditable so we
+    // don't hijack the title-rename field or comment box.
+    if ((event.key === 'v' || event.key === 'V') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      const isTyping =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (active?.isContentEditable ?? false);
+      if (!isTyping) {
+        event.preventDefault();
+        setViewMode((m) => (m === 'technical' ? 'schematic' : 'technical'));
+      }
+    }
   }, [deleteMarkupMutation]);
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
@@ -1310,6 +1331,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
             onShowScaleDialog={() => scale.setShowScaleDialog(true)}
             onShowHelpGuide={() => setShowHelpGuide(true)}
             onClose={handleClose}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
           />
 
           {/* Main Content — wrapped with the A-SAFE branded title-block frame
@@ -1352,6 +1375,9 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
               isDragging={canvas.isDragging}
               isMiddleMouseDown={canvas.isMiddleMouseDown}
               isHighQualityRender={canvas.isHighQualityRender}
+              viewMode={viewMode}
+              drawingScale={scale.drawingScale}
+              cartItems={cartItems}
               isSettingScale={scale.isSettingScale}
               scaleStartPoint={scale.scaleStartPoint}
               scaleEndPoint={scale.scaleEndPoint}

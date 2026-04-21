@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { X, Pen, Check, Wand2, Info } from "lucide-react";
+import { X, Pen, Check, Wand2, Info, Layers, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { LayoutDrawing, MarkupPath, LayoutMarkup } from "../types";
 
 interface ToolbarProps {
@@ -14,6 +15,10 @@ interface ToolbarProps {
   onShowScaleDialog: () => void;
   onShowHelpGuide: () => void;
   onClose: () => void;
+  /** Current rendering view mode for barrier markups. */
+  viewMode: "technical" | "schematic";
+  /** Switch between scale-accurate top-view (technical) and flat polylines (schematic). */
+  onViewModeChange: (m: "technical" | "schematic") => void;
 }
 
 export function Toolbar({
@@ -27,6 +32,8 @@ export function Toolbar({
   onShowScaleDialog,
   onShowHelpGuide,
   onClose,
+  viewMode,
+  onViewModeChange,
 }: ToolbarProps) {
   return (
     <div className="p-2 sm:p-3 pb-2 flex-shrink-0 border-b bg-white dark:bg-gray-900 dark:border-gray-700">
@@ -110,6 +117,39 @@ export function Toolbar({
           )}
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Technical / Schematic view toggle — governs how barrier
+              markups are drawn (scale-accurate post+rail top view vs.
+              legacy flat polylines). Keyboard shortcut: V. */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onViewModeChange("technical")}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium",
+                viewMode === "technical"
+                  ? "bg-[#FFC72C] text-black"
+                  : "bg-white text-foreground hover:bg-muted",
+              )}
+              title="Post + rail top view (V)"
+              data-testid="view-technical"
+            >
+              <Layers className="h-3.5 w-3.5" /> Technical
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange("schematic")}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border-l border-border",
+                viewMode === "schematic"
+                  ? "bg-[#FFC72C] text-black"
+                  : "bg-white text-foreground hover:bg-muted",
+              )}
+              title="Schematic lines (V)"
+              data-testid="view-schematic"
+            >
+              <Minus className="h-3.5 w-3.5" /> Schematic
+            </button>
+          </div>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import { pdfjs } from "react-pdf";
 import asafeLogoImg from "../../../attached_assets/A-SAFE_Logo_Strapline_Secondary_Version_1767686263231.png";
 import { renderAboutAsafe, type AppendixContext } from "./aboutAsafeAppendix";
+import { computeBarrierSymbol } from "./barrierSymbol";
 
 // Reuse the pdfjs instance react-pdf already loads for the layout-markup
 // viewer. Importing from "react-pdf" gives us the exact build its worker is
@@ -397,6 +398,18 @@ function matchCatalogEntry(itemName: string, catalog: CatalogProduct[]): Catalog
   return best;
 }
 
+// Tiny helper for the barrier overlay — converts a CSS hex colour (#RRGGBB
+// or #RGB) into the 0-255 tuple jsPDF's setFillColor / setDrawColor expect.
+function hexToRgb(hex: string): [number, number, number] {
+  let h = (hex || "").trim().replace(/^#/, "");
+  if (h.length === 3) {
+    h = h.split("").map((c) => c + c).join("");
+  }
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return [255, 199, 44];
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
 function pickProductImageUrl(item: OrderItem, cat: CatalogProduct | null): string | null {
   if (item.imageUrl) return item.imageUrl;
   if (cat?.imageUrl) return cat.imageUrl;
@@ -514,10 +527,26 @@ interface LayoutDrawing {
   thumbnailUrl?: string;
   projectName?: string;
   drawingTitle?: string;
-  drawingScale?: string;
+  drawingScale?: string; // human-readable like "1:100"
+  /** Calibrated scale in pixels-per-millimetre (native-image coords). Set
+   *  by the live editor's scale-calibration flow; used here to project
+   *  post + rail symbols onto the embedded drawing. */
+  scale?: number | null;
   dwgNumber?: string;
   revision?: string;
   drawingDate?: string;
+}
+
+interface LayoutMarkupRecord {
+  id: string;
+  cartItemId?: string | null;
+  productName?: string | null;
+  pathData?: string | null; // JSON string of [{x, y}, ...]
+  xPosition?: number;
+  yPosition?: number;
+  endX?: number | null;
+  endY?: number | null;
+  color?: string | null;
 }
 
 async function fetchLayoutDrawing(id: string): Promise<LayoutDrawing | null> {
@@ -1386,15 +1415,115 @@ export async function generateOrderFormPDF(
         dw = dh * r;
       }
       const ox = margin + (contentWidth - dw) / 2;
+      const oy = yPosition;
       setStroke(ink.line);
       pdf.setLineWidth(0.3);
-      pdf.rect(ox - 1, yPosition - 1, dw + 2, dh + 2);
+      pdf.rect(ox - 1, oy - 1, dw + 2, dh + 2);
       try {
-        pdf.addImage(layoutDrawingImg.dataUrl, "JPEG", ox, yPosition, dw, dh);
+        pdf.addImage(layoutDrawingImg.dataUrl, "JPEG", ox, oy, dw, dh);
       } catch (err) {
         console.warn("[orderFormPdf] layout drawing addImage failed", err);
       }
-      yPosition += dh + 6;
+
+      // ─── Barrier overlay ──────────────────────────────────────
+      // When the drawing is calibrated and there are product-linked
+      // markups, render scale-accurate posts + rails on top of the
+      // embedded drawing image. Coordinates live in the drawing's
+      // native pixel space; we project them to mm using the fit
+      // scale (mm per native px) and plant circles + rectangles
+      // with jsPDF primitives.
+      const markupList: LayoutMarkupRecord[] =
+        (orderData.layoutMarkups as LayoutMarkupRecord[] | undefined)?.filter(
+          (m) => m.layoutDrawingId === fetchedLayout.id || !m.layoutDrawingId,
+        ) ??
+        (orderData.layoutMarkups as LayoutMarkupRecord[] | undefined) ??
+        [];
+      const drawingPxScale = (fetchedLayout as any).scale as
+        | number
+        | null
+        | undefined;
+      if (
+        markupList.length > 0 &&
+        drawingPxScale &&
+        drawingPxScale > 0 &&
+        layoutDrawingImg
+      ) {
+        const pxToPdfMm = dw / layoutDrawingImg.width;
+        for (const markup of markupList) {
+          if (!markup.productName) continue;
+          let points: Array<{ x: number; y: number }> = [];
+          if (markup.pathData) {
+            try {
+              const parsed = JSON.parse(markup.pathData);
+              if (Array.isArray(parsed)) points = parsed;
+            } catch {
+              /* fall through to the 2-point fallback below */
+            }
+          }
+          if (points.length < 2 && markup.xPosition != null) {
+            // Legacy 2-point markups. Stored as image-percentages in
+            // some rows and absolute px in others — pick per magnitude.
+            const toPx = (v: number) =>
+              v <= 1.5 ? v * layoutDrawingImg!.width : v;
+            points = [
+              { x: toPx(markup.xPosition), y: toPx(markup.yPosition ?? 0) },
+              {
+                x: toPx(markup.endX ?? markup.xPosition),
+                y: toPx(markup.endY ?? markup.yPosition ?? 0),
+              },
+            ];
+          }
+          if (points.length < 2) continue;
+
+          const symbol = computeBarrierSymbol(
+            points,
+            drawingPxScale,
+            markup.productName,
+          );
+          if (!symbol) continue;
+
+          // Rails first, posts on top. Rails rotate around their midpoint.
+          for (const r of symbol.rails) {
+            const x1 = ox + r.x1 * pxToPdfMm;
+            const y1 = oy + r.y1 * pxToPdfMm;
+            const x2 = ox + r.x2 * pxToPdfMm;
+            const y2 = oy + r.y2 * pxToPdfMm;
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.hypot(dx, dy);
+            if (len < 0.1) continue;
+            const widthMm = Math.max(0.3, r.widthPx * pxToPdfMm);
+            const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+            // jsPDF can't draw rotated rectangles directly; approximate
+            // with a thick line at the required width.
+            const [rr, gg, bb] = hexToRgb(r.colour);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.setFillColor(rr, gg, bb);
+            pdf.setLineWidth(widthMm);
+            pdf.line(x1, y1, x2, y2);
+            pdf.setLineWidth(0.3);
+            // reset to stroke-only defaults
+            pdf.setDrawColor(ink.line[0], ink.line[1], ink.line[2]);
+            // `angleDeg` unused — jsPDF paints the wide line directly.
+            void angleDeg;
+          }
+          for (const p of symbol.posts) {
+            const cx = ox + p.x * pxToPdfMm;
+            const cy = oy + p.y * pxToPdfMm;
+            const rMm = Math.max(0.4, p.radiusPx * pxToPdfMm);
+            const [pr, pg, pb] = hexToRgb(p.colour);
+            pdf.setFillColor(pr, pg, pb);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.setLineWidth(0.15);
+            pdf.circle(cx, cy, rMm, "FD");
+          }
+        }
+        // restore generator defaults
+        pdf.setDrawColor(ink.line[0], ink.line[1], ink.line[2]);
+        pdf.setLineWidth(0.3);
+      }
+
+      yPosition = oy + dh + 6;
       setFont(8, "italic");
       setText(ink.subtle);
       pdf.text(
