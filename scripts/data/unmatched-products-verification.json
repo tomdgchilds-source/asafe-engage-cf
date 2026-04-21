@@ -1,0 +1,665 @@
+{
+  "generatedAt": "2026-04-21T23:21:47Z",
+  "summary": {
+    "total": 33,
+    "ok": 7,
+    "mismatch": 0,
+    "no_live_value": 22,
+    "no_db_value": 3,
+    "url_guess_failed": 1
+  },
+  "products": [
+    {
+      "db_name": "Topple Barrier 3.6m with ForkGuard",
+      "db_impactRating": 20500,
+      "db_pas13TestJoules": 20500,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "Topple Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/topple-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "3.6m variant within Topple Barrier page's 3600-5300mm range | Heights 3600mm-5300mm available; no impact rating stated on page"
+    },
+    {
+      "db_name": "Heavy Duty ForkGuard",
+      "db_impactRating": 15800,
+      "db_pas13TestJoules": 15800,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "Heavy Duty ForkGuard Kerb Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/heavy-duty-forkguard-kerb-barrier/",
+      "live": {
+        "impactRating": 15800,
+        "impactRatingRaw": "15,800 Joules",
+        "vehicleTest": "6.3 Tonnes at 8 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": 183
+      },
+      "status": "ok",
+      "notes": "Direct match via heavy-duty-forkguard-kerb-barrier"
+    },
+    {
+      "db_name": "Rack End Barrier - Single Rail",
+      "db_impactRating": 15100,
+      "db_pas13TestJoules": 15100,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "iFlex Single RackEnd Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-single-rackend-barrier/",
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "6 Tonnes at 8 Kph",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "heightMm": 190,
+        "deflectionZoneMm": null
+      },
+      "status": "ok",
+      "notes": "Generic name likely corresponds to iFlex single-rail rack-end"
+    },
+    {
+      "db_name": "Cold Storage iFlex 190 Bollard",
+      "db_impactRating": 6900,
+      "db_pas13TestJoules": 6900,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "iFlex Bollard Cold Storage",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-bollard-cold-storage/",
+      "live": {
+        "impactRating": 6900,
+        "impactRatingRaw": "6,900 Joules",
+        "vehicleTest": "4.3 Tonnes at 6.4 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": 1200,
+        "deflectionZoneMm": 1200
+      },
+      "status": "ok",
+      "notes": "Direct match"
+    },
+    {
+      "db_name": "Rack End Barrier - Double Rail",
+      "db_impactRating": 6000,
+      "db_pas13TestJoules": 6000,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "eFlex Double RackEnd Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/eflex-double-rackend-barrier/",
+      "live": {
+        "impactRating": 6000,
+        "impactRatingRaw": "6,000 Joules",
+        "vehicleTest": "3.7 Tonnes at 6.4 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": 405,
+        "deflectionZoneMm": null
+      },
+      "status": "ok",
+      "notes": "Generic name likely corresponds to eFlex double-rail rack-end (iFlex has only single)"
+    },
+    {
+      "db_name": "iFlex 190 Bollard - 2m",
+      "db_impactRating": 5800,
+      "db_pas13TestJoules": 5800,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "iFlex Bollard",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-bollard/",
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "4.3 Tonnes at 6.4 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": 1200
+      },
+      "status": "ok",
+      "notes": "iFlex Bollard page covers 2m height variant"
+    },
+    {
+      "db_name": "iFlex Height Restrictor - Post",
+      "db_impactRating": 5400,
+      "db_pas13TestJoules": 5400,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "iFlex Height Restrictor",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-height-restrictor/",
+      "live": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules",
+        "vehicleTest": "6 Tonnes at 4.8 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": 1200
+      },
+      "status": "ok",
+      "notes": "Component/accessory of iFlex Height Restrictor"
+    },
+    {
+      "db_name": "ForkGuard",
+      "db_impactRating": 3000,
+      "db_pas13TestJoules": 3000,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "matched_catalog_entry": "ForkGuard Kerb Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/forkguard-kerb-barrier/",
+      "live": {
+        "impactRating": 3000,
+        "impactRatingRaw": "3,000 Joules",
+        "vehicleTest": "1.9 Tonnes at 6.4 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": 183
+      },
+      "status": "ok",
+      "notes": "Direct match"
+    },
+    {
+      "db_name": "iFlex Post 130",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": null,
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-3-rail/",
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "2.3 Tonnes at 8 Kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": 1100,
+        "deflectionZoneMm": null
+      },
+      "status": "no_db_value",
+      "notes": "Ambiguous: likely a 130mm post component of iFlex Pedestrian system; catalog has no explicit match. iFlex Pedestrian 3 Rail page is closest family but uses 100mm rails. Guess low-confidence."
+    },
+    {
+      "db_name": "Monoplex 130 Bollard",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Bollard 130",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/bollard-130/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 130,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Per catalog note: Monoplex 130 is sold as Bollard 130 product | Bollard 130 page says no PAS 13 cert; catalog note: Monoplex 130 sold as Bollard 130"
+    },
+    {
+      "db_name": "Hydraulic Swing Gate",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "iFlex Swing Gate Short",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-swing-gate-short/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Per catalog note: iFlex Swing Gates are hydraulic self-closing | PAS 13 badge present; no numeric data"
+    },
+    {
+      "db_name": "Cold Storage RackGuard - Multiple height and profile sizes",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "RackGuard Cold Storage",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/rackguard-cold-storage/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 600,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct match"
+    },
+    {
+      "db_name": "Monoplex 190 Bollard",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Bollard 190",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/bollard-190/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Per catalog note: Monoplex 190 is sold as Bollard 190 | PAS 13 badge shown; no numeric impact rating"
+    },
+    {
+      "db_name": "190-T1-P0",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Traffic Barrier 190-T1-P0",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/traffic-barrier-190-t1-p0/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 190,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct slug match"
+    },
+    {
+      "db_name": "FlexiShield Column Guard - Spacer Set",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "FlexiShield Column Guard",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/flexishield-column-guard/",
+      "live": {
+        "impactRating": 1600,
+        "impactRatingRaw": "1,600 Joules",
+        "vehicleTest": "1.8 Tonnes at 4.8 Kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null,
+        "deflectionZoneMm": 520
+      },
+      "status": "no_db_value",
+      "notes": "Spacer Set is accessory - parent page used"
+    },
+    {
+      "db_name": "Retractable Barrier - Racking Maintenance Case - YEL/BLK",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Retractable Barrier Racking Kit",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/retractable-barrier-racking-kit/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Likely same product"
+    },
+    {
+      "db_name": "Sign Post, 1.2m - Yellow",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Sign Post",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/sign-post/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 1200,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "1.2m variant matches Sign Post page height 1200mm"
+    },
+    {
+      "db_name": "Tape Barrier Kit - Wall to Wall - YEL/BLK",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Retractable Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/retractable-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Tape/belt kit - best match is Retractable Barrier family. Uncertain."
+    },
+    {
+      "db_name": "Bollard Bumper",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": null,
+      "guessed_url": null,
+      "live": null,
+      "status": "url_guess_failed",
+      "notes": "Per catalog meta: 'Bollard Bumper (en-us only)' - not in UAE region catalog."
+    },
+    {
+      "db_name": "190-T2-P0",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Traffic Barrier 190-T2-P0",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/traffic-barrier-190-t2-p0/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 190,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct slug match"
+    },
+    {
+      "db_name": "eFlex Pedestrian Barrier",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "eFlex Pedestrian 3 Rail",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/eflex-pedestrian-3-rail/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Per catalog meta: non-3-rail eFlex pedestrian not in UAE - closest match used | Suitable for static loads of 2kN; no energy rating"
+    },
+    {
+      "db_name": "130-T0-P3",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Pedestrian Barrier 130-T0-P3",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-130-t0-p3/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 130,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct slug match"
+    },
+    {
+      "db_name": "iFlex Height Restrictor - Top Rail",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "iFlex Height Restrictor",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/iflex-height-restrictor/",
+      "live": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules",
+        "vehicleTest": "6 Tonnes at 4.8 Kph",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": 1200
+      },
+      "status": "no_db_value",
+      "notes": "Top Rail is accessory of iFlex Height Restrictor family"
+    },
+    {
+      "db_name": "Bollard, Yellow",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Bollard 190",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/bollard-190/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Generic bollard; yellow is colour variant of standard Bollard 190 | PAS 13 badge shown; no numeric impact rating"
+    },
+    {
+      "db_name": "Bollard, Grey",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Bollard 190",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/bollard-190/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Generic bollard; grey is colour variant of standard Bollard 190 | PAS 13 badge shown; no numeric impact rating"
+    },
+    {
+      "db_name": "RackGuard - Multiple height and profile sizes",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "RackGuard",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/rackguard/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": "pendulum",
+        "heightMm": 600,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct match | T\u00dcV Nord tested per PAS 13 via pendulum test video; no Joule value stated"
+    },
+    {
+      "db_name": "iFlex - Retractable Barrier (Belt Barrier) - Post to Wall - YEL/BLK",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Retractable Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/retractable-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Belt/retractable barrier; Retractable Barrier page covers this"
+    },
+    {
+      "db_name": "Dock Buffer (Pair)",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Dock Buffer",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/dock-buffer/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 520,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct match (Pair quantity variant)"
+    },
+    {
+      "db_name": "Flex - Retractable Barrier (Belt Barrier) - Post to Post - YEL/BLK",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": false,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Retractable Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/retractable-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Belt/retractable barrier variant"
+    },
+    {
+      "db_name": "Topple Barrier 2.08m with ForkGuard",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Topple Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/topple-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Per catalog note: 2.08m may be pre-2024 naming; Topple Barrier base page | Heights 3600mm-5300mm available; no impact rating stated on page"
+    },
+    {
+      "db_name": "190-T2-P1",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Pedestrian Barrier 190-T2-P1",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-190-t2-p1/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 190,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct slug match"
+    },
+    {
+      "db_name": "Topple Barrier 5.3m with ForkGuard",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Topple Barrier",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/topple-barrier/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "5.3m variant within Topple Barrier page's 3600-5300mm range | Heights 3600mm-5300mm available; no impact rating stated on page"
+    },
+    {
+      "db_name": "190-T1-P2",
+      "db_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "matched_catalog_entry": "Pedestrian Barrier 190-T1-P2",
+      "guessed_url": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-190-t1-p2/",
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 190,
+        "deflectionZoneMm": null
+      },
+      "status": "no_live_value",
+      "notes": "Direct slug match"
+    }
+  ]
+}
