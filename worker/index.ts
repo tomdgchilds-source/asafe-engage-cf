@@ -1385,10 +1385,14 @@ app.post("/api/admin/fix-barrier-pricing", async (c) => {
     const unmatched: Array<{ id: string; name: string }> = [];
 
     for (const entry of updatesList) {
+      // Match by exact name — the /api/products surface exposes a
+      // synthetic `family-*` slug as `id`, but the real DB primary key is
+      // a UUID. Name is the stable public handle shared between the
+      // patch JSON and the DB, and it's unique on products.
       const rows = (await sqlClient`
         SELECT id, name, pricing_logic
         FROM products
-        WHERE id = ${entry.id}
+        WHERE name = ${entry.name}
       `) as any[];
       if (!rows.length) {
         unmatched.push({ id: entry.id, name: entry.name });
@@ -1397,7 +1401,7 @@ app.post("/api/admin/fix-barrier-pricing", async (c) => {
       const row = rows[0];
       await sqlClient(
         `UPDATE products SET pricing_logic = $1, updated_at = now() WHERE id = $2`,
-        [entry.correct_pricingType, entry.id],
+        [entry.correct_pricingType, row.id],
       );
       updated.push({
         id: row.id,
