@@ -55,22 +55,44 @@ export const securityHeaders = createMiddleware<{
 }>(async (c, next) => {
   await next();
 
+  // Responses returned by `env.ASSETS.fetch()` have immutable headers
+  // — mutating them throws "Can't modify immutable headers" which
+  // bubbled up as a 500 (including on 404 asset lookups from stale
+  // cached bundle paths). Clone the response when we can't mutate
+  // its headers in-place so security headers still flow through.
+  let headers: Headers;
+  try {
+    // Probe: try to set something harmless first.
+    c.res.headers.set("X-Content-Type-Options", "nosniff");
+    headers = c.res.headers;
+  } catch {
+    // Immutable — rebuild the response with a mutable header bag.
+    const mutable = new Headers(c.res.headers);
+    mutable.set("X-Content-Type-Options", "nosniff");
+    const cloned = new Response(c.res.body, {
+      status: c.res.status,
+      statusText: c.res.statusText,
+      headers: mutable,
+    });
+    c.res = cloned;
+    headers = cloned.headers;
+  }
+
   // HSTS — preload-ready. Only meaningful over HTTPS; Workers is always
   // HTTPS in production.
-  c.res.headers.set(
+  headers.set(
     "Strict-Transport-Security",
     "max-age=31536000; includeSubDomains; preload"
   );
-  c.res.headers.set("X-Content-Type-Options", "nosniff");
-  c.res.headers.set("X-Frame-Options", "DENY");
-  c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  c.res.headers.set(
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set(
     "Permissions-Policy",
     "camera=(self), microphone=(), geolocation=(self), interest-cohort=()"
   );
   // Merge: if a downstream handler already set a CSP, don't clobber it.
-  if (!c.res.headers.get("Content-Security-Policy")) {
-    c.res.headers.set("Content-Security-Policy", CSP_HEADER);
+  if (!headers.get("Content-Security-Policy")) {
+    headers.set("Content-Security-Policy", CSP_HEADER);
   }
 });
 
