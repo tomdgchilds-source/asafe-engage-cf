@@ -50,6 +50,7 @@ const PAS13ComplianceChecker = lazy(() => import("@/pages/PAS13ComplianceChecker
 const CommunicationPlan = lazy(() => import("@/pages/CommunicationPlan"));
 const AnalyticsDashboard = lazy(() => import("@/pages/AnalyticsDashboard"));
 const InstallationTimeline = lazy(() => import("@/pages/InstallationTimeline"));
+const InstallTeams = lazy(() => import("@/pages/InstallTeams"));
 const LayoutDrawing = lazy(() => import("@/pages/LayoutDrawing"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 // New public + admin-gated pages for the order-share + kanban flow.
@@ -138,6 +139,7 @@ function Router() {
         <Route path="/communication-plan" component={CommunicationPlan} />
         <Route path="/analytics" component={AnalyticsDashboard} />
         <Route path="/installation-timeline" component={InstallationTimeline} />
+        <Route path="/install-teams" component={InstallTeams} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>

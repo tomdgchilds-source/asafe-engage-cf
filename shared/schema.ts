@@ -1943,3 +1943,199 @@ export type SafetyTip = typeof safetyTips.$inferSelect;
 export type SafetyProgress = typeof safetyProgress.$inferSelect;
 export type UserSafetyTipInteraction = typeof userSafetyTipInteractions.$inferSelect;
 
+// ═══════════════════════════════════════════════════════════════════
+// Installation Timeline
+//
+// When an order is marked won AND installation is purchased (any of:
+// installationComplexity != 'none' | servicePackage present | any line
+// item with requiresInstallation=true) we create one installation row,
+// idempotent on orderId. Manual installs (followup/rework) have no
+// orderId and are created directly from the Installation Timeline UI.
+// ═══════════════════════════════════════════════════════════════════
+
+// External install crews — not app users. Free-form team roster with
+// contact details, region, and weekly capacity. Members hang off
+// installTeamMembers. Teams are shared org-wide (no userId scope).
+export const installTeams = pgTable("install_teams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  region: varchar("region"), // e.g. "UAE North" | "UAE South" | "Saudi"
+  leadContactName: varchar("lead_contact_name"),
+  contactEmail: varchar("contact_email"),
+  contactPhone: varchar("contact_phone"),
+  capacityJobsPerWeek: integer("capacity_jobs_per_week").default(3),
+  // Calendar swatch / kanban chip colour. Free-form hex so admins can
+  // pick anything; the client falls back to a deterministic palette
+  // keyed off team id if this is null.
+  colour: varchar("colour"),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  nameIdx: index("install_teams_name_idx").on(t.name),
+  activeIdx: index("install_teams_active_idx").on(t.active),
+}));
+
+export const installTeamMembers = pgTable("install_team_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamId: varchar("team_id").notNull().references(() => installTeams.id, { onDelete: "cascade" }),
+  name: varchar("name").notNull(),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  roleInTeam: varchar("role_in_team"), // lead | installer | apprentice | safety
+  certifications: jsonb("certifications"), // string[]
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  teamIdx: index("install_team_members_team_idx").on(t.teamId),
+}));
+
+// One row per installation project. Auto-created when an order is won
+// (orderId set); or manually created for follow-ups / rework (orderId
+// null). Fields like customerName/location/contactEmail are
+// denormalized so the list view renders in one query and manual installs
+// don't need a fake order.
+export const installations = pgTable("installations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Idempotency anchor — one install per order. Nullable so manual
+  // follow-up / rework installs can exist without an order.
+  orderId: varchar("order_id").references(() => orders.id),
+  projectId: varchar("project_id").references(() => projects.id),
+  customerCompanyId: varchar("customer_company_id").references(() => customerCompanies.id),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id),
+  updatedByUserId: varchar("updated_by_user_id").references(() => users.id),
+
+  // Display + manual-install fallbacks
+  title: varchar("title").notNull(),
+  customerName: varchar("customer_name"),
+  location: text("location"),
+  contactName: varchar("contact_name"),
+  contactEmail: varchar("contact_email"),
+  contactPhone: varchar("contact_phone"),
+
+  // Classification
+  source: varchar("source").notNull().default("order_won"), // order_won | followup | rework | manual_other
+  complexity: varchar("complexity").notNull().default("standard"), // simple | standard | complex
+  status: varchar("status").notNull().default("planning"), // planning | scheduled | in_progress | completed | on_hold | cancelled
+
+  // Schedule + progress
+  plannedStart: timestamp("planned_start"),
+  plannedEnd: timestamp("planned_end"),
+  actualStart: timestamp("actual_start"),
+  actualEnd: timestamp("actual_end"),
+  // 0-100 roll-up from phases. Kept on the parent so the list view
+  // doesn't have to aggregate N phase rows to show one progress bar.
+  progress: integer("progress").notNull().default(0),
+
+  notes: text("notes"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // Partial-unique: one install per order (null orderId allowed many
+  // times for manual installs). Enforced via a where clause at DB level.
+  orderUnique: uniqueIndex("installations_order_unique").on(t.orderId).where(sql`${t.orderId} IS NOT NULL`),
+  statusIdx: index("installations_status_idx").on(t.status),
+  plannedStartIdx: index("installations_planned_start_idx").on(t.plannedStart),
+  projectIdx: index("installations_project_idx").on(t.projectId),
+}));
+
+export const installationPhases = pgTable("installation_phases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  installationId: varchar("installation_id").notNull().references(() => installations.id, { onDelete: "cascade" }),
+  orderIndex: integer("order_index").notNull().default(0),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  status: varchar("status").notNull().default("not_started"), // not_started | in_progress | completed | delayed | on_hold
+  progress: integer("progress").notNull().default(0),
+  assignedTeamId: varchar("assigned_team_id").references(() => installTeams.id),
+  // Free-form phase dependency graph. JSON array of phase ids the UI
+  // can walk to render timeline arrows. Not DB-enforced.
+  dependencies: jsonb("dependencies"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  installationIdx: index("installation_phases_installation_idx").on(t.installationId),
+  teamIdx: index("installation_phases_team_idx").on(t.assignedTeamId),
+}));
+
+export const installationMilestones = pgTable("installation_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phaseId: varchar("phase_id").notNull().references(() => installationPhases.id, { onDelete: "cascade" }),
+  name: varchar("name").notNull(),
+  date: timestamp("date"),
+  completed: boolean("completed").notNull().default(false),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  phaseIdx: index("installation_milestones_phase_idx").on(t.phaseId),
+}));
+
+// An installation can span multiple team windows (handover between
+// crews, primary + safety-check team). Join table rather than a single
+// FK on installations so the history is preserved.
+export const installationAssignments = pgTable("installation_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  installationId: varchar("installation_id").notNull().references(() => installations.id, { onDelete: "cascade" }),
+  teamId: varchar("team_id").notNull().references(() => installTeams.id, { onDelete: "restrict" }),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  installationIdx: index("installation_assignments_install_idx").on(t.installationId),
+  teamIdx: index("installation_assignments_team_idx").on(t.teamId),
+}));
+
+// Zod insert schemas
+export const insertInstallTeamSchema = createInsertSchema(installTeams).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertInstallTeamMemberSchema = createInsertSchema(installTeamMembers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertInstallationSchema = createInsertSchema(installations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertInstallationPhaseSchema = createInsertSchema(installationPhases).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertInstallationMilestoneSchema = createInsertSchema(installationMilestones).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertInstallationAssignmentSchema = createInsertSchema(installationAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InstallTeam = typeof installTeams.$inferSelect;
+export type InsertInstallTeam = z.infer<typeof insertInstallTeamSchema>;
+export type InstallTeamMember = typeof installTeamMembers.$inferSelect;
+export type InsertInstallTeamMember = z.infer<typeof insertInstallTeamMemberSchema>;
+export type Installation = typeof installations.$inferSelect;
+export type InsertInstallation = z.infer<typeof insertInstallationSchema>;
+export type InstallationPhase = typeof installationPhases.$inferSelect;
+export type InsertInstallationPhase = z.infer<typeof insertInstallationPhaseSchema>;
+export type InstallationMilestone = typeof installationMilestones.$inferSelect;
+export type InsertInstallationMilestone = z.infer<typeof insertInstallationMilestoneSchema>;
+export type InstallationAssignment = typeof installationAssignments.$inferSelect;
+export type InsertInstallationAssignment = z.infer<typeof insertInstallationAssignmentSchema>;
+

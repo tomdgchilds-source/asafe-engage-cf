@@ -24,11 +24,13 @@ binding = "FILES_STORE"
 id = "c56114bdecec4bc08cd4939b8c5f1d72"
 
 # Scheduled cron triggers. Runs the `scheduled` handler exported from
-# worker/index.ts, which kicks off the weekly CSV backup of core tables to
-# the R2 bucket (see worker/scheduled/backupExporter.ts and
-# scripts/data/BACKUP-NOTES.md).
+# worker/index.ts, which dispatches based on the cron string:
+#   0 3 * * SUN  — weekly CSV backup of core tables to R2
+#                  (worker/scheduled/backupExporter.ts)
+#   0 6 * * *    — daily scan for overdue installation phases
+#                  (worker/scheduled/installationScanner.ts)
 [triggers]
-crons = ["0 3 * * SUN"]   # 03:00 UTC every Sunday
+crons = ["0 3 * * SUN", "0 6 * * *"]
 
 [vars]
 NODE_ENV = "production"

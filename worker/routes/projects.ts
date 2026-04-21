@@ -4,6 +4,7 @@ import { authMiddleware } from "../middleware/auth";
 import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { ensureInstallationsForProject } from "./installations";
 
 const projectsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -211,6 +212,20 @@ projectsRoutes.patch("/projects/:id", authMiddleware, mutationRateLimit, async (
   }
   const body = await c.req.json();
   const row = await storage.updateProject(id, body);
+
+  // Auto-create installations when a project transitions to "won".
+  // Orders don't currently carry a projectId FK, so the helper matches
+  // by (userId, projectName) inside ensureInstallationsForProject.
+  // Fire-and-forget: a failure here shouldn't fail the project update.
+  if (body.status === "won" && existing.status !== "won") {
+    try {
+      const actorId = c.get("user").claims.sub;
+      await ensureInstallationsForProject(db, id, actorId);
+    } catch (err) {
+      console.error("[installations] auto-create on project-won failed:", err);
+    }
+  }
+
   return c.json(row);
 });
 

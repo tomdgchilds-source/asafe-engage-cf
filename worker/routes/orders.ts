@@ -10,6 +10,24 @@ import {
   sendApprovalRequestEmail,
   sendOrderPdfEmail,
 } from "../services/email";
+import { ensureInstallationForOrder } from "./installations";
+
+// Order statuses that represent "this order is won and moving towards
+// delivery/install". When an order enters any of these, we try to
+// auto-create an installation (idempotent on orderId). Kept broad so a
+// skip of one status still triggers on the next.
+const WON_STATUSES = new Set([
+  "approved",
+  "processing",
+  "in_production",
+  "shipped",
+  "delivered",
+  "installation_in_progress",
+  "installed",
+  "invoiced",
+  "paid",
+  "fulfilled",
+]);
 
 const orders = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -52,9 +70,24 @@ orders.put("/admin/orders/:id/status", authMiddleware, async (c) => {
     }
 
     const { status } = await c.req.json();
-    const updatedOrder = await storage.updateOrder(c.req.param("id"), {
+    const orderId = c.req.param("id");
+    const updatedOrder = await storage.updateOrder(orderId, {
       status,
     });
+
+    // Auto-create an installation record when the order enters a won
+    // lifecycle state. Idempotent on orderId; silent no-op if no
+    // install signals on the order. Fire-and-forget so a failure here
+    // doesn't block the kanban move.
+    if (status && WON_STATUSES.has(String(status))) {
+      try {
+        const actorId = c.get("user").claims.sub;
+        await ensureInstallationForOrder(db, orderId, actorId);
+      } catch (err) {
+        console.error("[installations] auto-create on order-won failed:", err);
+      }
+    }
+
     return c.json(updatedOrder);
   } catch (error) {
     console.error("Error updating order status:", error);

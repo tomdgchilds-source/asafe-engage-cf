@@ -38,6 +38,9 @@ import collaborators from "./routes/collaborators";
 import barrierLadders from "./routes/barrierLadders";
 import me from "./routes/me";
 import search from "./routes/search";
+import installations from "./routes/installations";
+import installTeams from "./routes/installTeams";
+import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -108,6 +111,8 @@ app.route("/api", collaborators);
 app.route("/api", barrierLadders);
 app.route("/api", me);
 app.route("/api", search);
+app.route("/api", installations);
+app.route("/api", installTeams);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -1361,12 +1366,22 @@ app.get("*", async (c) => {
 export default {
   fetch: app.fetch,
   scheduled: async (
-    _event: ScheduledEvent,
+    event: ScheduledEvent,
     env: Env,
     ctx: ExecutionContext
   ) => {
-    // waitUntil keeps the worker alive past the event handler return so the
-    // dump can finish even if it takes tens of seconds.
-    ctx.waitUntil(runBackups(env));
+    // Two cron triggers share one handler — dispatch on the cron string
+    // from wrangler.toml. Weekly Sunday backup runs the R2 dump; daily
+    // scan flags overdue installation phases and nudges notifications.
+    const cron = (event as any).cron as string | undefined;
+    if (cron === "0 3 * * SUN") {
+      ctx.waitUntil(runBackups(env));
+    } else if (cron === "0 6 * * *") {
+      ctx.waitUntil(scanOverdueInstallations(env));
+    } else {
+      // Unknown schedule — run both to be safe; cheap and idempotent.
+      ctx.waitUntil(runBackups(env));
+      ctx.waitUntil(scanOverdueInstallations(env));
+    }
   },
 };

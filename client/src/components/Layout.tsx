@@ -131,6 +131,7 @@ export function Layout({ children }: LayoutProps) {
         { name: "PAS 13 Compliance", href: "/pas13-compliance", icon: Shield, external: false },
         { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false },
         { name: "Installation Timeline", href: "/installation-timeline", icon: TrendingUp, external: false },
+        { name: "Install Teams", href: "/install-teams", icon: Users, external: false },
       ]
     },
     {
