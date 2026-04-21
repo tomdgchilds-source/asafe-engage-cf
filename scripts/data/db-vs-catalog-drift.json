@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-04-21T23:13:40.988190+00:00",
+  "summary": {
+    "total_db": 56,
+    "matched": 17,
+    "drifted": 6,
+    "unmatched": 33
+  },
+  "drifts": [
+    {
+      "db_name": "Atlas Double Traffic Barrier",
+      "catalog_name": "Atlas Double Traffic Barrier",
+      "db_impactRating": 30200,
+      "catalog_impactRating": 20500,
+      "db_pas13TestJoules": 20500,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "cat_pas13_method": "vehicle",
+      "cat_pas13_certified": true,
+      "cat_url": "https://www.asafe.com/ar-ae/products/atlas-double-traffic-barrier/"
+    },
+    {
+      "db_name": "eFlex Single Traffic Barrier",
+      "catalog_name": "eFlex Single Traffic Barrier",
+      "db_impactRating": 20400,
+      "catalog_impactRating": 10200,
+      "db_pas13TestJoules": 10200,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "cat_pas13_method": "vehicle",
+      "cat_pas13_certified": true,
+      "cat_url": "https://www.asafe.com/ar-ae/products/eflex-single-traffic-barrier/"
+    },
+    {
+      "db_name": "Step Guard",
+      "catalog_name": "Step Guard",
+      "db_impactRating": 10500,
+      "catalog_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "cat_pas13_method": null,
+      "cat_pas13_certified": true,
+      "cat_url": "https://www.asafe.com/ar-ae/products/step-guard/"
+    },
+    {
+      "db_name": "mFlex Double Traffic Barrier",
+      "catalog_name": "mFlex Double Traffic Barrier",
+      "db_impactRating": 9100,
+      "catalog_impactRating": 4550,
+      "db_pas13TestJoules": 4550,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "cat_pas13_method": "vehicle",
+      "cat_pas13_certified": true,
+      "cat_url": "https://www.asafe.com/ar-ae/products/mflex-double-traffic-barrier/"
+    },
+    {
+      "db_name": "mFlex Single Traffic Barrier",
+      "catalog_name": "mFlex Single Traffic Barrier",
+      "db_impactRating": 5400,
+      "catalog_impactRating": 2700,
+      "db_pas13TestJoules": 2700,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": "vehicle",
+      "cat_pas13_method": "vehicle",
+      "cat_pas13_certified": true,
+      "cat_url": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-barrier/"
+    },
+    {
+      "db_name": "Alarm Bar",
+      "catalog_name": "Alarm Bar",
+      "db_impactRating": 200,
+      "catalog_impactRating": null,
+      "db_pas13TestJoules": null,
+      "db_pas13Compliant": true,
+      "db_pas13TestMethod": null,
+      "cat_pas13_method": null,
+      "cat_pas13_certified": null,
+      "cat_url": "https://www.asafe.com/ar-ae/products/alarm-bar/"
+    }
+  ],
+  "unmatched": [
+    {
+      "name": "Topple Barrier 3.6m with ForkGuard",
+      "normalized": "topple 3 6m with forkguard"
+    },
+    {
+      "name": "Heavy Duty ForkGuard",
+      "normalized": "heavy duty forkguard"
+    },
+    {
+      "name": "Rack End Barrier - Single Rail",
+      "normalized": "rack end single"
+    },
+    {
+      "name": "Cold Storage iFlex 190 Bollard",
+      "normalized": "cold storage iflex 190 bollard"
+    },
+    {
+      "name": "Rack End Barrier - Double Rail",
+      "normalized": "rack end double"
+    },
+    {
+      "name": "iFlex 190 Bollard - 2m",
+      "normalized": "iflex 190 bollard 2m"
+    },
+    {
+      "name": "iFlex Height Restrictor - Post",
+      "normalized": "iflex height restrictor post"
+    },
+    {
+      "name": "ForkGuard",
+      "normalized": "forkguard"
+    },
+    {
+      "name": "iFlex Post 130",
+      "normalized": "iflex post 130"
+    },
+    {
+      "name": "Monoplex 130 Bollard",
+      "normalized": "monoplex 130 bollard"
+    },
+    {
+      "name": "Hydraulic Swing Gate",
+      "normalized": "hydraulic swing gate"
+    },
+    {
+      "name": "Cold Storage RackGuard - Multiple height and profile sizes",
+      "normalized": "cold storage rackguard multiple height and profile sizes"
+    },
+    {
+      "name": "Monoplex 190 Bollard",
+      "normalized": "monoplex 190 bollard"
+    },
+    {
+      "name": "190-T1-P0",
+      "normalized": "190 t1 p0"
+    },
+    {
+      "name": "FlexiShield Column Guard - Spacer Set",
+      "normalized": "flexishield column spacer set"
+    },
+    {
+      "name": "Retractable Barrier - Racking Maintenance Case - YEL/BLK",
+      "normalized": "retractable racking maintenance case yel blk"
+    },
+    {
+      "name": "Sign Post, 1.2m - Yellow",
+      "normalized": "sign post 1 2m yellow"
+    },
+    {
+      "name": "Tape Barrier Kit - Wall to Wall - YEL/BLK",
+      "normalized": "tape kit wall to wall yel blk"
+    },
+    {
+      "name": "Bollard Bumper",
+      "normalized": "bollard bumper"
+    },
+    {
+      "name": "190-T2-P0",
+      "normalized": "190 t2 p0"
+    },
+    {
+      "name": "eFlex Pedestrian Barrier",
+      "normalized": "eflex pedestrian"
+    },
+    {
+      "name": "130-T0-P3",
+      "normalized": "130 t0 p3"
+    },
+    {
+      "name": "iFlex Height Restrictor - Top Rail",
+      "normalized": "iflex height restrictor top"
+    },
+    {
+      "name": "Bollard, Yellow",
+      "normalized": "bollard yellow"
+    },
+    {
+      "name": "Bollard, Grey",
+      "normalized": "bollard grey"
+    },
+    {
+      "name": "RackGuard - Multiple height and profile sizes",
+      "normalized": "rackguard multiple height and profile sizes"
+    },
+    {
+      "name": "iFlex - Retractable Barrier (Belt Barrier) - Post to Wall - YEL/BLK",
+      "normalized": "iflex retractable belt post to wall yel blk"
+    },
+    {
+      "name": "Dock Buffer (Pair)",
+      "normalized": "dock buffer pair"
+    },
+    {
+      "name": "Flex - Retractable Barrier (Belt Barrier) - Post to Post - YEL/BLK",
+      "normalized": "flex retractable belt post to post yel blk"
+    },
+    {
+      "name": "Topple Barrier 2.08m with ForkGuard",
+      "normalized": "topple 2 08m with forkguard"
+    },
+    {
+      "name": "190-T2-P1",
+      "normalized": "190 t2 p1"
+    },
+    {
+      "name": "Topple Barrier 5.3m with ForkGuard",
+      "normalized": "topple 5 3m with forkguard"
+    },
+    {
+      "name": "190-T1-P2",
+      "normalized": "190 t1 p2"
+    }
+  ]
+}

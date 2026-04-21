@@ -1202,6 +1202,146 @@ app.post("/api/admin/apply-impact-corrections", async (c) => {
   }
 });
 
+// Sync catalog → DB for impact rating + PAS 13 fields.
+//
+// The products table has drifted from scripts/data/asafe-catalog.json
+// (which we've since verified matches asafe.com). Some DB rows have
+// 2x or 1.47x the correct Joule value — likely a historical double-
+// apply. This endpoint pulls the catalog in and writes catalog values
+// onto the matching product rows. Matching is fuzzy on name
+// (normalizes "+" vs "plus", drops "barrier/rail" filler words,
+// swaps "CS " prefix ↔ " Cold Storage" suffix).
+//
+// Idempotent; re-running produces no further changes once converged.
+// Gated by MIGRATION_TOKEN, same pattern as the other admin one-offs.
+app.post("/api/admin/sync-catalog-to-db", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    const catalogModule: any = await import("../scripts/data/asafe-catalog.json");
+    const catalog = catalogModule.default || catalogModule;
+    const catalogProducts: any[] = Array.isArray(catalog)
+      ? catalog
+      : catalog.products || [];
+
+    function norm(s: string | null | undefined): string {
+      if (!s) return "";
+      let v = s.toLowerCase().trim();
+      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
+      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
+      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
+        v = v.split(f).join("");
+      }
+      v = v.replace(/[^a-z0-9]+/g, " ").trim();
+      return v;
+    }
+
+    // Build catalog index by normalized name + URL slug fallback.
+    const catByKey = new Map<string, any>();
+    for (const p of catalogProducts) {
+      const k = norm(p.familyName);
+      if (k && !catByKey.has(k)) catByKey.set(k, p);
+      if (p.productUrl) {
+        const slug = String(p.productUrl)
+          .replace(/\/$/, "")
+          .split("/")
+          .pop()
+          ?.replace(/-/g, " ");
+        const slugKey = norm(slug || "");
+        if (slugKey && !catByKey.has(slugKey)) catByKey.set(slugKey, p);
+      }
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    const dbProducts = (await sqlClient`
+      SELECT id, name, impact_rating, pas_13_compliant, pas_13_test_method, pas_13_test_joules
+      FROM products
+    `) as any[];
+
+    const updates: any[] = [];
+    const unmatched: Array<{ id: string; name: string }> = [];
+    const alreadyOk: Array<{ id: string; name: string }> = [];
+
+    for (const p of dbProducts) {
+      const key = norm(p.name);
+      const cat = catByKey.get(key);
+      if (!cat) {
+        unmatched.push({ id: p.id, name: p.name });
+        continue;
+      }
+      const catRating = cat.impactRating ?? null;
+      const catMethod = (cat.pas13 || {}).method ?? null;
+      const catCertified =
+        (cat.pas13 || {}).certified != null ? !!(cat.pas13 || {}).certified : null;
+
+      // Only touch fields where the catalog has a definitive value AND
+      // the DB differs. Never blank-out an existing DB value just
+      // because the catalog is ambiguous.
+      const changes: Record<string, any> = {};
+      if (catRating != null && catRating !== p.impact_rating) {
+        changes.impact_rating = catRating;
+      }
+      if (catRating != null && catRating !== p.pas_13_test_joules) {
+        changes.pas_13_test_joules = catRating;
+      }
+      if (catCertified != null && catCertified !== p.pas_13_compliant) {
+        changes.pas_13_compliant = catCertified;
+      }
+      if (catMethod && catMethod !== p.pas_13_test_method) {
+        changes.pas_13_test_method = catMethod;
+      }
+
+      if (Object.keys(changes).length === 0) {
+        alreadyOk.push({ id: p.id, name: p.name });
+        continue;
+      }
+
+      const setFragments: string[] = [];
+      const params: any[] = [];
+      for (const [col, val] of Object.entries(changes)) {
+        setFragments.push(`${col} = $${params.length + 1}`);
+        params.push(val);
+      }
+      setFragments.push("updated_at = now()");
+      params.push(p.id);
+      const q = `UPDATE products SET ${setFragments.join(", ")} WHERE id = $${params.length}`;
+      await sqlClient(q, params);
+      updates.push({
+        id: p.id,
+        name: p.name,
+        catalogFamilyName: cat.familyName,
+        changes,
+      });
+    }
+
+    return c.json({
+      ok: true,
+      summary: {
+        db_total: dbProducts.length,
+        updated: updates.length,
+        already_ok: alreadyOk.length,
+        unmatched: unmatched.length,
+      },
+      updates,
+      unmatched,
+    });
+  } catch (e: any) {
+    console.error("sync-catalog-to-db failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Seed resources — populates resources table with A-SAFE technical docs, videos, guides
 app.get("/api/admin/seed-resources", authMiddleware, async (c) => {
   if (!(await requireAdmin(c))) return c.json({ message: "Admin access required" }, 403);
