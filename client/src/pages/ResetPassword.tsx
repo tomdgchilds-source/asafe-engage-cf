@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Turnstile } from "@/components/Turnstile";
+import { usePublicConfig } from "@/hooks/usePublicConfig";
 
 export default function ResetPassword() {
   const [, setLocation] = useLocation();
@@ -13,6 +15,12 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  const { data: publicConfig } = usePublicConfig();
+  const turnstileSiteKey = publicConfig?.turnstileSiteKey ?? "";
+  const turnstileRequired = Boolean(turnstileSiteKey);
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const handleTsToken = useCallback((t: string | null) => setTsToken(t), []);
 
   const token = new URLSearchParams(window.location.search).get("token");
 
@@ -31,7 +39,7 @@ export default function ResetPassword() {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: password }),
+        body: JSON.stringify({ token, newPassword: password, turnstileToken: tsToken }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -79,7 +87,14 @@ export default function ResetPassword() {
                 <Label htmlFor="confirm">Confirm Password</Label>
                 <Input id="confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground hover:bg-yellow-300">
+              {turnstileRequired && (
+                <Turnstile siteKey={turnstileSiteKey} onToken={handleTsToken} />
+              )}
+              <Button
+                type="submit"
+                disabled={loading || (turnstileRequired && !tsToken)}
+                className="w-full bg-primary text-primary-foreground hover:bg-yellow-300"
+              >
                 {loading ? "Resetting..." : "Reset Password"}
               </Button>
             </form>

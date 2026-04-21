@@ -5,6 +5,12 @@ import type { Env, Variables, SessionData } from "../types";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import type { Context } from "hono";
+import { verifyTurnstile } from "../lib/turnstile";
+import {
+  clearFailedLogins,
+  isAccountLocked,
+  recordFailedLogin,
+} from "./accountLockout";
 
 const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
 
@@ -83,23 +89,63 @@ export const optionalAuth = createMiddleware<{ Bindings: Env; Variables: Variabl
 
 // Login handler — verify email+password, create session
 export async function handleLogin(c: Context<{ Bindings: Env }>) {
-  const body = await c.req.json<{ email: string; password: string }>();
+  const body = await c.req.json<{ email: string; password: string; turnstileToken?: string }>();
   if (!body.email || !body.password) {
     return c.json({ message: "Email and password are required" }, 400);
   }
 
+  // Turnstile human verification — gated by TURNSTILE_SECRET_KEY.
+  // If the secret is unset, verifyTurnstile() short-circuits to ok.
+  const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined;
+  const ts = await verifyTurnstile(body.turnstileToken, ip, c.env.TURNSTILE_SECRET_KEY);
+  if (!ts.ok) {
+    console.warn(`[turnstile] verify failed for /login ip=${ip ?? "unknown"} reason=${ts.reason}`);
+    return c.json({ message: "Human verification failed" }, 400);
+  }
+
+  // Account lockout — block before we even hit the DB / bcrypt.
+  const normalizedEmail = body.email.toLowerCase().trim();
+  const lockStatus = await isAccountLocked(c.env.KV_SESSIONS, normalizedEmail);
+  if (lockStatus.locked) {
+    c.header("Retry-After", Math.max(1, lockStatus.retryAfterSeconds).toString());
+    const mins = Math.max(1, Math.ceil(lockStatus.retryAfterSeconds / 60));
+    return c.json(
+      {
+        message: `Too many failed attempts; try again in ${mins} minute${mins === 1 ? "" : "s"}.`,
+      },
+      429
+    );
+  }
+
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
-  const user = await storage.getUserByEmail(body.email.toLowerCase().trim());
+  const user = await storage.getUserByEmail(normalizedEmail);
 
   if (!user || !user.passwordHash) {
+    // Record a failure even when the email isn't in the DB so attackers
+    // can't enumerate addresses by watching rate-limit behaviour.
+    await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
     return c.json({ message: "Invalid email or password" }, 401);
   }
 
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
+    const res = await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
+    if (res.locked) {
+      c.header("Retry-After", Math.max(1, res.retryAfterSeconds).toString());
+      const mins = Math.max(1, Math.ceil(res.retryAfterSeconds / 60));
+      return c.json(
+        {
+          message: `Too many failed attempts; try again in ${mins} minute${mins === 1 ? "" : "s"}.`,
+        },
+        429
+      );
+    }
     return c.json({ message: "Invalid email or password" }, 401);
   }
+
+  // Successful login — clear any accumulated failure counter.
+  await clearFailedLogins(c.env.KV_SESSIONS, normalizedEmail);
 
   await createSession(c, user);
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Shield, Calculator, Package, FileText, Download, Users, Star, ExternalLink, MapPin, Mail, Phone } from "lucide-react";
 import OfficeSelector, { GlobalOffice } from "@/components/OfficeSelector";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { Turnstile } from "@/components/Turnstile";
+import { usePublicConfig } from "@/hooks/usePublicConfig";
 
 export default function Landing() {
   const [, setLocation] = useLocation();
@@ -31,6 +33,19 @@ export default function Landing() {
   const [forgotSent, setForgotSent] = useState(false);
   const haptic = useHapticFeedback();
 
+  // Turnstile — one token per form surface (login / register / forgot).
+  // If the site key isn't provisioned, the widget renders nothing and
+  // `turnstileRequired` stays false, so submit buttons remain enabled.
+  const { data: publicConfig } = usePublicConfig();
+  const turnstileSiteKey = publicConfig?.turnstileSiteKey ?? "";
+  const turnstileRequired = Boolean(turnstileSiteKey);
+  const [loginTsToken, setLoginTsToken] = useState<string | null>(null);
+  const [regTsToken, setRegTsToken] = useState<string | null>(null);
+  const [forgotTsToken, setForgotTsToken] = useState<string | null>(null);
+  const handleLoginTsToken = useCallback((t: string | null) => setLoginTsToken(t), []);
+  const handleRegTsToken = useCallback((t: string | null) => setRegTsToken(t), []);
+  const handleForgotTsToken = useCallback((t: string | null) => setForgotTsToken(t), []);
+
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setRegError(null);
@@ -46,6 +61,7 @@ export default function Landing() {
           firstName: regFirstName,
           lastName: regLastName,
           company: regCompany || undefined,
+          turnstileToken: regTsToken,
         }),
         credentials: "include",
       });
@@ -77,7 +93,7 @@ export default function Landing() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword, turnstileToken: loginTsToken }),
         credentials: "include",
       });
       if (res.ok) {
@@ -394,7 +410,14 @@ export default function Landing() {
                 <Input id="reg-password" type="password" required minLength={6} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
               </div>
               {regError && <p className="text-sm text-red-600">{regError}</p>}
-              <Button type="submit" disabled={regLoading} className="w-full bg-primary text-primary-foreground hover:bg-yellow-300">
+              {turnstileRequired && (
+                <Turnstile siteKey={turnstileSiteKey} onToken={handleRegTsToken} />
+              )}
+              <Button
+                type="submit"
+                disabled={regLoading || (turnstileRequired && !regTsToken)}
+                className="w-full bg-primary text-primary-foreground hover:bg-yellow-300"
+              >
                 {regLoading ? "Creating account..." : "Create Account"}
               </Button>
               <div className="text-center">
@@ -425,7 +448,7 @@ export default function Landing() {
                     await fetch("/api/auth/forgot-password", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: forgotEmail }),
+                      body: JSON.stringify({ email: forgotEmail, turnstileToken: forgotTsToken }),
                     });
                     setForgotSent(true);
                   } catch {
@@ -449,9 +472,12 @@ export default function Landing() {
                     onChange={(e) => setForgotEmail(e.target.value)}
                   />
                 </div>
+                {turnstileRequired && (
+                  <Turnstile siteKey={turnstileSiteKey} onToken={handleForgotTsToken} />
+                )}
                 <Button
                   type="submit"
-                  disabled={forgotLoading}
+                  disabled={forgotLoading || (turnstileRequired && !forgotTsToken)}
                   className="w-full bg-primary text-primary-foreground hover:bg-yellow-300"
                 >
                   {forgotLoading ? "Sending..." : "Send Reset Link"}
@@ -491,9 +517,12 @@ export default function Landing() {
                 />
               </div>
               {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+              {turnstileRequired && (
+                <Turnstile siteKey={turnstileSiteKey} onToken={handleLoginTsToken} />
+              )}
               <Button
                 type="submit"
-                disabled={loginLoading}
+                disabled={loginLoading || (turnstileRequired && !loginTsToken)}
                 className="w-full bg-primary text-primary-foreground hover:bg-yellow-300"
               >
                 {loginLoading ? "Signing in…" : "Sign In"}

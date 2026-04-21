@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env, Variables } from "./types";
 import { authMiddleware } from "./middleware/auth";
+import { securityHeaders } from "./middleware/securityHeaders";
 import { getDb } from "./db";
 import { createStorage } from "./storage";
 
@@ -35,8 +36,30 @@ import collaborators from "./routes/collaborators";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// CORS for API routes
-app.use("/api/*", cors());
+// Security headers on EVERY response — including the SPA shell served
+// via the ASSETS fallback. Mounted first so it wraps all routes below.
+app.use("*", securityHeaders);
+
+// CORS for API routes — restricted to the deployed origin + localhost
+// dev. `origin` callback returning `""` blocks cross-origin, while
+// returning the origin echoes it back for allowed callers.
+const ALLOWED_ORIGINS = new Set([
+  "https://asafe-engage.tom-d-g-childs.workers.dev",
+  "http://localhost:8787",
+  "http://localhost:5173",
+]);
+
+app.use("/api/*", cors({
+  origin: (origin) => {
+    // Same-origin / server-to-server requests have no Origin header.
+    if (!origin) return origin as any;
+    return ALLOWED_ORIGINS.has(origin) ? origin : "";
+  },
+  credentials: true,
+  allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  maxAge: 86400,
+}));
 
 // Global error handler
 app.onError((err, c) => {
@@ -75,6 +98,29 @@ app.route("/api", collaborators);
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
+// Public runtime config — exposes the Turnstile site key (and any other
+// public-safe values) to the SPA. No auth, cached 60s at the edge so the
+// SPA fetch-on-boot is effectively free. The secret key is never served.
+app.get("/api/config", (c) => {
+  // Lazy boot-log of Turnstile key status — emits once per isolate the
+  // first time /api/config (or any verify) is hit.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = globalThis as any;
+  if (!g.__turnstileBootLogged) {
+    g.__turnstileBootLogged = true;
+    if (!c.env.TURNSTILE_SITE_KEY) {
+      console.warn("[turnstile] site key missing; client widget disabled");
+    }
+    if (!c.env.TURNSTILE_SECRET_KEY) {
+      console.warn("[turnstile] secret missing; verification skipped");
+    }
+  }
+  c.header("Cache-Control", "public, max-age=60");
+  return c.json({
+    turnstileSiteKey: c.env.TURNSTILE_SITE_KEY ?? null,
+  });
+});
+
 // Helper: verify the caller is an admin user
 async function requireAdmin(c: any): Promise<boolean> {
   const session = c.get("user");
@@ -91,12 +137,14 @@ app.get("/api/auth/oauth-debug", authMiddleware, async (c) => {
   const checks: Record<string, any> = {};
 
   // 1. Check env vars
-  checks.GOOGLE_CLIENT_ID = c.env.GOOGLE_CLIENT_ID ? `set (${c.env.GOOGLE_CLIENT_ID.substring(0, 15)}...)` : "MISSING";
-  checks.GOOGLE_CLIENT_SECRET = c.env.GOOGLE_CLIENT_SECRET ? `set (${c.env.GOOGLE_CLIENT_SECRET.length} chars)` : "MISSING";
+  // Secret-presence-only — never leak prefixes of credentials, even to
+  // admin users. Length exposure on secrets is also avoided.
+  checks.GOOGLE_CLIENT_ID = c.env.GOOGLE_CLIENT_ID ? "set" : "MISSING";
+  checks.GOOGLE_CLIENT_SECRET = c.env.GOOGLE_CLIENT_SECRET ? "set" : "MISSING";
   checks.APP_URL = c.env.APP_URL ? `"${c.env.APP_URL}"` : "MISSING";
   checks.APP_URL_trimmed = (c.env.APP_URL || "").trim();
   checks.APP_URL_has_whitespace = c.env.APP_URL !== (c.env.APP_URL || "").trim();
-  checks.DATABASE_URL = c.env.DATABASE_URL ? `set (${c.env.DATABASE_URL.substring(0, 30)}...)` : "MISSING";
+  checks.DATABASE_URL = c.env.DATABASE_URL ? "set" : "MISSING";
 
   // 2. Check KV binding
   try {
@@ -545,7 +593,8 @@ app.get("/api/admin/fix-schema", authMiddleware, async (c) => {
 
     return c.json({ success: true, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -617,7 +666,8 @@ app.get("/api/admin/seed-products", authMiddleware, async (c) => {
 
     return c.json({ success: true, products: PRODUCT_SEED_DATA.length, pricingTiers: PRICING_TIER_SEED_DATA.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message, stack: e.stack }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -660,7 +710,8 @@ app.get("/api/admin/seed-case-studies", authMiddleware, async (c) => {
 
     return c.json({ success: true, caseStudies: CASE_STUDY_SEED_DATA.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message, stack: e.stack }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -791,7 +842,8 @@ app.get("/api/admin/seed-options", authMiddleware, async (c) => {
 
     return c.json({ success: true, discountOptions: discountOptions.length, serviceOptions: serviceOptions.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -899,7 +951,8 @@ app.get("/api/admin/seed-faqs", authMiddleware, async (c) => {
 
     return c.json({ success: true, faqs: FAQ_SEED_DATA.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message, stack: e.stack }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -964,7 +1017,8 @@ app.get("/api/admin/seed-vehicle-types", authMiddleware, async (c) => {
 
     return c.json({ success: true, vehicleTypes: VEHICLE_SEED_DATA.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message, stack: e.stack }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -1066,7 +1120,8 @@ app.get("/api/admin/seed-resources", authMiddleware, async (c) => {
 
     return c.json({ success: true, resources: RESOURCE_SEED_DATA.length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message, stack: e.stack }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -1125,7 +1180,8 @@ app.get("/api/admin/update-product-images", authMiddleware, async (c) => {
 
     return c.json({ success: true, total: Object.keys(IMAGE_URL_MAP).length, results });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -1148,7 +1204,8 @@ app.get("/api/admin/promote-user", authMiddleware, async (c) => {
     }
     return c.json({ success: true, user: result[0] });
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -1206,7 +1263,8 @@ app.get("/api/bootstrap-admin", async (c) => {
       });
     }
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 
@@ -1254,7 +1312,8 @@ app.get("/api/bootstrap-user", async (c) => {
       return c.json({ success: true, action: "created", email, password, role });
     }
   } catch (e: any) {
-    return c.json({ success: false, error: e.message }, 500);
+    console.error("Admin endpoint error:", e);
+    return c.json({ success: false, message: "Internal server error" }, 500);
   }
 });
 

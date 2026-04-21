@@ -38,6 +38,13 @@ export type Env = {
   // Set via `wrangler secret put MIGRATION_TOKEN`. Optional — the endpoint
   // refuses to run when the secret is missing.
   MIGRATION_TOKEN?: string;
+
+  // Cloudflare Turnstile — human verification on auth flows.
+  // Both keys optional; when absent, Turnstile is skipped entirely and
+  // the app functions as if unprotected. See worker/lib/turnstile.ts and
+  // scripts/data/SECURITY-SETUP.md.
+  TURNSTILE_SITE_KEY?: string;   // public; served via /api/config
+  TURNSTILE_SECRET_KEY?: string; // secret; server-side verification only
 };
 
 // Session shape — matches the original AuthenticatedRequest.user

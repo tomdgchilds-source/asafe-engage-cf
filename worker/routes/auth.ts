@@ -1,14 +1,22 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Env, Variables } from "../types";
 import { authMiddleware, handleLogin, destroySession, createSession } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { sendEmail } from "../services/email";
+import { verifyTurnstile } from "../lib/turnstile";
+import {
+  loginRateLimit,
+  resetPasswordRateLimit,
+  forgotPasswordRateLimit,
+  signupRateLimit,
+} from "../middleware/rateLimiter";
 
 const auth = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// POST /api/login
-auth.post("/login", async (c) => {
+// POST /api/login — per-IP rate limited + per-email account lockout (handleLogin)
+auth.post("/login", loginRateLimit, async (c) => {
   return handleLogin(c);
 });
 
@@ -54,25 +62,34 @@ auth.get("/auth/user", authMiddleware, async (c) => {
   });
 });
 
+// Input validation for /register. Tight length caps keep the DB row
+// predictable and make enumeration payloads expensive to craft.
+const registerSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(6).max(200),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  company: z.string().max(200).optional(),
+  phone: z.string().max(40).optional(),
+  jobTitle: z.string().max(100).optional(),
+  turnstileToken: z.string().max(2048).optional(),
+});
+
 // POST /api/register — create a new user account
-auth.post("/register", async (c) => {
+auth.post("/register", signupRateLimit, async (c) => {
   try {
-    const body = await c.req.json<{
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-      company?: string;
-      phone?: string;
-      jobTitle?: string;
-    }>();
-
-    if (!body.email || !body.password || !body.firstName || !body.lastName) {
-      return c.json({ message: "Email, password, first name, and last name are required" }, 400);
+    const raw = await c.req.json().catch(() => null);
+    const parsed = registerSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ message: "Invalid registration details" }, 400);
     }
+    const body = parsed.data;
 
-    if (body.password.length < 6) {
-      return c.json({ message: "Password must be at least 6 characters" }, 400);
+    const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined;
+    const ts = await verifyTurnstile(body.turnstileToken, ip, c.env.TURNSTILE_SECRET_KEY);
+    if (!ts.ok) {
+      console.warn(`[turnstile] verify failed for /register ip=${ip ?? "unknown"} reason=${ts.reason}`);
+      return c.json({ message: "Human verification failed" }, 400);
     }
 
     const db = getDb(c.env.DATABASE_URL);
@@ -121,10 +138,24 @@ auth.post("/register", async (c) => {
   }
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email().max(254),
+  turnstileToken: z.string().max(2048).optional(),
+});
+
 // POST /api/auth/forgot-password
-auth.post("/auth/forgot-password", async (c) => {
-  const { email } = await c.req.json();
-  if (!email) return c.json({ message: "Email required" }, 400);
+auth.post("/auth/forgot-password", forgotPasswordRateLimit, async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = forgotPasswordSchema.safeParse(raw);
+  if (!parsed.success) return c.json({ message: "Email required" }, 400);
+  const { email, turnstileToken } = parsed.data;
+
+  const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined;
+  const ts = await verifyTurnstile(turnstileToken, ip, c.env.TURNSTILE_SECRET_KEY);
+  if (!ts.ok) {
+    console.warn(`[turnstile] verify failed for /forgot-password ip=${ip ?? "unknown"} reason=${ts.reason}`);
+    return c.json({ message: "Human verification failed" }, 400);
+  }
 
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
@@ -145,11 +176,27 @@ auth.post("/auth/forgot-password", async (c) => {
   return c.json({ message: "If an account with that email exists, a reset link has been sent." });
 });
 
+const resetPasswordSchema = z.object({
+  token: z.string().min(1).max(256),
+  newPassword: z.string().min(6).max(200),
+  turnstileToken: z.string().max(2048).optional(),
+});
+
 // POST /api/auth/reset-password
-auth.post("/auth/reset-password", async (c) => {
-  const { token, newPassword } = await c.req.json();
-  if (!token || !newPassword) return c.json({ message: "Token and new password required" }, 400);
-  if (newPassword.length < 6) return c.json({ message: "Password must be at least 6 characters" }, 400);
+auth.post("/auth/reset-password", resetPasswordRateLimit, async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = resetPasswordSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ message: "Token and new password required (min 6 chars)" }, 400);
+  }
+  const { token, newPassword, turnstileToken } = parsed.data;
+
+  const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined;
+  const ts = await verifyTurnstile(turnstileToken, ip, c.env.TURNSTILE_SECRET_KEY);
+  if (!ts.ok) {
+    console.warn(`[turnstile] verify failed for /reset-password ip=${ip ?? "unknown"} reason=${ts.reason}`);
+    return c.json({ message: "Human verification failed" }, 400);
+  }
 
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
@@ -241,25 +288,24 @@ auth.get("/auth/google/callback", async (c) => {
     if (!tokenRes.ok) {
       const errBody = await tokenRes.text();
       console.error("Google token exchange failed:", tokenRes.status, errBody);
-      return c.html(`<h2>OAuth Error</h2><p>Token exchange failed (${tokenRes.status})</p><pre>${errBody}</pre><p>Redirect URI used: ${redirectUri}</p><a href="/">Go home</a>`, 500);
+      return c.html(`<h2>Sign-in failed</h2><p>We couldn't complete Google sign-in. Please try again.</p><a href="/api/auth/google">Try again</a> | <a href="/">Go home</a>`, 500);
     }
 
     steps.push("5. Decoding id_token JWT");
     const tokens = await tokenRes.json() as any;
     const payload = JSON.parse(atob(tokens.id_token.split(".")[1]));
     const { sub: googleId, email, given_name, family_name } = payload;
-    console.log("OAuth callback - Google user:", email, "googleId:", googleId);
+    // No PII in logs — keep lookups observable via step trace only.
 
     steps.push("6. Connecting to database");
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
 
-    steps.push("7. Looking up user by OAuth (google, " + googleId + ")");
+    steps.push("7. Looking up user by OAuth (google)");
     let user = await storage.getUserByOAuth("google", googleId);
-    console.log("OAuth callback - getUserByOAuth result:", user ? user.id : "null");
 
     if (!user) {
-      steps.push("8a. No OAuth user found, checking by email: " + email);
+      steps.push("8a. No OAuth user found, checking by email");
       user = await storage.getUserByEmail(email);
       if (user) {
         steps.push("8b. Found existing user by email, linking OAuth");
@@ -273,7 +319,6 @@ auth.get("/auth/google/callback", async (c) => {
           provider: "google",
           oauthId: googleId,
         });
-        console.log("OAuth callback - created new user:", user.id, user.email);
       }
     }
 
@@ -298,13 +343,10 @@ auth.get("/auth/google/callback", async (c) => {
     // Redirect to / — the React SPA renders Dashboard when authenticated
     return c.redirect("/");
   } catch (err: any) {
-    console.error("Google OAuth callback error at step:", steps[steps.length - 1], "error:", err?.message || err, err?.stack);
-    const stepsHtml = steps.map(s => `<li>${s}</li>`).join("");
+    console.error("Google OAuth callback error at step:", steps[steps.length - 1], err);
     return c.html(`
-      <h2>OAuth Error</h2>
-      <p><strong>Error:</strong> ${err?.message || "Unknown error"}</p>
-      <h3>Steps completed:</h3>
-      <ol>${stepsHtml}</ol>
+      <h2>Sign-in failed</h2>
+      <p>We couldn't complete Google sign-in. Please try again.</p>
       <p><a href="/api/auth/google">Try again</a> | <a href="/">Go home</a></p>
     `, 500);
   }

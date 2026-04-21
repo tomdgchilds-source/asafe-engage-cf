@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { AlertCircle, Shield } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { Turnstile } from "@/components/Turnstile";
+import { usePublicConfig } from "@/hooks/usePublicConfig";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -15,6 +17,12 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const { data: publicConfig } = usePublicConfig();
+  const turnstileSiteKey = publicConfig?.turnstileSiteKey ?? "";
+  const turnstileRequired = Boolean(turnstileSiteKey);
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const handleTsToken = useCallback((t: string | null) => setTsToken(t), []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +33,7 @@ export default function AdminLogin() {
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, turnstileToken: tsToken }),
       });
 
       const data = await response.json();
@@ -100,10 +108,14 @@ export default function AdminLogin() {
               </Alert>
             )}
 
+            {turnstileRequired && (
+              <Turnstile siteKey={turnstileSiteKey} onToken={handleTsToken} />
+            )}
+
             <Button
               type="submit"
               className="w-full bg-[#FFC72C] hover:bg-[#FFD54F] text-black"
-              disabled={isLoading}
+              disabled={isLoading || (turnstileRequired && !tsToken)}
               data-testid="button-admin-login"
             >
               {isLoading ? "Logging in..." : "Login"}

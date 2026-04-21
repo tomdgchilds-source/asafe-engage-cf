@@ -25,6 +25,7 @@ id = "c56114bdecec4bc08cd4939b8c5f1d72"
 
 [vars]
 NODE_ENV = "production"
+# TURNSTILE_SITE_KEY = "0x4AAAAAAA..."   # public; safe to commit. Pair with TURNSTILE_SECRET_KEY secret (wrangler secret put TURNSTILE_SECRET_KEY).
 
 # Secrets (set via: wrangler secret put <NAME>):
 # DATABASE_URL

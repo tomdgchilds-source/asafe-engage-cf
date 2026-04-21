@@ -31,9 +31,11 @@ import {
   products,
   productVariants,
   vehicleTypes,
+  applicationTypes,
 } from "../../shared/schema";
 import priceList from "../../scripts/data/pricelist-aed-2025v1.json";
 import scrapedCatalog from "../../scripts/data/asafe-catalog.json";
+import applicationTypesSeed from "../../scripts/data/application-types-seed.json";
 
 const adminPricelist = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -998,9 +1000,9 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
     //
     // All URLs sourced from Wikimedia Commons (public-domain or CC/CC-BY-SA),
     // served via the /thumb/ 400px edge-resize endpoint. Full mapping lives in
-    // scripts/data/vehicle-image-map.json. Rows with no licence-safe match
-    // (High-Level Order Picker, VNA Truck) are intentionally omitted so the
-    // icon fallback continues to cover them.
+    // scripts/data/vehicle-image-map.json. The icon fallback still covers any
+    // row the update fails to match, but every vehicle type now has a real
+    // photograph seeded here.
     if (c.req.query("seedVehicleImages") === "1") {
       const MAP: Array<{ id: string; name: string; imageUrl: string }> = [
         {
@@ -1040,6 +1042,12 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
             "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Jungheinrich_ECE_225.jpg/400px-Jungheinrich_ECE_225.jpg",
         },
         {
+          id: "ba6e9a31-f791-4f88-ad7b-275466260bcc",
+          name: "High-Level Order Picker",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/137th_SOW_Airmen_integrate_with_35th_LRS%2C_MUNS_%289268424%29.jpg/400px-137th_SOW_Airmen_integrate_with_35th_LRS%2C_MUNS_%289268424%29.jpg",
+        },
+        {
           id: "1a4960f4-f28f-49db-ae68-110652af0538",
           name: "Counterbalance Forklift (1.5T)",
           imageUrl:
@@ -1062,6 +1070,12 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
           name: "Reach Truck",
           imageUrl:
             "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/ETV214.jpg/400px-ETV214.jpg",
+        },
+        {
+          id: "0e89efb7-a6d2-4d8f-8215-cfe3704af016",
+          name: "Very Narrow Aisle (VNA) Truck",
+          imageUrl:
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Zijlader_smallegang3.jpg/400px-Zijlader_smallegang3.jpg",
         },
         {
           id: "0633c437-a7e5-4dac-867b-df1a8e84ecfe",
@@ -1129,7 +1143,7 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
         applied,
         missed,
         note:
-          "Photo stored on vehicle_types.thumbnail_url (nullable). icon_url remains the iconify silhouette fallback. 2 rows (High-Level Order Picker, VNA Truck) intentionally skipped — no licence-safe Commons match, UI falls back to icon.",
+          "Photo stored on vehicle_types.thumbnail_url (nullable). icon_url remains the iconify silhouette fallback. Every vehicle type in MAP now has a licence-safe Wikimedia Commons photograph (PD or CC BY-SA); missing rows here mean the DB row could not be matched by id/name, in which case the icon fallback still renders.",
       };
     }
 
@@ -1291,6 +1305,63 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
         applied: results.filter((r) => r.updated).length,
         missed: results.filter((r) => !r.updated).map((r) => r.name),
         flaggedForReview: flagged,
+      };
+    }
+
+    // Seed the application_types lookup. Idempotent — rows are upserted by
+    // name (the unique column) so re-running just refreshes description,
+    // category, icon, sortOrder, isPopular against the source fixture.
+    if (c.req.query("seedApplicationTypes") === "1") {
+      const rows = (applicationTypesSeed as any).rows as Array<{
+        name: string;
+        category: string;
+        description?: string;
+        iconUrl: string;
+        hexColor?: string;
+        sortOrder?: number;
+        isPopular?: boolean;
+      }>;
+      let inserted = 0;
+      let updated = 0;
+      for (const r of rows) {
+        const existing = await db
+          .select()
+          .from(applicationTypes)
+          .where(eq(applicationTypes.name, r.name))
+          .limit(1);
+        if (existing[0]) {
+          await db
+            .update(applicationTypes)
+            .set({
+              category: r.category,
+              description: r.description ?? null,
+              iconUrl: r.iconUrl,
+              hexColor: r.hexColor ?? null,
+              sortOrder: r.sortOrder ?? 0,
+              isPopular: !!r.isPopular,
+              isActive: true,
+              updatedAt: new Date(),
+            } as any)
+            .where(eq(applicationTypes.id, existing[0].id));
+          updated++;
+        } else {
+          await db.insert(applicationTypes).values({
+            name: r.name,
+            category: r.category,
+            description: r.description ?? null,
+            iconUrl: r.iconUrl,
+            hexColor: r.hexColor ?? null,
+            sortOrder: r.sortOrder ?? 0,
+            isPopular: !!r.isPopular,
+            isActive: true,
+          } as any);
+          inserted++;
+        }
+      }
+      report.seedApplicationTypes = {
+        inserted,
+        updated,
+        total: rows.length,
       };
     }
 

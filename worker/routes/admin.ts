@@ -3,6 +3,7 @@ import type { Env, Variables } from "../types";
 import { authMiddleware, createSession } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { verifyTurnstile } from "../lib/turnstile";
 
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -13,13 +14,21 @@ admin.post("/admin/login", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const { username, password } = await c.req.json<{
+    const { username, password, turnstileToken } = await c.req.json<{
       username?: string;
       password?: string;
+      turnstileToken?: string;
     }>();
 
     if (!username || !password) {
       return c.json({ message: "Username and password required" }, 400);
+    }
+
+    const ip = c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for") || undefined;
+    const ts = await verifyTurnstile(turnstileToken, ip, c.env.TURNSTILE_SECRET_KEY);
+    if (!ts.ok) {
+      console.warn(`[turnstile] verify failed for /admin/login ip=${ip ?? "unknown"} reason=${ts.reason}`);
+      return c.json({ message: "Human verification failed" }, 400);
     }
 
     const adminUser = await storage.getAdminByUsername(username);

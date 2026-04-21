@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "purpose": "Seed application_types lookup table. Drives the Application filter on Products + the site-survey area-type picker.",
+    "usage": "Loaded by /api/admin/apply-pricelist?seedApplicationTypes=1 (see adminPricelist.ts)."
+  },
+  "rows": [
+    {
+      "name": "Column Protection",
+      "category": "structural",
+      "description": "Protect structural + racking columns from side impacts and abrasion.",
+      "iconUrl": "https://webcdn.asafe.com/media/2956/flexishield-column-guard-wraparound-_qu.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 10,
+      "isPopular": true
+    },
+    {
+      "name": "Rack Protection",
+      "category": "storage",
+      "description": "Rack-end and upright protection for pallet racking systems.",
+      "iconUrl": "https://webcdn.asafe.com/media/2979/rackguard-rack-leg-protector_qu.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 20,
+      "isPopular": true
+    },
+    {
+      "name": "Pedestrian Walkways",
+      "category": "pedestrian",
+      "description": "Segregate pedestrian routes from vehicle traffic.",
+      "iconUrl": "https://webcdn.asafe.com/media/3162/iflexpedestrian3raibarrier_02.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 30,
+      "isPopular": true
+    },
+    {
+      "name": "Traffic Management",
+      "category": "traffic",
+      "description": "Guide and contain forklift and vehicle traffic inside operational zones.",
+      "iconUrl": "https://webcdn.asafe.com/media/3191/iflex_singletrafiicbarrier03.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 40,
+      "isPopular": true
+    },
+    {
+      "name": "Dock Protection",
+      "category": "traffic",
+      "description": "Loading bay walls, dock buffers, truck stops and reversing protection.",
+      "iconUrl": "https://webcdn.asafe.com/media/9796/dockbuffer_front_277x130.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 50,
+      "isPopular": true
+    },
+    {
+      "name": "Perimeter Protection",
+      "category": "traffic",
+      "description": "Protect site perimeters + equipment lines from vehicle impact.",
+      "iconUrl": "https://webcdn.asafe.com/media/3737/iflexdoubletrafficbarrier04.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 60
+    },
+    {
+      "name": "Corner Protection",
+      "category": "structural",
+      "description": "External / internal wall corners and equipment edges.",
+      "iconUrl": "https://webcdn.asafe.com/media/5353/flexishieldcornerguard_qtr1156x556.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 70
+    },
+    {
+      "name": "Height Restriction",
+      "category": "traffic",
+      "description": "Mezzanine entries, low-clearance zones and overhead asset protection.",
+      "iconUrl": "https://webcdn.asafe.com/media/5675/iflexheightrestrict_quarter1156x556.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 80
+    },
+    {
+      "name": "Cold Storage",
+      "category": "environmental",
+      "description": "Cold-rated barriers + bollards for freezers and chilled warehouses.",
+      "iconUrl": "https://webcdn.asafe.com/media/7030/iflexbollard_cold_storage_1156x556.jpg",
+      "hexColor": "#4FC3F7",
+      "sortOrder": 90
+    },
+    {
+      "name": "Equipment Guarding",
+      "category": "structural",
+      "description": "Machinery, processing equipment and electrical DB protection.",
+      "iconUrl": "https://webcdn.asafe.com/media/5624/iflexbollard_190_02.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 100
+    },
+    {
+      "name": "Vehicle Stops",
+      "category": "traffic",
+      "description": "Truck, coach and car wheel stops at parking bays + service lanes.",
+      "iconUrl": "https://webcdn.asafe.com/media/9766/truckstop_front_277x130.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 110
+    },
+    {
+      "name": "Gate & Access Control",
+      "category": "traffic",
+      "description": "Swing gates, traffic gates and retractable belt barriers at controlled entries.",
+      "iconUrl": "https://webcdn.asafe.com/media/3203/iflexswinggate05.jpg",
+      "hexColor": "#FFC72C",
+      "sortOrder": 120
+    }
+  ]
+}

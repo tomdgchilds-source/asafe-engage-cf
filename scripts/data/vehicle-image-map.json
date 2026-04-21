@@ -1,7 +1,7 @@
 {
   "_meta": {
     "sourcedAt": "2026-04-20",
-    "licenseNotes": "All images are Wikimedia Commons files, sized via the /thumb/ 400px endpoint for web-friendly payloads. Public Domain or Creative Commons (CC BY / CC BY-SA). No manufacturer marketing material — everything here is reusable commercially with attribution. Two rows (High-Level Order Picker, Very Narrow Aisle Truck) have no good Commons match; the UI falls back to the iconify silhouette for those.",
+    "licenseNotes": "All images are Wikimedia Commons files, sized via the /thumb/ 400px endpoint for web-friendly payloads. Public Domain or Creative Commons (CC BY / CC BY-SA). No manufacturer marketing material — everything here is reusable commercially with attribution.",
     "thumbnailStrategy": "upload.wikimedia.org/wikipedia/commons/thumb/<hash>/<file>/400px-<file> — scales down dynamically at the Wikimedia edge."
   },
   "vehicles": [
@@ -56,11 +56,11 @@
     {
       "id": "ba6e9a31-f791-4f88-ad7b-275466260bcc",
       "name": "High-Level Order Picker",
-      "imageUrl": null,
-      "source": null,
-      "sourceFile": null,
-      "licence": null,
-      "notes": "No clean Commons match found for a high-level order picker (Crown SP-class, Jungheinrich EKS-class). UI falls back to iconify silhouette."
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/137th_SOW_Airmen_integrate_with_35th_LRS%2C_MUNS_%289268424%29.jpg/400px-137th_SOW_Airmen_integrate_with_35th_LRS%2C_MUNS_%289268424%29.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:137th_SOW_Airmen_integrate_with_35th_LRS,_MUNS_(9268424).jpg",
+      "licence": "Public Domain (U.S. National Guard work — Senior Airman Erika Chapa)",
+      "notes": "Raymond man-up stock picker with operator elevated in high pallet racking at Misawa Air Base — textbook high-level order picker silhouette. Operator is small, faces away from camera, no privacy concern."
     },
     {
       "id": "1a4960f4-f28f-49db-ae68-110652af0538",
@@ -97,11 +97,11 @@
     {
       "id": "0e89efb7-a6d2-4d8f-8215-cfe3704af016",
       "name": "Very Narrow Aisle (VNA) Truck",
-      "imageUrl": null,
-      "source": null,
-      "sourceFile": null,
-      "licence": null,
-      "notes": "No clean Commons match for a turret/VNA truck. UI falls back to iconify silhouette."
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Zijlader_smallegang3.jpg/400px-Zijlader_smallegang3.jpg",
+      "source": "Wikimedia Commons",
+      "sourceFile": "File:Zijlader_smallegang3.jpg",
+      "licence": "CC BY-SA 3.0 (Glasman5)",
+      "notes": "Close-sibling substitution: two Combilift multidirectional sideloaders operating in narrow cantilever-rack aisles. Combilift is one of the brands explicitly called out for this vehicle class (Combilift Aisle Master), so this is a true-to-spec VNA working shot rather than a classic Crown TSP turret truck."
     },
     {
       "id": "0633c437-a7e5-4dac-867b-df1a8e84ecfe",
