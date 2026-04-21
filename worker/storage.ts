@@ -22,6 +22,7 @@ import {
   customerCompanies,
   projects,
   projectContacts,
+  projectCollaborators,
   projectCaseStudies,
   layoutDrawings,
   layoutMarkups,
@@ -123,6 +124,8 @@ import {
   type InsertProject,
   type ProjectContact,
   type InsertProjectContact,
+  type ProjectCollaborator,
+  type InsertProjectCollaborator,
   type ProjectCaseStudy,
   type InsertProjectCaseStudy,
   type LayoutDrawing,
@@ -341,6 +344,39 @@ export interface IStorage {
   createProjectContact(data: InsertProjectContact): Promise<ProjectContact>;
   updateProjectContact(id: string, data: Partial<InsertProjectContact>): Promise<ProjectContact>;
   deleteProjectContact(id: string): Promise<void>;
+  // Project collaboration (shared access)
+  canAccessProject(
+    projectId: string,
+    userId: string,
+    minRole?: "viewer" | "editor" | "owner",
+  ): Promise<{ allowed: boolean; role: "owner" | "editor" | "viewer" | null }>;
+  accessibleProjectIds(userId: string): Promise<string[]>;
+  listCollaborators(projectId: string): Promise<Array<{
+    id: string;
+    userId: string;
+    role: string;
+    invitedBy: string | null;
+    invitedAt: Date | null;
+    acceptedAt: Date | null;
+    user: { id: string; email: string | null; firstName: string | null; lastName: string | null; profileImageUrl: string | null } | null;
+  }>>;
+  addCollaborator(input: {
+    projectId: string;
+    userId: string;
+    role: "owner" | "editor" | "viewer";
+    invitedBy: string;
+  }): Promise<any>;
+  removeCollaborator(projectId: string, userId: string): Promise<boolean>;
+  updateCollaboratorRole(
+    projectId: string,
+    userId: string,
+    role: "owner" | "editor" | "viewer",
+  ): Promise<boolean>;
+  listShareableUsers(opts: {
+    excludeUserId: string;
+    excludeProjectId?: string;
+    query?: string;
+  }): Promise<Array<{ id: string; email: string | null; firstName: string | null; lastName: string | null; profileImageUrl: string | null }>>;
   // Active project accessor — reads user.activeProjectId, lazily seeds a
   // project from cartProjectInfo for existing reps who pre-date the
   // projects model.
@@ -2474,6 +2510,205 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectContact(id: string): Promise<void> {
     await this.db.delete(projectContacts).where(eq(projectContacts.id, id));
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Project collaboration (shared access)
+  // ─────────────────────────────────────────────────────────────
+
+  // Access check: true when userId is the owner OR an accepted collaborator
+  // at the given role level or above. Used by API-route middleware.
+  async canAccessProject(
+    projectId: string,
+    userId: string,
+    minRole: "viewer" | "editor" | "owner" = "viewer",
+  ): Promise<{ allowed: boolean; role: "owner" | "editor" | "viewer" | null }> {
+    const roleRank = { viewer: 0, editor: 1, owner: 2 };
+    // Check ownership first — no table hit needed in the common case.
+    const [proj] = await this.db
+      .select({ id: projects.id, userId: projects.userId })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+    if (!proj) return { allowed: false, role: null };
+    if (proj.userId === userId) return { allowed: true, role: "owner" };
+
+    const [collab] = await this.db
+      .select()
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.userId, userId),
+        ),
+      );
+    if (!collab || !collab.acceptedAt) return { allowed: false, role: null };
+    const role = collab.role as "owner" | "editor" | "viewer";
+    return { allowed: roleRank[role] >= roleRank[minRole], role };
+  }
+
+  // Return every projectId the user can see (owner + collaborator), used to
+  // filter project lists + cascade to orders/surveys/drawings lookups.
+  async accessibleProjectIds(userId: string): Promise<string[]> {
+    const owned = await this.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.userId, userId));
+    const shared = await this.db
+      .select({ id: projectCollaborators.projectId })
+      .from(projectCollaborators)
+      .where(eq(projectCollaborators.userId, userId));
+    const set = new Set<string>();
+    owned.forEach((r) => set.add(r.id));
+    shared.forEach((r) => set.add(r.id));
+    return Array.from(set);
+  }
+
+  async listCollaborators(projectId: string): Promise<Array<{
+    id: string;
+    userId: string;
+    role: string;
+    invitedBy: string | null;
+    invitedAt: Date | null;
+    acceptedAt: Date | null;
+    user: { id: string; email: string | null; firstName: string | null; lastName: string | null; profileImageUrl: string | null } | null;
+  }>> {
+    const rows = await this.db
+      .select({
+        id: projectCollaborators.id,
+        userId: projectCollaborators.userId,
+        role: projectCollaborators.role,
+        invitedBy: projectCollaborators.invitedBy,
+        invitedAt: projectCollaborators.invitedAt,
+        acceptedAt: projectCollaborators.acceptedAt,
+        user: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(projectCollaborators)
+      .leftJoin(users, eq(users.id, projectCollaborators.userId))
+      .where(eq(projectCollaborators.projectId, projectId))
+      .orderBy(projectCollaborators.invitedAt);
+    return rows as any;
+  }
+
+  async addCollaborator(input: {
+    projectId: string;
+    userId: string;
+    role: "owner" | "editor" | "viewer";
+    invitedBy: string;
+  }): Promise<any> {
+    // Upsert by (projectId, userId) — if the pair already exists, update the
+    // role instead of erroring. Accepting immediately (instant-grant model).
+    const existing = await this.db
+      .select()
+      .from(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, input.projectId),
+          eq(projectCollaborators.userId, input.userId),
+        ),
+      );
+    if (existing[0]) {
+      const [row] = await this.db
+        .update(projectCollaborators)
+        .set({
+          role: input.role,
+          updatedAt: new Date(),
+          acceptedAt: existing[0].acceptedAt ?? new Date(),
+        })
+        .where(eq(projectCollaborators.id, existing[0].id))
+        .returning();
+      return row;
+    }
+    const [row] = await this.db
+      .insert(projectCollaborators)
+      .values({
+        projectId: input.projectId,
+        userId: input.userId,
+        role: input.role,
+        invitedBy: input.invitedBy,
+        acceptedAt: new Date(),
+      })
+      .returning();
+    return row;
+  }
+
+  async removeCollaborator(projectId: string, userId: string): Promise<boolean> {
+    const res = await this.db
+      .delete(projectCollaborators)
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.userId, userId),
+        ),
+      )
+      .returning({ id: projectCollaborators.id });
+    return res.length > 0;
+  }
+
+  async updateCollaboratorRole(
+    projectId: string,
+    userId: string,
+    role: "owner" | "editor" | "viewer",
+  ): Promise<boolean> {
+    const res = await this.db
+      .update(projectCollaborators)
+      .set({ role, updatedAt: new Date() })
+      .where(
+        and(
+          eq(projectCollaborators.projectId, projectId),
+          eq(projectCollaborators.userId, userId),
+        ),
+      )
+      .returning({ id: projectCollaborators.id });
+    return res.length > 0;
+  }
+
+  // Lightweight user picker: every user except the caller. Used by the
+  // "Add collaborator" modal. Excludes inactive accounts and de-dupes
+  // users who are already collaborators on the target project so the
+  // picker doesn't offer someone who's already on the team.
+  async listShareableUsers(opts: {
+    excludeUserId: string;
+    excludeProjectId?: string;
+    query?: string;
+  }): Promise<Array<{ id: string; email: string | null; firstName: string | null; lastName: string | null; profileImageUrl: string | null }>> {
+    const q = (opts.query || "").trim().toLowerCase();
+    const rows = await this.db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(users);
+    const excluded = new Set<string>([opts.excludeUserId]);
+    if (opts.excludeProjectId) {
+      const existing = await this.db
+        .select({ userId: projectCollaborators.userId })
+        .from(projectCollaborators)
+        .where(eq(projectCollaborators.projectId, opts.excludeProjectId));
+      existing.forEach((r) => excluded.add(r.userId));
+      // Also exclude the project owner.
+      const [owner] = await this.db
+        .select({ userId: projects.userId })
+        .from(projects)
+        .where(eq(projects.id, opts.excludeProjectId));
+      if (owner) excluded.add(owner.userId);
+    }
+    return rows
+      .filter((u) => !excluded.has(u.id))
+      .filter((u) => {
+        if (!q) return true;
+        const blob = `${u.email ?? ""} ${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
+        return blob.includes(q);
+      })
+      .slice(0, 50);
   }
 
   async setActiveProject(userId: string, projectId: string | null): Promise<void> {

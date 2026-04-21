@@ -65,15 +65,43 @@ projectsRoutes.get("/projects", authMiddleware, async (c) => {
   const db = getDb(c.env.DATABASE_URL);
   const storage = createStorage(db);
   const userId = c.get("user").claims.sub;
-  const rows = await storage.listProjects(userId);
+
+  // Union of owned + shared projects. Owned come from listProjects; shared
+  // come via the collaborator table. Each row is tagged with `sharedByUserId`
+  // so the UI can render a "Shared by [name]" pill on non-owned projects.
+  const owned = await storage.listProjects(userId);
+  const accessibleIds = typeof storage.accessibleProjectIds === "function"
+    ? await storage.accessibleProjectIds(userId)
+    : owned.map((p) => p.id);
+  const sharedIds = accessibleIds.filter(
+    (id) => !owned.some((p) => p.id === id),
+  );
+  const sharedRows =
+    sharedIds.length > 0 && typeof storage.getProjectsByIds === "function"
+      ? await storage.getProjectsByIds(sharedIds)
+      : [];
+  const allRows = [...owned, ...sharedRows];
+
   // Hydrate customerCompany on each project so the list view doesn't
-  // need an N+1 fetch to show the customer name + logo chip.
-  const customers = await storage.listCustomerCompanies(userId);
-  const custById = new Map(customers.map((c) => [c.id, c]));
+  // need an N+1 fetch to show the customer name + logo chip. Shared
+  // projects might reference customer companies owned by the original
+  // project owner; getCustomerCompaniesByIds handles that cross-user
+  // lookup.
+  const custIds = Array.from(
+    new Set(allRows.map((p) => p.customerCompanyId).filter(Boolean)),
+  ) as string[];
+  const customers = custIds.length > 0 && typeof storage.getCustomerCompaniesByIds === "function"
+    ? await storage.getCustomerCompaniesByIds(custIds)
+    : await storage.listCustomerCompanies(userId);
+  const custById = new Map(customers.map((c: any) => [c.id, c]));
   return c.json(
-    rows.map((p) => ({
+    allRows.map((p) => ({
       ...p,
-      customerCompany: p.customerCompanyId ? custById.get(p.customerCompanyId) || null : null,
+      customerCompany: p.customerCompanyId
+        ? custById.get(p.customerCompanyId) || null
+        : null,
+      isShared: p.userId !== userId,
+      ownerUserId: p.userId,
     })),
   );
 });
@@ -84,13 +112,27 @@ projectsRoutes.get("/projects/:id", authMiddleware, async (c) => {
   const userId = c.get("user").claims.sub;
   const id = c.req.param("id");
   const project = await storage.getProjectWithDetails(id);
-  if (!project || project.userId !== userId) {
+  if (!project) {
     return c.json({ message: "Project not found" }, 404);
+  }
+  // Ownership OR accepted collaborator row — the canAccessProject helper
+  // encapsulates both checks.
+  if (project.userId !== userId) {
+    if (typeof storage.canAccessProject === "function") {
+      const check = await storage.canAccessProject(id, userId, "viewer");
+      if (!check.allowed) return c.json({ message: "Project not found" }, 404);
+    } else {
+      return c.json({ message: "Project not found" }, 404);
+    }
   }
   // Side effect: reading the project bumps lastAccessedAt so recent
   // projects float to the top of the switcher.
   await storage.touchProjectAccess(id);
-  return c.json(project);
+  return c.json({
+    ...project,
+    isShared: project.userId !== userId,
+    ownerUserId: project.userId,
+  });
 });
 
 projectsRoutes.post("/projects", authMiddleware, async (c) => {
@@ -153,8 +195,18 @@ projectsRoutes.patch("/projects/:id", authMiddleware, async (c) => {
   const userId = c.get("user").claims.sub;
   const id = c.req.param("id");
   const existing = await storage.getProject(id);
-  if (!existing || existing.userId !== userId) {
+  if (!existing) {
     return c.json({ message: "Project not found" }, 404);
+  }
+  // Editors + owners can patch. canAccessProject shortcuts through if the
+  // caller is the row-level owner.
+  if (existing.userId !== userId) {
+    if (typeof storage.canAccessProject === "function") {
+      const check = await storage.canAccessProject(id, userId, "editor");
+      if (!check.allowed) return c.json({ message: "Forbidden" }, 403);
+    } else {
+      return c.json({ message: "Forbidden" }, 403);
+    }
   }
   const body = await c.req.json();
   const row = await storage.updateProject(id, body);

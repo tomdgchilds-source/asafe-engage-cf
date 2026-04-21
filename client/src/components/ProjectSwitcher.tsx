@@ -89,8 +89,27 @@ export function ProjectSwitcher() {
       return (await res.json()) as ActiveProject;
     },
     onSuccess: (fresh) => {
+      // Invalidate every query that keys off the active project. The
+      // Cart page, OrderForm, Dashboard, and Project Cart all snapshot
+      // company data per-project, so they need to refetch on switch
+      // — otherwise the header says "dp world" while the cart still
+      // shows dnata.
       queryClient.invalidateQueries({ queryKey: ["/api/active-project"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cart-project-info"] });
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey[0];
+          return (
+            typeof k === "string" &&
+            (k.startsWith("/api/projects/") ||
+              k.startsWith("/api/orders") ||
+              k.startsWith("/api/site-surveys") ||
+              k.startsWith("/api/layout-drawings"))
+          );
+        },
+      });
       setOpen(false);
       toast({
         title: "Switched project",

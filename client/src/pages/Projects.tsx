@@ -30,7 +30,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useDebounce } from "@/hooks/useDebounce";
 import { apiRequest } from "@/lib/queryClient";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { LogoSuggestions } from "@/components/LogoSuggestions";
@@ -45,6 +55,8 @@ import {
   Mail,
   Phone,
   Loader2,
+  Users,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -52,6 +64,53 @@ import type {
   CustomerCompany,
   ProjectContact,
 } from "@shared/schema";
+
+// ─── Collaborator types (UI-local; server owns the source of truth) ──
+
+type CollaboratorRole = "owner" | "editor" | "viewer";
+
+type CollaboratorUser = {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
+};
+
+type Collaborator = {
+  id: string;
+  userId: string;
+  role: CollaboratorRole;
+  invitedBy: string | null;
+  invitedAt: string | null;
+  acceptedAt: string | null;
+  user: CollaboratorUser;
+};
+
+type SearchableUser = CollaboratorUser;
+
+const ROLE_LABELS: Record<CollaboratorRole, string> = {
+  owner: "Owner",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
+function formatUserName(u: Partial<CollaboratorUser> | null | undefined) {
+  if (!u) return "Unknown";
+  const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+  return name || u.email || "Unknown";
+}
+
+function formatInviteDate(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 type ProjectWithCustomer = Project & {
   customerCompany: CustomerCompany | null;
@@ -116,6 +175,7 @@ export default function Projects() {
   const [location] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]["value"]>(
@@ -240,6 +300,11 @@ export default function Projects() {
                   project={p}
                   selected={p.id === selectedId}
                   isActive={p.id === active?.id}
+                  isShared={
+                    !!currentUser && (currentUser as { id?: string }).id
+                      ? p.userId !== (currentUser as { id: string }).id
+                      : false
+                  }
                   onClick={() => setSelectedId(p.id)}
                 />
               ))
@@ -285,11 +350,13 @@ function ProjectListCard({
   project,
   selected,
   isActive,
+  isShared,
   onClick,
 }: {
   project: ProjectWithCustomer;
   selected: boolean;
   isActive: boolean;
+  isShared: boolean;
   onClick: () => void;
 }) {
   const meta = STATUS_META[project.status ?? "active"];
@@ -312,13 +379,23 @@ function ProjectListCard({
           size={32}
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-semibold text-foreground truncate">
               {project.customerCompany?.name ?? "No customer"}
             </span>
             {isActive && (
               <Badge className="bg-[#FFC72C] text-black hover:bg-[#FFC72C] text-[9px] px-1.5 py-0">
                 Active
+              </Badge>
+            )}
+            {isShared && (
+              <Badge
+                className="bg-[#FFC72C]/20 text-black border border-[#FFC72C] hover:bg-[#FFC72C]/30 text-[9px] px-1.5 py-0 inline-flex items-center gap-0.5"
+                title="Shared"
+                data-testid={`project-shared-badge-${project.id}`}
+              >
+                <Users className="h-2.5 w-2.5" />
+                Shared
               </Badge>
             )}
           </div>
@@ -544,6 +621,10 @@ function ProjectDetailPane({
           <TabsTrigger value="contacts" data-testid="tab-contacts">
             Contacts
           </TabsTrigger>
+          <TabsTrigger value="team" data-testid="tab-team">
+            <Users className="h-3.5 w-3.5 mr-1" />
+            Team
+          </TabsTrigger>
           <TabsTrigger value="activity" data-testid="tab-activity">
             Activity
           </TabsTrigger>
@@ -635,6 +716,15 @@ function ProjectDetailPane({
         {/* Contacts tab */}
         <TabsContent value="contacts" className="mt-4">
           <ContactsSection projectId={projectId} contacts={contacts} />
+        </TabsContent>
+
+        {/* Team tab */}
+        <TabsContent value="team" className="mt-4">
+          <TeamSection
+            projectId={projectId}
+            projectName={project.name}
+            ownerUserId={project.userId}
+          />
         </TabsContent>
 
         {/* Activity stub */}
@@ -1357,5 +1447,639 @@ function CustomerAvatar({
         <Building2 className="h-4 w-4 text-black" />
       )}
     </div>
+  );
+}
+
+// ─── User avatar (person — not customer) ────────────────────────────
+
+function UserAvatar({
+  user,
+  size = 36,
+}: {
+  user: Partial<CollaboratorUser> | null | undefined;
+  size?: number;
+}) {
+  const name = formatUserName(user);
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || "")
+    .join("");
+  if (user?.profileImageUrl) {
+    return (
+      <img
+        src={user.profileImageUrl}
+        alt={name}
+        style={{ height: size, width: size }}
+        className="rounded-full object-cover border border-border flex-shrink-0"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{ height: size, width: size }}
+      className="rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border"
+    >
+      <span className="text-[11px] font-semibold text-foreground">
+        {initials || "?"}
+      </span>
+    </div>
+  );
+}
+
+// ─── Role badge ─────────────────────────────────────────────────────
+
+function RoleBadge({ role }: { role: CollaboratorRole }) {
+  if (role === "owner") {
+    return (
+      <Badge className="bg-[#FFC72C] text-black hover:bg-[#FFC72C] text-[10px] px-2 py-0">
+        Owner
+      </Badge>
+    );
+  }
+  if (role === "editor") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-2 py-0 bg-green-50 text-green-800 border-green-300"
+      >
+        Editor
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="text-[10px] px-2 py-0 text-muted-foreground border-border"
+    >
+      Viewer
+    </Badge>
+  );
+}
+
+// ─── Team section ───────────────────────────────────────────────────
+
+function TeamSection({
+  projectId,
+  projectName,
+  ownerUserId,
+}: {
+  projectId: string;
+  projectName: string;
+  ownerUserId: string;
+}) {
+  const { user: currentUser } = useAuth();
+  const currentUserId =
+    (currentUser as { id?: string } | null | undefined)?.id ?? null;
+
+  const { data: collaborators = [], isLoading } = useQuery<Collaborator[]>({
+    queryKey: [`/api/projects/${projectId}/collaborators`],
+  });
+
+  const [addOpen, setAddOpen] = useState(false);
+
+  // Current user's effective role on this project. Owner implicit from
+  // the project record; otherwise pull from collaborators.
+  const myRole: CollaboratorRole | null = useMemo(() => {
+    if (!currentUserId) return null;
+    if (currentUserId === ownerUserId) return "owner";
+    const row = collaborators.find((c) => c.userId === currentUserId);
+    return row ? row.role : null;
+  }, [collaborators, currentUserId, ownerUserId]);
+
+  const canManage = myRole === "owner" || myRole === "editor";
+
+  // Count owners (including the implicit project owner row) — used to
+  // block removing the last owner.
+  const ownerCount = useMemo(() => {
+    const owners = new Set<string>();
+    owners.add(ownerUserId);
+    for (const c of collaborators) if (c.role === "owner") owners.add(c.userId);
+    return owners.size;
+  }, [collaborators, ownerUserId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-foreground">Team</h2>
+        <Button
+          onClick={() => setAddOpen(true)}
+          disabled={!canManage}
+          className="bg-[#FFC72C] text-black hover:bg-[#FFB700] disabled:opacity-50"
+          data-testid="button-add-collaborator"
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Add collaborator
+        </Button>
+      </div>
+
+      {/* Owner row is always rendered, ahead of collaborator rows. */}
+      <div className="space-y-2">
+        <OwnerRow
+          projectId={projectId}
+          ownerUserId={ownerUserId}
+          isCurrentUser={currentUserId === ownerUserId}
+          collaborators={collaborators}
+        />
+
+        {collaborators.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="flex flex-col items-center gap-2">
+                <div className="rounded-full bg-muted p-3">
+                  <UserPlus className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  No teammates yet. Add a collaborator to populate this
+                  project together.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          collaborators.map((c) => (
+            <CollaboratorRow
+              key={c.id}
+              projectId={projectId}
+              collaborator={c}
+              isCurrentUser={c.userId === currentUserId}
+              canManage={canManage}
+              ownerCount={ownerCount}
+            />
+          ))
+        )}
+      </div>
+
+      <AddCollaboratorModal
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        projectId={projectId}
+        projectName={projectName}
+      />
+    </div>
+  );
+}
+
+// ─── Owner row (implicit, always present, read-only) ────────────────
+
+function OwnerRow({
+  ownerUserId,
+  isCurrentUser,
+  collaborators,
+}: {
+  projectId: string;
+  ownerUserId: string;
+  isCurrentUser: boolean;
+  collaborators: Collaborator[];
+}) {
+  // Try to get the owner's user detail piggybacked on a collaborator row
+  // (if the server happens to include them). Otherwise render minimal.
+  const embedded = collaborators.find((c) => c.userId === ownerUserId);
+  const { user: currentUser } = useAuth();
+  const meUser = isCurrentUser
+    ? (currentUser as Partial<CollaboratorUser> | null | undefined)
+    : null;
+  const displayUser: Partial<CollaboratorUser> =
+    embedded?.user ??
+    meUser ??
+    ({ id: ownerUserId, firstName: null, lastName: null, email: null, profileImageUrl: null });
+
+  return (
+    <Card data-testid={`collaborator-row-${ownerUserId}`}>
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          <UserAvatar user={displayUser} size={36} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {formatUserName(displayUser)}
+                {isCurrentUser && (
+                  <span className="ml-1 text-muted-foreground font-normal">
+                    (You)
+                  </span>
+                )}
+              </span>
+              <RoleBadge role="owner" />
+            </div>
+            {displayUser.email && (
+              <div className="text-xs text-muted-foreground truncate">
+                {displayUser.email}
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Project owner
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-muted-foreground pr-1">
+              Read-only
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Collaborator row ───────────────────────────────────────────────
+
+function CollaboratorRow({
+  projectId,
+  collaborator,
+  isCurrentUser,
+  canManage,
+  ownerCount,
+}: {
+  projectId: string;
+  collaborator: Collaborator;
+  isCurrentUser: boolean;
+  canManage: boolean;
+  ownerCount: number;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({
+      queryKey: [`/api/projects/${projectId}/collaborators`],
+    });
+    queryClient.invalidateQueries({
+      queryKey: [`/api/projects/${projectId}`],
+    });
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+  };
+
+  const updateRole = useMutation({
+    mutationFn: async (role: CollaboratorRole) => {
+      const res = await apiRequest(
+        `/api/projects/${projectId}/collaborators/${collaborator.id}`,
+        "PATCH",
+        { role },
+      );
+      return (await res.json()) as Collaborator;
+    },
+    onSuccess: () => {
+      invalidateAll();
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Could not update role",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeCollaborator = useMutation({
+    mutationFn: async () => {
+      await apiRequest(
+        `/api/projects/${projectId}/collaborators/${collaborator.id}`,
+        "DELETE",
+      );
+    },
+    onSuccess: () => {
+      toast({
+        title: `${formatUserName(collaborator.user)} removed`,
+      });
+      invalidateAll();
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Could not remove",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disabledControls = isCurrentUser || !canManage;
+  const name = formatUserName(collaborator.user);
+
+  const handleRoleChange = (next: string) => {
+    if (next === collaborator.role) return;
+    updateRole.mutate(next as CollaboratorRole);
+  };
+
+  const handleRemoveClick = () => {
+    // Guard: don't let the last owner be removed.
+    if (collaborator.role === "owner" && ownerCount <= 1) {
+      toast({
+        title: "A project must have at least one owner",
+        variant: "destructive",
+      });
+      return;
+    }
+    setConfirmRemove(true);
+  };
+
+  const invitedByName = collaborator.invitedBy ? "a teammate" : null;
+  const invitedDate = formatInviteDate(collaborator.invitedAt);
+
+  return (
+    <Card data-testid={`collaborator-row-${collaborator.userId}`}>
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          <UserAvatar user={collaborator.user} size={36} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {name}
+                {isCurrentUser && (
+                  <span className="ml-1 text-muted-foreground font-normal">
+                    (You)
+                  </span>
+                )}
+              </span>
+              <RoleBadge role={collaborator.role} />
+            </div>
+            {collaborator.user.email && (
+              <div className="text-xs text-muted-foreground truncate">
+                {collaborator.user.email}
+              </div>
+            )}
+            {(invitedByName || invitedDate) && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                Invited{invitedByName ? ` by ${invitedByName}` : ""}
+                {invitedDate ? ` · ${invitedDate}` : ""}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-[120px]">
+              <Select
+                value={collaborator.role}
+                onValueChange={handleRoleChange}
+                disabled={disabledControls}
+              >
+                <SelectTrigger
+                  className="h-8 text-xs"
+                  data-testid={`select-role-${collaborator.userId}`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleRemoveClick}
+              disabled={disabledControls || removeCollaborator.isPending}
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
+              data-testid={`button-remove-collaborator-${collaborator.userId}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        {collaborator.role === "owner" && !disabledControls && (
+          <div className="mt-2 text-[11px] text-muted-foreground pl-12">
+            Grants full control including team management.
+          </div>
+        )}
+      </CardContent>
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {name} from this project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They will lose access immediately. You can re-add them later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeCollaborator.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+// ─── Add collaborator modal ─────────────────────────────────────────
+
+function AddCollaboratorModal({
+  open,
+  onOpenChange,
+  projectId,
+  projectName,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  projectId: string;
+  projectName: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 250);
+  const [selectedUser, setSelectedUser] = useState<SearchableUser | null>(null);
+  const [role, setRole] = useState<CollaboratorRole>("editor");
+
+  // Reset state each time the modal re-opens.
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setSelectedUser(null);
+      setRole("editor");
+    }
+  }, [open]);
+
+  const { data: results = [], isFetching } = useQuery<SearchableUser[]>({
+    queryKey: [
+      `/api/users/searchable`,
+      debouncedQuery,
+      projectId,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
+      params.set("projectId", projectId);
+      const res = await fetch(
+        `/api/users/searchable?${params.toString()}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return (await res.json()) as SearchableUser[];
+    },
+    enabled: open,
+    staleTime: 15_000,
+  });
+
+  const visibleResults = results.slice(0, 20);
+
+  const addCollaborator = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error("Pick a user first");
+      const res = await apiRequest(
+        `/api/projects/${projectId}/collaborators`,
+        "POST",
+        { userId: selectedUser.id, role },
+      );
+      return (await res.json()) as Collaborator;
+    },
+    onSuccess: () => {
+      toast({
+        title: selectedUser
+          ? `${formatUserName(selectedUser)} added`
+          : "Collaborator added",
+      });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/projects/${projectId}/collaborators`],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/projects/${projectId}`],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      onOpenChange(false);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Could not add collaborator",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add teammate to {projectName}</DialogTitle>
+          <DialogDescription>
+            Search for someone in your organisation and grant them access.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or email..."
+              className="pl-8"
+              autoFocus
+              data-testid="input-collaborator-search"
+            />
+          </div>
+
+          <div className="border border-border rounded-md max-h-64 overflow-y-auto divide-y divide-border">
+            {isFetching ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : visibleResults.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6 px-3">
+                {debouncedQuery.trim()
+                  ? "No matches — try a different name or email."
+                  : "Start typing to search for a teammate."}
+              </div>
+            ) : (
+              visibleResults.map((u) => {
+                const active = selectedUser?.id === u.id;
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setSelectedUser(u)}
+                    className={cn(
+                      "w-full text-left flex items-center gap-3 p-2.5 transition-colors",
+                      active
+                        ? "bg-[#FFC72C]/20"
+                        : "hover:bg-muted/60",
+                    )}
+                    data-testid={`collaborator-search-result-${u.id}`}
+                  >
+                    <UserAvatar user={u} size={32} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {formatUserName(u)}
+                      </div>
+                      {u.email && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {u.email}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {selectedUser && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Role for {formatUserName(selectedUser)}
+              </Label>
+              <Select
+                value={role}
+                onValueChange={(v) => setRole(v as CollaboratorRole)}
+              >
+                <SelectTrigger data-testid="select-new-collaborator-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+              {role === "owner" && (
+                <div className="text-[11px] text-muted-foreground">
+                  Grants full control including team management.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={addCollaborator.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => addCollaborator.mutate()}
+            disabled={!selectedUser || addCollaborator.isPending}
+            className="bg-[#FFC72C] text-black hover:bg-[#FFB700]"
+            data-testid="button-submit-collaborator"
+          >
+            {addCollaborator.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Add to project"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -54,4 +54,7 @@ export type SessionData = {
 // Hono context variables set by middleware
 export type Variables = {
   user: SessionData;
+  // Set by requireProjectAccess — "owner" | "editor" | "viewer".
+  // Downstream handlers use this to gate mutations by role.
+  projectRole?: string;
 };

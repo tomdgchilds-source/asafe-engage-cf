@@ -31,6 +31,7 @@ import safety from "./routes/safety";
 import admin from "./routes/admin";
 import analytics from "./routes/analytics";
 import adminPricelist from "./routes/adminPricelist";
+import collaborators from "./routes/collaborators";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -69,6 +70,7 @@ app.route("/api", safety);
 app.route("/api", admin);
 app.route("/api", analytics);
 app.route("/api", adminPricelist);
+app.route("/api", collaborators);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

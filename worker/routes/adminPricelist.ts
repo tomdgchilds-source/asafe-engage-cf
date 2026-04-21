@@ -572,6 +572,28 @@ async function ensureSchema(db: ReturnType<typeof drizzle>) {
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_list_effective_date timestamp;`);
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS installation_guide_url varchar;`);
   await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS lifestyle_image_url varchar;`);
+  await db.execute(sqlTag`ALTER TABLE products ADD COLUMN IF NOT EXISTS needs_image_review boolean DEFAULT false;`);
+
+  // Project collaborators — opt-in shared access. The project's primary
+  // owner is tracked via projects.userId; this table adds additional reps
+  // at owner | editor | viewer role levels. Instant-grant model: the
+  // invite is active on insert (accepted_at defaults to now).
+  await db.execute(sqlTag`
+    CREATE TABLE IF NOT EXISTS project_collaborators (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id varchar NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role varchar NOT NULL DEFAULT 'editor',
+      invited_by varchar REFERENCES users(id),
+      invited_at timestamp DEFAULT now(),
+      accepted_at timestamp DEFAULT now(),
+      created_at timestamp DEFAULT now(),
+      updated_at timestamp DEFAULT now()
+    );
+  `);
+  await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS project_collaborators_project_idx ON project_collaborators(project_id);`);
+  await db.execute(sqlTag`CREATE INDEX IF NOT EXISTS project_collaborators_user_idx ON project_collaborators(user_id);`);
+  await db.execute(sqlTag`CREATE UNIQUE INDEX IF NOT EXISTS project_collaborators_project_user_unique ON project_collaborators(project_id, user_id);`);
 }
 
 async function applyPlan(db: ReturnType<typeof drizzle>, plan: PlanEntry[]) {
@@ -1067,12 +1089,20 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
         },
         // 1 more: Bollard Bumper is en-us only on asafe.com. Point its hero
         // at the Monoplex 190 plan photo as a placeholder until proper art
-        // lands.
+        // lands. The two other known placeholders (iFlex Post 130 borrowing
+        // the Monoplex 130 image, 180×180 eFlex Slider Plate borrowing the
+        // 158 slider shot) get flagged below.
         {
           name: "Bollard Bumper",
           hero:
             "https://webcdn.asafe.com/media/lthn25rg/190_monoplex_bollard_product_image-7-min.jpg",
         },
+      ];
+
+      const PLACEHOLDER_IMAGERY = [
+        "Bollard Bumper",
+        "iFlex Post 130",
+        "180 x 180mm / 130mm - 158mm eFlex OD Post Slider Plate",
       ];
 
       const results: Array<{
@@ -1100,10 +1130,22 @@ adminPricelist.post("/admin/apply-pricelist", async (c) => {
           },
         });
       }
+      // Flag placeholders so they surface on an admin backlog list.
+      let flagged = 0;
+      for (const name of PLACEHOLDER_IMAGERY) {
+        const res = await db
+          .update(products)
+          .set({ needsImageReview: true, updatedAt: new Date() } as any)
+          .where(eq(products.name, name))
+          .returning({ id: products.id });
+        flagged += res.length;
+      }
+
       report.normaliseImages = {
         attempted: MAP.length,
         applied: results.filter((r) => r.updated).length,
         missed: results.filter((r) => !r.updated).map((r) => r.name),
+        flaggedForReview: flagged,
       };
     }
 

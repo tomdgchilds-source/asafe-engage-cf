@@ -4,6 +4,7 @@ import {
   jsonb,
   pgTable,
   timestamp,
+  uniqueIndex,
   varchar,
   text,
   decimal,
@@ -359,6 +360,11 @@ export const products = pgTable("products", {
   // on thumbnails/grids (always hero) without losing the context photography.
   imageUrl: varchar("image_url"),
   lifestyleImageUrl: varchar("lifestyle_image_url"),
+  // Flagged true when the current imageUrl is a placeholder sourced from a
+  // sibling family (e.g. Bollard Bumper using Monoplex 190). Surfaces a
+  // warning badge on the Admin products list so photography backlog stays
+  // visible.
+  needsImageReview: boolean("needs_image_review").default(false),
   technicalSheetUrl: varchar("technical_sheet_url"),
   installationGuideUrl: varchar("installation_guide_url"),
   // Classification and filtering
@@ -1116,6 +1122,31 @@ export const projectContacts = pgTable("project_contacts", {
   emailIdx: index("project_contacts_email_idx").on(sql`lower(${t.email})`),
 }));
 
+// Project collaborators — opt-in shared access. The project's primary
+// owner is tracked via projects.userId; this table adds additional reps
+// at owner | editor | viewer role levels. Instant-grant model: the
+// invite becomes active the moment the row is written (acceptedAt
+// defaults to now). Downstream entities (orders, surveys, drawings,
+// project contacts) inherit access via the project reference.
+export const projectCollaborators = pgTable("project_collaborators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: varchar("role").notNull().default("editor"), // owner | editor | viewer
+  invitedBy: varchar("invited_by").references(() => users.id),
+  invitedAt: timestamp("invited_at").defaultNow(),
+  acceptedAt: timestamp("accepted_at").defaultNow(), // instant-grant, so default-now
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  projectIdx: index("project_collaborators_project_idx").on(t.projectId),
+  userIdx: index("project_collaborators_user_idx").on(t.userId),
+  uniqProjectUser: uniqueIndex("project_collaborators_project_user_unique").on(t.projectId, t.userId),
+}));
+
+export type ProjectCollaborator = typeof projectCollaborators.$inferSelect;
+export type InsertProjectCollaborator = typeof projectCollaborators.$inferInsert;
+
 export const insertCustomerCompanySchema = createInsertSchema(customerCompanies).omit({
   id: true,
   createdAt: true,
@@ -1230,7 +1261,7 @@ export const insertProjectCaseStudySchema = createInsertSchema(projectCaseStudie
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  type: varchar("type").notNull(), // order_update, new_product, case_study, system_alert, message, quote_update
+  type: varchar("type").notNull(), // order_update, new_product, case_study, system_alert, message, quote_update, project_share
   title: varchar("title").notNull(),
   message: text("message").notNull(),
   data: jsonb("data"), // Additional context data
