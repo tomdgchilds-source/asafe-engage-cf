@@ -1,0 +1,112 @@
+{
+  "_meta": {
+    "sourcedAt": "2026-04-22",
+    "iconSet": "Tabler Icons (regular, 2px stroke)",
+    "licence": "MIT — https://github.com/tabler/tabler-icons",
+    "endpoint": "https://api.iconify.design/tabler/<name>.svg?color=%23222222&width=400",
+    "rationale": "User feedback: the Wikimedia photo thumbnails in the Impact Calculator looked inconsistent (different lighting, backgrounds, angles). Tabler is a single MIT-licensed icon family with uniform 2px stroke, monochrome, 24x24 viewBox — gives the vehicle grid a consistent pen-line look. Same family used for every vehicle; sibling forklift classes share the same icon (size is disambiguated by the weight/capacity text underneath each card)."
+  },
+  "vehicles": [
+    {
+      "name": "Pedestrians",
+      "iconifyId": "tabler:walk",
+      "filename": "pedestrians.svg"
+    },
+    {
+      "name": "Manual Pallet Truck",
+      "iconifyId": "tabler:trolley",
+      "filename": "manual-pallet-truck.svg"
+    },
+    {
+      "name": "Electric Pallet Truck",
+      "iconifyId": "tabler:forklift",
+      "filename": "electric-pallet-truck.svg"
+    },
+    {
+      "name": "Rider Pallet Truck",
+      "iconifyId": "tabler:forklift",
+      "filename": "rider-pallet-truck.svg"
+    },
+    {
+      "name": "Walkie Stacker",
+      "iconifyId": "tabler:stack-2",
+      "filename": "walkie-stacker.svg"
+    },
+    {
+      "name": "Low-Level Order Picker",
+      "iconifyId": "tabler:packages",
+      "filename": "low-level-order-picker.svg"
+    },
+    {
+      "name": "High-Level Order Picker",
+      "iconifyId": "tabler:packages",
+      "filename": "high-level-order-picker.svg"
+    },
+    {
+      "name": "Counterbalance Forklift (1.5T)",
+      "iconifyId": "tabler:forklift",
+      "filename": "counterbalance-forklift-1-5t.svg"
+    },
+    {
+      "name": "Counterbalance Forklift (2.5T)",
+      "iconifyId": "tabler:forklift",
+      "filename": "counterbalance-forklift-2-5t.svg"
+    },
+    {
+      "name": "Counterbalance Forklift (5T)",
+      "iconifyId": "tabler:forklift",
+      "filename": "counterbalance-forklift-5t.svg"
+    },
+    {
+      "name": "Reach Truck",
+      "iconifyId": "tabler:forklift",
+      "filename": "reach-truck.svg"
+    },
+    {
+      "name": "Very Narrow Aisle (VNA) Truck",
+      "iconifyId": "tabler:forklift",
+      "filename": "very-narrow-aisle-vna-truck.svg"
+    },
+    {
+      "name": "Heavy-Duty Forklift (10T+)",
+      "iconifyId": "tabler:forklift",
+      "filename": "heavy-duty-forklift-10t.svg"
+    },
+    {
+      "name": "Telehandler",
+      "iconifyId": "tabler:crane",
+      "filename": "telehandler.svg"
+    },
+    {
+      "name": "Tow Tractor / Tugger",
+      "iconifyId": "tabler:tractor",
+      "filename": "tow-tractor-tugger.svg"
+    },
+    {
+      "name": "AGV (Automated Guided Vehicle)",
+      "iconifyId": "tabler:robot",
+      "filename": "agv-automated-guided-vehicle.svg"
+    },
+    {
+      "name": "Scissor Lift / MEWP",
+      "iconifyId": "tabler:elevator",
+      "filename": "scissor-lift-mewp.svg",
+      "substitution": "Brief suggested `elevator-up` but that icon does not exist in Tabler. `elevator` is the same family and conveys vertical lift — closest available match."
+    },
+    {
+      "name": "HGV / Rigid Truck (7.5T)",
+      "iconifyId": "tabler:truck",
+      "filename": "hgv-rigid-truck-7-5t.svg"
+    },
+    {
+      "name": "HGV / Articulated Truck (40T)",
+      "iconifyId": "tabler:truck-loading",
+      "filename": "hgv-articulated-truck-40t.svg"
+    },
+    {
+      "name": "Delivery Van / Light Commercial",
+      "iconifyId": "tabler:truck-delivery",
+      "filename": "delivery-van-light-commercial.svg"
+    }
+  ]
+}
