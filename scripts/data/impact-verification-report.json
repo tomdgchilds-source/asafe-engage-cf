@@ -1,0 +1,1593 @@
+{
+  "generatedAt": "2026-04-21T23:03:18.464Z",
+  "chunksIncluded": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "chunksMissing": [],
+  "summary": {
+    "total": 68,
+    "ok": 34,
+    "mismatch": 8,
+    "catalog_missing": 0,
+    "live_missing": 0,
+    "both_missing": 26,
+    "fetch_failed": 0
+  },
+  "products": [
+    {
+      "familyName": "iFlex Pedestrian 3 Rail",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-3-rail/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 5800,
+        "pas13Method": "pendulum",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+        "pas13Method": "vehicle",
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": 1100,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (5800 J). pas13Method differs: catalog=pendulum, live=vehicle (live page dominated by vehicle test spec)."
+    },
+    {
+      "familyName": "Pedestrian Barrier 190-T1-P2",
+      "productUrl": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-190-t1-p2/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": false
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": 190,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on live page or in catalog. Both null — agreement."
+    },
+    {
+      "familyName": "eFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 10200,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 10200,
+        "impactRatingRaw": "10,200 Joules",
+        "vehicleTest": "Equivalent Vehicle Weight: 2.8 Tonnes, Vehicle Speed: 9.6 Kph, 90° angle of approach, 100% energy transfer (10,200 Joules)",
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (10200 J). Live page does not state test method explicitly, but vehicle test data is consistent with catalog's 'vehicle' method."
+    },
+    {
+      "familyName": "eFlex Single Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-traffic-barrierplus/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 10168,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 10168,
+        "impactRatingRaw": "10,168 Joules",
+        "vehicleTest": "19.3 tonnes at 9.6 kph, 22.5° angle of approach, 14.6% energy transfer (69,650 J total vehicle energy)",
+        "pas13Method": "pendulum",
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": 362,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (10168 J). pas13Method differs: catalog=vehicle, live=pendulum (live page shows pendulum test video)."
+    },
+    {
+      "familyName": "mFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 2700,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 2700,
+        "impactRatingRaw": "2,700 Joules",
+        "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": 200,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (2700 J). pas13Certified matches. Live page doesn't state method explicitly; vehicle test data consistent."
+    },
+    {
+      "familyName": "Atlas Double Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-double-traffic-barrierplus/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (20,500 Joules)",
+        "pas13Method": "vehicle",
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": 205,
+        "performanceClass": null
+      },
+      "notes": "Full agreement: impactRating (20500 J), pas13Certified (true), pas13Method (vehicle)."
+    },
+    {
+      "familyName": "Topple Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/topple-barrier/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No Joules rating on live page or in catalog. pas13Certified=true in both. Categorised both_missing (no Joules value to compare)."
+    },
+    {
+      "familyName": "iFlex Bollard Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-bollard-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 6900,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 6900,
+        "impactRatingRaw": "6,900 Joules",
+        "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,900 Joules)",
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": 1200,
+        "heightMm": 1200,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (6900 J). pas13Certified matches. Live page doesn't label method but vehicle test data consistent with 'vehicle'."
+    },
+    {
+      "familyName": "FlexiShield Column Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/flexishield-column-guard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 1600,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 1600,
+        "impactRatingRaw": "1,600 Joules",
+        "vehicleTest": "1.8 Tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (1,600 Joules)",
+        "pas13Method": "vehicle",
+        "pas13Certified": true,
+        "deflectionZoneMm": 520,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Full agreement: impactRating (1600 J), pas13Certified (true), pas13Method (vehicle)."
+    },
+    {
+      "familyName": "Padded Column Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/padded-column-guard/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": false
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": 1800,
+        "performanceClass": null
+      },
+      "notes": "No impact rating or PAS 13 in catalog or on live page. Both null/false — agreement."
+    },
+    {
+      "familyName": "ForkGuard Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/forkguard-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 3000,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 3000,
+        "impactRatingRaw": "3,000 Joules",
+        "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": 183,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (3000 J). pas13Certified matches. Live page doesn't label method but vehicle test data consistent with 'vehicle'."
+    },
+    {
+      "familyName": "iFlex Slide Gate",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-slide-gate/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": true,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No Joules rating on live page or in catalog. pas13Certified=true in both."
+    },
+    {
+      "familyName": "Alarm Bar",
+      "productUrl": "https://www.asafe.com/ar-ae/products/alarm-bar/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": false
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Alarm Bar is an audio-visual alert, not impact-rated. Both null — agreement."
+    },
+    {
+      "familyName": "eFlex Single RackEnd+Kerb",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-rackendpluskerb/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 4000,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 4000,
+        "impactRatingRaw": "4,000 Joules",
+        "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": 300,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (4000 J). pas13Certified differs: catalog=true, live=false (no PAS 13 mention on live page per extraction)."
+    },
+    {
+      "familyName": "iFlex Single RackEnd+Kerb",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-rackendpluskerb/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 15100,
+        "pas13Method": "vehicle",
+        "pas13Certified": true
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "6 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "impactRating matches (15100 J). pas13Certified differs: catalog=true, live=false (no PAS 13 mention on live page per extraction)."
+    },
+    {
+      "familyName": "Truck Stop",
+      "productUrl": "https://www.asafe.com/ar-ae/products/truck-stop/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": false
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": 160,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on live page or in catalog. Both null — agreement."
+    },
+    {
+      "familyName": "Retractable Barrier Racking Kit",
+      "productUrl": "https://www.asafe.com/ar-ae/products/retractable-barrier-racking-kit/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "pas13Method": null,
+        "pas13Certified": false
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Method": null,
+        "pas13Certified": false,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on live page or in catalog. Both null — agreement."
+    },
+    {
+      "familyName": "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-barrier-3-rail-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules - 2.3 Tonnes at 8 Kph, 100% transfer",
+        "vehicleTest": "2.3 tonnes at 8 Kph, 100% energy transfer; angles 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 1100,
+        "performanceClass": null
+      },
+      "notes": "Joules match (5800). Live page only shows 90° angle explicitly for the quoted 5800 J; catalog references additional angles (45°, 22.5°). Live page gives heightMm=1100 (max of impact zone range 450-1100mm); catalog has null. Live page doesn't disclose PAS 13 method while catalog has 'pendulum'. Core impact rating agrees."
+    },
+    {
+      "familyName": "Pedestrian Barrier 190-T2-P1",
+      "productUrl": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-190-t2-p1/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 1900,
+        "performanceClass": null
+      },
+      "notes": "Neither catalog nor live page publishes an explicit Joules impact rating. Live reports no PAS 13 badge (false) vs catalog's null; live extracted heightMm=1900 from the model designation."
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph, 100% transfer",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, angles 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Joules, tonnage, speed, PAS 13 status and method all agree. Live only surfaces 90° angle for the headline figure; catalog lists additional angles (45°, 22.5°)."
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrierplus/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph, 100% transfer",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": 475,
+        "performanceClass": null
+      },
+      "notes": "Joules and vehicle test parameters agree. PAS 13 method differs: live reports 'pendulum' (based on pendulum video) vs catalog 'vehicle'. Live heightMm=475 is a midpoint of impact zone (205-745mm), not an authoritative spec; catalog null."
+    },
+    {
+      "familyName": "mFlex Single Traffic Ground",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-ground/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 2700,
+        "impactRatingRaw": "2,700 Joules - 1.1 Tonnes at 8 Kph",
+        "vehicleTest": "1.1 tonnes at 8 kph, 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 2700,
+        "impactRatingRaw": "2,700 Joules",
+        "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "All core values match. Live only names the 90° headline angle; catalog adds 45°/22.5°."
+    },
+    {
+      "familyName": "Atlas Polygon Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-polygon-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7t at 9.6 Kph",
+        "vehicleTest": "5.7t at 9.6 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Joules, tonnes, speed, PAS 13 all match. Live infers 'pendulum' method vs catalog 'vehicle'. Live only surfaces 90°."
+    },
+    {
+      "familyName": "Heavy Duty Topple Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/heavy-duty-topple-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph",
+        "vehicleTest": "5.7t at 9.6 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "All core values agree. Live doesn't state PAS 13 method; catalog has 'vehicle'."
+    },
+    {
+      "familyName": "Bollard 190",
+      "productUrl": "https://www.asafe.com/ar-ae/products/bollard-190/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No quantified impact rating on live page. PAS 13 certification confirmed in both."
+    },
+    {
+      "familyName": "FlexiShield Corner Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/flexishield-corner-guard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 200,
+        "impactRatingRaw": "200 Joules - 0.5 Tonnes at 3.2 Kph",
+        "vehicleTest": "0.5t at 3.2 kph, 90°",
+        "pas13Certified": false,
+        "pas13Method": null,
+        "heightMm": 1000
+      },
+      "live": {
+        "impactRating": 200,
+        "impactRatingRaw": "200 Joules",
+        "vehicleTest": "0.5 tonnes at 3.2 kph, 90° angle of approach, 100% energy transfer (200 Joules)",
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 1000,
+        "performanceClass": null
+      },
+      "notes": "All values agree."
+    },
+    {
+      "familyName": "Step Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/step-guard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": "Withstands multiple impacts from vehicles up to 6,400kg",
+        "vehicleTest": "Multiple impacts up to 6,400kg vehicles",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": 185
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": "vehicles weighing up to 6,400Kg (14,100lbs)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 183,
+        "heightMm": 185,
+        "performanceClass": null
+      },
+      "notes": "Joules null in both. Vehicle qualitative description (6,400kg) and heightMm (185) match. PAS 13 certified in both. Live also reports deflectionZoneMm=183 from impact zone range."
+    },
+    {
+      "familyName": "Under Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/under-guard/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No impact rating data published on live page."
+    },
+    {
+      "familyName": "Traffic Gate",
+      "productUrl": "https://www.asafe.com/ar-ae/products/traffic-gate/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 14000,
+        "impactRatingRaw": "14,000 Joules - 3.2 Tonnes at 10.4 Kph, 100% transfer",
+        "vehicleTest": "3.2t at 10.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 14000,
+        "impactRatingRaw": "14,000 Joules",
+        "vehicleTest": "3.2 tonnes at 10.4 kph, 90° angle, 100% energy transfer (14,000 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Joules, tonnage, speed, angle all agree. Live doesn't state PAS 13 method; catalog has 'vehicle'."
+    },
+    {
+      "familyName": "RackGuard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackguard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": 400,
+        "performanceClass": null
+      },
+      "notes": "No quantified Joules impact rating on live page; both null. PAS 13 certified in both. Live adds pendulum method (from pendulum test video reference) and heightMm=400."
+    },
+    {
+      "familyName": "eFlex Double RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-double-rackend-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 6000,
+        "impactRatingRaw": "6,000 Joules - 3.7 Tonnes at 6.4 Kph",
+        "vehicleTest": "3.7t at 6.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 6000,
+        "impactRatingRaw": "6,000 Joules",
+        "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 405,
+        "performanceClass": null
+      },
+      "notes": "Joules, tonnage, speed, angle, PAS 13 all agree. Live doesn't state method; catalog has 'vehicle'. Live heightMm=405 is max of impact zone 185-405mm."
+    },
+    {
+      "familyName": "Single RackEnd Barrier Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/single-rackend-barrier-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 4000,
+        "impactRatingRaw": "4,000 Joules - 2.5 Tonnes at 6.4 Kph",
+        "vehicleTest": "2.5t at 6.4 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": 4000,
+        "impactRatingRaw": "4,000 Joules",
+        "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Joules, tonnage, speed all agree. Live only surfaces 90° for the headline; catalog adds 45°/22.5°. Live doesn't disclose PAS 13 method."
+    },
+    {
+      "familyName": "Coach Stop",
+      "productUrl": "https://www.asafe.com/ar-ae/products/coach-stop/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "heightMm": 115
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 115,
+        "performanceClass": null
+      },
+      "notes": "Joules null in both (both_missing for impact). heightMm agrees (115). Status set to 'mismatch' because catalog pas13Certified is null while live explicitly indicates no PAS 13 (false). Non-critical: product is low-level deterrent, not PAS 13 tested per live."
+    },
+    {
+      "familyName": "Slider Plate",
+      "productUrl": "https://www.asafe.com/ar-ae/products/slider-plate/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "heightMm": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No quantified impact rating on live page. PAS 13 certified in both."
+    },
+    {
+      "familyName": "eFlex Pedestrian 3 Rail",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-pedestrian-3-rail/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Neither catalog nor live page states impact rating. Both agree product is PAS 13 certified via stamp without test details."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph, 100% energy transfer",
+        "vehicleTest": "90° dynamic ramp impact with 4.2 tonne vehicle at 9.6 kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Core impact rating (15,100 J, 4.2t, 9.6 kph, 90°, 100% transfer) matches exactly. Live page doesn't state test method; catalog asserts vehicle."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrierplus/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph, 100% transfer",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, angles 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "15,100 J / 4.2t / 9.6 kph matches. Live pas13Method 'pendulum' differs from catalog 'vehicle' - minor metadata divergence but impact value ok."
+    },
+    {
+      "familyName": "Traffic Barrier 190-T1-P0",
+      "productUrl": "https://www.asafe.com/ar-ae/products/traffic-barrier-190-t1-p0/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 190,
+        "performanceClass": null
+      },
+      "notes": "New-generation barrier - neither source states Joule rating or vehicle test. Live page does not display a PAS 13 badge."
+    },
+    {
+      "familyName": "mFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-double-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 4550,
+        "impactRatingRaw": "Total 9,100 J test / 4,550 J transferred - 3.6 Tonnes at 8 Kph",
+        "vehicleTest": "3.6 tonnes at 8 kph, 45°, 90°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 4550,
+        "impactRatingRaw": "4,550 Joules",
+        "vehicleTest": "3.6 tonnes at 8 kph, 50% energy transfer (4,550 Joules) at 45° angle of approach",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "4,550 J / 3.6t / 8 kph / 45° / 50% transfer matches exactly."
+    },
+    {
+      "familyName": "Atlas Triangle Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-triangle-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7t at 9.6 Kph",
+        "vehicleTest": "5.7t at 9.6 kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "20,500 J / 5.7t / 9.6 kph matches exactly. Live adds explicit 90° / 100% transfer specifics."
+    },
+    {
+      "familyName": "iFlex Bollard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-bollard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules - 4.3 Tonnes at 6.4 Kph, 100% transfer",
+        "vehicleTest": "4.3t at 6.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 1200,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "5,800 J / 4.3t / 6.4 kph / 90° / 100% transfer matches exactly."
+    },
+    {
+      "familyName": "Bollard 130",
+      "productUrl": "https://www.asafe.com/ar-ae/products/bollard-130/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No impact data on either side. Catalog asserts PAS 13 true; live extractor could not confirm badge. Joule value both missing - consider pas13 flag follow-up."
+    },
+    {
+      "familyName": "iFlexRail Column Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflexrail-column-guard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules - 2.3 Tonnes at 8 Kph",
+        "vehicleTest": "2.3t at 8 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 5800,
+        "impactRatingRaw": "5,800 Joules",
+        "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "5,800 J / 2.3t / 8 kph matches exactly."
+    },
+    {
+      "familyName": "ForkGuard Kerb Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/forkguard-kerb-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 3000,
+        "impactRatingRaw": "3,000 Joules - 1.9 Tonnes at 6.4 Kph, 100% transfer",
+        "vehicleTest": "1.9t at 6.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 3000,
+        "impactRatingRaw": "3,000 Joules",
+        "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 183,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "3,000 J / 1.9t / 6.4 kph / 90° / 100% transfer matches exactly."
+    },
+    {
+      "familyName": "iFlex Swing Gate Short",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-swing-gate-short/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Gate product - neither source provides Joule rating. Both agree on PAS 13 badge without test details."
+    },
+    {
+      "familyName": "iFlex Height Restrictor",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-height-restrictor/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules - 6 Tonnes at 4.8 Kph",
+        "vehicleTest": "6t at 4.8 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules",
+        "vehicleTest": "6 tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (5,400 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 1200,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "5,400 J / 6t / 4.8 kph / 90° / 100% transfer matches exactly."
+    },
+    {
+      "familyName": "RackGuard Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackguard-cold-storage/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": [
+          400,
+          600
+        ],
+        "performanceClass": null
+      },
+      "notes": "No impact data on either side. Live page lists available heights 400mm/600mm but no impact rating."
+    },
+    {
+      "familyName": "eFlex Double RackEnd+Kerb",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-double-rackendpluskerb/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 6000,
+        "impactRatingRaw": "6,000 Joules - 3.7 Tonnes at 6.4 Kph",
+        "vehicleTest": "3.7t at 6.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle"
+      },
+      "live": {
+        "impactRating": 6000,
+        "impactRatingRaw": "6,000 Joules",
+        "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact energy (6,000 J / 3.7t / 6.4 kph / 90°) matches. However catalog claims PAS 13 certified; live extraction reports no PAS 13 badge visible. Worth verifying PAS 13 status."
+    },
+    {
+      "familyName": "RackEye",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackeye/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "IoT monitoring device - not an impact-rated product. Both sources correctly omit impact ratings."
+    },
+    {
+      "familyName": "Car Stop",
+      "productUrl": "https://www.asafe.com/ar-ae/products/car-stop/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 80,
+        "performanceClass": null
+      },
+      "notes": "Rubber wheel stop - not impact-rated. Both correctly omit."
+    },
+    {
+      "familyName": "Sign Cap",
+      "productUrl": "https://www.asafe.com/ar-ae/products/sign-cap/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Accessory (signage attachment) - not impact-rated. Both confirm PAS 13 badge without test metrics."
+    },
+    {
+      "familyName": "Pedestrian Barrier 130-T0-P3",
+      "productUrl": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-130-t0-p3/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 130,
+        "performanceClass": null
+      },
+      "notes": "Neither catalog nor live page provide explicit impact rating. Live page height 130mm appears inferred from model number. PAS13 unclear on both sides (catalog null, live false)."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrier-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 4.2t at 9.6 Kph, 100% transfer",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, 90°/45°/22.5° angles",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 15100
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15٬100 Joules",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 190,
+        "performanceClass": null
+      },
+      "notes": "Impact rating and vehicle test values match. Live page shows only 90° angle (catalog includes 45°/22.5° extras). Method null on live, 'vehicle' in catalog - catalog specifies method not explicit on page."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier+ Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrierplus-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph",
+        "vehicleTest": "4.2 tonnes at 9.6 kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 15100
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15٬100 Joules",
+        "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches at 15,100J. Vehicle test specs consistent (4.2t at 9.6kph). PAS13 certified on both."
+    },
+    {
+      "familyName": "Traffic Barrier 190-T2-P0",
+      "productUrl": "https://www.asafe.com/ar-ae/products/traffic-barrier-190-t2-p0/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 190,
+        "performanceClass": null
+      },
+      "notes": "Neither source provides explicit impact rating. Page provides impact height range 205-745mm only."
+    },
+    {
+      "familyName": "Atlas Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-double-traffic-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph",
+        "vehicleTest": "5.7t at 9.6 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 20500
+      },
+      "live": {
+        "impactRating": 20500,
+        "impactRatingRaw": "20,500 Joules",
+        "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "deflectionZoneMm": null,
+        "heightMm": 745,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches at 20,500J. Vehicle test consistent (5.7t, 9.6kph). Method 'vehicle' agreed on both sides."
+    },
+    {
+      "familyName": "iFlex Single Car Park Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-car-park-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 1.5t at 16 Kph",
+        "vehicleTest": "1.5 tonnes at 16 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 15100,
+        "sections": [
+          "BS 6180/DETR",
+          "BS 6399",
+          "EN 1991"
+        ]
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "1.5 tonnes at 16 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 15,100J. Vehicle test consistent (1.5t at 16kph). Method 'vehicle' agreed (dynamic ramp test)."
+    },
+    {
+      "familyName": "iFlex Heavy Duty Bollard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-heavy-duty-bollard/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 8800,
+        "impactRatingRaw": "8,800 Joules - 5.5 Tonnes at 6.4 Kph, 100% transfer",
+        "vehicleTest": "5.5t at 6.4 kph",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 8800
+      },
+      "live": {
+        "impactRating": 8800,
+        "impactRatingRaw": "8,800 Joules",
+        "vehicleTest": "5.5 tonnes at 6.4 kph, 90° angle, 100% energy transfer (8,800 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 1200,
+        "heightMm": 1200,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 8,800J. Vehicle test consistent (5.5t at 6.4kph). PAS13 certified both sides."
+    },
+    {
+      "familyName": "Monoplex Bollard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/monoplex-bollard/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No explicit impact rating on either side. PAS13 certified with TÜV Nord reference on both, but numeric joules value not provided."
+    },
+    {
+      "familyName": "iFlexRail Column Guard+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflexrail-column-guardplus/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 13750,
+        "impactRatingRaw": "13,750 Joules - 3.8 Tonnes at 9.6 Kph",
+        "vehicleTest": "3.8t at 9.6 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 13750
+      },
+      "live": {
+        "impactRating": 13750,
+        "impactRatingRaw": "13,750 Joules",
+        "vehicleTest": "3.8 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (13,750 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 13,750J. Vehicle test consistent (3.8t at 9.6kph)."
+    },
+    {
+      "familyName": "Heavy Duty ForkGuard Kerb Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/heavy-duty-forkguard-kerb-barrier/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 15800,
+        "impactRatingRaw": "15,800 Joules - 6.3 Tonnes at 8 Kph, 100% transfer",
+        "vehicleTest": "6.3t at 8 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 15800
+      },
+      "live": {
+        "impactRating": 15800,
+        "impactRatingRaw": "15,800 Joules",
+        "vehicleTest": "6.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,800 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 183,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 15,800J. Vehicle test consistent (6.3t at 8kph, 90°)."
+    },
+    {
+      "familyName": "iFlex Swing Gate Long",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-swing-gate-long/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on either side. PAS13 certified on both, no explicit joules/method stated."
+    },
+    {
+      "familyName": "iFlex Height Restrictor Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-height-restrictor-cold-storage/",
+      "status": "ok",
+      "catalog": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules - 6 Tonnes at 4.8 Kph",
+        "vehicleTest": "6t at 4.8 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 5400
+      },
+      "live": {
+        "impactRating": 5400,
+        "impactRatingRaw": "5,400 Joules",
+        "vehicleTest": "6 tonnes at 4.8 kph, 90° angle of approach, 100% energy transfer (5,400 Joules)",
+        "pas13Certified": true,
+        "pas13Method": null,
+        "deflectionZoneMm": 1200,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 5,400J. Vehicle test consistent (6t at 4.8kph, 90°)."
+    },
+    {
+      "familyName": "eFlex Single RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-rackend-barrier/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 4000,
+        "impactRatingRaw": "4,000 Joules - 2.5 Tonnes at 6.4 Kph",
+        "vehicleTest": "2.5t at 6.4 kph, 90°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 4000
+      },
+      "live": {
+        "impactRating": 4000,
+        "impactRatingRaw": "4,000 Joules",
+        "vehicleTest": "2.5 tonnes at 6.4 kph, 90° approach angle, 100% energy transfer (4,000 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 4,000J, vehicle test consistent. MISMATCH: catalog pas13Method='vehicle' but live page shows PAS13 pendulum test methodology. Suggest updating catalog to 'pendulum'."
+    },
+    {
+      "familyName": "iFlex Single RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-rackend-barrier/",
+      "status": "mismatch",
+      "catalog": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules - 6 Tonnes at 8 Kph",
+        "vehicleTest": "6t at 8 kph; 90°, 45°, 22.5°",
+        "pas13Certified": true,
+        "pas13Method": "vehicle",
+        "joules": 15100
+      },
+      "live": {
+        "impactRating": 15100,
+        "impactRatingRaw": "15,100 Joules",
+        "vehicleTest": "6 tonnes at 8 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+        "pas13Certified": true,
+        "pas13Method": "pendulum",
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "Impact rating matches 15,100J, vehicle test consistent. MISMATCH: catalog pas13Method='vehicle' but live page shows PAS13 pendulum test methodology. Suggest updating catalog to 'pendulum'."
+    },
+    {
+      "familyName": "Dock Buffer",
+      "productUrl": "https://www.asafe.com/ar-ae/products/dock-buffer/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 520,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on either side. Catalog has pas13.certified=null, live states no PAS13 info on page."
+    },
+    {
+      "familyName": "Retractable Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/retractable-barrier/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": null,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on either side. Product is access control tape-webbing, impact rating not expected."
+    },
+    {
+      "familyName": "Sign Post",
+      "productUrl": "https://www.asafe.com/ar-ae/products/sign-post/",
+      "status": "both_missing",
+      "catalog": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": null,
+        "pas13Method": null,
+        "joules": null
+      },
+      "live": {
+        "impactRating": null,
+        "impactRatingRaw": null,
+        "vehicleTest": null,
+        "pas13Certified": false,
+        "pas13Method": null,
+        "deflectionZoneMm": null,
+        "heightMm": 1200,
+        "performanceClass": null
+      },
+      "notes": "No impact rating on either side. Product is signage post, impact rating not expected."
+    }
+  ]
+}

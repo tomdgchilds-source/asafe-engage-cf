@@ -1094,6 +1094,114 @@ app.post("/api/admin/apply-vehicle-thumbnails", async (c) => {
   }
 });
 
+// Apply impact rating corrections from the verification report.
+// Reads the bundled patch file at build time and runs targeted UPDATEs
+// on the products table for entries where the live asafe.com page
+// differed from the catalog value. Idempotent — re-running applies the
+// same values, no-op if already up to date.
+//
+// Gated by MIGRATION_TOKEN (bearer). Matches by products.name ILIKE
+// familyName, since the catalog uses the family name which is what's
+// stored in the products.name column.
+app.post("/api/admin/apply-impact-corrections", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    // Dynamic import so builds succeed even if the patch file hasn't
+    // been generated yet (first deploy after scaffolding this endpoint).
+    let patchData: any;
+    try {
+      patchData = (await import("../scripts/data/impact-verification-patch.json")).default || (await import("../scripts/data/impact-verification-patch.json"));
+    } catch {
+      return c.json({
+        ok: false,
+        message: "No patch file bundled — run scripts/mergeImpactVerification.ts first.",
+      }, 404);
+    }
+
+    const patches: Array<{
+      familyName: string;
+      productUrl: string;
+      status: string;
+      currentValue: number | null;
+      newValue: number | null;
+      pas13Certified: boolean | null;
+      pas13Method: string | null;
+    }> = patchData.patches || [];
+
+    if (patches.length === 0) {
+      return c.json({ ok: true, applied: 0, message: "No corrections in patch file." });
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    const applied: Array<{ familyName: string; matched: number; newValue: number | null }> = [];
+    const notMatched: string[] = [];
+
+    for (const p of patches) {
+      // Try exact name match first, then ILIKE with the family name.
+      // Keep updates narrow — only overwrite impactRating + pas13 bits
+      // that we're confident about from the live page.
+      const sets: string[] = [];
+      const params: any[] = [];
+
+      if (p.newValue != null) {
+        sets.push("impact_rating = $" + (params.length + 1));
+        params.push(p.newValue);
+      }
+      if (p.pas13Certified != null) {
+        sets.push("pas_13_compliant = $" + (params.length + 1));
+        params.push(p.pas13Certified);
+      }
+      if (p.pas13Method) {
+        sets.push("pas_13_test_method = $" + (params.length + 1));
+        params.push(p.pas13Method);
+      }
+      if (p.newValue != null) {
+        sets.push("pas_13_test_joules = $" + (params.length + 1));
+        params.push(p.newValue);
+      }
+      sets.push("updated_at = now()");
+
+      if (sets.length <= 1) continue; // nothing to update
+
+      const nameIdx = params.length + 1;
+      params.push(p.familyName);
+      const res = (await sqlClient(
+        `UPDATE products SET ${sets.join(", ")} WHERE lower(name) = lower($${nameIdx}) RETURNING id`,
+        params,
+      )) as any[];
+
+      if (res.length === 0) {
+        notMatched.push(p.familyName);
+      } else {
+        applied.push({ familyName: p.familyName, matched: res.length, newValue: p.newValue });
+      }
+    }
+
+    return c.json({
+      ok: true,
+      totalPatches: patches.length,
+      applied: applied.length,
+      notMatched,
+      details: applied,
+    });
+  } catch (e: any) {
+    console.error("apply-impact-corrections failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Seed resources — populates resources table with A-SAFE technical docs, videos, guides
 app.get("/api/admin/seed-resources", authMiddleware, async (c) => {
   if (!(await requireAdmin(c))) return c.json({ message: "Admin access required" }, 403);

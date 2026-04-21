@@ -30,14 +30,33 @@
         "Available in yellow, black or grey"
       ],
       "impactRating": 5800,
-      "impactRatingRaw": "Equivalent Vehicle Weight: 2.3 Tonnes, Vehicle Speed: 8 Kph, Vehicle energy: 5,800 Joules, Transfer of energy: 100% (5,800 Joules)",
-      "vehicleTest": "2.3 Tonnes at 8 Kph, 100% energy transfer = 5,800 Joules; tested at 90°, 45° and 22.5° approaches",
-      "pas13": { "certified": true, "sections": [], "method": "pendulum", "joules": 5800 },
+      "impactRatingRaw": "5,800 Joules",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 5800
+      },
       "variants": [],
-      "heightRange": { "minMm": 450, "maxMm": 1100 },
+      "heightRange": {
+        "minMm": 450,
+        "maxMm": 1100
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Warehousing", "Walkway Definition", "Facility Organisation"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks", "New build"],
+      "applications": [
+        "Pedestrian Safety",
+        "Warehousing",
+        "Walkway Definition",
+        "Facility Organisation"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks",
+        "New build"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3162/iflexpedestrian3raibarrier_02.jpg",
         "https://webcdn.asafe.com/media/4139/iflex-pedestrian-3-rail-barrier-circular-rails-_front.jpg",
@@ -49,7 +68,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/yeadj4je/iflex_pedestrian_3_rail_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/lkkmxyql/iflex_pedestrian_3_rail_barrier_v2.pdf",
-      "relatedProducts": ["iFlex Pedestrian Barrier 3 Rail Cold Storage", "eFlex Pedestrian 3 Rail", "iFlex Single Traffic Barrier+", "iFlex Double Traffic Barrier+"],
+      "relatedProducts": [
+        "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+        "eFlex Pedestrian 3 Rail",
+        "iFlex Single Traffic Barrier+",
+        "iFlex Double Traffic Barrier+"
+      ],
       "rawText": "iFlex Pedestrian 3 Rail. Designed to segregate and safeguard pedestrians from moving vehicles and workplace hazards. 100mm Ø Rails. Impact Zone 450-1100mm. Patented Coupling Technology. PAS 13 tested by TÜV Nord - 5,800 Joules at 2.3 tonnes / 8 kph / 90°,45°,22.5°. Suitable for lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, manual pallet truck, electric pedestrian stacker, pedestrians."
     },
     {
@@ -68,14 +92,28 @@
         "Engineered for sub-zero environments"
       ],
       "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules - 2.3 Tonnes at 8 Kph, 100% transfer",
-      "vehicleTest": "2.3 tonnes at 8 Kph, 100% energy transfer; angles 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "pendulum", "joules": 5800 },
+      "impactRatingRaw": "5,800 Joules",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 5800
+      },
       "variants": [],
-      "heightRange": { "minMm": 450, "maxMm": 1100 },
+      "heightRange": {
+        "minMm": 450,
+        "maxMm": 1100
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Cold Storage"],
-      "industries": ["Cold storage", "Frozen food storage"],
+      "applications": [
+        "Pedestrian Safety",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage",
+        "Frozen food storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7032/iflex_pedestrian_kerb_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7026/iflex_pedestrian_cold_storage_front_1156x556.jpg",
@@ -86,7 +124,14 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/qvtntppj/iflex_pedestrian_3_rail_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/4bggy4sa/iflex_pedestrian_3_rail_barrier_v2.pdf",
-      "relatedProducts": ["iFlex Single Traffic Barrier+ Cold Storage", "iFlex Single Traffic Barrier Cold Storage", "iFlex Bollard Cold Storage", "RackGuard Cold Storage", "ForkGuard Cold Storage", "iFlex Height Restrictor Cold Storage"],
+      "relatedProducts": [
+        "iFlex Single Traffic Barrier+ Cold Storage",
+        "iFlex Single Traffic Barrier Cold Storage",
+        "iFlex Bollard Cold Storage",
+        "RackGuard Cold Storage",
+        "ForkGuard Cold Storage",
+        "iFlex Height Restrictor Cold Storage"
+      ],
       "rawText": "iFlex Pedestrian Barrier 3 Rail Cold Storage - sub-zero engineered pedestrian 3-rail barrier. PAS 13 tested 5800J / 2.3t / 8 Kph."
     },
     {
@@ -105,12 +150,23 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Walkway Definition"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Pedestrian Safety",
+        "Walkway Definition"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3250/reflexpedestrian3railbarrier_04.jpg",
         "https://webcdn.asafe.com/media/4756/reflex-pedestrian-3-rail-barrier-stadium-_front.jpg",
@@ -121,7 +177,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/drfbibxs/eflex_pedestrian_3_rail_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/dofgrqbn/eflex_3railpedestrianbarrier_v2.pdf",
-      "relatedProducts": ["eFlex Single Traffic Barrier+", "iFlex Pedestrian 3 Rail", "iFlex Single Traffic Barrier+", "iFlex Double Traffic Barrier+"],
+      "relatedProducts": [
+        "eFlex Single Traffic Barrier+",
+        "iFlex Pedestrian 3 Rail",
+        "iFlex Single Traffic Barrier+",
+        "iFlex Double Traffic Barrier+"
+      ],
       "rawText": "eFlex Pedestrian 3 Rail - flexible high-visibility pedestrian barrier. Yellow rails, black posts. 2kN static load. PAS 13 compliant."
     },
     {
@@ -140,12 +201,28 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
-      "heightRange": { "minMm": 450, "maxMm": 1100 },
+      "heightRange": {
+        "minMm": 450,
+        "maxMm": 1100
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Walkway Definition", "Compliance"],
-      "industries": ["Logistics centres", "Warehouses", "Manufacturing"],
+      "applications": [
+        "Pedestrian Safety",
+        "Walkway Definition",
+        "Compliance"
+      ],
+      "industries": [
+        "Logistics centres",
+        "Warehouses",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/efhhyeft/a-safe-pedestrian-barrier-130-t0-p3-12_1-min.jpg",
         "https://webcdn.asafe.com/media/erfez1gl/a-safe-pedestrian-barrier-130-t0-p3-11-min.jpg",
@@ -157,7 +234,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/p21iqo41/130_t0_p3_en_2.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/5ycmtbab/a-safe-130_t0_p3_instructions.pdf",
-      "relatedProducts": ["Pedestrian Barrier 190-T1-P2", "Pedestrian Barrier 190-T2-P1", "Retractable Barrier", "iFlex Swing Gate Short"],
+      "relatedProducts": [
+        "Pedestrian Barrier 190-T1-P2",
+        "Pedestrian Barrier 190-T2-P1",
+        "Retractable Barrier",
+        "iFlex Swing Gate Short"
+      ],
       "rawText": "Pedestrian Barrier 130-T0-P3 - new-generation compact pedestrian barrier with three-layer engineering, Active Technology impact alerts. Impact height 450-1100mm. Suitable for lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, manual pallet truck, electric pedestrian stacker."
     },
     {
@@ -175,12 +257,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Walkway Definition", "Compliance"],
-      "industries": ["Manufacturing", "Warehousing", "Airports", "Car parks"],
+      "applications": [
+        "Pedestrian Safety",
+        "Walkway Definition",
+        "Compliance"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/rvpbw3hw/a-safe-pedestrian-barrier-190-t1-p2-26-min.jpg",
         "https://webcdn.asafe.com/media/5hsdauik/a-safe-pedestrian-barrier-190-t1-p2-27-min.jpg",
@@ -192,7 +291,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/jcdmyoon/190_t1_p2_en_2.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/b1ihtnb2/a-safe-190_t1_p2_instructions.pdf",
-      "relatedProducts": ["Pedestrian Barrier 130-T0-P3", "Pedestrian Barrier 190-T2-P1", "Retractable Barrier", "iFlex Swing Gate Short"],
+      "relatedProducts": [
+        "Pedestrian Barrier 130-T0-P3",
+        "Pedestrian Barrier 190-T2-P1",
+        "Retractable Barrier",
+        "iFlex Swing Gate Short"
+      ],
       "rawText": "Pedestrian Barrier 190-T1-P2 - enhanced protection where pedestrian and vehicle routes intersect. Three-layer construction, Active Technology. Impact height 205-395mm. Suitable for lightweight counterbalance forklift, electric reach truck, electric pedestrian truck, manual pallet truck, electric pedestrian stacker."
     },
     {
@@ -210,12 +314,28 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Walkway Definition", "Compliance"],
-      "industries": ["Logistics hubs", "Manufacturing", "Distribution centres"],
+      "applications": [
+        "Pedestrian Safety",
+        "Walkway Definition",
+        "Compliance"
+      ],
+      "industries": [
+        "Logistics hubs",
+        "Manufacturing",
+        "Distribution centres"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/kw3esqhe/a-safe-pedestrian-barrier-190-t2-p1-32-min.jpg",
         "https://webcdn.asafe.com/media/mukl2jzs/a-safe-pedestrian-barrier-190-t2-p1-31_1-min.jpg",
@@ -227,7 +347,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/l4rjex3j/190_t2_p1_en_2.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/5vwp3lrm/a-safe-190_t2_p1_instructions.pdf",
-      "relatedProducts": ["Pedestrian Barrier 130-T0-P3", "Pedestrian Barrier 190-T1-P2", "Retractable Barrier", "iFlex Swing Gate Short"],
+      "relatedProducts": [
+        "Pedestrian Barrier 130-T0-P3",
+        "Pedestrian Barrier 190-T1-P2",
+        "Retractable Barrier",
+        "iFlex Swing Gate Short"
+      ],
       "rawText": "Pedestrian Barrier 190-T2-P1 - reinforced for high-risk environments. Impact height 205-745mm. Suitable for engine counterbalance heavy duty forklift, heavy duty counterbalance truck, high rack stacker, electric reach truck, electric tow tractor."
     },
     {
@@ -248,14 +373,38 @@
         "Available in numerous lengths"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph, 100% energy transfer",
-      "vehicleTest": "90° dynamic ramp impact with 4.2 tonne vehicle at 9.6 kph",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15,100 Joules",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Impact Protection", "Property Protection", "Asset Protection", "Building Protection"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks", "Cold storage", "Automotive", "Chemical and power", "Food and drink", "Packaging"],
+      "applications": [
+        "Traffic Segregation",
+        "Impact Protection",
+        "Property Protection",
+        "Asset Protection",
+        "Building Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks",
+        "Cold storage",
+        "Automotive",
+        "Chemical and power",
+        "Food and drink",
+        "Packaging"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3191/iflex_singletrafiicbarrier03.jpg",
         "https://webcdn.asafe.com/media/2917/iflex-single-traffic-barrier_front.jpg",
@@ -267,7 +416,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/p15ng415/iflex_single_traffic_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/5q2aalgc/iflex_single_traffic_barrier_v2.pdf",
-      "relatedProducts": ["mFlex Single Traffic Ground", "mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier Cold Storage", "eFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "mFlex Single Traffic Ground",
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier Cold Storage",
+        "eFlex Single Traffic Barrier"
+      ],
       "rawText": "iFlex Single Traffic Barrier - high-strength heavy-duty traffic barrier. 190mm Ø rail. Impact zone 205-395mm. PAS 13 tested (TÜV Nord) - 15,100J / 4.2t / 9.6 Kph / 90°, 45°, 22.5°. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker."
     },
     {
@@ -287,14 +441,29 @@
         "Engineered for sub-zero environments"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 4.2t at 9.6 Kph, 100% transfer",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, 90°/45°/22.5° angles",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15٬100 Joules",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Asset Protection", "Cold Storage"],
-      "industries": ["Cold storage", "Frozen food facilities"],
+      "applications": [
+        "Traffic Segregation",
+        "Asset Protection",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage",
+        "Frozen food facilities"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7033/iflex_rackend_kerb_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7028/iflex_single_traffic_cold_storage_front_1156x556.jpg",
@@ -305,7 +474,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/11076/iflex_single_traffic_barrier_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/fqtjtshr/iflex_single_traffic_barrier_v2.pdf",
-      "relatedProducts": ["iFlex Single Traffic Barrier+ Cold Storage", "mFlex Single Traffic Ground", "mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Single Traffic Barrier+ Cold Storage",
+        "mFlex Single Traffic Ground",
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier"
+      ],
       "rawText": "iFlex Single Traffic Barrier Cold Storage - sub-zero variant. 15,100J PAS 13 tested. Black standard."
     },
     {
@@ -324,14 +498,30 @@
         "Fully modular system"
       ],
       "impactRating": 10200,
-      "impactRatingRaw": "10,200 Joules - 2.8 Tonnes at 9.6 Kph, 100% transfer",
-      "vehicleTest": "2.8 tonnes at 9.6 kph, 90°, 45°, 22.5° angles",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 10200 },
+      "impactRatingRaw": "10,200 Joules",
+      "vehicleTest": "Equivalent Vehicle Weight: 2.8 Tonnes, Vehicle Speed: 9.6 Kph, 90° angle of approach, 100% energy transfer (10,200 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 10200
+      },
       "variants": [],
-      "heightRange": { "minMm": 204, "maxMm": 362 },
+      "heightRange": {
+        "minMm": 204,
+        "maxMm": 362
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Asset Protection", "Building Protection", "Machinery Protection"],
-      "industries": ["Warehousing and distribution", "Manufacturing"],
+      "applications": [
+        "Traffic Segregation",
+        "Asset Protection",
+        "Building Protection",
+        "Machinery Protection"
+      ],
+      "industries": [
+        "Warehousing and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3283/reflex_single_barrier_03.jpg",
         "https://webcdn.asafe.com/media/2936/reflex-single-traffic-barrier_front.jpg",
@@ -342,7 +532,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/lq4j1y4p/eflex_single_traffic_barrier_uae.pdf",
       "installationGuideUrl": null,
-      "relatedProducts": ["mFlex Single Traffic Ground", "mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier", "iFlex Single Traffic Barrier Cold Storage"],
+      "relatedProducts": [
+        "mFlex Single Traffic Ground",
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier Cold Storage"
+      ],
       "rawText": "eFlex Single Traffic Barrier - mid-strength 158mm rail, 10,200J at 2.8t/9.6kph. Yellow/black standard. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker."
     },
     {
@@ -361,14 +556,31 @@
         "Available in yellow, black or grey"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph, 100% transfer",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, angles 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Impact Protection", "Property Protection"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Automotive", "Food and drink"],
+      "applications": [
+        "Traffic Segregation",
+        "Impact Protection",
+        "Property Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Automotive",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3737/iflexdoubletrafficbarrier04.jpg",
         "https://webcdn.asafe.com/media/2905/iflex-double-traffic-barrier_front.jpg",
@@ -379,7 +591,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/nrafiqxl/iflex_double_traffic_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/jcij4yen/iflex_double_traffic_barrier_v2.pdf",
-      "relatedProducts": ["mFlex Double Traffic Barrier", "eFlex Single Traffic Barrier", "mFlex Single Traffic Ground"],
+      "relatedProducts": [
+        "mFlex Double Traffic Barrier",
+        "eFlex Single Traffic Barrier",
+        "mFlex Single Traffic Ground"
+      ],
       "rawText": "iFlex Double Traffic Barrier - twin 190mm rails. 20,500J PAS 13 tested with TÜV Nord. Impact zone 205-745mm. Heavy-duty vehicles: engine counterbalance HD forklift, heavy duty counterbalance, high rack stacker, electric high reach, electric tow tractor."
     },
     {
@@ -397,14 +613,36 @@
         "Multi-directional posts"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph, 100% transfer",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, angles 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15,100 Joules",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Asset Protection", "Traffic Segregation", "Combined Protection"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks", "Cold storage", "Automotive", "Chemical and power", "Food and drink"],
+      "applications": [
+        "Pedestrian Safety",
+        "Asset Protection",
+        "Traffic Segregation",
+        "Combined Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks",
+        "Cold storage",
+        "Automotive",
+        "Chemical and power",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3748/iflexsingletrafficplusbarrier03.jpg",
         "https://webcdn.asafe.com/media/2944/iflex-single-trafficplus-barrier_front.jpg",
@@ -415,7 +653,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/w0xap4ay/iflex_single_traffic_barrierplus_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/ahfhrvyz/iflex_single_traffic_barrierplus_v2.pdf",
-      "relatedProducts": ["iFlex Pedestrian 3 Rail", "iFlex Pedestrian Barrier 3 Rail Cold Storage", "eFlex Pedestrian 3 Rail", "iFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Pedestrian 3 Rail",
+        "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+        "eFlex Pedestrian 3 Rail",
+        "iFlex Single Traffic Barrier"
+      ],
       "rawText": "iFlex Single Traffic Barrier+ - dual-function barrier with handrail. 190mm rail, 15,100J PAS 13 (TÜV Nord). Impact zone 205-395mm."
     },
     {
@@ -433,14 +676,28 @@
         "Coloured black as standard"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 4.2 Tonnes at 9.6 Kph",
-      "vehicleTest": "4.2 tonnes at 9.6 kph",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15٬100 Joules",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Asset Protection", "Pedestrian Safety", "Cold Storage"],
-      "industries": ["Cold storage"],
+      "applications": [
+        "Asset Protection",
+        "Pedestrian Safety",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7035/iflex_single_traffic_plus_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7029/iflex_single_traffic_plus_cold-storage_front_1156x556.jpg",
@@ -451,7 +708,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/mewcueit/iflex_single_traffic_barrierplus_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/od0h5rhv/iflex_single_traffic_barrierplus_v2.pdf",
-      "relatedProducts": ["iFlex Single Traffic Barrier Cold Storage", "iFlex Pedestrian Barrier 3 Rail Cold Storage", "mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Single Traffic Barrier Cold Storage",
+        "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier"
+      ],
       "rawText": "iFlex Single Traffic Barrier+ Cold Storage - sub-zero variant with pedestrian handrail. 15,100J PAS 13 tested."
     },
     {
@@ -470,14 +732,29 @@
         "In-built modularity"
       ],
       "impactRating": 10168,
-      "impactRatingRaw": "69,650 Joules test, 10,168 J transferred (14.6%) - 19.3 Tonnes at 9.6 Kph",
-      "vehicleTest": "19.3 tonnes at 9.6 kph, 14.6% energy transfer; tested at 22.5°, 45°, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 10168 },
+      "impactRatingRaw": "10,168 Joules",
+      "vehicleTest": "19.3 tonnes at 9.6 kph, 22.5° angle of approach, 14.6% energy transfer (69,650 J total vehicle energy)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 10168
+      },
       "variants": [],
-      "heightRange": { "minMm": 204, "maxMm": 362 },
+      "heightRange": {
+        "minMm": 204,
+        "maxMm": 362
+      },
       "heightMm": null,
-      "applications": ["Combined Protection", "Pedestrian Safety", "Property Protection"],
-      "industries": ["Manufacturing", "Warehousing"],
+      "applications": [
+        "Combined Protection",
+        "Pedestrian Safety",
+        "Property Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3279/reflextrafficplusbarrier04.jpg",
         "https://webcdn.asafe.com/media/2935/reflex-single-traffic-plus-barrier_front.jpg",
@@ -488,7 +765,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/uhtmbqze/eflex_single_traffic_barrierplus_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/34hpyj5n/eflex_single_traffic_barrierplus_v2.pdf",
-      "relatedProducts": ["iFlex Single Traffic Barrier+", "iFlex Double Traffic Barrier+", "Atlas Double Traffic Barrier+", "eFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Single Traffic Barrier+",
+        "iFlex Double Traffic Barrier+",
+        "Atlas Double Traffic Barrier+",
+        "eFlex Single Traffic Barrier"
+      ],
       "rawText": "eFlex Single Traffic Barrier+ - mid-strength with handrail. 158mm rail. PAS 13 tested. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, pedestrians."
     },
     {
@@ -506,14 +788,34 @@
         "Available in yellow, black or grey"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph, 100% transfer",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Asset Protection", "Traffic Segregation", "Combined Protection"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Logistics", "Food and beverage", "Automotive", "Chemical and power"],
+      "applications": [
+        "Pedestrian Safety",
+        "Asset Protection",
+        "Traffic Segregation",
+        "Combined Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Logistics",
+        "Food and beverage",
+        "Automotive",
+        "Chemical and power"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3736/iflexdoubletrafficplusbarrier07.jpg",
         "https://webcdn.asafe.com/media/2904/iflex-double-trafficplus-barrier_front.jpg",
@@ -524,7 +826,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/kqqezlar/iflex_double_trafficplus_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/0lddn5gp/iflex_double_traffic_barrierplus_v2.pdf",
-      "relatedProducts": ["iFlex Single Traffic Barrier+", "eFlex Single Traffic Barrier+", "Atlas Double Traffic Barrier+", "iFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Single Traffic Barrier+",
+        "eFlex Single Traffic Barrier+",
+        "Atlas Double Traffic Barrier+",
+        "iFlex Double Traffic Barrier"
+      ],
       "rawText": "iFlex Double Traffic Barrier+ - twin 190mm rails with pedestrian handrail. 20,500J PAS 13 (TÜV Nord). Heavy-duty vehicles."
     },
     {
@@ -542,12 +849,28 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Traffic Route Definition", "Impact Protection", "Infrastructure Protection"],
-      "industries": ["Warehouses", "Factories", "Distribution centres"],
+      "applications": [
+        "Traffic Route Definition",
+        "Impact Protection",
+        "Infrastructure Protection"
+      ],
+      "industries": [
+        "Warehouses",
+        "Factories",
+        "Distribution centres"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/ms1n014r/a-safe-traffic-barrier-190-t1-p0-min.jpg",
         "https://webcdn.asafe.com/media/poyimba1/a-safe-traffic-barrier-190-t1-p0-16-min.jpg",
@@ -559,7 +882,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/joyj2cll/190_t1_p0_en_2.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/53xb02m5/a-safe-190_t1_p0_instructions.pdf",
-      "relatedProducts": ["Traffic Barrier 190-T2-P0", "Bollard 190", "Bollard 130", "Step Guard"],
+      "relatedProducts": [
+        "Traffic Barrier 190-T2-P0",
+        "Bollard 190",
+        "Bollard 130",
+        "Step Guard"
+      ],
       "rawText": "Traffic Barrier 190-T1-P0 - new-generation traffic barrier. Impact 205-395mm. Three-layer construction with Active Technology alerts."
     },
     {
@@ -577,12 +905,28 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Traffic Route Definition", "Infrastructure Protection", "Equipment Protection"],
-      "industries": ["Logistics", "Manufacturing", "Industrial facilities"],
+      "applications": [
+        "Traffic Route Definition",
+        "Infrastructure Protection",
+        "Equipment Protection"
+      ],
+      "industries": [
+        "Logistics",
+        "Manufacturing",
+        "Industrial facilities"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/lplb5xuu/a-safe-traffic-barrier-190-t2-p0-21-min.jpg",
         "https://webcdn.asafe.com/media/gfljakrq/a-safe-traffic-barrier-190-t2-p0-22-min.jpg",
@@ -593,7 +937,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/fikgprwr/190_t2_p0_en_2.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/y2wdpvoh/a-safe-190_t2_p0_instructions.pdf",
-      "relatedProducts": ["Traffic Barrier 190-T1-P0", "Bollard 130", "Bollard 190", "Step Guard"],
+      "relatedProducts": [
+        "Traffic Barrier 190-T1-P0",
+        "Bollard 130",
+        "Bollard 190",
+        "Step Guard"
+      ],
       "rawText": "Traffic Barrier 190-T2-P0 - double-rail heavy-duty. Impact zone 205-745mm. For engine counterbalance HD forklift, HD counterbalance, high rack stacker, electric reach truck, electric tow tractor."
     },
     {
@@ -610,14 +959,30 @@
         "Fully modular system"
       ],
       "impactRating": 2700,
-      "impactRatingRaw": "2,700 Joules - 1.1 Tonnes at 8 Kph, 100% transfer",
-      "vehicleTest": "1.1 tonnes at 8 kph",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 2700 },
+      "impactRatingRaw": "2,700 Joules",
+      "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 2700
+      },
       "variants": [],
-      "heightRange": { "minMm": 150, "maxMm": 250 },
+      "heightRange": {
+        "minMm": 150,
+        "maxMm": 250
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Machinery Protection"],
-      "industries": ["Manufacturing", "Warehousing", "Airports", "Car parks"],
+      "applications": [
+        "Traffic Segregation",
+        "Machinery Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3211/mflexsingletrafficbarrier02.jpg",
         "https://webcdn.asafe.com/media/2923/mflex-single-traffic-barrier-micro-_front.jpg",
@@ -626,7 +991,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/kvoieuvh/mflex_single_traffic_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/2upkg2ei/mflex_single_traffic_barrier_v2.pdf",
-      "relatedProducts": ["mFlex Single Traffic Ground", "iFlex Single Traffic Barrier", "iFlex Single Traffic Barrier Cold Storage", "eFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "mFlex Single Traffic Ground",
+        "iFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier Cold Storage",
+        "eFlex Single Traffic Barrier"
+      ],
       "rawText": "mFlex Single Traffic Barrier - 100mm ground-level barrier. 2700J PAS 13. Manual pallet truck, electric pedestrian stacker, frame roll container."
     },
     {
@@ -642,14 +1012,30 @@
         "Fully modular system"
       ],
       "impactRating": 2700,
-      "impactRatingRaw": "2,700 Joules - 1.1 Tonnes at 8 Kph",
-      "vehicleTest": "1.1 tonnes at 8 kph, 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 2700 },
+      "impactRatingRaw": "2,700 Joules",
+      "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 2700
+      },
       "variants": [],
-      "heightRange": { "minMm": 50, "maxMm": 150 },
+      "heightRange": {
+        "minMm": 50,
+        "maxMm": 150
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Machinery Protection"],
-      "industries": ["Manufacturing", "Warehousing", "Airports", "Car parks"],
+      "applications": [
+        "Traffic Segregation",
+        "Machinery Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3216/mflexsingletrafficgroundlevelbarrier01.jpg",
         "https://webcdn.asafe.com/media/2924/mflex-single-traffic-barrier-micro-ground-level_front.jpg",
@@ -659,7 +1045,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/sp5pq4am/mflex_single_traffic_ground_level_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/g5moupnb/mflex_ground_traffic_barrier_v2.pdf",
-      "relatedProducts": ["mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier", "iFlex Single Traffic Barrier Cold Storage", "eFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier Cold Storage",
+        "eFlex Single Traffic Barrier"
+      ],
       "rawText": "mFlex Single Traffic Ground - near-ground level 50-150mm barrier. 2700J PAS 13."
     },
     {
@@ -675,14 +1066,28 @@
         "Fully modular construction"
       ],
       "impactRating": 4550,
-      "impactRatingRaw": "Total 9,100 J test / 4,550 J transferred - 3.6 Tonnes at 8 Kph",
-      "vehicleTest": "3.6 tonnes at 8 kph, 45°, 90°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 4550 },
+      "impactRatingRaw": "4,550 Joules",
+      "vehicleTest": "3.6 tonnes at 8 kph, 50% energy transfer (4,550 Joules) at 45° angle of approach",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 4550
+      },
       "variants": [],
-      "heightRange": { "minMm": 150, "maxMm": 450 },
+      "heightRange": {
+        "minMm": 150,
+        "maxMm": 450
+      },
       "heightMm": null,
-      "applications": ["Traffic Segregation", "Machinery Protection"],
-      "industries": ["Manufacturing", "Warehousing"],
+      "applications": [
+        "Traffic Segregation",
+        "Machinery Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3753/mflexdoubletrafficbarrier03.jpg",
         "https://webcdn.asafe.com/media/2922/mflex-double-traffic-barrier-micro-_front.jpg",
@@ -692,7 +1097,13 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/gfmdd5gi/mflex_double_traffic_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/quak0adf/mflex_double_traffic_barrier_v2.pdf",
-      "relatedProducts": ["mFlex Single Traffic Ground", "mFlex Single Traffic Barrier", "iFlex Single Traffic Barrier", "eFlex Single Traffic Barrier", "iFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "mFlex Single Traffic Ground",
+        "mFlex Single Traffic Barrier",
+        "iFlex Single Traffic Barrier",
+        "eFlex Single Traffic Barrier",
+        "iFlex Double Traffic Barrier"
+      ],
       "rawText": "mFlex Double Traffic Barrier - two 100mm rails, 150-450mm impact zone. PAS 13 4,550J transferred."
     },
     {
@@ -710,14 +1121,27 @@
         "Multi-directional posts"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph",
-      "vehicleTest": "5.7t at 9.6 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Airport Traffic", "Impact Protection"],
-      "industries": ["Airports"],
+      "applications": [
+        "Airport Traffic",
+        "Impact Protection"
+      ],
+      "industries": [
+        "Airports"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3726/atlasdoubletrafficbarrier07.jpg",
         "https://webcdn.asafe.com/media/2898/atlas-double-traffic-barrier_front.jpg",
@@ -727,7 +1151,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/btzhwlkv/atlas_double_traffic_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/qcto1h2q/atlas_double_traffic_v2.pdf",
-      "relatedProducts": ["Atlas Polygon Traffic Barrier", "Atlas Double Traffic Barrier+", "mFlex Double Traffic Barrier", "Atlas Triangle Traffic Barrier"],
+      "relatedProducts": [
+        "Atlas Polygon Traffic Barrier",
+        "Atlas Double Traffic Barrier+",
+        "mFlex Double Traffic Barrier",
+        "Atlas Triangle Traffic Barrier"
+      ],
       "rawText": "Atlas Double Traffic Barrier - airport-grade heavy-duty. 20,500J PAS 13 (TÜV Nord). For Charlatte/Linde baggage trucks, tow tractors, pushback tugs, ULDs."
     },
     {
@@ -745,14 +1174,28 @@
         "Multi-directional posts"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph, 100% transfer",
-      "vehicleTest": "5.7t at 9.6 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Airport Traffic", "Pedestrian Safety", "Baggage Handling"],
-      "industries": ["Airports"],
+      "applications": [
+        "Airport Traffic",
+        "Pedestrian Safety",
+        "Baggage Handling"
+      ],
+      "industries": [
+        "Airports"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3479/atlasdoubletrafficplus02.jpg",
         "https://webcdn.asafe.com/media/2897/atlas-double-trafficplus-barrier_front.jpg",
@@ -763,7 +1206,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/xyucywqg/atlas_double_trafficplus_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/higg3vd1/atlas_double_traffic_barrierplus_v2.pdf",
-      "relatedProducts": ["Atlas Double Traffic Barrier", "Atlas Polygon Traffic Barrier", "Atlas Triangle Traffic Barrier", "mFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "Atlas Double Traffic Barrier",
+        "Atlas Polygon Traffic Barrier",
+        "Atlas Triangle Traffic Barrier",
+        "mFlex Double Traffic Barrier"
+      ],
       "rawText": "Atlas Double Traffic Barrier+ - airport dual-function with handrail. 20,500J PAS 13 (TÜV Nord)."
     },
     {
@@ -779,14 +1227,28 @@
         "Suitable for heavyweight vehicles"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7t at 9.6 Kph",
-      "vehicleTest": "5.7t at 9.6 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Column Protection", "Floodlight Protection", "Mast Protection"],
-      "industries": ["Airports"],
+      "applications": [
+        "Column Protection",
+        "Floodlight Protection",
+        "Mast Protection"
+      ],
+      "industries": [
+        "Airports"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3090/atlaspolygontrafficbarrier03.jpg",
         "https://webcdn.asafe.com/media/2899/atlas-polygon-traffic-barrier_front.jpg",
@@ -797,7 +1259,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": "https://webcdn.asafe.com/media/0kphapy4/atlas_polygon_traffic_v2.pdf",
-      "relatedProducts": ["Atlas Double Traffic Barrier", "Atlas Triangle Traffic Barrier", "Atlas Double Traffic Barrier+", "mFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "Atlas Double Traffic Barrier",
+        "Atlas Triangle Traffic Barrier",
+        "Atlas Double Traffic Barrier+",
+        "mFlex Double Traffic Barrier"
+      ],
       "rawText": "Atlas Polygon Traffic Barrier - airport floodlight/mast protection. 20,500J PAS 13."
     },
     {
@@ -813,14 +1280,27 @@
         "Heavyweight vehicle suitable"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7t at 9.6 Kph",
-      "vehicleTest": "5.7t at 9.6 kph",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 20500
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 745 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 745
+      },
       "heightMm": null,
-      "applications": ["Airport Traffic", "Doorway Protection"],
-      "industries": ["Airports"],
+      "applications": [
+        "Airport Traffic",
+        "Doorway Protection"
+      ],
+      "industries": [
+        "Airports"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3540/atlas-triangle-assembled_front.jpg",
         "https://webcdn.asafe.com/media/2900/atlas-triangle-assembled_front.jpg",
@@ -831,7 +1311,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": "https://webcdn.asafe.com/media/f1ymcwxh/atlas_triangle_traffic_v2.pdf",
-      "relatedProducts": ["Atlas Polygon Traffic Barrier", "Atlas Double Traffic Barrier", "Atlas Double Traffic Barrier+", "mFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "Atlas Polygon Traffic Barrier",
+        "Atlas Double Traffic Barrier",
+        "Atlas Double Traffic Barrier+",
+        "mFlex Double Traffic Barrier"
+      ],
       "rawText": "Atlas Triangle Traffic Barrier - funnels heavyweight vehicles through doorways. 20,500J PAS 13."
     },
     {
@@ -847,14 +1332,29 @@
         "Grey standard with other colours available"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 1.5t at 16 Kph",
-      "vehicleTest": "1.5 tonnes at 16 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": ["BS 6180/DETR", "BS 6399", "EN 1991"], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15,100 Joules",
+      "vehicleTest": "1.5 tonnes at 16 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [
+          "BS 6180/DETR",
+          "BS 6399",
+          "EN 1991"
+        ],
+        "method": "vehicle",
+        "joules": 15100
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Car Protection", "Structural Protection", "Driver Guidance"],
-      "industries": ["Car parks"],
+      "applications": [
+        "Car Protection",
+        "Structural Protection",
+        "Driver Guidance"
+      ],
+      "industries": [
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3125/iflexcarpark03.jpg",
         "https://webcdn.asafe.com/media/4194/iflex_singletraffic_highlevel_carparkgrey_front.jpg",
@@ -864,7 +1364,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/apvlyadc/iflex_single_car_park_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/y23emetk/iflex_single_carparkbarrier_v2.pdf",
-      "relatedProducts": ["mFlex Single Traffic Ground", "mFlex Single Traffic Barrier", "mFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "mFlex Single Traffic Ground",
+        "mFlex Single Traffic Barrier",
+        "mFlex Double Traffic Barrier"
+      ],
       "rawText": "iFlex Single Car Park Barrier - car-park specific barrier. 15,100J PAS 13, BS 6180/DETR, BS 6399, EN 1991. Grey standard."
     },
     {
@@ -882,15 +1386,37 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Topple Barrier 3600mm with ForkGuard", "heightMm": 3600 },
-        { "name": "Topple Barrier 5300mm with ForkGuard", "heightMm": 5300 }
+        {
+          "name": "Topple Barrier 3600mm with ForkGuard",
+          "heightMm": 3600
+        },
+        {
+          "name": "Topple Barrier 5300mm with ForkGuard",
+          "heightMm": 5300
+        }
       ],
-      "heightRange": { "minMm": 3600, "maxMm": 5300 },
+      "heightRange": {
+        "minMm": 3600,
+        "maxMm": 5300
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Stacked Storage Protection", "Racking Protection"],
-      "industries": ["Warehouse and distribution", "Manufacturing", "Cold storage"],
+      "applications": [
+        "Pedestrian Safety",
+        "Stacked Storage Protection",
+        "Racking Protection"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/krgdfmlm/topple_barrier_insitu.jpg",
         "https://webcdn.asafe.com/media/erhoaqc2/iflex_topple_barrier_insitu_2.jpg",
@@ -901,7 +1427,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/fjrhqqyq/topple_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/hpsfplel/iflex-topple-barrier-install-instructions.pdf",
-      "relatedProducts": ["Heavy Duty Topple Barrier", "ForkGuard Kerb Barrier", "Heavy Duty ForkGuard Kerb Barrier", "iFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "Heavy Duty Topple Barrier",
+        "ForkGuard Kerb Barrier",
+        "Heavy Duty ForkGuard Kerb Barrier",
+        "iFlex Single Traffic Barrier"
+      ],
       "rawText": "Topple Barrier - tall barrier for stacked storage. Heights 3600mm and 5300mm with integrated ForkGuard. Modular, yellow or black. PAS 13 compliant."
     },
     {
@@ -917,17 +1448,40 @@
         "Suitable for impact heights 205mm-745mm"
       ],
       "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules - 5.7 Tonnes at 9.6 Kph",
-      "vehicleTest": "5.7t at 9.6 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 20500 },
+      "impactRatingRaw": "20,500 Joules",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 20500
+      },
       "variants": [
-        { "name": "Heavy Duty Topple 3600mm with ForkGuard", "heightMm": 3600 },
-        { "name": "Heavy Duty Topple 5300mm with ForkGuard", "heightMm": 5300 }
+        {
+          "name": "Heavy Duty Topple 3600mm with ForkGuard",
+          "heightMm": 3600
+        },
+        {
+          "name": "Heavy Duty Topple 5300mm with ForkGuard",
+          "heightMm": 5300
+        }
       ],
-      "heightRange": { "minMm": 3600, "maxMm": 5300 },
+      "heightRange": {
+        "minMm": 3600,
+        "maxMm": 5300
+      },
       "heightMm": null,
-      "applications": ["Pedestrian Safety", "Topple Prevention", "Asset Protection"],
-      "industries": ["Warehousing", "Manufacturing", "Cold storage", "Food and drink"],
+      "applications": [
+        "Pedestrian Safety",
+        "Topple Prevention",
+        "Asset Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Cold storage",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/6942/iflexheavydutytopple_situ_1156x556_01.jpg",
         "https://webcdn.asafe.com/media/6943/iflexheavydutytopple_situ_1156x556_02.jpg",
@@ -939,7 +1493,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/tpwbc51p/heavy_duty_topple_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/qirhstl3/iflex-heavy-duty-topple-install-instructions.pdf",
-      "relatedProducts": ["Topple Barrier", "Heavy Duty ForkGuard Kerb Barrier", "ForkGuard Kerb Barrier", "mFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "Topple Barrier",
+        "Heavy Duty ForkGuard Kerb Barrier",
+        "ForkGuard Kerb Barrier",
+        "mFlex Single Traffic Barrier"
+      ],
       "rawText": "Heavy Duty Topple Barrier - 3600/5300mm heights, integrated ForkGuard. 20,500J PAS 13."
     },
     {
@@ -956,18 +1515,63 @@
         "Highly visible"
       ],
       "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules - 4.3 Tonnes at 6.4 Kph, 100% transfer",
-      "vehicleTest": "4.3t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 5800 },
+      "impactRatingRaw": "5,800 Joules",
+      "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 5800
+      },
       "variants": [
-        { "name": "iFlex Bollard 835mm", "heightMm": 835, "colors": ["Yellow", "Grey"] },
-        { "name": "iFlex Bollard 1200mm", "heightMm": 1200, "colors": ["Yellow", "Grey"] },
-        { "name": "iFlex Bollard 2000mm", "heightMm": 2000, "colors": ["Yellow", "Grey"] }
+        {
+          "name": "iFlex Bollard 835mm",
+          "heightMm": 835,
+          "colors": [
+            "Yellow",
+            "Grey"
+          ]
+        },
+        {
+          "name": "iFlex Bollard 1200mm",
+          "heightMm": 1200,
+          "colors": [
+            "Yellow",
+            "Grey"
+          ]
+        },
+        {
+          "name": "iFlex Bollard 2000mm",
+          "heightMm": 2000,
+          "colors": [
+            "Yellow",
+            "Grey"
+          ]
+        }
       ],
-      "heightRange": { "minMm": 835, "maxMm": 2000 },
+      "heightRange": {
+        "minMm": 835,
+        "maxMm": 2000
+      },
       "heightMm": null,
-      "applications": ["Asset Protection", "Building Protection", "Pedestrian Safety", "Visual Guidance"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks", "Cold storage", "Automotive", "Chemical and power", "Food and drink", "Health and hygiene", "Packaging"],
+      "applications": [
+        "Asset Protection",
+        "Building Protection",
+        "Pedestrian Safety",
+        "Visual Guidance"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks",
+        "Cold storage",
+        "Automotive",
+        "Chemical and power",
+        "Food and drink",
+        "Health and hygiene",
+        "Packaging"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5624/iflexbollard_190_02.jpg",
         "https://webcdn.asafe.com/media/5618/iflexbollard_190_1200_quart1156x556.jpg",
@@ -979,7 +1583,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/t0dhymcr/iflex_bollard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/aarmh5ch/iflex_standardbollard_2mbollard.pdf",
-      "relatedProducts": ["iFlex Bollard Cold Storage", "iFlex Heavy Duty Bollard", "eFlex Single RackEnd+Kerb", "eFlex Double RackEnd+Kerb"],
+      "relatedProducts": [
+        "iFlex Bollard Cold Storage",
+        "iFlex Heavy Duty Bollard",
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd+Kerb"
+      ],
       "rawText": "iFlex Bollard - 190mm standard bollard available 835/1200/2000mm heights. 5,800J PAS 13 at 4.3t/6.4kph. Yellow or grey."
     },
     {
@@ -994,19 +1603,49 @@
         "Highly visible design"
       ],
       "impactRating": 8800,
-      "impactRatingRaw": "8,800 Joules - 5.5 Tonnes at 6.4 Kph, 100% transfer",
-      "vehicleTest": "5.5t at 6.4 kph",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 8800 },
+      "impactRatingRaw": "8,800 Joules",
+      "vehicleTest": "5.5 tonnes at 6.4 kph, 90° angle, 100% energy transfer (8,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 8800
+      },
       "variants": [
-        { "name": "HD Bollard 1200mm Yellow", "heightMm": 1200 },
-        { "name": "HD Bollard 2000mm Yellow", "heightMm": 2000 },
-        { "name": "HD Bollard 1200mm Grey", "heightMm": 1200 },
-        { "name": "HD Bollard 2000mm Grey", "heightMm": 2000 }
+        {
+          "name": "HD Bollard 1200mm Yellow",
+          "heightMm": 1200
+        },
+        {
+          "name": "HD Bollard 2000mm Yellow",
+          "heightMm": 2000
+        },
+        {
+          "name": "HD Bollard 1200mm Grey",
+          "heightMm": 1200
+        },
+        {
+          "name": "HD Bollard 2000mm Grey",
+          "heightMm": 2000
+        }
       ],
-      "heightRange": { "minMm": 1200, "maxMm": 2000 },
+      "heightRange": {
+        "minMm": 1200,
+        "maxMm": 2000
+      },
       "heightMm": null,
-      "applications": ["Asset Protection", "Machinery Protection", "Structural Protection", "Visual Guidance"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks"],
+      "applications": [
+        "Asset Protection",
+        "Machinery Protection",
+        "Structural Protection",
+        "Visual Guidance"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/6100/iflexheavydutybollard_situ_1156x556_04.jpg",
         "https://webcdn.asafe.com/media/6095/iflexheavydutybollard_quart1156x556.jpg",
@@ -1017,7 +1656,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/aojdk4e2/iflex_heavy_duty_bollard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/ijncwypb/iflex_heavydutybollard_v2.pdf",
-      "relatedProducts": ["iFlex Bollard", "iFlex Bollard Cold Storage", "eFlex Single RackEnd+Kerb", "eFlex Double RackEnd+Kerb"],
+      "relatedProducts": [
+        "iFlex Bollard",
+        "iFlex Bollard Cold Storage",
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd+Kerb"
+      ],
       "rawText": "iFlex Heavy Duty Bollard - reinforced for HD vehicles. 8,800J PAS 13 at 5.5t/6.4 kph. Rotating wear collars. Yellow or grey, 1200/2000mm."
     },
     {
@@ -1033,18 +1677,41 @@
         "Sub-zero engineered"
       ],
       "impactRating": 6900,
-      "impactRatingRaw": "6,900 Joules - 4.3 Tonnes at 6.4 Kph",
-      "vehicleTest": "4.3t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 6900 },
+      "impactRatingRaw": "6,900 Joules",
+      "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,900 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 6900
+      },
       "variants": [
-        { "name": "Cold Storage Bollard 835mm", "heightMm": 835 },
-        { "name": "Cold Storage Bollard 1200mm", "heightMm": 1200 },
-        { "name": "Cold Storage Bollard 2000mm", "heightMm": 2000 }
+        {
+          "name": "Cold Storage Bollard 835mm",
+          "heightMm": 835
+        },
+        {
+          "name": "Cold Storage Bollard 1200mm",
+          "heightMm": 1200
+        },
+        {
+          "name": "Cold Storage Bollard 2000mm",
+          "heightMm": 2000
+        }
       ],
-      "heightRange": { "minMm": 835, "maxMm": 2000 },
+      "heightRange": {
+        "minMm": 835,
+        "maxMm": 2000
+      },
       "heightMm": null,
-      "applications": ["Asset Protection", "Cold Storage"],
-      "industries": ["Cold storage", "Frozen food storage"],
+      "applications": [
+        "Asset Protection",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage",
+        "Frozen food storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7030/iflexbollard_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7023/iflex_bollard_cold_storage_front_1156x556.jpg",
@@ -1055,7 +1722,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/vajhrcnn/iflex_bollard_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/5613/iflex_standardbollard.pdf",
-      "relatedProducts": ["iFlex Bollard", "iFlex Heavy Duty Bollard", "eFlex Single RackEnd+Kerb", "eFlex Double RackEnd+Kerb"],
+      "relatedProducts": [
+        "iFlex Bollard",
+        "iFlex Heavy Duty Bollard",
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd+Kerb"
+      ],
       "rawText": "iFlex Bollard Cold Storage - sub-zero variant. 6,900J PAS 13. Available 835/1200/2000mm."
     },
     {
@@ -1073,12 +1745,27 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Machinery Protection", "Building Protection", "Doorway Protection", "Asset Protection"],
-      "industries": ["Manufacturing", "Warehousing", "Automotive", "Cold storage"],
+      "applications": [
+        "Machinery Protection",
+        "Building Protection",
+        "Doorway Protection",
+        "Asset Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Automotive",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/lthn25rg/190_monoplex_bollard_product_image-7-min.jpg",
         "https://webcdn.asafe.com/media/1uflthcr/190_monoplex_bollard_product_image-6-min.jpg",
@@ -1089,7 +1776,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/unobinmn/190_bollard_en.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/a5ffpuse/a-safe-monoplex-bollard-install-instructions.pdf",
-      "relatedProducts": ["iFlex Bollard Cold Storage", "iFlex Bollard", "iFlex Heavy Duty Bollard", "Sign Post"],
+      "relatedProducts": [
+        "iFlex Bollard Cold Storage",
+        "iFlex Bollard",
+        "iFlex Heavy Duty Bollard",
+        "Sign Post"
+      ],
       "rawText": "Monoplex Bollard 190 Heavy Duty - three-layer PAS 13 and TÜV Nord certified bollard. For engine counterbalance HD forklift, VNA equipment, HD counterbalance forklift, order picker, cars, pedestrian trucks/stackers."
     },
     {
@@ -1106,12 +1798,26 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Doorway Protection", "Corner Protection", "Equipment Protection", "Visual Guidance"],
-      "industries": ["Warehouses", "Loading bays", "Tight operational zones"],
+      "applications": [
+        "Doorway Protection",
+        "Corner Protection",
+        "Equipment Protection",
+        "Visual Guidance"
+      ],
+      "industries": [
+        "Warehouses",
+        "Loading bays",
+        "Tight operational zones"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/rgbkmxgr/130_monoplex_bollard_product_image-1-min.jpg",
         "https://webcdn.asafe.com/media/1eciginm/130_monoplex_bollard_product_image-2-min.jpg",
@@ -1122,7 +1828,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/vzubvcyg/130_bollard_en.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/a5ffpuse/a-safe-monoplex-bollard-install-instructions.pdf",
-      "relatedProducts": ["Pedestrian Barrier 130-T0-P3", "Bollard 190", "iFlex Bollard Cold Storage", "Sign Post"],
+      "relatedProducts": [
+        "Pedestrian Barrier 130-T0-P3",
+        "Bollard 190",
+        "iFlex Bollard Cold Storage",
+        "Sign Post"
+      ],
       "rawText": "Monoplex Bollard 130 Standard - compact bollard, three-layer construction. For doorways, corners, confined spaces."
     },
     {
@@ -1139,15 +1850,34 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Monoplex 190 Heavy Duty", "model": "190" },
-        { "name": "Monoplex 130 Standard", "model": "130" }
+        {
+          "name": "Monoplex 190 Heavy Duty",
+          "model": "190"
+        },
+        {
+          "name": "Monoplex 130 Standard",
+          "model": "130"
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Machinery Protection", "Doorway Protection", "Building Protection", "Asset Protection"],
-      "industries": ["Manufacturing", "Warehousing"],
+      "applications": [
+        "Machinery Protection",
+        "Doorway Protection",
+        "Building Protection",
+        "Asset Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/lthn25rg/190_monoplex_bollard_product_image-7-min.jpg",
         "https://webcdn.asafe.com/media/1uflthcr/190_monoplex_bollard_product_image-6-min.jpg",
@@ -1157,7 +1887,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/unobinmn/190_bollard_en.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/a5ffpuse/a-safe-monoplex-bollard-install-instructions.pdf",
-      "relatedProducts": ["iFlex Bollard Cold Storage", "iFlex Bollard", "iFlex Heavy Duty Bollard", "Sign Post"],
+      "relatedProducts": [
+        "iFlex Bollard Cold Storage",
+        "iFlex Bollard",
+        "iFlex Heavy Duty Bollard",
+        "Sign Post"
+      ],
       "rawText": "Monoplex Bollard (130 Standard & 190 Heavy Duty) - three-layer PAS 13 / TÜV Nord certified flagship Monoplex bollard."
     },
     {
@@ -1175,14 +1910,30 @@
         "Simple installation"
       ],
       "impactRating": 1600,
-      "impactRatingRaw": "1,600 Joules - 1.8 Tonnes at 4.8 Kph, 100% transfer",
-      "vehicleTest": "1.8t at 4.8 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 1600 },
+      "impactRatingRaw": "1,600 Joules",
+      "vehicleTest": "1.8 Tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (1,600 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 1600
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 520 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 520
+      },
       "heightMm": 520,
-      "applications": ["Column Protection", "Fork Protection"],
-      "industries": ["Warehousing", "Manufacturing", "Distribution", "Cold storage"],
+      "applications": [
+        "Column Protection",
+        "Fork Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Distribution",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3117/flexishieldcolumnguard08.jpg",
         "https://webcdn.asafe.com/media/2903/flexishield-column-guard-wrap-around-_front.jpg",
@@ -1194,7 +1945,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/2tobl5na/flexishield_column_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/3qsm1l32/flexishield_column_guard_v2.pdf",
-      "relatedProducts": ["Flexishield Corner Guard", "iFlexRail Column Guard", "iFlexRail Column Guard+", "Padded Column Guard"],
+      "relatedProducts": [
+        "Flexishield Corner Guard",
+        "iFlexRail Column Guard",
+        "iFlexRail Column Guard+",
+        "Padded Column Guard"
+      ],
       "rawText": "FlexiShield Column Guard - modular stackable column wrap. 1,600J PAS 13. Fits square/rectangle columns. 520mm per unit."
     },
     {
@@ -1210,14 +1966,28 @@
         "Available in black and yellow"
       ],
       "impactRating": 200,
-      "impactRatingRaw": "200 Joules - 0.5 Tonnes at 3.2 Kph",
-      "vehicleTest": "0.5t at 3.2 kph, 90°",
-      "pas13": { "certified": false, "sections": [], "method": null, "joules": null },
+      "impactRatingRaw": "200 Joules",
+      "vehicleTest": "0.5 tonnes at 3.2 kph, 90° angle of approach, 100% energy transfer (200 Joules)",
+      "pas13": {
+        "certified": false,
+        "sections": [],
+        "method": null,
+        "joules": 200
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 1000 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 1000
+      },
       "heightMm": 1000,
-      "applications": ["Wall Corner Protection", "Door Frame Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Wall Corner Protection",
+        "Door Frame Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5356/flexishieldcornerguardsitu1156x556_01.jpg",
         "https://webcdn.asafe.com/media/5350/flexishieldcornerguard_front1156x556.jpg",
@@ -1228,7 +1998,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/xm1bidih/flexishield_corner_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/xx5jzys1/flexishieldcornerguard_v2.pdf",
-      "relatedProducts": ["FlexiShield Column Guard", "iFlexRail Column Guard", "iFlexRail Column Guard+", "Padded Column Guard"],
+      "relatedProducts": [
+        "FlexiShield Column Guard",
+        "iFlexRail Column Guard",
+        "iFlexRail Column Guard+",
+        "Padded Column Guard"
+      ],
       "rawText": "FlexiShield Corner Guard - wall edge/door frame protector. 200J at 0.5t/3.2kph. Stackable 0-1000mm per unit."
     },
     {
@@ -1246,14 +2021,36 @@
         "Two- or three-sided units"
       ],
       "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules - 2.3 Tonnes at 8 Kph",
-      "vehicleTest": "2.3t at 8 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 5800 },
+      "impactRatingRaw": "5,800 Joules",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 5800
+      },
       "variants": [],
-      "heightRange": { "minMm": 450, "maxMm": 1100 },
+      "heightRange": {
+        "minMm": 450,
+        "maxMm": 1100
+      },
       "heightMm": null,
-      "applications": ["Column Protection", "Building Protection", "Structure Protection"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Airports", "Car parks", "New build", "Cold storage", "Automotive", "Chemical and power", "Food and drink"],
+      "applications": [
+        "Column Protection",
+        "Building Protection",
+        "Structure Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Airports",
+        "Car parks",
+        "New build",
+        "Cold storage",
+        "Automotive",
+        "Chemical and power",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3178/iflexrailcolumnguardpedestrian01.jpg",
         "https://webcdn.asafe.com/media/4767/iflexrail-column-guard-pedestrian-_front.jpg",
@@ -1264,7 +2061,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/ockfn3xa/iflexrail_column_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/aymeqd2g/iflexrail_column_guard_v2.pdf",
-      "relatedProducts": ["Flexishield Corner Guard", "FlexiShield Column Guard", "iFlexRail Column Guard+", "Padded Column Guard"],
+      "relatedProducts": [
+        "Flexishield Corner Guard",
+        "FlexiShield Column Guard",
+        "iFlexRail Column Guard+",
+        "Padded Column Guard"
+      ],
       "rawText": "iFlexRail Column Guard - bespoke column protection, 2 or 3 sided. 5,800J PAS 13 (TÜV Nord). 100mm rails, impact zone 450-1100mm."
     },
     {
@@ -1282,14 +2084,31 @@
         "Impact height 205-395mm"
       ],
       "impactRating": 13750,
-      "impactRatingRaw": "13,750 Joules - 3.8 Tonnes at 9.6 Kph",
-      "vehicleTest": "3.8t at 9.6 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 13750 },
+      "impactRatingRaw": "13,750 Joules",
+      "vehicleTest": "3.8 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (13,750 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 13750
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Column Protection", "Building Protection", "Asset Protection"],
-      "industries": ["Manufacturing", "Warehousing", "Automotive", "Cold storage"],
+      "applications": [
+        "Column Protection",
+        "Building Protection",
+        "Asset Protection"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Automotive",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3181/columnguardtrafficplus02.jpg",
         "https://webcdn.asafe.com/media/3616/iflexrail-column-guard-traffic-plus-_front.jpg",
@@ -1300,7 +2119,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/vilbmusm/iflexrail_column_guardplus_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/pshnj5wg/iflexrail_column_guardplus_v2.pdf",
-      "relatedProducts": ["Flexishield Corner Guard", "FlexiShield Column Guard", "iFlexRail Column Guard", "Padded Column Guard"],
+      "relatedProducts": [
+        "Flexishield Corner Guard",
+        "FlexiShield Column Guard",
+        "iFlexRail Column Guard",
+        "Padded Column Guard"
+      ],
       "rawText": "iFlexRail Column Guard+ - column protection with integrated traffic rail. 13,750J PAS 13 (TÜV Nord). 3.8t/9.6kph."
     },
     {
@@ -1319,14 +2143,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Padded Column Guard 1800mm Yellow", "heightMm": 1800, "thicknessMm": 50 }
+        {
+          "name": "Padded Column Guard 1800mm Yellow",
+          "heightMm": 1800,
+          "thicknessMm": 50
+        }
       ],
       "heightRange": null,
       "heightMm": 1800,
-      "applications": ["Column Protection", "Pedestrian Safety"],
-      "industries": ["Manufacturing", "Warehousing"],
+      "applications": [
+        "Column Protection",
+        "Pedestrian Safety"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/9873/soft_column_protector.jpg",
         "https://webcdn.asafe.com/media/9775/foamprotector_front_01_1556x556.jpg",
@@ -1335,7 +2174,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/5clf0lvo/padded_column_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/zrwdhjsn/padded_column_protector_v3.pdf",
-      "relatedProducts": ["FlexiShield Column Guard", "iFlexRail Column Guard", "iFlexRail Column Guard+", "iFlex Bollard"],
+      "relatedProducts": [
+        "FlexiShield Column Guard",
+        "iFlexRail Column Guard",
+        "iFlexRail Column Guard+",
+        "iFlex Bollard"
+      ],
       "rawText": "Padded Column Guard - foam wrap, 50mm thick, 1800mm. 360° pedestrian-soft protection."
     },
     {
@@ -1353,17 +2197,43 @@
       ],
       "impactRating": null,
       "impactRatingRaw": "Withstands multiple impacts from vehicles up to 6,400kg",
-      "vehicleTest": "Multiple impacts up to 6,400kg vehicles",
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "vehicleTest": "vehicles weighing up to 6,400Kg (14,100lbs)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Step Guard 600mm", "lengthMm": 600 },
-        { "name": "Step Guard 900mm", "lengthMm": 900 },
-        { "name": "Step Guard 1200mm", "lengthMm": 1200 }
+        {
+          "name": "Step Guard 600mm",
+          "lengthMm": 600
+        },
+        {
+          "name": "Step Guard 900mm",
+          "lengthMm": 900
+        },
+        {
+          "name": "Step Guard 1200mm",
+          "lengthMm": 1200
+        }
       ],
-      "heightRange": { "minMm": 0, "maxMm": 183 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 183
+      },
       "heightMm": 185,
-      "applications": ["Vehicle Charging Areas", "Pedestrian Walkways", "Ground-level Protection", "Pallet Stops"],
-      "industries": ["Manufacturing", "Warehouse and distribution", "Automotive"],
+      "applications": [
+        "Vehicle Charging Areas",
+        "Pedestrian Walkways",
+        "Ground-level Protection",
+        "Pallet Stops"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution",
+        "Automotive"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/11976/product_image_1_insitu_578x278.jpg",
         "https://webcdn.asafe.com/media/11982/product_image_7_578x278.jpg",
@@ -1376,7 +2246,13 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/j5ddqtow/step_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/hlahndyx/stepguard_v2.pdf",
-      "relatedProducts": ["ForkGuard Kerb Barrier", "ForkGuard Cold Storage", "eFlex Single RackEnd+Kerb", "iFlex Single RackEnd+Kerb", "Heavy Duty ForkGuard Kerb Barrier"],
+      "relatedProducts": [
+        "ForkGuard Kerb Barrier",
+        "ForkGuard Cold Storage",
+        "eFlex Single RackEnd+Kerb",
+        "iFlex Single RackEnd+Kerb",
+        "Heavy Duty ForkGuard Kerb Barrier"
+      ],
       "rawText": "Step Guard - low-level ground protection with driver step functionality. 600/900/1200mm lengths. Up to 6,400kg vehicles. PAS 13 tested."
     },
     {
@@ -1393,14 +2269,32 @@
         "Numerous lengths"
       ],
       "impactRating": 3000,
-      "impactRatingRaw": "3,000 Joules - 1.9 Tonnes at 6.4 Kph, 100% transfer",
-      "vehicleTest": "1.9t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 3000 },
+      "impactRatingRaw": "3,000 Joules",
+      "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 3000
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 183 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 183
+      },
       "heightMm": null,
-      "applications": ["Ground-level Protection", "Fork Deflection", "Pallet Stop"],
-      "industries": ["Warehousing", "Cold storage", "Manufacturing", "Automotive", "Food and drink"],
+      "applications": [
+        "Ground-level Protection",
+        "Fork Deflection",
+        "Pallet Stop"
+      ],
+      "industries": [
+        "Warehousing",
+        "Cold storage",
+        "Manufacturing",
+        "Automotive",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/2hljhqtr/forkguard_insitu_1.jpg",
         "https://webcdn.asafe.com/media/b12cj3cu/forkguard_insitu_2.jpg",
@@ -1411,7 +2305,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/c54jtoqj/forkguard_kerb_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/olqfcex1/a-safe-forkguard_installinstructions-6.pdf",
-      "relatedProducts": ["ForkGuard Cold Storage", "Heavy Duty ForkGuard Kerb Barrier", "eFlex Single RackEnd+Kerb", "iFlex Single RackEnd+Kerb"],
+      "relatedProducts": [
+        "ForkGuard Cold Storage",
+        "Heavy Duty ForkGuard Kerb Barrier",
+        "eFlex Single RackEnd+Kerb",
+        "iFlex Single RackEnd+Kerb"
+      ],
       "rawText": "ForkGuard Kerb Barrier - ground-level fork deflection. 3,000J PAS 13 at 1.9t/6.4kph. Impact 0-183mm."
     },
     {
@@ -1428,14 +2327,31 @@
         "Form memory after repeated impacts"
       ],
       "impactRating": 15800,
-      "impactRatingRaw": "15,800 Joules - 6.3 Tonnes at 8 Kph, 100% transfer",
-      "vehicleTest": "6.3t at 8 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15800 },
+      "impactRatingRaw": "15,800 Joules",
+      "vehicleTest": "6.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,800 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 15800
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 183 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 183
+      },
       "heightMm": null,
-      "applications": ["Machinery Protection", "Ground-level Protection", "Pallet Stops"],
-      "industries": ["Warehouse and distribution", "Manufacturing", "Retail", "Cold storage"],
+      "applications": [
+        "Machinery Protection",
+        "Ground-level Protection",
+        "Pallet Stops"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing",
+        "Retail",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5899/eflexforkguard1156x556.jpg",
         "https://webcdn.asafe.com/media/c1rg5frj/forkguard_front.jpg",
@@ -1446,7 +2362,13 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/n1waw513/heavy_duty_forkguard_kerb_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/spvl0xpp/a-safe-hdforkguard_installinstructions-4.pdf",
-      "relatedProducts": ["ForkGuard Kerb Barrier", "ForkGuard Cold Storage", "eFlex Single RackEnd+Kerb", "iFlex Single RackEnd+Kerb", "Step Guard"],
+      "relatedProducts": [
+        "ForkGuard Kerb Barrier",
+        "ForkGuard Cold Storage",
+        "eFlex Single RackEnd+Kerb",
+        "iFlex Single RackEnd+Kerb",
+        "Step Guard"
+      ],
       "rawText": "Heavy Duty ForkGuard Kerb Barrier - reinforced fork-deflecting kerb. 15,800J PAS 13 at 6.3t/8kph."
     },
     {
@@ -1462,14 +2384,30 @@
         "Black trimmed in blue"
       ],
       "impactRating": 3000,
-      "impactRatingRaw": "3,000 Joules - 1.9 Tonnes at 6.4 Kph",
-      "vehicleTest": "1.9t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 3000 },
+      "impactRatingRaw": "3,000 Joules",
+      "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 3000
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 183 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 183
+      },
       "heightMm": null,
-      "applications": ["Ground-level Protection", "Asset Protection", "Cold Storage"],
-      "industries": ["Cold storage", "Warehouse and distribution", "Food and drink"],
+      "applications": [
+        "Ground-level Protection",
+        "Asset Protection",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage",
+        "Warehouse and distribution",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/gbzgw1gj/forkguard_cs_side.jpg",
         "https://webcdn.asafe.com/media/bkgnwxfa/forkguard_cs_explo.jpg",
@@ -1478,7 +2416,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/rpcabd52/forkguard_kerb_barrier_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/dkhlu3zk/a-safe-forkguard_installinstructions-4.pdf",
-      "relatedProducts": ["ForkGuard Kerb Barrier", "Heavy Duty ForkGuard Kerb Barrier", "eFlex Single RackEnd+Kerb", "iFlex Single RackEnd+Kerb"],
+      "relatedProducts": [
+        "ForkGuard Kerb Barrier",
+        "Heavy Duty ForkGuard Kerb Barrier",
+        "eFlex Single RackEnd+Kerb",
+        "iFlex Single RackEnd+Kerb"
+      ],
       "rawText": "ForkGuard Cold Storage - sub-zero ForkGuard. 3,000J PAS 13. Black with blue trim."
     },
     {
@@ -1496,15 +2439,32 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Under Guard 1270x1070", "dimensionsMm": "1270x1070" },
-        { "name": "Under Guard 1200x1000", "dimensionsMm": "1200x1000" }
+        {
+          "name": "Under Guard 1270x1070",
+          "dimensionsMm": "1270x1070"
+        },
+        {
+          "name": "Under Guard 1200x1000",
+          "dimensionsMm": "1200x1000"
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Racking Aisles", "Goods In/Out Access"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Racking Aisles",
+        "Goods In/Out Access"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/ifhm00g0/underguard_insitu_6_1156x556.jpg",
         "https://webcdn.asafe.com/media/1rufc4gu/underguard_insitu_1_1156x556.jpg",
@@ -1517,7 +2477,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/g0xl3tnf/under_guard_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/hwknkfdh/asafe_underguard_installinstructions.pdf",
-      "relatedProducts": ["RackGuard", "ForkGuard Kerb Barrier", "iFlex Single RackEnd Barrier"],
+      "relatedProducts": [
+        "RackGuard",
+        "ForkGuard Kerb Barrier",
+        "iFlex Single RackEnd Barrier"
+      ],
       "rawText": "Under Guard - anti-under-ride rack buffer. 1270x1070 or 1200x1000mm. Nylon/polypropylene."
     },
     {
@@ -1535,18 +2499,48 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "800mm opening", "openingMm": 800 },
-        { "name": "900mm opening", "openingMm": 900 },
-        { "name": "1000mm opening", "openingMm": 1000 },
-        { "name": "1100mm opening", "openingMm": 1100 },
-        { "name": "1200mm opening", "openingMm": 1200 }
+        {
+          "name": "800mm opening",
+          "openingMm": 800
+        },
+        {
+          "name": "900mm opening",
+          "openingMm": 900
+        },
+        {
+          "name": "1000mm opening",
+          "openingMm": 1000
+        },
+        {
+          "name": "1100mm opening",
+          "openingMm": 1100
+        },
+        {
+          "name": "1200mm opening",
+          "openingMm": 1200
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Pedestrian Access"],
-      "industries": ["Manufacturing", "Warehousing", "Airports", "Car parks", "Cold storage", "Automotive", "Food and drink"],
+      "applications": [
+        "Pedestrian Access"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Airports",
+        "Car parks",
+        "Cold storage",
+        "Automotive",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3203/iflexswinggate05.jpg",
         "https://webcdn.asafe.com/media/4138/iflex-swinggate_shortt_front.jpg",
@@ -1558,7 +2552,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/4ewkzn5y/iflex_swing_gate_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/paedomib/iflex_swing_gate_short.pdf",
-      "relatedProducts": ["iFlex Swing Gate Long", "iFlex Slide Gate", "iFlex Pedestrian 3 Rail", "eFlex Pedestrian 3 Rail"],
+      "relatedProducts": [
+        "iFlex Swing Gate Long",
+        "iFlex Slide Gate",
+        "iFlex Pedestrian 3 Rail",
+        "eFlex Pedestrian 3 Rail"
+      ],
       "rawText": "iFlex Swing Gate Short - hydraulic self-close pedestrian gate. Opening widths 800-1200mm (100mm increments), max paired 2400mm. Black or Safety Green."
     },
     {
@@ -1575,21 +2574,58 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "1300mm", "openingMm": 1300 },
-        { "name": "1400mm", "openingMm": 1400 },
-        { "name": "1500mm", "openingMm": 1500 },
-        { "name": "1600mm", "openingMm": 1600 },
-        { "name": "1700mm", "openingMm": 1700 },
-        { "name": "1800mm", "openingMm": 1800 },
-        { "name": "1900mm", "openingMm": 1900 },
-        { "name": "2000mm", "openingMm": 2000 }
+        {
+          "name": "1300mm",
+          "openingMm": 1300
+        },
+        {
+          "name": "1400mm",
+          "openingMm": 1400
+        },
+        {
+          "name": "1500mm",
+          "openingMm": 1500
+        },
+        {
+          "name": "1600mm",
+          "openingMm": 1600
+        },
+        {
+          "name": "1700mm",
+          "openingMm": 1700
+        },
+        {
+          "name": "1800mm",
+          "openingMm": 1800
+        },
+        {
+          "name": "1900mm",
+          "openingMm": 1900
+        },
+        {
+          "name": "2000mm",
+          "openingMm": 2000
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Pedestrian Access", "Vehicle Access"],
-      "industries": ["Manufacturing", "Warehousing", "Airports", "Car parks"],
+      "applications": [
+        "Pedestrian Access",
+        "Vehicle Access"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/submrtdp/swing_gate_long_insitu_3.jpg",
         "https://webcdn.asafe.com/media/2920/iflex-swinggate_long_front.jpg",
@@ -1600,7 +2636,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/4ewkzn5y/iflex_swing_gate_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/n0lhtwwc/iflex_swing_gate_long.pdf",
-      "relatedProducts": ["iFlex Swing Gate Short", "iFlex Slide Gate", "iFlex Pedestrian 3 Rail", "eFlex Pedestrian 3 Rail"],
+      "relatedProducts": [
+        "iFlex Swing Gate Short",
+        "iFlex Slide Gate",
+        "iFlex Pedestrian 3 Rail",
+        "eFlex Pedestrian 3 Rail"
+      ],
       "rawText": "iFlex Swing Gate Long - stay-open vehicle/pedestrian gate. Widths 1300-2000mm (100mm increments), max paired 4000mm."
     },
     {
@@ -1617,16 +2658,36 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "1000mm", "widthMm": 1000 },
-        { "name": "1500mm", "widthMm": 1500 },
-        { "name": "2000mm", "widthMm": 2000 }
+        {
+          "name": "1000mm",
+          "widthMm": 1000
+        },
+        {
+          "name": "1500mm",
+          "widthMm": 1500
+        },
+        {
+          "name": "2000mm",
+          "widthMm": 2000
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Pedestrian Access", "Vehicle Access"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Pedestrian Access",
+        "Vehicle Access"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3198/iflexslidegate04.jpg",
         "https://webcdn.asafe.com/media/2919/iflex-slidegate_front.jpg",
@@ -1638,7 +2699,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/mq5hltoa/iflex_slide_gate_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/jqdd4225/iflex_slide_gate.pdf",
-      "relatedProducts": ["iFlex Pedestrian 3 Rail", "eFlex Pedestrian 3 Rail", "iFlex Swing Gate Long", "iFlex Swing Gate Short"],
+      "relatedProducts": [
+        "iFlex Pedestrian 3 Rail",
+        "eFlex Pedestrian 3 Rail",
+        "iFlex Swing Gate Long",
+        "iFlex Swing Gate Short"
+      ],
       "rawText": "iFlex Slide Gate - telescopic sliding gate. Widths 1000/1500/2000mm. Black standard."
     },
     {
@@ -1654,18 +2720,42 @@
         "Optimum impact height to stop workplace vehicles"
       ],
       "impactRating": 14000,
-      "impactRatingRaw": "14,000 Joules - 3.2 Tonnes at 10.4 Kph, 100% transfer",
-      "vehicleTest": "3.2t at 10.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 14000 },
+      "impactRatingRaw": "14,000 Joules",
+      "vehicleTest": "3.2 tonnes at 10.4 kph, 90° angle, 100% energy transfer (14,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 14000
+      },
       "variants": [
-        { "name": "Traffic Gate 2m", "widthM": 2 },
-        { "name": "Traffic Gate 2.5m", "widthM": 2.5 },
-        { "name": "Traffic Gate 3m", "widthM": 3 }
+        {
+          "name": "Traffic Gate 2m",
+          "widthM": 2
+        },
+        {
+          "name": "Traffic Gate 2.5m",
+          "widthM": 2.5
+        },
+        {
+          "name": "Traffic Gate 3m",
+          "widthM": 3
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Loading Bay Protection", "Doorway Protection", "Goods In/Out"],
-      "industries": ["Warehousing", "Manufacturing", "Cold storage", "Automotive", "Food and drink"],
+      "applications": [
+        "Loading Bay Protection",
+        "Doorway Protection",
+        "Goods In/Out"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Cold storage",
+        "Automotive",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5iopg3ua/traffic_gate_insitu_1.jpg",
         "https://webcdn.asafe.com/media/negjjll2/traffic_gate_insitu_3.jpg",
@@ -1679,7 +2769,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/3clp4rvs/traffic_gate_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/rlglxwge/a-safe-trafficgate_installinstructionsv10-1.pdf",
-      "relatedProducts": ["Dock Buffer", "Truck Stop", "iFlex Heavy Duty Bollard", "iFlex Height Restrictor"],
+      "relatedProducts": [
+        "Dock Buffer",
+        "Truck Stop",
+        "iFlex Heavy Duty Bollard",
+        "iFlex Height Restrictor"
+      ],
       "rawText": "Traffic Gate - loading dock barrier with gas-assisted lift, positive lock. Widths 2/2.5/3m. 14,000J PAS 13 (TÜV Nord) at 3.2t/10.4kph."
     },
     {
@@ -1697,17 +2792,39 @@
         "Customizable heights in 100mm increments"
       ],
       "impactRating": 5400,
-      "impactRatingRaw": "5,400 Joules - 6 Tonnes at 4.8 Kph",
-      "vehicleTest": "6t at 4.8 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 5400 },
+      "impactRatingRaw": "5,400 Joules",
+      "vehicleTest": "6 tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (5,400 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 5400
+      },
       "variants": [
-        { "name": "Post component", "type": "post" },
-        { "name": "Top rail component", "type": "top-rail" }
+        {
+          "name": "Post component",
+          "type": "post"
+        },
+        {
+          "name": "Top rail component",
+          "type": "top-rail"
+        }
       ],
-      "heightRange": { "minMm": 0, "maxMm": 5000 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 5000
+      },
       "heightMm": null,
-      "applications": ["Doorway Protection", "Height Restriction", "Overhead Protection"],
-      "industries": ["Warehousing", "Manufacturing", "Cold storage"],
+      "applications": [
+        "Doorway Protection",
+        "Height Restriction",
+        "Overhead Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5679/iflexheightrestrictsitu1156x556_03.jpg",
         "https://webcdn.asafe.com/media/5674/iflexheightrestrict_front1156x556.jpg",
@@ -1719,7 +2836,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/goqh3hhk/iflex_height_restrictor_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/gzjfqp2k/iflex_height_restrictor_o_25m_v2.pdf",
-      "relatedProducts": ["iFlex Height Restrictor Cold Storage", "Alarm Bar", "Dock Buffer"],
+      "relatedProducts": [
+        "iFlex Height Restrictor Cold Storage",
+        "Alarm Bar",
+        "Dock Buffer"
+      ],
       "rawText": "iFlex Height Restrictor - customizable up to 5m high/6m wide in 100mm increments. 5,400J PAS 13 (TÜV Nord). Galvanised base."
     },
     {
@@ -1735,14 +2856,28 @@
         "100mm increment heights"
       ],
       "impactRating": 5400,
-      "impactRatingRaw": "5,400 Joules - 6 Tonnes at 4.8 Kph",
-      "vehicleTest": "6t at 4.8 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 5400 },
+      "impactRatingRaw": "5,400 Joules",
+      "vehicleTest": "6 tonnes at 4.8 kph, 90° angle of approach, 100% energy transfer (5,400 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 5400
+      },
       "variants": [],
-      "heightRange": { "minMm": 0, "maxMm": 5000 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 5000
+      },
       "heightMm": null,
-      "applications": ["Doorframe Protection", "Cold Storage", "Overhead Protection"],
-      "industries": ["Cold storage"],
+      "applications": [
+        "Doorframe Protection",
+        "Cold Storage",
+        "Overhead Protection"
+      ],
+      "industries": [
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7031/iflex_height_restrictor_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7024/iflex_height_restrictor_cold_storage_front_1156x556.jpg",
@@ -1753,7 +2888,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/ct4nd3e0/iflex_height_restrictor_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/zoepltrp/iflex_height_restrictor_o_25m_v2.pdf",
-      "relatedProducts": ["iFlex Height Restrictor", "Dock Buffer", "Alarm Bar"],
+      "relatedProducts": [
+        "iFlex Height Restrictor",
+        "Dock Buffer",
+        "Alarm Bar"
+      ],
       "rawText": "iFlex Height Restrictor Cold Storage - sub-zero height restrictor. 5,400J PAS 13."
     },
     {
@@ -1771,12 +2910,24 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Door Frame Protection", "Loading Dock Protection", "Overhead Asset Protection"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Door Frame Protection",
+        "Loading Dock Protection",
+        "Overhead Asset Protection"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/4875/alarmbar01.jpg",
         "https://webcdn.asafe.com/media/4876/alarmbar02.jpg",
@@ -1789,7 +2940,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/j0sbi4xr/alarm_bar_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/vjthallh/alarm_bar_v3.pdf",
-      "relatedProducts": ["iFlex Height Restrictor", "iFlex Height Restrictor Cold Storage", "iFlex Double Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Height Restrictor",
+        "iFlex Height Restrictor Cold Storage",
+        "iFlex Double Traffic Barrier"
+      ],
       "rawText": "Alarm Bar - ceiling-mounted audio-visual alarm with 20-second buzzer, 40-second red flash. For door frames, loading docks, overhead protection."
     },
     {
@@ -1807,15 +2962,40 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": ["AS 4084", "EN 15635", "EN 15512", "FEM 10.2.02"], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [
+          "AS 4084",
+          "EN 15635",
+          "EN 15512",
+          "FEM 10.2.02"
+        ],
+        "method": "pendulum",
+        "joules": null
+      },
       "variants": [
-        { "name": "RackGuard 400mm", "heightMm": 400 },
-        { "name": "RackGuard 600mm", "heightMm": 600 }
+        {
+          "name": "RackGuard 400mm",
+          "heightMm": 400
+        },
+        {
+          "name": "RackGuard 600mm",
+          "heightMm": 600
+        }
       ],
-      "heightRange": { "minMm": 0, "maxMm": 600 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 600
+      },
       "heightMm": null,
-      "applications": ["Rack Leg Protection", "Racking Protection"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Rack Leg Protection",
+        "Racking Protection"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/hy4npla5/rackguard-in-situ.png",
         "https://webcdn.asafe.com/media/2926/rackguard-rack-leg-protector_front.jpg",
@@ -1830,7 +3010,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/1ubi2irr/rackguard_uae_11_25.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/g4bozf2y/rackguard_rack_leg_protector_v2.pdf",
-      "relatedProducts": ["RackGuard Cold Storage", "RackEye", "eFlex Single RackEnd Barrier", "eFlex Double RackEnd Barrier"],
+      "relatedProducts": [
+        "RackGuard Cold Storage",
+        "RackEye",
+        "eFlex Single RackEnd Barrier",
+        "eFlex Double RackEnd Barrier"
+      ],
       "rawText": "RackGuard - TÜV Nord/PAS 13 certified rack leg protector. 400mm or 600mm heights. Compression hinge. AS 4084, EN 15635, EN 15512, FEM 10.2.02 compliant."
     },
     {
@@ -1848,15 +3033,35 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "RackGuard CS 400mm", "heightMm": 400 },
-        { "name": "RackGuard CS 600mm", "heightMm": 600 }
+        {
+          "name": "RackGuard CS 400mm",
+          "heightMm": 400
+        },
+        {
+          "name": "RackGuard CS 600mm",
+          "heightMm": 600
+        }
       ],
-      "heightRange": { "minMm": 0, "maxMm": 600 },
+      "heightRange": {
+        "minMm": 0,
+        "maxMm": 600
+      },
       "heightMm": null,
-      "applications": ["Rack Leg Protection", "Cold Storage"],
-      "industries": ["Cold storage", "Frozen food storage"],
+      "applications": [
+        "Rack Leg Protection",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage",
+        "Frozen food storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7034/iflex_rackguard_cold_storage_1156x556.jpg",
         "https://webcdn.asafe.com/media/7027/iflex_rackguard_cold_storage_front1156x556.jpg",
@@ -1866,7 +3071,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/jkvf4ohh/rackguard_cold_storage_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/6071/rackguard_rack_leg_protector.pdf",
-      "relatedProducts": ["RackGuard", "RackEye", "iFlex Single RackEnd+Kerb", "eFlex Double RackEnd+Kerb"],
+      "relatedProducts": [
+        "RackGuard",
+        "RackEye",
+        "iFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd+Kerb"
+      ],
       "rawText": "RackGuard Cold Storage - -30°C rated rack leg protector. 400mm or 600mm."
     },
     {
@@ -1884,14 +3094,28 @@
         "Yellow rails/posts standard"
       ],
       "impactRating": 4000,
-      "impactRatingRaw": "4,000 Joules - 2.5 Tonnes at 6.4 Kph",
-      "vehicleTest": "2.5t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 4000 },
+      "impactRatingRaw": "4,000 Joules",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° approach angle, 100% energy transfer (4,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 4000
+      },
       "variants": [],
-      "heightRange": { "minMm": 255, "maxMm": 345 },
+      "heightRange": {
+        "minMm": 255,
+        "maxMm": 345
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Racking Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Rack End Protection",
+        "Racking Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3764/reflexrackendsinglerailbarrier_04.jpg",
         "https://webcdn.asafe.com/media/2930/reflex_singlerailrackendbarrier_front.jpg",
@@ -1902,7 +3126,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/2elh4vze/eflex_single_rackend_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/4798/eflex_single_rackend_barrier.pdf",
-      "relatedProducts": ["eFlex Single RackEnd+Kerb", "eFlex Double RackEnd Barrier", "eFlex Double RackEnd+Kerb", "iFlex Single RackEnd Barrier"],
+      "relatedProducts": [
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd Barrier",
+        "eFlex Double RackEnd+Kerb",
+        "iFlex Single RackEnd Barrier"
+      ],
       "rawText": "eFlex Single RackEnd Barrier - 90x90mm rail single rack end. 4,000J PAS 13 (TÜV Nord) at 2.5t/6.4kph. Impact 255-345mm."
     },
     {
@@ -1918,14 +3147,28 @@
         "Yellow rails/posts standard"
       ],
       "impactRating": 4000,
-      "impactRatingRaw": "4,000 Joules - 2.5 Tonnes at 6.4 Kph",
-      "vehicleTest": "2.5t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 4000 },
+      "impactRatingRaw": "4,000 Joules",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+      "pas13": {
+        "certified": false,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 4000
+      },
       "variants": [],
-      "heightRange": { "minMm": 255, "maxMm": 345 },
+      "heightRange": {
+        "minMm": 255,
+        "maxMm": 345
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Fork Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Rack End Protection",
+        "Fork Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5093/eflex_rackend_barrierpluskerb.jpg",
         "https://webcdn.asafe.com/media/5074/eflex_rackend_barrierpluskerb_front.jpg",
@@ -1934,7 +3177,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": "https://webcdn.asafe.com/media/5728/eflex_single_rackend_forkguardbarrier.pdf",
-      "relatedProducts": ["eFlex Single RackEnd Barrier", "eFlex Double RackEnd Barrier", "eFlex Double RackEnd+Kerb", "iFlex Single RackEnd Barrier"],
+      "relatedProducts": [
+        "eFlex Single RackEnd Barrier",
+        "eFlex Double RackEnd Barrier",
+        "eFlex Double RackEnd+Kerb",
+        "iFlex Single RackEnd Barrier"
+      ],
       "rawText": "eFlex Single RackEnd+Kerb - rack end with integrated ForkGuard. 4,000J PAS 13 at 2.5t/6.4 kph."
     },
     {
@@ -1950,14 +3198,28 @@
         "Spinning collars"
       ],
       "impactRating": 6000,
-      "impactRatingRaw": "6,000 Joules - 3.7 Tonnes at 6.4 Kph",
-      "vehicleTest": "3.7t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 6000 },
+      "impactRatingRaw": "6,000 Joules",
+      "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 6000
+      },
       "variants": [],
-      "heightRange": { "minMm": 185, "maxMm": 405 },
+      "heightRange": {
+        "minMm": 185,
+        "maxMm": 405
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Racking Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Rack End Protection",
+        "Racking Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3761/reflexrackenddoublerailbarrier_03.jpg",
         "https://webcdn.asafe.com/media/3252/reflexrackenddoublerailbarrier_02.jpg",
@@ -1970,7 +3232,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/42khy3mj/eflex_double_rackend_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/eytmmvrl/eflex_double_rackend_barrier_v2.pdf",
-      "relatedProducts": ["iFlex Single RackEnd Barrier", "iFlex Single RackEnd+Kerb", "eFlex Single RackEnd+Kerb", "eFlex Single RackEnd Barrier"],
+      "relatedProducts": [
+        "iFlex Single RackEnd Barrier",
+        "iFlex Single RackEnd+Kerb",
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Single RackEnd Barrier"
+      ],
       "rawText": "eFlex Double RackEnd Barrier - two 90x90mm rails. 6,000J PAS 13 at 3.7t/6.4kph. Impact 185-405mm."
     },
     {
@@ -1986,14 +3253,28 @@
         "Yellow rails/posts"
       ],
       "impactRating": 6000,
-      "impactRatingRaw": "6,000 Joules - 3.7 Tonnes at 6.4 Kph",
-      "vehicleTest": "3.7t at 6.4 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 6000 },
+      "impactRatingRaw": "6,000 Joules",
+      "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+      "pas13": {
+        "certified": false,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 6000
+      },
       "variants": [],
-      "heightRange": { "minMm": 185, "maxMm": 405 },
+      "heightRange": {
+        "minMm": 185,
+        "maxMm": 405
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Fork Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Rack End Protection",
+        "Fork Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5095/eflex_rackendpluskerb_protecting_racking.jpg",
         "https://webcdn.asafe.com/media/5097/eflex_double_rackend_barrierspluskerb_front.jpg",
@@ -2003,7 +3284,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": "https://webcdn.asafe.com/media/xsdpx4ar/eflex_double_rackend_forkguardbarrier_v2.pdf",
-      "relatedProducts": ["eFlex Single RackEnd+Kerb", "eFlex Single RackEnd Barrier", "iFlex Single RackEnd Barrier", "iFlex Single RackEnd+Kerb"],
+      "relatedProducts": [
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Single RackEnd Barrier",
+        "iFlex Single RackEnd Barrier",
+        "iFlex Single RackEnd+Kerb"
+      ],
       "rawText": "eFlex Double RackEnd+Kerb - double rail with ForkGuard. 6,000J PAS 13 at 3.7t/6.4kph."
     },
     {
@@ -2020,14 +3306,30 @@
         "Hygiene seals"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 6 Tonnes at 8 Kph",
-      "vehicleTest": "6t at 8 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15,100 Joules",
+      "vehicleTest": "6 tonnes at 8 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "pendulum",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Racking Protection"],
-      "industries": ["Warehousing", "Manufacturing", "Cold storage", "Food and drink"],
+      "applications": [
+        "Rack End Protection",
+        "Racking Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Cold storage",
+        "Food and drink"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3744/vw-1.jpg",
         "https://webcdn.asafe.com/media/2912/iflex-rackend-barrier_yellowpost_front.jpg",
@@ -2037,7 +3339,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/jljnybu2/iflex_single_rackend_barrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/b22bihqw/iflex_single_rackend_barrier_v2.pdf",
-      "relatedProducts": ["iFlex Single RackEnd+Kerb", "eFlex Double RackEnd+Kerb", "eFlex Single RackEnd+Kerb", "eFlex Single RackEnd Barrier"],
+      "relatedProducts": [
+        "iFlex Single RackEnd+Kerb",
+        "eFlex Double RackEnd+Kerb",
+        "eFlex Single RackEnd+Kerb",
+        "eFlex Single RackEnd Barrier"
+      ],
       "rawText": "iFlex Single RackEnd Barrier - 190mm heavy-duty rack end. 15,100J PAS 13 (TÜV Nord) at 6t/8kph."
     },
     {
@@ -2052,14 +3359,28 @@
         "Yellow rails and posts"
       ],
       "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules - 6 Tonnes at 8 Kph",
-      "vehicleTest": "6t at 8 kph, 90°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 15100 },
+      "impactRatingRaw": "15,100 Joules",
+      "vehicleTest": "6 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "pas13": {
+        "certified": false,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 15100
+      },
       "variants": [],
-      "heightRange": { "minMm": 205, "maxMm": 395 },
+      "heightRange": {
+        "minMm": 205,
+        "maxMm": 395
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Fork Protection"],
-      "industries": ["Warehousing", "Manufacturing"],
+      "applications": [
+        "Rack End Protection",
+        "Fork Protection"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5065/rackend_kerb_barrier_protecting_racking_1.jpg",
         "https://webcdn.asafe.com/media/5070/iflex_rackend_barrierpluskerb_front.jpg",
@@ -2069,7 +3390,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": "https://webcdn.asafe.com/media/stcjm24t/iflex_single_rackend_withforkguardbarrier_v2.pdf",
-      "relatedProducts": ["iFlex Single RackEnd Barrier", "eFlex Double RackEnd+Kerb", "eFlex Double RackEnd Barrier", "eFlex Single RackEnd+Kerb"],
+      "relatedProducts": [
+        "iFlex Single RackEnd Barrier",
+        "eFlex Double RackEnd+Kerb",
+        "eFlex Double RackEnd Barrier",
+        "eFlex Single RackEnd+Kerb"
+      ],
       "rawText": "iFlex Single RackEnd+Kerb - 190mm rack end with integrated ForkGuard. 15,100J PAS 13."
     },
     {
@@ -2085,14 +3411,27 @@
         "Black with blue details"
       ],
       "impactRating": 4000,
-      "impactRatingRaw": "4,000 Joules - 2.5 Tonnes at 6.4 Kph",
-      "vehicleTest": "2.5t at 6.4 kph; 90°, 45°, 22.5°",
-      "pas13": { "certified": true, "sections": [], "method": "vehicle", "joules": 4000 },
+      "impactRatingRaw": "4,000 Joules",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": "vehicle",
+        "joules": 4000
+      },
       "variants": [],
-      "heightRange": { "minMm": 250, "maxMm": 350 },
+      "heightRange": {
+        "minMm": 250,
+        "maxMm": 350
+      },
       "heightMm": null,
-      "applications": ["Rack End Protection", "Cold Storage"],
-      "industries": ["Cold storage"],
+      "applications": [
+        "Rack End Protection",
+        "Cold Storage"
+      ],
+      "industries": [
+        "Cold storage"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/cerntzhr/single_rackend_cold_storage_insitu.jpg",
         "https://webcdn.asafe.com/media/1rsn43zy/single_rackend_barrier_explo.jpg",
@@ -2103,7 +3442,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/gsyaeq2y/single_rackend_barrier_cold_storage.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/kozndkff/cold-storage-rackend-barrier_install.pdf",
-      "relatedProducts": ["RackGuard Cold Storage", "ForkGuard Cold Storage", "iFlex Bollard Cold Storage", "iFlex Pedestrian Barrier 3 Rail Cold Storage"],
+      "relatedProducts": [
+        "RackGuard Cold Storage",
+        "ForkGuard Cold Storage",
+        "iFlex Bollard Cold Storage",
+        "iFlex Pedestrian Barrier 3 Rail Cold Storage"
+      ],
       "rawText": "Single RackEnd Barrier Cold Storage - Memaplex SubZero material -30°C. 4,000J PAS 13."
     },
     {
@@ -2121,12 +3465,25 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": ["EN 15635"], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [
+          "EN 15635"
+        ],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Racking Protection", "Impact Monitoring"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Racking Protection",
+        "Impact Monitoring"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5c2jhmoe/rackeye5.jpg",
         "https://webcdn.asafe.com/media/3ucleg31/rackeye1.jpg",
@@ -2136,7 +3493,12 @@
       ],
       "technicalSheetUrl": null,
       "installationGuideUrl": null,
-      "relatedProducts": ["eFlex Single RackEnd+Kerb", "iFlex Single RackEnd+Kerb", "RackGuard Cold Storage", "RackGuard"],
+      "relatedProducts": [
+        "eFlex Single RackEnd+Kerb",
+        "iFlex Single RackEnd+Kerb",
+        "RackGuard Cold Storage",
+        "RackGuard"
+      ],
       "rawText": "RackEye - IoT rack impact monitoring system. Not available in Middle East. 24/7 alerts, EN 15635 compliance inspection support."
     },
     {
@@ -2155,14 +3517,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Dock Buffer Standard", "heightMm": 520, "widthMm": 295, "depthMm": 110 }
+        {
+          "name": "Dock Buffer Standard",
+          "heightMm": 520,
+          "widthMm": 295,
+          "depthMm": 110
+        }
       ],
       "heightRange": null,
       "heightMm": 520,
-      "applications": ["Loading Dock Protection"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Loading Dock Protection"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/9782/dockbuffer_insitu_01_1156x556.jpg",
         "https://webcdn.asafe.com/media/9793/dockbuffer_front_01_1556x556.jpg",
@@ -2174,7 +3551,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/hfagk52e/dock_buffer_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/hgbeaxds/dock_buffer_v2.pdf",
-      "relatedProducts": ["Truck Stop", "Coach Stop", "Car Stop"],
+      "relatedProducts": [
+        "Truck Stop",
+        "Coach Stop",
+        "Car Stop"
+      ],
       "rawText": "Dock Buffer - polymer loading dock buffer 520x295x110mm. Black. Weatherproof."
     },
     {
@@ -2192,14 +3573,31 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Truck Stop 1000x300x160", "lengthMm": 1000, "widthMm": 300, "heightMm": 160 }
+        {
+          "name": "Truck Stop 1000x300x160",
+          "lengthMm": 1000,
+          "widthMm": 300,
+          "heightMm": 160
+        }
       ],
       "heightRange": null,
       "heightMm": 160,
-      "applications": ["Service Yards", "HGV Restraint"],
-      "industries": ["Warehouse and distribution", "Logistics", "Ports"],
+      "applications": [
+        "Service Yards",
+        "HGV Restraint"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Logistics",
+        "Ports"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/9844/truckstops.jpg",
         "https://webcdn.asafe.com/media/9766/truckstop_front_277x130.jpg",
@@ -2209,7 +3607,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/lkdmplcv/truck_stop_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/ed3hd1hd/truck_stop_v2.pdf",
-      "relatedProducts": ["Dock Buffer", "Car Stop", "Coach Stop"],
+      "relatedProducts": [
+        "Dock Buffer",
+        "Car Stop",
+        "Coach Stop"
+      ],
       "rawText": "Truck Stop - HGV wheel stop, recycled rubber. 1000x300x160mm, black with yellow stripe."
     },
     {
@@ -2226,14 +3628,31 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": false,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Coach Stop 1000x220x115", "lengthMm": 1000, "widthMm": 220, "heightMm": 115 }
+        {
+          "name": "Coach Stop 1000x220x115",
+          "lengthMm": 1000,
+          "widthMm": 220,
+          "heightMm": 115
+        }
       ],
       "heightRange": null,
       "heightMm": 115,
-      "applications": ["Coach/Bus Restraint", "Delivery Truck Restraint"],
-      "industries": ["Transportation", "Distribution", "Logistics"],
+      "applications": [
+        "Coach/Bus Restraint",
+        "Delivery Truck Restraint"
+      ],
+      "industries": [
+        "Transportation",
+        "Distribution",
+        "Logistics"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/11766/coach_stop_417x201.jpg",
         "https://webcdn.asafe.com/media/9779/carstop3_front01_11556x556.jpg",
@@ -2244,7 +3663,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/xomn3dyt/coach_stop_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/dhwlvj1i/coach_stop_v3.pdf",
-      "relatedProducts": ["Truck Stop", "Car Stop", "iFlex Single Car Park Barrier"],
+      "relatedProducts": [
+        "Truck Stop",
+        "Car Stop",
+        "iFlex Single Car Park Barrier"
+      ],
       "rawText": "Coach Stop - coach/bus rubber wheel stop 1000x220x115mm."
     },
     {
@@ -2261,14 +3684,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Car Stop 1000x140x80", "lengthMm": 1000, "widthMm": 140, "heightMm": 80 }
+        {
+          "name": "Car Stop 1000x140x80",
+          "lengthMm": 1000,
+          "widthMm": 140,
+          "heightMm": 80
+        }
       ],
       "heightRange": null,
       "heightMm": 80,
-      "applications": ["Parking Bay Definition", "Car Park"],
-      "industries": ["Car parks"],
+      "applications": [
+        "Parking Bay Definition",
+        "Car Park"
+      ],
+      "industries": [
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/11767/car_stop_417x201.jpg",
         "https://webcdn.asafe.com/media/9762/carstop4_front_277x130.jpg",
@@ -2279,7 +3717,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/kvobt5b3/car_stop_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/fxgjzfex/car_stop_v2.pdf",
-      "relatedProducts": ["Truck Stop", "Coach Stop", "iFlex Single Car Park Barrier"],
+      "relatedProducts": [
+        "Truck Stop",
+        "Coach Stop",
+        "iFlex Single Car Park Barrier"
+      ],
       "rawText": "Car Stop - car wheel stop 1000x140x80mm."
     },
     {
@@ -2297,14 +3739,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Retractable Barrier (up to 9m tape)", "tapeLengthM": 9 }
+        {
+          "name": "Retractable Barrier (up to 9m tape)",
+          "tapeLengthM": 9
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Access Control", "Hazard Isolation", "Temporary Cordoning"],
-      "industries": ["Manufacturing", "Warehouse and distribution"],
+      "applications": [
+        "Access Control",
+        "Hazard Isolation",
+        "Temporary Cordoning"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehouse and distribution"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/ngdpvcl2/a-safe_retractable_barrier.jpg",
         "https://webcdn.asafe.com/media/okjdyolj/8752_posttopost01_scr.jpg",
@@ -2317,7 +3774,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/pxsdki1d/a-safe_retractablebarrier_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/ybuf0y2i/asafe_retractablebarrier_installinstructions-1.pdf",
-      "relatedProducts": ["Retractable Barrier Racking Kit", "Sign Cap", "Sign Post"],
+      "relatedProducts": [
+        "Retractable Barrier Racking Kit",
+        "Sign Cap",
+        "Sign Post"
+      ],
       "rawText": "Retractable Barrier - belt/tape retractable access control unit, up to 9m webbing. Multiple linkable units, post-to-post/post-to-wall variants."
     },
     {
@@ -2335,12 +3796,24 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Access Control", "Rack Aisle Closure", "Maintenance"],
-      "industries": ["Warehouse and distribution", "Manufacturing"],
+      "applications": [
+        "Access Control",
+        "Rack Aisle Closure",
+        "Maintenance"
+      ],
+      "industries": [
+        "Warehouse and distribution",
+        "Manufacturing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/kzeinb4g/a-safe_retractable_barrier_racking_hazards.jpg",
         "https://webcdn.asafe.com/media/xewi3nqh/a-safe_retractable_barrier_racking_access-control.jpg",
@@ -2350,7 +3823,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/3zjjjdgq/a-safe_retractablebarrier_tape_racking_kit_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/ybuf0y2i/asafe_retractablebarrier_installinstructions-1.pdf",
-      "relatedProducts": ["Retractable Barrier", "Sign Cap", "Sign Post"],
+      "relatedProducts": [
+        "Retractable Barrier",
+        "Sign Cap",
+        "Sign Post"
+      ],
       "rawText": "Retractable Barrier Racking Kit - portable kit, 2 tape units + 2 attachments + 2 receivers + 8 magnets in carry case."
     },
     {
@@ -2368,16 +3845,36 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Slider Plate 130", "postMm": 130 },
-        { "name": "Slider Plate 158", "postMm": 158 },
-        { "name": "Slider Plate 190", "postMm": 190 }
+        {
+          "name": "Slider Plate 130",
+          "postMm": 130
+        },
+        {
+          "name": "Slider Plate 158",
+          "postMm": 158
+        },
+        {
+          "name": "Slider Plate 190",
+          "postMm": 190
+        }
       ],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Vehicle Access", "Maintenance Access"],
-      "industries": ["Manufacturing", "Warehousing"],
+      "applications": [
+        "Vehicle Access",
+        "Maintenance Access"
+      ],
+      "industries": [
+        "Manufacturing",
+        "Warehousing"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/3288/sliderplate_03.jpg",
         "https://webcdn.asafe.com/media/2937/sliderplates_158_front.jpg",
@@ -2388,7 +3885,12 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/heppb4kb/slider_base_plates_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/facn13e0/slider-plates_v2.pdf",
-      "relatedProducts": ["iFlex Pedestrian 3 Rail", "iFlex Pedestrian Barrier 3 Rail Cold Storage", "eFlex Pedestrian 3 Rail", "iFlex Single Traffic Barrier"],
+      "relatedProducts": [
+        "iFlex Pedestrian 3 Rail",
+        "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+        "eFlex Pedestrian 3 Rail",
+        "iFlex Single Traffic Barrier"
+      ],
       "rawText": "Slider Plate (aka Slider Base Plate) - removable base plate. Fits 130/158/190mm posts. Ductile cast iron, black."
     },
     {
@@ -2407,12 +3909,25 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": true, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": true,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [],
       "heightRange": null,
       "heightMm": null,
-      "applications": ["Signage", "Traffic Management"],
-      "industries": ["Warehousing", "Manufacturing", "Airports", "Car parks"],
+      "applications": [
+        "Signage",
+        "Traffic Management"
+      ],
+      "industries": [
+        "Warehousing",
+        "Manufacturing",
+        "Airports",
+        "Car parks"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/5597/signcapsitu1156x556_01.jpg",
         "https://webcdn.asafe.com/media/5593/signcap_front1156x556.jpg",
@@ -2424,7 +3939,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/vvif2dov/sign_cap_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/vtnahcot/signcap_v2.pdf",
-      "relatedProducts": ["Sign Post", "Retractable Barrier", "Retractable Barrier Racking Kit"],
+      "relatedProducts": [
+        "Sign Post",
+        "Retractable Barrier",
+        "Retractable Barrier Racking Kit"
+      ],
       "rawText": "Sign Cap - retrofits to 190mm bollards, holds 200mm dia signs."
     },
     {
@@ -2443,14 +3962,29 @@
       "impactRating": null,
       "impactRatingRaw": null,
       "vehicleTest": null,
-      "pas13": { "certified": null, "sections": [], "method": null, "joules": null },
+      "pas13": {
+        "certified": null,
+        "sections": [],
+        "method": null,
+        "joules": null
+      },
       "variants": [
-        { "name": "Sign Post 1200mm / 190mm dia", "heightMm": 1200, "diameterMm": 190 }
+        {
+          "name": "Sign Post 1200mm / 190mm dia",
+          "heightMm": 1200,
+          "diameterMm": 190
+        }
       ],
       "heightRange": null,
       "heightMm": 1200,
-      "applications": ["Signage", "Traffic Management", "Pedestrian Guidance"],
-      "industries": ["General workplace facilities"],
+      "applications": [
+        "Signage",
+        "Traffic Management",
+        "Pedestrian Guidance"
+      ],
+      "industries": [
+        "General workplace facilities"
+      ],
       "imageUrls": [
         "https://webcdn.asafe.com/media/7984/signpost_situ03_1156x556.jpg",
         "https://webcdn.asafe.com/media/7986/signpost_front_1156x556.jpg",
@@ -2462,7 +3996,11 @@
       ],
       "technicalSheetUrl": "https://webcdn.asafe.com/media/0p5lpj5g/sign_post_uae.pdf",
       "installationGuideUrl": "https://webcdn.asafe.com/media/mbngxagc/signpost_v2.pdf",
-      "relatedProducts": ["Sign Cap", "Retractable Barrier", "Retractable Barrier Racking Kit"],
+      "relatedProducts": [
+        "Sign Cap",
+        "Retractable Barrier",
+        "Retractable Barrier Racking Kit"
+      ],
       "rawText": "Sign Post - 190mm dia, 1200mm high signage post. Holds circular signs up to 200mm. Four-position lock, hygiene seals."
     }
   ]
