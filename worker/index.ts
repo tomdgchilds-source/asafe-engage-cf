@@ -1041,6 +1041,59 @@ app.get("/api/admin/seed-vehicle-types", authMiddleware, async (c) => {
   }
 });
 
+// Apply locally-hosted vehicle thumbnails — the Wikimedia CDN rate-limits
+// hotlinked fetches from browsers (we saw cards rendering placeholders
+// instead of photos in prod). We now ship the 20 licence-safe images
+// from scripts/data/vehicle-image-map.json inside the Cloudflare ASSETS
+// binding and this endpoint flips each vehicle_types row over to its
+// local `/assets/vehicles/<slug>.<ext>` path. Matched by name (unique).
+//
+// Gated by MIGRATION_TOKEN, same pattern as /admin/apply-install-schema.
+app.post("/api/admin/apply-vehicle-thumbnails", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    const mapModule = await import("../scripts/data/vehicle-image-map-local.json");
+    const map = (mapModule as any).default || mapModule;
+    const entries: Array<{ name: string; localPath: string }> = map.vehicles || [];
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    const updates: Array<{ name: string; localPath: string; rows: number }> = [];
+
+    for (const e of entries) {
+      const result = await sqlClient`
+        UPDATE vehicle_types
+        SET thumbnail_url = ${e.localPath}, updated_at = now()
+        WHERE name = ${e.name}
+        RETURNING id
+      `;
+      updates.push({ name: e.name, localPath: e.localPath, rows: (result as any[]).length });
+    }
+
+    return c.json({
+      ok: true,
+      total: entries.length,
+      updated: updates.filter((u) => u.rows > 0).length,
+      notMatched: updates.filter((u) => u.rows === 0).map((u) => u.name),
+      updates,
+    });
+  } catch (e: any) {
+    console.error("apply-vehicle-thumbnails failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Seed resources — populates resources table with A-SAFE technical docs, videos, guides
 app.get("/api/admin/seed-resources", authMiddleware, async (c) => {
   if (!(await requireAdmin(c))) return c.json({ message: "Admin access required" }, 403);
