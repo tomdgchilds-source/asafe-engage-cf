@@ -1,5 +1,91 @@
 import type { DrawingPoint, CartItem, CartItemWithMarkings, LayoutMarkup } from "./types";
 import { productColors } from "./constants";
+import { getBarrierSpec } from "@/utils/barrierSymbol";
+
+/**
+ * Shape of an A-SAFE catalog product as far as we care about here.
+ * Kept permissive so callers can pass either the full DB row or the
+ * lightweight `CatalogProduct` used inside the drawing-tool sidebar.
+ */
+export interface ProductWidthSource {
+  id?: string;
+  name?: string;
+  category?: string;
+  subcategory?: string;
+  specifications?: {
+    width_mm?: number;
+    widthMm?: number;
+    postOdMm?: number;
+    [key: string]: unknown;
+  } | null;
+}
+
+/**
+ * Resolve the real-world width (millimetres) of a barrier product so we
+ * can render its footprint to scale on the drawing.
+ *
+ * Resolution order (highest precedence first):
+ *   1. `specifications.width_mm` / `widthMm` / `postOdMm` on the product
+ *      row itself — the one-stop-shop when the product team curates
+ *      explicit widths.
+ *   2. The shared `getBarrierSpec` name-matcher used by the technical
+ *      symbol renderer (iFlex / eFlex / mFlex / Atlas / Topple /
+ *      Monoplex). Reusing it keeps the post-diameter source of truth in
+ *      one place — if the matcher picks up "iFlex Pedestrian" as 190mm
+ *      here, the technical view already agrees.
+ *   3. A category fallback for non-barrier families (bollards, rack
+ *      guards, kerb, step guards) where width is either irrelevant
+ *      (point markers) or highly variant-specific. We default to 100mm
+ *      with a TODO so designers get a plausible ribbon instead of
+ *      nothing.
+ *   4. `null` when nothing matches — caller falls back to the legacy
+ *      fixed-pixel stroke.
+ */
+export const getProductWidthMm = (product: ProductWidthSource | null | undefined): number | null => {
+  if (!product) return null;
+
+  // 1. Explicit spec on the product row.
+  const specs = product.specifications;
+  if (specs && typeof specs === "object") {
+    const explicit =
+      (typeof specs.width_mm === "number" && specs.width_mm) ||
+      (typeof specs.widthMm === "number" && specs.widthMm) ||
+      (typeof specs.postOdMm === "number" && specs.postOdMm);
+    if (explicit && explicit > 0) return explicit;
+  }
+
+  const name = (product.name ?? "").trim();
+
+  // 2. Name-matcher via the existing barrier-symbol spec table. This
+  //    covers iFlex / eFlex / mFlex / Atlas / Topple / Monoplex / the
+  //    raw 130-T0-P3 and 190-T-series SKUs — always returns a spec
+  //    (falls through to iFlex 190 Traffic), so we only trust it when
+  //    the name clearly identifies a barrier family.
+  const looksLikeBarrier =
+    /\b(iFlex|eFlex|mFlex|Atlas|Topple|Monoplex|Rack[- ]?Guard|Rail|Bollard|ForkGuard|Kerb|StepGuard|Height Restrictor)\b/i.test(
+      name,
+    ) ||
+    /(guardrail|barrier)/i.test(name) ||
+    /^130-/.test(name) ||
+    /^190-/.test(name);
+
+  if (looksLikeBarrier && name.length > 0) {
+    const spec = getBarrierSpec(name);
+    if (spec.postOdMm > 0) return spec.postOdMm;
+  }
+
+  // 3. Category fallback for the long tail.
+  const category = (product.category ?? "").toLowerCase();
+  const subcategory = (product.subcategory ?? "").toLowerCase();
+
+  if (/bollard/.test(category + " " + subcategory)) return 130;
+  if (/rack[- ]?guard|fork[- ]?guard|rack-end/.test(category + " " + subcategory)) return 100;
+  if (/kerb|step[- ]?guard/.test(category + " " + subcategory)) return 100;
+
+  // TODO: supplement with a per-subcategory width map if we start
+  // supporting more non-barrier product families on the drawing.
+  return null;
+};
 
 /**
  * Get the assigned color for a product based on its position in the cart.

@@ -21,7 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { LayoutMarkup } from "@shared/schema";
 
 import type { LayoutMarkupEditorProps, DrawingPoint, MarkupPath } from "./types";
-import { isImageFileType, isBlankCanvasType, getProductColor as getProductColorUtil, getCartItemWithMarkings as getCartItemWithMarkingsUtil, getMarkedQuantity, detectCorners, calculateBarrierLength, parsePathData } from "./utils";
+import { isImageFileType, isBlankCanvasType, getProductColor as getProductColorUtil, getCartItemWithMarkings as getCartItemWithMarkingsUtil, getMarkedQuantity, detectCorners, calculateBarrierLength, parsePathData, getProductWidthMm } from "./utils";
 import { useCanvasDrawing } from "./hooks/useCanvasDrawing";
 import { useImageLoader } from "./hooks/useImageLoader";
 import { useScaleCalibration } from "./hooks/useScaleCalibration";
@@ -64,6 +64,12 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
   // PDF dimensions must be declared before useCanvasDrawing which depends on it
   const [pdfDimensions, setPdfDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 1100 });
 
+  // Scale calibration (pixels-per-mm + the zoom it was captured at).
+  // useCanvasDrawing needs these so getProductStrokeWidth can render
+  // barrier bands at their real physical width. Declared before the
+  // canvas hook so we can pass the current values in.
+  const scale = useScaleCalibration();
+
   // Custom hooks
   const canvas = useCanvasDrawing({
     isImageFile,
@@ -71,6 +77,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     imageRef,
     containerRef,
     pdfDimensions,
+    drawingScale: scale.drawingScale,
+    scaleZoomLevel: scale.scaleZoomLevel,
   });
 
   const [markups, setMarkups] = useState<LayoutMarkup[]>([]);
@@ -113,9 +121,6 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
   // polyline rendering. Defaults to "technical".
   const [viewMode, setViewMode] = useState<"technical" | "schematic">("technical");
 
-  // Scale calibration
-  const scale = useScaleCalibration();
-
   // Image loader
   const imageLoader = useImageLoader({
     isOpen,
@@ -129,6 +134,17 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
   const getProductColor = (cartItemId: string) => getProductColorUtil(cartItemId, cartItems);
   const getCartItemWithMarkings = (cartItemId: string) => getCartItemWithMarkingsUtil(cartItemId, cartItems, markups);
 
+  // Real-world width of the currently-being-drawn product. Used by the
+  // live path preview so the ribbon renders at its actual physical
+  // footprint (e.g. 130mm iFlex vs 190mm Atlas) before the markup is
+  // committed. Derived from the cart-item's productName via the same
+  // name-matcher we use at save time.
+  const activeProductWidthMm = (() => {
+    if (!preSelectedProduct) return null;
+    const cartItem = cartItems.find((ci) => ci.id === preSelectedProduct);
+    return cartItem ? getProductWidthMm({ name: cartItem.productName }) : null;
+  })();
+
   // Query existing markups
   const { data: existingMarkups = [] } = useQuery<LayoutMarkup[]>({
     queryKey: ["/api/layout-drawings", drawing?.id, "markups"],
@@ -141,6 +157,16 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
       setMarkups(existingMarkups);
     }
   }, [existingMarkups]);
+
+  // Auto-clear the endpoint-snap indicator after the pulse animation
+  // finishes (~800ms). The SVG animate runs fill=freeze, so if we
+  // don't clear the state the ring would sit there forever at
+  // opacity 0. Clearing the state removes it from the DOM entirely.
+  useEffect(() => {
+    if (!canvas.lastSnappedEndpoint) return;
+    const timer = setTimeout(() => canvas.setLastSnappedEndpoint(null), 800);
+    return () => clearTimeout(timer);
+  }, [canvas.lastSnappedEndpoint, canvas.setLastSnappedEndpoint]);
 
   // Initialize drawing state when opened
   useEffect(() => {
@@ -556,16 +582,40 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
       return;
     }
 
-    const firstPoint = pathPoints[0];
-    const cornerCount = detectCorners(pathPoints);
-    const calculatedLength = calculateBarrierLength(pathPoints, scale.drawingScale);
+    // Endpoint snap: if the just-drawn segment's LAST point sits within
+    // ~8 screen pixels of an existing markup's start or end, snap to
+    // that existing endpoint so runs join cleanly. Candidates = the
+    // first and last point of every other markup.
+    let snappedPoints = pathPoints;
+    if (pathPoints.length >= 2) {
+      const candidates: DrawingPoint[] = [];
+      for (const m of markups) {
+        const pts = parsePathData(m);
+        if (pts.length > 0) {
+          candidates.push(pts[0]);
+          if (pts.length > 1) candidates.push(pts[pts.length - 1]);
+        }
+      }
+      const lastPoint = pathPoints[pathPoints.length - 1];
+      const { point: snappedLast, snappedTo } = canvas.snapToEndpoint(lastPoint, candidates);
+      if (snappedTo) {
+        snappedPoints = [...pathPoints.slice(0, -1), snappedLast];
+        canvas.setLastSnappedEndpoint(snappedLast);
+      } else {
+        canvas.setLastSnappedEndpoint(null);
+      }
+    }
+
+    const firstPoint = snappedPoints[0];
+    const cornerCount = detectCorners(snappedPoints);
+    const calculatedLength = calculateBarrierLength(snappedPoints, scale.drawingScale);
 
     createMarkupMutation.mutate({
       cartItemId: selectedProduct,
       productName: cartItem.productName,
       xPosition: firstPoint.x,
       yPosition: firstPoint.y,
-      pathData: JSON.stringify(pathPoints),
+      pathData: JSON.stringify(snappedPoints),
       comment: undefined,
       calculatedLength: calculatedLength || undefined,
     });
@@ -762,7 +812,14 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     );
 
     if (canvas.isDrawing && canvas.currentPath) {
-      const coords = canvas.getRelativeCoordinates(event.clientX, event.clientY);
+      const rawCoords = canvas.getRelativeCoordinates(event.clientX, event.clientY);
+
+      // Right-angle snap operates relative to the FIRST point of the
+      // current stroke (so a straight line doesn't wiggle with every
+      // wobble of the cursor). If the user releases snap mid-stroke
+      // we fall through to the raw coord.
+      const anchor = canvas.currentPath.points[0];
+      const coords = canvas.applyRightAngleSnap(anchor, rawCoords, canvas.isRightAngleSnap);
 
       const lastPoint = canvas.currentPath.points[canvas.currentPath.points.length - 1];
       const distance = Math.sqrt(
@@ -770,10 +827,20 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
       );
 
       if (distance > 0.1) {
-        canvas.setCurrentPath(prev => prev ? {
-          ...prev,
-          points: [...prev.points, coords]
-        } : null);
+        // In right-angle snap mode we REPLACE the final point instead
+        // of appending — a snapped line is always anchor→current, not
+        // a squiggle through every intermediate mouse position.
+        if (canvas.isRightAngleSnap) {
+          canvas.setCurrentPath(prev => prev ? {
+            ...prev,
+            points: [prev.points[0], coords],
+          } : null);
+        } else {
+          canvas.setCurrentPath(prev => prev ? {
+            ...prev,
+            points: [...prev.points, coords],
+          } : null);
+        }
       }
     } else if (canvas.isDragging && !canvas.isDrawing) {
       const deltaX = event.clientX - canvas.dragStart.clientX;
@@ -1424,6 +1491,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
             onClose={handleClose}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            isRightAngleSnap={canvas.isRightAngleSnap}
+            onToggleRightAngleSnap={() => canvas.setIsRightAngleSnap((v) => !v)}
           />
 
           {/* Main Content — wrapped with the A-SAFE branded title-block frame
@@ -1484,6 +1553,9 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
               setIsRepositioning={setIsRepositioning}
               setRepositionMarkupId={setRepositionMarkupId}
               getStrokeWidth={canvas.getStrokeWidth}
+              getProductStrokeWidth={canvas.getProductStrokeWidth}
+              activeProductWidthMm={activeProductWidthMm}
+              lastSnappedEndpoint={canvas.lastSnappedEndpoint}
               getPointRadius={canvas.getPointRadius}
               getMarkerRadius={canvas.getMarkerRadius}
               getMarkerFontSize={canvas.getMarkerFontSize}

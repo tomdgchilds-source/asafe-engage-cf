@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { X, Pen, Check, Wand2, Info, Layers, Minus } from "lucide-react";
+import { X, Pen, Check, Wand2, Info, Layers, Minus, Squircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LayoutDrawing, MarkupPath, LayoutMarkup } from "../types";
 
@@ -19,6 +19,14 @@ interface ToolbarProps {
   viewMode: "technical" | "schematic";
   /** Switch between scale-accurate top-view (technical) and flat polylines (schematic). */
   onViewModeChange: (m: "technical" | "schematic") => void;
+  /**
+   * Right-angle snap toggle. When active, new line segments are
+   * constrained to 0°/45°/90° relative to the previous anchor point.
+   * Also snaps freshly-drawn endpoints to existing markup endpoints
+   * within 8 screen pixels.
+   */
+  isRightAngleSnap: boolean;
+  onToggleRightAngleSnap: () => void;
 }
 
 export function Toolbar({
@@ -34,6 +42,8 @@ export function Toolbar({
   onClose,
   viewMode,
   onViewModeChange,
+  isRightAngleSnap,
+  onToggleRightAngleSnap,
 }: ToolbarProps) {
   return (
     <div className="p-2 sm:p-3 pb-2 flex-shrink-0 border-b bg-white dark:bg-gray-900 dark:border-gray-700">
@@ -150,6 +160,28 @@ export function Toolbar({
               <Minus className="h-3.5 w-3.5" /> Schematic
             </button>
           </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isRightAngleSnap ? "default" : "ghost"}
+                  size="sm"
+                  className={cn(
+                    "h-7 w-7 sm:h-8 sm:w-8 p-0",
+                    isRightAngleSnap && "bg-[#FFC72C] text-black hover:bg-yellow-400",
+                  )}
+                  onClick={onToggleRightAngleSnap}
+                  data-testid="button-right-angle-snap"
+                  aria-pressed={isRightAngleSnap}
+                >
+                  <Squircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Right-angle snap (0°/45°/90°) + endpoint snap — toggle</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

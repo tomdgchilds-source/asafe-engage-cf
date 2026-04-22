@@ -3,7 +3,7 @@ import { Document, Page } from 'react-pdf';
 import { Button } from "@/components/ui/button";
 import { X, Pen, Wand2, Move, Trash2, ShoppingCart } from "lucide-react";
 import { pdfOptions } from "../constants";
-import { generatePathString, parsePathData } from "../utils";
+import { generatePathString, parsePathData, getProductWidthMm } from "../utils";
 import { computeBarrierSymbol } from "@/utils/barrierSymbol";
 import type { CartItem, DrawingPoint, MarkupPath, LayoutMarkup } from "../types";
 
@@ -131,6 +131,11 @@ interface CanvasOverlayProps {
    */
   activeProductWidthMm?: number | null;
 
+  /** Most-recent endpoint we snapped to (in content-space). Drives a
+   *  brief glow so the designer sees the snap happen. Null when no
+   *  snap has fired recently. */
+  lastSnappedEndpoint?: DrawingPoint | null;
+
   // Event handlers
   handleTouchStart: (e: React.TouchEvent) => void;
   handleTouchMove: (e: React.TouchEvent) => void;
@@ -198,6 +203,7 @@ export function CanvasOverlay({
   getStrokeWidth,
   getProductStrokeWidth,
   activeProductWidthMm,
+  lastSnappedEndpoint,
   getPointRadius,
   getMarkerRadius,
   getMarkerFontSize,
@@ -235,7 +241,19 @@ export function CanvasOverlay({
         viewMode === "technical" && productName && drawingScale
           ? computeBarrierSymbol(points, drawingScale, productName)
           : null;
-      return { points, symbol };
+      // Resolve the real-world width for this markup. Prefer the
+      // persisted `productWidthMm` when present (future-proof — lets
+      // us store + read back explicit widths without re-deriving).
+      // Otherwise look up the width from the product name via the
+      // same name-matcher the sidebar + barrierSymbol use.
+      const persistedWidth =
+        typeof (markup as any).productWidthMm === "number"
+          ? ((markup as any).productWidthMm as number)
+          : null;
+      const productWidthMm =
+        persistedWidth ??
+        (productName ? getProductWidthMm({ name: productName }) : null);
+      return { points, symbol, productWidthMm };
     });
     // markups itself is the identity we key on — React Query returns a new
     // array on refetch, and the user's in-session edits also produce a new
@@ -567,7 +585,7 @@ export function CanvasOverlay({
 
           {/* Existing markup paths */}
           {markups.map((markup, index) => {
-            const { points, symbol } = markupSymbols[index];
+            const { points, symbol, productWidthMm } = markupSymbols[index];
             const color = markup.cartItemId ? getProductColor(markup.cartItemId) : '#6B7280';
             const pathString = generatePathString(points);
 
@@ -618,13 +636,15 @@ export function CanvasOverlay({
                     </title>
                   </>
                 ) : (() => {
-                  // Scale-aware stroke when the markup carries a real
-                  // product width AND the drawing is calibrated. Falls
+                  // Scale-aware stroke when the markup's product has a
+                  // resolved width AND the drawing is calibrated. Falls
                   // back to the legacy fixed-pixel stroke otherwise so
                   // pre-calibration freehand drawings still render.
-                  const productStroke = getProductStrokeWidth(
-                    markup as { productWidthMm?: number | null },
-                  );
+                  // productWidthMm resolves from either the persisted
+                  // field (future) or the name-matcher in the memo.
+                  const productStroke = productWidthMm
+                    ? getProductStrokeWidth({ productWidthMm })
+                    : null;
                   const strokeWidth =
                     productStroke ?? getStrokeWidth(isBlankCanvas ? 2.5 : 2.0);
                   const isPhysicalWidth = productStroke !== null;
@@ -730,7 +750,8 @@ export function CanvasOverlay({
                 opacity: isPhysicalWidth ? 0.65 : isBlankCanvas ? 0.9 : 1
               }}
             />
-          )}
+            );
+          })()}
 
           {/* Current drawing path - single point */}
           {currentPath && currentPath.points.length === 1 && (
@@ -764,6 +785,40 @@ export function CanvasOverlay({
                   : 'drop-shadow(0 0 1px rgba(245,158,11,0.8))'
               }}
             />
+          )}
+
+          {/* Endpoint-snap indicator: brief pulse ring where the just-
+              finished stroke snapped onto an existing endpoint. Purely
+              visual — the coord was already snapped in finishDrawing. */}
+          {lastSnappedEndpoint && (
+            <g data-testid="endpoint-snap-indicator" style={{ pointerEvents: 'none' }}>
+              <circle
+                cx={lastSnappedEndpoint.x}
+                cy={lastSnappedEndpoint.y}
+                r={getPointRadius(14)}
+                fill="none"
+                stroke="#10B981"
+                strokeWidth={getStrokeWidth(2)}
+                opacity={0.8}
+              >
+                <animate
+                  attributeName="r"
+                  from={getPointRadius(8)}
+                  to={getPointRadius(24)}
+                  dur="0.6s"
+                  repeatCount="1"
+                  fill="freeze"
+                />
+                <animate
+                  attributeName="opacity"
+                  from="0.9"
+                  to="0"
+                  dur="0.6s"
+                  repeatCount="1"
+                  fill="freeze"
+                />
+              </circle>
+            </g>
           )}
         </svg>
 

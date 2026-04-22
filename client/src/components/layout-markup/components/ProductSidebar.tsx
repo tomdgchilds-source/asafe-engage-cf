@@ -14,10 +14,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Pen, Plus, PackagePlus, ExternalLink, Check, ChevronsUpDown, Search } from "lucide-react";
+import { Pen, Plus, PackagePlus, ExternalLink, Check, ChevronsUpDown, Search, Ruler } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import type { CartItem, CartItemWithMarkings } from "../types";
+import { getProductWidthMm, type ProductWidthSource } from "../utils";
 
 /**
  * Shape of a product coming back from GET /api/products. Only a subset of the
@@ -33,6 +34,11 @@ interface CatalogProduct {
   specifications?: {
     measurementType?: string; // "Length" | "Quantity" | etc.
     measurementUnit?: string; // "meters" | "feet" | "pieces"
+    /** Optional explicit width override (mm). If present it wins over
+     *  the name-matcher in getProductWidthMm. */
+    width_mm?: number;
+    widthMm?: number;
+    postOdMm?: number;
   } | null;
 }
 
@@ -184,6 +190,16 @@ export function ProductSidebar({
   const measurementType = selectedCatalogProduct?.specifications?.measurementType;
   const measurementUnit = selectedCatalogProduct?.specifications?.measurementUnit;
   const isLengthProduct = measurementType?.toLowerCase() === "length";
+
+  // Resolve the drawn-at-scale width so the designer knows what the
+  // barrier band will actually look like on the drawing. Works for
+  // both catalog picks and a fallback lookup by the custom typed name.
+  const widthResolverInput: ProductWidthSource | null = selectedCatalogProduct
+    ? (selectedCatalogProduct as ProductWidthSource)
+    : customName.trim().length > 0
+      ? { name: customName.trim() }
+      : null;
+  const resolvedWidthMm = getProductWidthMm(widthResolverInput);
 
   return (
     <Dialog
@@ -379,6 +395,24 @@ export function ProductSidebar({
               </PopoverContent>
             </Popover>
 
+            {/* Real-world width pill. Once the drawing is calibrated
+                this is exactly how wide the drawn band will be — so
+                designers can sanity-check that e.g. an iFlex
+                Pedestrian (130mm) vs an Atlas Traffic (190mm) gives a
+                visibly different footprint before they commit. */}
+            {resolvedWidthMm && (selectedCatalogProduct || customName.trim()) && (
+              <div
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-foreground"
+                data-testid="pill-product-width"
+              >
+                <Ruler className="h-3 w-3" />
+                {resolvedWidthMm}mm width
+                <span className="text-muted-foreground">
+                  · drawn to scale
+                </span>
+              </div>
+            )}
+
             {/* Hint about length-based measurement — only when picking a
                 linear product, since drawing it on the layout is how we
                 derive the total barrier length. */}
@@ -432,20 +466,40 @@ export function ProductSidebar({
           </div>
 
           {/* Show selected product color preview */}
-          {selectedCartItem && (
-            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div
-                className="w-8 h-8 rounded-full flex-shrink-0 border-2 border-white shadow"
-                style={{ backgroundColor: getProductColor(selectedCartItem) }}
-              />
-              <div className="text-sm">
-                <p className="font-medium">Drawing colour</p>
-                <p className="text-gray-600 dark:text-gray-400">
-                  This colour will identify the barrier on the drawing.
-                </p>
+          {selectedCartItem && (() => {
+            // Resolve width for the already-in-cart selection so the
+            // "drawing preview" row also shows a width pill.
+            const cartSelection = cartItems.find((ci) => ci.id === selectedCartItem);
+            const cartWidthMm = cartSelection
+              ? getProductWidthMm({ name: cartSelection.productName })
+              : null;
+            return (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div
+                  className="w-8 h-8 rounded-full flex-shrink-0 border-2 border-white shadow"
+                  style={{ backgroundColor: getProductColor(selectedCartItem) }}
+                />
+                <div className="text-sm flex-1">
+                  <p className="font-medium flex items-center gap-2 flex-wrap">
+                    Drawing preview
+                    {cartWidthMm && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium"
+                        data-testid="pill-cart-product-width"
+                      >
+                        <Ruler className="h-2.5 w-2.5" />
+                        {cartWidthMm}mm width
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs">
+                    This colour will identify the barrier on the drawing
+                    {cartWidthMm ? ", drawn to scale." : "."}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="flex gap-3">
             <Button
