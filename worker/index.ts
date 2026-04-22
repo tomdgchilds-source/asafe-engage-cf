@@ -3381,6 +3381,292 @@ app.get("/api/hardware/:file", async (c) => {
   return new Response(obj.body as any, { headers });
 });
 
+// ─── GroundWorks: schema + ingest + R2 resource listing ──────────────
+// Three MIGRATION_TOKEN-gated one-offs, same pattern as the sibling
+// Product Suitability / Maintenance ingests above. Source doc:
+// ASAFE_GroundWorks_PRH-1005-A-SAFE-26022024 (per-product installation
+// prerequisites — slab thickness, concrete grade, anchor spec, anchor
+// depth, edge distance, pad dimensions). 53 entries covering ~48 of
+// the ~68 catalog families.
+
+// Idempotent DDL. products.ground_works_data jsonb nullable.
+app.post("/api/admin/apply-groundworks-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const pre = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'products' AND column_name = 'ground_works_data'
+    `) as Array<{ column_name: string }>;
+    const alreadyPresent = pre.length > 0;
+
+    await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS ground_works_data jsonb`;
+
+    return c.json({
+      ok: true,
+      altered: alreadyPresent ? 0 : 1,
+      columns: {
+        "products.ground_works_data": alreadyPresent ? "already-present" : "added",
+      },
+    });
+  } catch (e: any) {
+    console.error("apply-groundworks-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Ingest scripts/data/product-groundworks.json into
+// products.ground_works_data. Fuzzy-matches each entry's productFamily to
+// products.name using the same normaliser as /admin/sync-catalog-to-db
+// and /admin/upload-certificates, so naming variants
+// ("iFlex Single Traffic Barrier+" ↔ "iflex single traffic plus") converge.
+// Idempotent — re-running overwrites with the same payload.
+app.post("/api/admin/ingest-groundworks", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const datasetModule: any = await import(
+      "../scripts/data/product-groundworks.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const entries: any[] = dataset.entries || [];
+    const meta = dataset._meta || {};
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Shared normaliser — same scheme as /admin/upload-certificates.
+    function norm(s: string | null | undefined): string {
+      if (!s) return "";
+      let v = s.toLowerCase().trim();
+      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
+      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
+      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
+        v = v.split(f).join("");
+      }
+      v = v.replace(/[^a-z0-9]+/g, " ").trim();
+      return v;
+    }
+
+    const dbRows = (await sqlClient`SELECT id, name FROM products`) as any[];
+    const byNorm = new Map<string, any>();
+    for (const p of dbRows) {
+      const k = norm(p.name);
+      if (k && !byNorm.has(k)) byNorm.set(k, p);
+    }
+
+    let matched = 0;
+    let dbRowsUpdated = 0;
+    const unmatchedFamilies: string[] = [];
+    const results: Array<{ family: string; dbId: string | null }> = [];
+
+    for (const e of entries) {
+      const family = e.productFamily as string;
+      const key = norm(family);
+      const product = byNorm.get(key);
+      if (!product) {
+        unmatchedFamilies.push(family);
+        results.push({ family, dbId: null });
+        continue;
+      }
+      matched++;
+
+      // Inline the global rules on each row so the product-detail block can
+      // render without a second fetch (kept small — ~1kB per product).
+      const payload = {
+        ...e,
+        _globalRules: meta.globalRules || null,
+        _sourceDoc: meta.source || null,
+      };
+
+      const r = (await sqlClient`
+        UPDATE products
+        SET ground_works_data = ${JSON.stringify(payload)}::jsonb,
+            updated_at = now()
+        WHERE id = ${product.id}
+        RETURNING id
+      `) as any[];
+      if (r.length > 0) dbRowsUpdated += r.length;
+      results.push({ family, dbId: product.id });
+    }
+
+    return c.json({
+      ok: true,
+      summary: {
+        entries: entries.length,
+        matchedFamilies: matched,
+        unmatchedFamilies: unmatchedFamilies.length,
+        dbRowsUpdated,
+      },
+      unmatchedFamilies,
+      results,
+    });
+  } catch (e: any) {
+    console.error("ingest-groundworks failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Register the GroundWorks PDF as a resources row + link it to every
+// product whose ground_works_data is non-null. The PDF is pre-uploaded
+// to R2 at `groundworks/a-safe-groundworks-guide.pdf` by the deploy
+// runbook and served via /api/groundworks/<slug>. Idempotent on
+// (title, resource_type).
+app.post("/api/admin/upload-groundworks-resource", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const title = "A-SAFE Ground Works Guide";
+    const resourceType = "Installation Guide";
+    const category = "Installation";
+    const description =
+      "Per-product ground-prep and installation prerequisites: minimum slab thickness, concrete grade (BS 8500-1 / BS EN 206-1), anchor spec + depth, edge distance, concrete-pad dimensions, hardcore depth, substrate notes and drilling safety guidance. Source: PRH-1005-A-SAFE (Feb 2024).";
+    const fileUrl = "/api/groundworks/a-safe-groundworks-guide.pdf";
+    const thumbnailUrl =
+      "https://webcdn.asafe.com/media/4250/atlas-double-traffic-barrier-ramp.jpg";
+    // Approx PDF size (~28MB) for the resources row bookkeeping.
+    const fileSize = 28 * 1024 * 1024;
+
+    const existing = (await sqlClient`
+      SELECT id FROM resources
+      WHERE title = ${title} AND resource_type = ${resourceType}
+      LIMIT 1
+    `) as any[];
+
+    let resourceId: string;
+    let action: "created" | "refreshed";
+    if (existing.length > 0) {
+      resourceId = existing[0].id;
+      action = "refreshed";
+      await sqlClient`
+        UPDATE resources
+        SET description = ${description},
+            file_url = ${fileUrl},
+            thumbnail_url = ${thumbnailUrl},
+            file_size = ${fileSize},
+            file_type = 'pdf',
+            category = ${category},
+            is_active = true,
+            updated_at = now()
+        WHERE id = ${resourceId}
+      `;
+    } else {
+      const rows = (await sqlClient`
+        INSERT INTO resources (
+          title, category, resource_type, description,
+          file_url, thumbnail_url, file_size, file_type,
+          download_count, is_active, created_at, updated_at
+        ) VALUES (
+          ${title}, ${category}, ${resourceType}, ${description},
+          ${fileUrl}, ${thumbnailUrl}, ${fileSize}, 'pdf',
+          0, true, now(), now()
+        )
+        RETURNING id
+      `) as any[];
+      resourceId = rows[0].id;
+      action = "created";
+    }
+
+    // Link every product that has ground_works_data populated to this
+    // resource via product_resources. ON CONFLICT keeps it idempotent.
+    const linked = (await sqlClient`
+      SELECT id FROM products WHERE ground_works_data IS NOT NULL
+    `) as any[];
+    let junctionsAdded = 0;
+    for (const p of linked) {
+      const r = (await sqlClient`
+        INSERT INTO product_resources (product_id, resource_id)
+        VALUES (${p.id}, ${resourceId})
+        ON CONFLICT (product_id, resource_id) DO NOTHING
+        RETURNING id
+      `) as any[];
+      if (r.length > 0) junctionsAdded++;
+    }
+
+    return c.json({
+      ok: true,
+      action,
+      resourceId,
+      title,
+      resourceType,
+      fileUrl,
+      productsLinked: linked.length,
+      junctionsAdded,
+    });
+  } catch (e: any) {
+    console.error("upload-groundworks-resource failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Public-read passthrough for the GroundWorks PDF in R2. Mirrors the
+// /api/certificates/:file pattern — no auth so anonymous Resources
+// visitors can stream it.
+app.get("/api/groundworks/:file", async (c) => {
+  const file = c.req.param("file");
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid groundworks filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`groundworks/${file}`);
+  if (!obj) {
+    return c.json({ message: "Groundworks document not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Content-Disposition", `inline; filename="${file}"`);
+  return new Response(obj.body as any, { headers });
+});
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side
