@@ -39,6 +39,7 @@ import { AddToCartModal } from '@/components/AddToCartModal';
 import { LogoSuggestions } from '@/components/LogoSuggestions';
 import { MatterportViewer, parseMatterportUrl } from '@/components/MatterportViewer';
 import { useOfflineSurvey } from '@/hooks/useOfflineSurvey';
+import { useActiveProject } from '@/hooks/useActiveProject';
 import type { UploadResult } from '@uppy/core';
 
 // Shape of the draft carried by useOfflineSurvey — mirrors the in-dialog
@@ -273,6 +274,50 @@ export default function SiteSurvey() {
       return resolved;
     });
   };
+
+  // Prefill the "Create New Site Survey" dialog with Project Information
+  // from the rep's active project (header chip) whenever a field is still
+  // empty. Never clobbers user input or a persisted offline draft — the
+  // per-field `trim()` guard below means once a value is in place, this
+  // effect is a no-op for that field.
+  const { activeProject } = useActiveProject();
+  useEffect(() => {
+    if (!activeProject) return;
+    setNewSurvey((prev) => {
+      const companyFallback =
+        activeProject.customerCompany?.name || activeProject.name || '';
+      const next: NewSurveyDraft = { ...prev };
+      if (!prev.facilityName?.trim() && companyFallback) {
+        next.facilityName = companyFallback;
+      }
+      if (!prev.facilityLocation?.trim() && activeProject.location) {
+        next.facilityLocation = activeProject.location;
+      }
+      if (!prev.description?.trim() && activeProject.description) {
+        next.description = activeProject.description;
+      }
+      if (
+        !prev.companyLogoUrl?.trim() &&
+        activeProject.customerCompany?.logoUrl
+      ) {
+        next.companyLogoUrl = activeProject.customerCompany.logoUrl;
+      }
+      // Only persist to the offline draft if we actually changed something;
+      // this avoids writing identical content on every active-project render.
+      const changed =
+        next.facilityName !== prev.facilityName ||
+        next.facilityLocation !== prev.facilityLocation ||
+        next.description !== prev.description ||
+        next.companyLogoUrl !== prev.companyLogoUrl;
+      if (changed) {
+        offlineSurvey.replaceDraft(next);
+      }
+      return changed ? next : prev;
+    });
+    // Only re-run when the active project identity changes, not on
+    // every keystroke. Deliberately ignoring offlineSurvey (stable ref).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id]);
   const [newArea, setNewArea] = useState({
     zoneName: '',
     areaName: '',

@@ -26,6 +26,7 @@ import { CaseStudySelector } from "@/components/CaseStudySelector";
 import { CompanyLogoFinder } from "@/components/CompanyLogoFinder";
 import { LinkedInSocialReciprocitySimple } from "@/components/LinkedInSocialReciprocitySimple";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveProject } from "@/hooks/useActiveProject";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -183,6 +184,36 @@ export function Cart() {
       setProjectDescription(projectInfo.projectDescription || '');
     }
   }, [projectInfo]);
+
+  // Prefill Project Information from the rep's active project (header chip)
+  // when each field is still empty. Runs whenever the active project
+  // changes so switching projects populates any blanks without clobbering
+  // fields the user already typed into. Fields that are already filled
+  // (either from server-persisted cart-project-info or direct user input)
+  // are left alone.
+  const { activeProject } = useActiveProject();
+  useEffect(() => {
+    if (!activeProject) return;
+    const companyFallback =
+      activeProject.customerCompany?.name || activeProject.name || '';
+    if (!company?.trim() && companyFallback) {
+      setCompany(companyFallback);
+    }
+    if (!location?.trim() && activeProject.location) {
+      setLocation(activeProject.location);
+    }
+    if (!projectDescription?.trim() && activeProject.description) {
+      setProjectDescription(activeProject.description);
+    }
+    if (!companyLogoUrl?.trim() && activeProject.customerCompany?.logoUrl) {
+      setCompanyLogoUrl(activeProject.customerCompany.logoUrl);
+    }
+    // Intentionally omit the form-state values from deps — we only want to
+    // re-evaluate when the active project changes. Re-running on every
+    // keystroke would risk fighting user input and is redundant anyway
+    // (the guards already no-op once a field is populated).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id]);
 
   // Load saved case study selections
   useEffect(() => {

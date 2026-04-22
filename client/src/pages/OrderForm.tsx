@@ -76,6 +76,7 @@ import {
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { useActiveProject } from "@/hooks/useActiveProject";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { generateOrderFormPDF } from "@/utils/orderFormPdfGenerator";
 import { useLocation } from "wouter";
@@ -377,10 +378,10 @@ export function OrderForm() {
 
   // Active project drives the top-of-page prefill banner + approver-chain
   // autocomplete. Returns null when no project is active; we gate every use
-  // behind a truthy check so the page still renders in that case.
-  const { data: activeProject } = useQuery<ActiveProject | null>({
-    queryKey: ["/api/active-project"],
-  });
+  // behind a truthy check so the page still renders in that case. Shared
+  // hook so the Cart and Site Survey pages hit the same cached response.
+  const { activeProject: activeProjectRaw } = useActiveProject();
+  const activeProject = activeProjectRaw as ActiveProject | null;
 
   // Project contacts — fetched separately because the active-project payload
   // might be stale if a contact was just added inline via the Combobox's
