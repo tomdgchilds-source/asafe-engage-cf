@@ -1,0 +1,101 @@
+{
+  "_description": "A-SAFE PAS 13 / EN test certificates uploaded to R2 at certificates/<slug>.pdf. Served publicly via GET /api/certificates/:slug. Each entry maps one certificate PDF to one or more product families (by family id or fuzzy-matched name). The admin endpoint /api/admin/upload-certificates inserts a resources row per cert and product_resources junction rows for each matched family. Idempotent — matched by slug.",
+  "bucket": "asafe-engage-files",
+  "prefix": "certificates",
+  "publicUrlPattern": "/api/certificates/{slug}.pdf",
+  "resourceType": "Certificate",
+  "resourceCategory": "Safety Standards",
+  "thumbnailUrl": "https://webcdn.asafe.com/media/4250/atlas-double-traffic-barrier-ramp.jpg",
+  "certificates": [
+    {
+      "slug": "cert-pedestrian-barrier-130-t0-p3",
+      "title": "PAS 13 Certificate — Pedestrian Barrier 130 T0/P3",
+      "description": "Official A-SAFE PAS 13 impact test certificate (independently audited) for the 130mm Pedestrian Barrier classification, T0 traffic / P3 pedestrian rating.",
+      "fileSize": 863000,
+      "productFamilies": ["family-130-t0-p3", "family-eflex-pedestrian-barrier"],
+      "productMatchHints": ["130-T0-P3", "eFlex Pedestrian Barrier"]
+    },
+    {
+      "slug": "cert-traffic-barrier-190-t1-p0",
+      "title": "PAS 13 Certificate — Traffic Barrier 190 T1/P0",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the 190mm Traffic Barrier classification, T1 traffic / P0 pedestrian rating.",
+      "fileSize": 863000,
+      "productFamilies": [
+        "family-190-t1-p0",
+        "family-iflex-single-traffic",
+        "family-iflex-single-traffic+",
+        "family-iflex-double-traffic",
+        "family-iflex-double-traffic+"
+      ],
+      "productMatchHints": ["190-T1-P0", "iFlex Single Traffic", "iFlex Double Traffic"]
+    },
+    {
+      "slug": "cert-traffic-barrier-190-t2-p0",
+      "title": "PAS 13 Certificate — Traffic Barrier 190 T2/P0",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the 190mm heavy-duty Traffic Barrier classification, T2 traffic / P0 pedestrian rating. Covers the Atlas Double Traffic Barrier range.",
+      "fileSize": 863000,
+      "productFamilies": [
+        "family-190-t2-p0",
+        "family-atlas-double-traffic-barrier",
+        "family-atlas-double-traffic-barrier+"
+      ],
+      "productMatchHints": ["190-T2-P0", "Atlas Double Traffic Barrier"]
+    },
+    {
+      "slug": "cert-pedestrian-barrier-190-t1-p2",
+      "title": "PAS 13 Certificate — Pedestrian Barrier 190 T1/P2",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the 190mm Pedestrian Barrier classification, T1 traffic / P2 pedestrian rating.",
+      "fileSize": 863000,
+      "productFamilies": ["family-190-t1-p2", "family-iflex-pedestrian-3-rail"],
+      "productMatchHints": ["190-T1-P2", "iFlex Pedestrian 3 Rail"]
+    },
+    {
+      "slug": "cert-pedestrian-barrier-190-t2-p1",
+      "title": "PAS 13 Certificate — Pedestrian Barrier 190 T2/P1",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the 190mm Pedestrian Barrier classification, T2 traffic / P1 pedestrian rating.",
+      "fileSize": 863000,
+      "productFamilies": ["family-190-t2-p1", "family-iflex-pedestrian-3-rail"],
+      "productMatchHints": ["190-T2-P1", "iFlex Pedestrian 3 Rail"]
+    },
+    {
+      "slug": "cert-step-guard",
+      "title": "PAS 13 Certificate — Step Guard 600/1200",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the Step Guard pedestrian crossing point at 600mm and 1200mm heights.",
+      "fileSize": 863000,
+      "productFamilies": ["family-step-guard"],
+      "productMatchHints": ["Step Guard"]
+    },
+    {
+      "slug": "cert-bollard-bumper",
+      "title": "PAS 13 Certificate — Bollard Bumper",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the Bollard Bumper accessory.",
+      "fileSize": 863000,
+      "productFamilies": ["family-bollard-bumper"],
+      "productMatchHints": ["Bollard Bumper"]
+    },
+    {
+      "slug": "cert-traffic-gate",
+      "title": "PAS 13 Certificate — Traffic Gate",
+      "description": "Official A-SAFE PAS 13 impact test certificate for the A-SAFE Traffic Gate (wide vehicle access within barrier systems).",
+      "fileSize": 863000,
+      "productFamilies": ["family-traffic-gate"],
+      "productMatchHints": ["Traffic Gate"]
+    },
+    {
+      "slug": "cert-rackguard",
+      "title": "EN 15512 Certificate — RackGuard",
+      "description": "Official A-SAFE EN 15512 test certificate for the RackGuard rack leg protector, covering all height and profile variants.",
+      "fileSize": 862000,
+      "productFamilies": ["family-rackguard---multiple-height-and-p", "family-cold-storage-rackguard---multiple"],
+      "productMatchHints": ["RackGuard"]
+    },
+    {
+      "slug": "cert-asafe-general-certification",
+      "title": "A-SAFE Certification Overview (PRH-1011)",
+      "description": "A-SAFE's company-wide certification document (ref PRH-1011) summarising accreditations, test-method methodology and third-party verification across the barrier range.",
+      "fileSize": 11000000,
+      "productFamilies": [],
+      "productMatchHints": []
+    }
+  ]
+}

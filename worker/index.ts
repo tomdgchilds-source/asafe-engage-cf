@@ -1514,6 +1514,230 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
   }
 });
 
+// Certificate PDFs: public read-only download of the R2-hosted A-SAFE PAS 13 /
+// EN test certificates. Files were pre-uploaded with `wrangler r2 object put`
+// under the `certificates/` prefix. This route is intentionally auth-free
+// (the /api/objects/* equivalent is gated by authMiddleware, which would block
+// anonymous customers browsing /resources from downloading them).
+app.get("/api/certificates/:file", async (c) => {
+  const file = c.req.param("file");
+  // Guard: only allow kebab-case + .pdf (prevents traversal and keeps the
+  // surface tight — the manifest slugs are all of the form cert-<product>.pdf).
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid certificate filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`certificates/${file}`);
+  if (!obj) {
+    return c.json({ message: "Certificate not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  // Inline so modern browsers render the PDF in-place (matches the Resources
+  // UI pattern of window.open in a new tab). `filename*` gives a nicer
+  // download name if the user hits Save.
+  headers.set(
+    "Content-Disposition",
+    `inline; filename="${file}"`,
+  );
+  return new Response(obj.body as any, { headers });
+});
+
+// Seed the `resources` table with the 10 A-SAFE PAS 13 / EN test certificate
+// PDFs pre-uploaded to R2 at `certificates/<slug>.pdf`. One resources row per
+// certificate plus one `product_resources` junction row per linked product
+// family (looked up by name — same fuzzy-normalise pattern as
+// /admin/sync-catalog-to-db). Idempotent: matched by a composite
+// (title, resource_type) so re-running is a no-op.
+//
+// Gated by MIGRATION_TOKEN (bearer), same pattern as the sibling one-offs.
+app.post("/api/admin/upload-certificates", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    const manifestModule: any = await import(
+      "../scripts/data/certificate-manifest.json"
+    );
+    const manifest = manifestModule.default || manifestModule;
+    const certs: Array<{
+      slug: string;
+      title: string;
+      description: string;
+      fileSize: number;
+      productFamilies: string[];
+      productMatchHints: string[];
+    }> = manifest.certificates || [];
+
+    const resourceType: string = manifest.resourceType || "Certificate";
+    const category: string = manifest.resourceCategory || "Safety Standards";
+    const thumbnailUrl: string | null = manifest.thumbnailUrl || null;
+    const urlPattern: string =
+      manifest.publicUrlPattern || "/api/certificates/{slug}.pdf";
+
+    // Shared normaliser — matches the scheme in /admin/sync-catalog-to-db so
+    // "iFlex Single Traffic" ≈ "iFlex Single Traffic+" ≈ "iflex single traffic plus".
+    function norm(s: string | null | undefined): string {
+      if (!s) return "";
+      let v = s.toLowerCase().trim();
+      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
+      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
+      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
+        v = v.split(f).join("");
+      }
+      v = v.replace(/[^a-z0-9]+/g, " ").trim();
+      return v;
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Pull every product name → uuid so we can resolve match hints without
+    // N round-trips per cert. `products.name` is unique.
+    const dbProducts = (await sqlClient`
+      SELECT id, name
+      FROM products
+    `) as any[];
+
+    // Two indexes: exact-id for when the manifest supplies a `family-*`
+    // slug (derived from name via the public-API convention), and
+    // normalised-name for fuzzy hints.
+    const byFamilyId = new Map<string, any>();
+    const byNormName = new Map<string, any>();
+    for (const p of dbProducts) {
+      const familyId = `family-${String(p.name).replace(/\s+/g, "-").toLowerCase()}`;
+      byFamilyId.set(familyId, p);
+      const nk = norm(p.name);
+      if (nk && !byNormName.has(nk)) byNormName.set(nk, p);
+    }
+
+    const inserted: Array<{
+      slug: string;
+      resourceId: string;
+      linkedProducts: string[];
+      unmatched: string[];
+    }> = [];
+    const skipped: Array<{ slug: string; reason: string }> = [];
+
+    for (const cert of certs) {
+      const fileUrl = urlPattern.replace("{slug}", cert.slug);
+
+      // Idempotency: does a resource with this title + type already exist?
+      const existing = (await sqlClient`
+        SELECT id
+        FROM resources
+        WHERE title = ${cert.title} AND resource_type = ${resourceType}
+        LIMIT 1
+      `) as any[];
+
+      let resourceId: string;
+      if (existing.length > 0) {
+        resourceId = existing[0].id;
+        // Keep description/url in sync in case the manifest was tweaked —
+        // but only rewrite if the fileUrl actually changed (cheap no-op
+        // otherwise).
+        await sqlClient`
+          UPDATE resources
+          SET description = ${cert.description},
+              file_url = ${fileUrl},
+              file_size = ${cert.fileSize},
+              file_type = 'pdf',
+              category = ${category},
+              thumbnail_url = ${thumbnailUrl},
+              is_active = true,
+              updated_at = now()
+          WHERE id = ${resourceId}
+        `;
+        skipped.push({ slug: cert.slug, reason: "already existed; refreshed metadata" });
+      } else {
+        const rows = (await sqlClient`
+          INSERT INTO resources (
+            title, category, resource_type, description,
+            file_url, thumbnail_url, file_size, file_type,
+            download_count, is_active, created_at, updated_at
+          ) VALUES (
+            ${cert.title}, ${category}, ${resourceType}, ${cert.description},
+            ${fileUrl}, ${thumbnailUrl}, ${cert.fileSize}, 'pdf',
+            0, true, now(), now()
+          )
+          RETURNING id
+        `) as any[];
+        resourceId = rows[0].id;
+      }
+
+      // Link each matched product family via product_resources. Resolve
+      // via explicit family-* id first, then fall back to fuzzy name hints.
+      const linked = new Set<string>();
+      const unmatched: string[] = [];
+
+      const candidateKeys: string[] = [
+        ...(cert.productFamilies || []),
+        ...(cert.productMatchHints || []),
+      ];
+
+      for (const key of candidateKeys) {
+        let product: any | undefined =
+          byFamilyId.get(key) || byNormName.get(norm(key));
+        if (!product) {
+          // Try key as a hint even if it looks like a family id
+          const stripped = key.replace(/^family-/, "").replace(/-/g, " ");
+          product = byNormName.get(norm(stripped));
+        }
+        if (!product) {
+          unmatched.push(key);
+          continue;
+        }
+        if (linked.has(product.id)) continue;
+        linked.add(product.id);
+        // ON CONFLICT DO NOTHING — the junction has a unique(product_id,
+        // resource_id) constraint so double-runs converge.
+        await sqlClient`
+          INSERT INTO product_resources (product_id, resource_id)
+          VALUES (${product.id}, ${resourceId})
+          ON CONFLICT (product_id, resource_id) DO NOTHING
+        `;
+      }
+
+      inserted.push({
+        slug: cert.slug,
+        resourceId,
+        linkedProducts: Array.from(linked),
+        unmatched,
+      });
+    }
+
+    return c.json({
+      ok: true,
+      inserted: inserted.length,
+      bucket: manifest.bucket,
+      publicUrlPattern: urlPattern,
+      resourceType,
+      category,
+      results: inserted,
+      skipped,
+    });
+  } catch (e: any) {
+    console.error("upload-certificates failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // One-off: normalise `pricing_logic` on barrier families that were tagged
 // with a legacy synonym (per_meter) so the Add-to-Cart UI exposes a total
 // linear-metre input (QuoteBuilderPanel keys off per_length). The patch
