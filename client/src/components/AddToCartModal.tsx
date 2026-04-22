@@ -134,7 +134,42 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
   const [recommendedVariant, setRecommendedVariant] = useState<any>(null);
   const [autoCalculatedSpacers, setAutoCalculatedSpacers] = useState<{length: number; width: number} | null>(null);
   const [configurationMode, setConfigurationMode] = useState<'standard' | 'custom'>('standard');
-  
+
+  // Base-plate selection — reads the plates compatible with this product via
+  // /api/products/:id/base-plates. If the product has no compatible plates
+  // (add-ons, rack components) the selector stays hidden and no plate code
+  // is attached to the cart item. Default is the first compatible plate (the
+  // Standard Zinc nickel in every family that uses it); the chosen code is
+  // stashed in the cart item's notes field alongside any existing free-form
+  // notes — cart/order rendering can key off the "Base plate:" prefix.
+  const [selectedBasePlateCode, setSelectedBasePlateCode] = useState<string>("");
+  const { data: compatibleBasePlates = [] } = useQuery<Array<{
+    id: string;
+    code: string;
+    name: string;
+    coating?: string | null;
+    fixingType?: string | null;
+    isStandardStock?: boolean | null;
+  }>>({
+    queryKey: ["base-plates", product.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/products/${product.id}/base-plates`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    enabled: !!product.id,
+  });
+  useEffect(() => {
+    if (compatibleBasePlates.length > 0 && !selectedBasePlateCode) {
+      setSelectedBasePlateCode(compatibleBasePlates[0].code);
+    }
+  }, [compatibleBasePlates, selectedBasePlateCode]);
+
   const { toast } = useToast();
   const haptic = useHapticFeedback();
   const queryClient = useQueryClient();
@@ -912,19 +947,35 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
     },
   });
 
+  // Prefix the cart item's notes with "Base plate: <code> — <name>" when a
+  // plate is selected, preserving any user-entered notes after it. Additive:
+  // when the product has no compatible plates (selector hidden), this falls
+  // through to the original `notes.trim() || undefined` behaviour.
+  const buildNotesPayload = () => {
+    const trimmed = notes.trim();
+    if (!selectedBasePlateCode || compatibleBasePlates.length === 0) {
+      return trimmed || undefined;
+    }
+    const plate = compatibleBasePlates.find((p) => p.code === selectedBasePlateCode);
+    const plateLine = plate
+      ? `Base plate: ${plate.code} — ${plate.name}`
+      : `Base plate: ${selectedBasePlateCode}`;
+    return trimmed ? `${plateLine}\n${trimmed}` : plateLine;
+  };
+
   const addToCartMutation = useMutation({
     mutationFn: async () => {
       if (!pricingData) throw new Error("No pricing data available");
-      
+
       // Determine delivery address - prefer map location, fallback to manual address
       const finalDeliveryAddress = deliveryLocation?.address || manualAddress.trim() || null;
-      
+
       // If in edit mode, update the existing cart item
       if (isEditMode && existingItem?.id) {
         const response = await apiRequest(`/api/cart/${existingItem.id}`, "PATCH", {
           quantity,
           pricingType: isLinearMeter ? "linear_meter" : "single_item",
-          notes: notes.trim() || undefined,
+          notes: buildNotesPayload(),
           applicationArea: applicationArea.trim() || undefined,
           requiresDelivery,
           deliveryAddress: requiresDelivery ? finalDeliveryAddress : null,
@@ -943,7 +994,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
         unitPrice: pricingData.unitPrice,
         totalPrice: pricingData.totalPrice,
         pricingTier: pricingData.tier,
-        notes: notes.trim() || undefined,
+        notes: buildNotesPayload(),
         applicationArea: applicationArea.trim() || undefined,
         // Delivery options
         requiresDelivery,
@@ -2566,6 +2617,38 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
               onLocationChange={setInstallationLocation}
             />
           </div>
+
+          {/* Base plate option — only shown for products with compatible
+              plates in base_plate_product_compatibility. Default is the
+              first plate (Standard Zinc nickel). Additive: choosing a plate
+              prepends "Base plate: <code> — <name>" to the notes payload;
+              if no plates match, the selector stays hidden and cart-add
+              behaves unchanged. */}
+          {compatibleBasePlates.length > 0 && (
+            <div className="space-y-2" data-testid="base-plate-selector">
+              <Label htmlFor="base-plate-option">Base plate option</Label>
+              <Select
+                value={selectedBasePlateCode}
+                onValueChange={setSelectedBasePlateCode}
+              >
+                <SelectTrigger id="base-plate-option" data-testid="select-base-plate">
+                  <SelectValue placeholder="Select a base plate" />
+                </SelectTrigger>
+                <SelectContent>
+                  {compatibleBasePlates.map((plate) => (
+                    <SelectItem key={plate.code} value={plate.code}>
+                      {plate.name}
+                      {plate.isStandardStock ? " — in stock" : " — on request"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Standard Zinc nickel electrophoretic ships without additional
+                lead time. Other finishes are available on request.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="application-area">

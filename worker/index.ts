@@ -40,6 +40,7 @@ import me from "./routes/me";
 import search from "./routes/search";
 import installations from "./routes/installations";
 import installTeams from "./routes/installTeams";
+import basePlates from "./routes/basePlates";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -113,6 +114,7 @@ app.route("/api", me);
 app.route("/api", search);
 app.route("/api", installations);
 app.route("/api", installTeams);
+app.route("/api", basePlates);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -3027,6 +3029,347 @@ app.get("/api/maintenance/:file", async (c) => {
   const obj = await bucket.get(`maintenance/${file}`);
   if (!obj) {
     return c.json({ message: "Maintenance document not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Content-Disposition", `inline; filename="${file}"`);
+  return new Response(obj.body as any, { headers });
+});
+
+// Base-plates schema — idempotent DDL for:
+//   base_plates (5 plate SKUs from the Available Base Plates PDF)
+//   base_plate_product_compatibility (many-to-many product<->plate edges)
+// Gated by MIGRATION_TOKEN (bearer). Safe to re-run.
+app.post("/api/admin/apply-base-plates-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const preTables = (await sqlClient`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_name IN ('base_plates', 'base_plate_product_compatibility')
+    `) as Array<{ table_name: string }>;
+    const existing = new Set(preTables.map((r) => r.table_name));
+
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS base_plates (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR NOT NULL UNIQUE,
+        name VARCHAR NOT NULL,
+        description TEXT,
+        bolt_size VARCHAR,
+        bolt_length_mm INTEGER,
+        plate_dimensions_mm VARCHAR,
+        coating VARCHAR,
+        fixing_type VARCHAR,
+        substrate_notes TEXT,
+        is_standard_stock BOOLEAN DEFAULT false,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `;
+
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS base_plate_product_compatibility (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        base_plate_id VARCHAR NOT NULL REFERENCES base_plates(id) ON DELETE CASCADE,
+        product_id VARCHAR NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT now(),
+        CONSTRAINT bp_compat_unique UNIQUE (base_plate_id, product_id)
+      )
+    `;
+    await sqlClient`
+      CREATE INDEX IF NOT EXISTS bp_compat_product_idx
+      ON base_plate_product_compatibility (product_id)
+    `;
+    await sqlClient`
+      CREATE INDEX IF NOT EXISTS bp_compat_plate_idx
+      ON base_plate_product_compatibility (base_plate_id)
+    `;
+
+    return c.json({
+      ok: true,
+      tables: {
+        base_plates: existing.has("base_plates") ? "already-present" : "created",
+        base_plate_product_compatibility: existing.has(
+          "base_plate_product_compatibility",
+        )
+          ? "already-present"
+          : "created",
+      },
+      created:
+        (existing.has("base_plates") ? 0 : 1) +
+        (existing.has("base_plate_product_compatibility") ? 0 : 1),
+    });
+  } catch (e: any) {
+    console.error("apply-base-plates-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Ingest scripts/data/base-plates.json into base_plates +
+// base_plate_product_compatibility. Idempotent — ON CONFLICT on plate code
+// updates metadata; ON CONFLICT on the (plate,product) edge is a no-op.
+// Compatibility mapping fuzzy-matches the PDF's product-family label to
+// products.name via a curated alias list embedded in the JSON, falling back
+// to case-insensitive partial match. Unresolved families surface under
+// `unmatchedFamilies` in the response body.
+app.post("/api/admin/ingest-base-plates", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const datasetModule: any = await import(
+      "../scripts/data/base-plates.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const plates: any[] = dataset.plates || [];
+    const compatibility: Array<{ product: string; plates: string[] }> =
+      dataset.compatibility || [];
+    const aliases: Record<string, string[]> = dataset.productFamilyAliases || {};
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Upsert plates. ON CONFLICT(code) refreshes metadata; (xmax = 0)
+    // distinguishes insert vs update.
+    let platesInserted = 0;
+    const plateIdByCode: Record<string, string> = {};
+    for (let i = 0; i < plates.length; i++) {
+      const p = plates[i];
+      const isStd = p.code === "BP-STD-ZN";
+      const r = (await sqlClient`
+        INSERT INTO base_plates (
+          code, name, description, bolt_size, bolt_length_mm,
+          plate_dimensions_mm, coating, fixing_type, substrate_notes,
+          is_standard_stock, sort_order
+        ) VALUES (
+          ${p.code}, ${p.name}, ${p.description ?? null}, ${p.boltSize ?? null},
+          ${p.boltLengthMm ?? null}, ${p.plateDimensionsMm ?? null},
+          ${p.coating ?? null}, ${p.fixingType ?? null},
+          ${p.substrateNotes ?? null}, ${isStd}, ${i}
+        )
+        ON CONFLICT (code) DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          bolt_size = EXCLUDED.bolt_size,
+          bolt_length_mm = EXCLUDED.bolt_length_mm,
+          plate_dimensions_mm = EXCLUDED.plate_dimensions_mm,
+          coating = EXCLUDED.coating,
+          fixing_type = EXCLUDED.fixing_type,
+          substrate_notes = EXCLUDED.substrate_notes,
+          is_standard_stock = EXCLUDED.is_standard_stock,
+          sort_order = EXCLUDED.sort_order,
+          updated_at = now()
+        RETURNING id, code, (xmax = 0) AS inserted
+      `) as Array<{ id: string; code: string; inserted: boolean }>;
+      if (r[0]) {
+        plateIdByCode[r[0].code] = r[0].id;
+        if (r[0].inserted) platesInserted++;
+      }
+    }
+
+    // Pull all products once — resolving PDF labels to DB products via
+    // explicit alias list first, then case-insensitive substring match.
+    const dbProducts = (await sqlClient`
+      SELECT id, name FROM products WHERE is_active IS NOT FALSE
+    `) as Array<{ id: string; name: string }>;
+    const dbByLowerName = new Map<string, { id: string; name: string }>();
+    for (const p of dbProducts) {
+      dbByLowerName.set(p.name.toLowerCase(), p);
+    }
+
+    function resolveProducts(familyLabel: string): Array<{ id: string; name: string }> {
+      const resolved = new Map<string, { id: string; name: string }>();
+      const candidates = aliases[familyLabel] || [familyLabel];
+      for (const alias of candidates) {
+        const low = alias.toLowerCase();
+        const exact = dbByLowerName.get(low);
+        if (exact) {
+          resolved.set(exact.id, exact);
+          continue;
+        }
+        // Partial match with a min-length guard so short words don't
+        // over-match.
+        for (const p of dbProducts) {
+          const pLow = p.name.toLowerCase();
+          if (pLow === low) {
+            resolved.set(p.id, p);
+          } else if (low.length >= 8 && (pLow.includes(low) || low.includes(pLow))) {
+            resolved.set(p.id, p);
+          }
+        }
+      }
+      return [...resolved.values()];
+    }
+
+    let edgesInserted = 0;
+    let edgesSkippedDup = 0;
+    const unmatchedFamilies: string[] = [];
+    const edgeDetails: Array<{
+      family: string;
+      matchedDbProducts: string[];
+      plateCodes: string[];
+      edgesAdded: number;
+    }> = [];
+
+    for (const entry of compatibility) {
+      const productsFound = resolveProducts(entry.product);
+      if (productsFound.length === 0) {
+        unmatchedFamilies.push(entry.product);
+        continue;
+      }
+      let addedForEntry = 0;
+      for (const plateCode of entry.plates) {
+        const plateId = plateIdByCode[plateCode];
+        if (!plateId) continue;
+        for (const prod of productsFound) {
+          const r = (await sqlClient`
+            INSERT INTO base_plate_product_compatibility (base_plate_id, product_id)
+            VALUES (${plateId}, ${prod.id})
+            ON CONFLICT ON CONSTRAINT bp_compat_unique DO NOTHING
+            RETURNING id
+          `) as Array<{ id: string }>;
+          if (r.length > 0) {
+            edgesInserted++;
+            addedForEntry++;
+          } else {
+            edgesSkippedDup++;
+          }
+        }
+      }
+      edgeDetails.push({
+        family: entry.product,
+        matchedDbProducts: productsFound.map((p) => p.name),
+        plateCodes: entry.plates,
+        edgesAdded: addedForEntry,
+      });
+    }
+
+    return c.json({
+      ok: true,
+      summary: {
+        platesInDataset: plates.length,
+        platesInserted,
+        platesUpserted: plates.length,
+        compatibilityEntries: compatibility.length,
+        unmatchedFamilies: unmatchedFamilies.length,
+        dbProductsScanned: dbProducts.length,
+        edgesInserted,
+        edgesSkippedDup,
+      },
+      unmatchedFamilies,
+      edgeDetails,
+    });
+  } catch (e: any) {
+    console.error("ingest-base-plates failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Seed the Available Base Plates PDF into the resources table. The PDF is
+// pre-uploaded to R2 at hardware/available-base-plates.pdf via wrangler
+// before this runs; this endpoint just creates/refreshes the resources row
+// so the /resources page lists it. Idempotent — matched by file_url.
+app.post("/api/admin/upload-base-plates-pdf", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const fileUrl = "/api/hardware/available-base-plates.pdf";
+    const title = "Available Base Plates";
+    const category = "Base Plates";
+    const resourceType = "Technical Specifications";
+    const description =
+      "Compatibility matrix for A-SAFE base-plate SKUs (Standard Zinc nickel electrophoretic, Countersunk Bolts, SS 316 Standard, SS 316 Countersunk, Galvanised Steel) across all major barrier, bollard, rack-end, gate and height-restrictor product families. Lists which plate is stocked vs available on request.";
+
+    const existing = (await sqlClient`
+      SELECT id FROM resources WHERE file_url = ${fileUrl} LIMIT 1
+    `) as Array<{ id: string }>;
+
+    if (existing[0]) {
+      await sqlClient`
+        UPDATE resources
+        SET title = ${title}, category = ${category},
+            resource_type = ${resourceType}, description = ${description},
+            file_type = 'pdf', updated_at = now(), is_active = true
+        WHERE id = ${existing[0].id}
+      `;
+      return c.json({ ok: true, action: "updated", resourceId: existing[0].id });
+    }
+
+    const inserted = (await sqlClient`
+      INSERT INTO resources (title, category, resource_type, description, file_url, file_type, is_active)
+      VALUES (${title}, ${category}, ${resourceType}, ${description}, ${fileUrl}, 'pdf', true)
+      RETURNING id
+    `) as Array<{ id: string }>;
+
+    return c.json({ ok: true, action: "inserted", resourceId: inserted[0]?.id });
+  } catch (e: any) {
+    console.error("upload-base-plates-pdf failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Static-PDF read route for hardware manifests (currently the Available
+// Base Plates PDF). Mirrors /api/certificates/:file — auth-free so
+// anonymous /resources visitors can open it.
+app.get("/api/hardware/:file", async (c) => {
+  const file = c.req.param("file");
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid hardware filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`hardware/${file}`);
+  if (!obj) {
+    return c.json({ message: "Hardware PDF not found" }, 404);
   }
   const headers = new Headers();
   headers.set(

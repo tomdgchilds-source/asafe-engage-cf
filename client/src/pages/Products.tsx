@@ -17,6 +17,7 @@ import { ProductComparison } from "@/components/ProductComparison";
 import { ProductSuitabilityBlock } from "@/components/ProductSuitabilityBlock";
 import { ProductMaintenanceBlock } from "@/components/ProductMaintenanceBlock";
 import { ProductGroundWorksBlock } from "@/components/ProductGroundWorksBlock";
+import { ProductBasePlatesPanel } from "@/components/ProductBasePlatesPanel";
 import { useAuth } from "../hooks/useAuth";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -580,6 +581,16 @@ export default function Products() {
           <div className="mt-4 sm:mt-6">
             <ProductGroundWorksBlock
               data={(individualProduct as any).groundWorksData}
+              productName={individualProduct.name}
+            />
+          </div>
+
+          {/* Available Base Plates — compatible plate SKUs joined via
+              base_plate_product_compatibility. Hides itself if the product
+              has no compatible plates (add-ons, rack accessories). */}
+          <div className="mt-6 sm:mt-8">
+            <ProductBasePlatesPanel
+              productId={individualProduct.id}
               productName={individualProduct.name}
             />
           </div>
