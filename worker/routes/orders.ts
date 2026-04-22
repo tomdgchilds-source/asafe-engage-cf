@@ -11,6 +11,7 @@ import {
   sendOrderPdfEmail,
 } from "../services/email";
 import { ensureInstallationForOrder } from "./installations";
+import { pas13Verdict, type Pas13Verdict } from "../../shared/pas13Rules";
 
 // Order statuses that represent "this order is won and moving towards
 // delivery/install". When an order enters any of these, we try to
@@ -216,7 +217,9 @@ orders.post("/orders", authMiddleware, async (c) => {
     const discountAmount = subtotal * (appliedDiscountPercent / 100);
     const totalAmount = Math.max(subtotal - discountAmount, 0);
 
-    // Enrich cart items with product details including images
+    // Enrich cart items with product details including images. We also
+    // capture the product row on the enriched item so the PAS 13 pre-flight
+    // below doesn't have to round-trip the DB a second time.
     const enrichedCartItems = await Promise.all(
       cartItems.map(async (item: any) => {
         const product = await storage.getProductByName(item.productName);
@@ -225,9 +228,170 @@ orders.post("/orders", authMiddleware, async (c) => {
           imageUrl: product?.imageUrl || null,
           impactRating: product?.impactRating || null,
           category: product?.category || "safety-barriers",
+          __product: product || null,
         };
       })
     );
+
+    // ────────────────────────────────────────────────────────────────
+    // PAS 13:2017 alignment pre-flight
+    // ────────────────────────────────────────────────────────────────
+    // For each line item, compute a verdict against the cart line's own
+    // calculationContext (what the user saw when adding the product).
+    // Fallback: the heaviest vehicle across the user's impact calculations.
+    //
+    //   aligned      → pass through silently
+    //   borderline   → accumulate warnings on pas13Warnings; insert proceeds
+    //   not_aligned  → HTTP 409 with a cited error, UNLESS ?override=true
+    //                  was passed — in which case we audit-log the override
+    //                  reason and proceed, with the warnings persisted.
+    //
+    // "New going forward": we only check on INSERT. Previously-submitted
+    // orders are not retrofitted.
+    const override = String(c.req.query("override") || "").toLowerCase() === "true";
+    const overrideReason = c.req.query("overrideReason") || null;
+
+    let fallbackContext: {
+      vehicleMassKg: number;
+      loadMassKg: number;
+      speedKmh: number;
+      approachAngleDeg: number;
+    } | null = null;
+    try {
+      const userCalcs = await storage.getUserCalculations(userId);
+      if (Array.isArray(userCalcs) && userCalcs.length > 0) {
+        const heaviest = [...userCalcs].sort((a: any, b: any) => {
+          const am = Number(a.vehicleMass || 0) + Number(a.loadMass || 0);
+          const bm = Number(b.vehicleMass || 0) + Number(b.loadMass || 0);
+          return bm - am;
+        })[0] as any;
+        const speedNum = Number(heaviest.speed || 0);
+        const unit = String(heaviest.speedUnit || "kmh");
+        const speedKmh =
+          unit === "mph" ? speedNum * 1.60934 : unit === "ms" ? speedNum * 3.6 : speedNum;
+        fallbackContext = {
+          vehicleMassKg: Number(heaviest.vehicleMass || 0),
+          loadMassKg: Number(heaviest.loadMass || 0),
+          speedKmh,
+          approachAngleDeg: Number(heaviest.impactAngle || 0) || 90,
+        };
+      }
+    } catch (err) {
+      console.warn("[pas13] could not resolve heaviest-vehicle fallback:", err);
+    }
+
+    const pas13Warnings: string[] = [];
+    const pas13Blockers: Array<{
+      productName: string;
+      summary: string;
+      citations: Pas13Verdict["citations"];
+      details: Pas13Verdict["details"];
+    }> = [];
+
+    for (const item of enrichedCartItems) {
+      const product = (item as any).__product;
+      const ctx = (item as any).calculationContext as any;
+      let vehicleMassKg = 0;
+      let loadMassKg = 0;
+      let speedKmh = 0;
+      let approachAngleDeg = 90;
+      if (
+        ctx &&
+        Number(ctx.vehicleMass || 0) +
+          Number(ctx.loadMass || 0) >
+          0 &&
+        Number(ctx.speed || 0) > 0
+      ) {
+        vehicleMassKg = Number(ctx.vehicleMass || 0);
+        loadMassKg = Number(ctx.loadMass || 0);
+        const sNum = Number(ctx.speed || 0);
+        const sUnit = String(ctx.speedUnit || "kmh");
+        speedKmh =
+          sUnit === "mph" ? sNum * 1.60934 : sUnit === "ms" ? sNum * 3.6 : sNum;
+        approachAngleDeg = Number(ctx.impactAngle || 0) || 90;
+      } else if (fallbackContext) {
+        vehicleMassKg = fallbackContext.vehicleMassKg;
+        loadMassKg = fallbackContext.loadMassKg;
+        speedKmh = fallbackContext.speedKmh;
+        approachAngleDeg = fallbackContext.approachAngleDeg;
+      } else {
+        // No context anywhere — skip pre-flight for this item. We still
+        // attach a note so the UI surfaces that the check was skipped.
+        pas13Warnings.push(
+          `${item.productName}: PAS 13 pre-flight skipped — no vehicle context on cart line or project.`,
+        );
+        continue;
+      }
+
+      const ratedJoules =
+        Number(product?.impactRating || 0) ||
+        Number(product?.pas13TestJoules || 0) ||
+        Number((item as any).impactRating || 0) ||
+        0;
+
+      // Best-effort impact-zone read from the product's impactTestingData.
+      const impactZoneRaw = product?.impactTestingData?.impactZone || null;
+      let impactZoneMm = 200;
+      if (typeof impactZoneRaw === "string") {
+        const m = impactZoneRaw.match(/(\d{1,5})/g);
+        if (m && m.length > 0) {
+          const max = Math.max(...m.map((x) => parseInt(x, 10)));
+          if (Number.isFinite(max) && max > 0) impactZoneMm = max;
+        }
+      }
+      if (Number(product?.deflectionZone || 0) > 0) {
+        impactZoneMm = Number(product.deflectionZone);
+      }
+
+      const verdict = pas13Verdict({
+        vehicleMassKg,
+        loadMassKg,
+        speedKmh,
+        approachAngleDeg,
+        productRatedJoulesAt45deg: ratedJoules,
+        productImpactZoneMaxMm: impactZoneMm,
+      });
+
+      if (verdict.verdict === "not_aligned") {
+        pas13Blockers.push({
+          productName: item.productName,
+          summary: verdict.summary,
+          citations: verdict.citations,
+          details: verdict.details,
+        });
+        pas13Warnings.push(
+          `${item.productName}: ${verdict.summary}`,
+          ...verdict.warnings.map((w) => `${item.productName}: ${w}`),
+        );
+      } else if (verdict.verdict === "borderline") {
+        pas13Warnings.push(
+          `${item.productName}: ${verdict.summary}`,
+          ...verdict.warnings.map((w) => `${item.productName}: ${w}`),
+        );
+      }
+    }
+
+    if (pas13Blockers.length > 0 && !override) {
+      // Block with HTTP 409 — explicit cited error. UI surfaces the list.
+      return c.json(
+        {
+          message: "One or more items are not PAS 13 aligned for this project's impact context.",
+          pas13Blockers,
+          pas13Warnings,
+          override: {
+            hint:
+              "Append ?override=true&overrideReason=... to force submit. Rep override is logged in the audit trail.",
+          },
+        },
+        409,
+      );
+    }
+
+    // Strip the temporary __product before persisting — we don't want to
+    // duplicate the entire product row inside orders.items.
+    for (const it of enrichedCartItems) {
+      delete (it as any).__product;
+    }
 
     // Gather comprehensive project data
     let fullApplicationAreas = applicationAreas;
@@ -316,10 +480,34 @@ orders.post("/orders", authMiddleware, async (c) => {
             customerMobile,
             customerEmail,
           }),
+      // PAS 13:2017 pre-flight warnings — null when the order is fully
+      // aligned, otherwise an array of per-item messages. Blockers that
+      // got overridden are also captured here so the audit trail is
+      // complete on the order itself (not just in order_audit_log).
+      ...(pas13Warnings.length > 0 ? { pas13Warnings } : {}),
     };
 
     const order = await storage.createOrder(orderData);
     console.log("Created order:", order);
+
+    // Audit-log the PAS 13 override when it fired. The blocker details are
+    // captured verbatim so the admin-side review has the full cited reason.
+    if (pas13Blockers.length > 0 && override) {
+      try {
+        await storage.appendOrderAuditLog({
+          orderId: order.id,
+          eventType: "pas13_override",
+          actorUserId: userId,
+          details: {
+            overrideReason: overrideReason || null,
+            blockers: pas13Blockers,
+            warnings: pas13Warnings,
+          },
+        });
+      } catch (err) {
+        console.warn("[pas13] override audit-log write failed:", err);
+      }
+    }
 
     // If a partner code was used, redeem it server-side. redeemPartnerCode()
     // does a conditional increment + audit-row insert, so it enforces the

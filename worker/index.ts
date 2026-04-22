@@ -4022,6 +4022,37 @@ app.post("/api/admin/seed-pas13-resource", async (c) => {
   }
 });
 
+// One-shot DDL — adds orders.pas_13_warnings jsonb if missing. Consumed
+// by the POST /api/orders pre-flight check in worker/routes/orders.ts
+// to surface PAS 13:2017 borderline / not-aligned warnings on the order
+// row. Defensive IF NOT EXISTS so re-running is safe. Gated by
+// MIGRATION_TOKEN (bearer), same pattern as the sibling admin one-offs.
+app.post("/api/admin/apply-pas13-orders-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    await sqlClient`ALTER TABLE orders ADD COLUMN IF NOT EXISTS pas_13_warnings jsonb`;
+    return c.json({ ok: true, message: "orders.pas_13_warnings ensured" });
+  } catch (e: any) {
+    console.error("apply-pas13-orders-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side

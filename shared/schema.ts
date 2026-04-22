@@ -184,6 +184,14 @@ export const orders = pgTable("orders", {
   shareTokenExpiresAt: timestamp("share_token_expires_at"),
   shareTokenCreatedAt: timestamp("share_token_created_at"),
   shareTokenCreatedBy: varchar("share_token_created_by").references(() => users.id),
+  // ──────────────────────────────────────────────
+  // PAS 13:2017 alignment warnings attached at order-submit time by the
+  // pre-flight check in worker/routes/orders.ts POST /api/orders. Nullable
+  // — an empty/aligned order stays null. Shape is an array of strings —
+  // each entry is a verdict warning line from shared/pas13Rules.ts. Set
+  // "new going forward" — pre-existing orders remain untouched.
+  // ──────────────────────────────────────────────
+  pas13Warnings: jsonb("pas_13_warnings"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

@@ -10,6 +10,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { Pas13VerdictPanel } from "@/components/Pas13VerdictPanel";
+import { pas13Verdict } from "@shared/pas13Rules";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -1368,6 +1370,81 @@ export function VehicleImpactCalculator() {
           </CardContent>
         </Card>
       </div>
+
+      {/* PAS 13:2017 alignment verdict — additive panel below the KE
+          result. The barrier-recommendation logic below is UNCHANGED —
+          this panel adds a deterministic PAS 13 verdict (aligned /
+          borderline / not aligned) with cited sections.
+
+          Rated energy comes from the highest-rated recommended product
+          (i.e. the one the calculator would actually surface first). When
+          no recommendations are back yet we show the verdict against the
+          recommended-tier's family joules as a proxy so the panel is
+          never empty once a calculation has run. */}
+      {result && (() => {
+        const ratedJoules =
+          (Array.isArray(recommendations) && recommendations.length > 0
+            ? recommendations
+                .map((p: any) => p?.impactRating)
+                .filter((j: any) => typeof j === "number" && j > 0)
+                .sort((a: number, b: number) => b - a)[0]
+            : undefined) ??
+          (resolvedLadder && calcRecommendedTier
+            ? (joulesForFamily(
+                resolvedLadder.tiers[calcRecommendedTier].family,
+              ) ?? undefined)
+            : undefined) ??
+          0;
+
+        // Impact-zone proxy: default 200 mm if no product-level deflection
+        // data attached. §5.10 adds the 600 mm pedestrian safe-zone on top.
+        const impactZoneMm =
+          (Array.isArray(recommendations) && recommendations.length > 0
+            ? recommendations
+                .map((p: any) => p?.deflectionZone)
+                .find((d: any) => typeof d === "number" && d > 0)
+            : undefined) ?? 200;
+
+        const angleDeg =
+          typeof inputs.impactAngle === "string"
+            ? parseFloat(inputs.impactAngle) || 90
+            : inputs.impactAngle || 90;
+
+        // Re-derive raw inputs in the expected units.
+        const vmKg =
+          typeof inputs.vehicleMass === "string"
+            ? parseFloat(inputs.vehicleMass) || 0
+            : inputs.vehicleMass;
+        const lmKg =
+          typeof inputs.loadMass === "string"
+            ? parseFloat(inputs.loadMass) || 0
+            : inputs.loadMass;
+        const speedNum =
+          typeof inputs.speed === "string"
+            ? parseFloat(inputs.speed) || 0
+            : inputs.speed;
+        const speedKmh =
+          inputs.speedUnit === "mph"
+            ? speedNum * 1.60934
+            : inputs.speedUnit === "ms"
+              ? speedNum * 3.6
+              : speedNum;
+
+        const verdict = pas13Verdict({
+          vehicleMassKg: vmKg,
+          loadMassKg: lmKg,
+          speedKmh,
+          approachAngleDeg: angleDeg,
+          productRatedJoulesAt45deg: ratedJoules,
+          productImpactZoneMaxMm: impactZoneMm,
+          measuredDeflectionZoneMm: null,
+        });
+        return (
+          <div className="mt-6">
+            <Pas13VerdictPanel verdict={verdict} />
+          </div>
+        );
+      })()}
 
       {/* Product Recommendations */}
       {result && (
