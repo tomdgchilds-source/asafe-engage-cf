@@ -86,8 +86,11 @@
       "title": "EN 15512 Certificate — RackGuard",
       "description": "Official A-SAFE EN 15512 test certificate for the RackGuard rack leg protector, covering all height and profile variants.",
       "fileSize": 862000,
-      "productFamilies": ["family-rackguard---multiple-height-and-p", "family-cold-storage-rackguard---multiple"],
-      "productMatchHints": ["RackGuard"]
+      "productFamilies": [],
+      "productMatchHints": [
+        "RackGuard - Multiple height and profile sizes",
+        "Cold Storage RackGuard - Multiple height and profile sizes"
+      ]
     },
     {
       "slug": "cert-asafe-general-certification",
