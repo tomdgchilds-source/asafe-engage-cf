@@ -42,13 +42,31 @@ async function markupBelongsToUser(
 // LAYOUT DRAWING ROUTES
 // =============================================
 
-// GET /api/layout-drawings
+// GET /api/layout-drawings - list user drawings scoped to their active
+// project. Optional ?projectId=<id> override lets the client peek
+// another project's drawings (used by ProjectSwitcher to decide whether
+// the switch-confirm dialog needs to fire). If the user has no active
+// project and no override is supplied, falls back to returning
+// EVERYTHING they own (backward compatible). Project-scoped queries
+// also return project_id IS NULL orphans — drawings created before
+// this feature, or before the user picked a project.
 layoutDrawings.get("/layout-drawings", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
     const userId = c.get("user").claims.sub;
-    const drawings = await storage.getLayoutDrawings(userId);
+    const overrideRaw = c.req.query("projectId");
+    let scope: string | null | undefined;
+    if (overrideRaw !== undefined) {
+      // Empty / "null" / "none" strings → explicit orphan-only view.
+      scope = overrideRaw && overrideRaw !== "null" && overrideRaw !== "none"
+        ? overrideRaw
+        : null;
+    } else {
+      const user = await storage.getUser(userId);
+      scope = (user as any)?.activeProjectId ?? undefined;
+    }
+    const drawings = await storage.getLayoutDrawings(userId, scope);
     return c.json(drawings);
   } catch (error) {
     console.error("Error fetching layout drawings:", error);
@@ -93,8 +111,17 @@ layoutDrawings.post("/layout-drawings", heavyMutationRateLimit, async (c) => {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
     const userId = c.get("user").claims.sub;
-    const { projectName, company, location, fileName, fileUrl, fileType, thumbnailUrl } =
-      await c.req.json();
+    const body = await c.req.json();
+    const { projectName, company, location, fileName, fileUrl, fileType, thumbnailUrl } = body;
+
+    // Stamp the active project so per-project filtering picks it up.
+    // Body override wins when present; otherwise fall back to the
+    // user's current activeProjectId. Never silently drop it.
+    let projectId: string | null | undefined = body.projectId;
+    if (projectId === undefined) {
+      const user = await storage.getUser(userId);
+      projectId = (user as any)?.activeProjectId ?? null;
+    }
 
     // Auto-populate title-block defaults so the branded frame looks
     // complete the moment a drawing is uploaded. The user can override
@@ -106,6 +133,7 @@ layoutDrawings.post("/layout-drawings", heavyMutationRateLimit, async (c) => {
 
     const drawing = await storage.createLayoutDrawing({
       userId,
+      projectId,
       projectName,
       company,
       location,
@@ -133,10 +161,19 @@ layoutDrawings.post("/layout-drawings/blank-canvas", heavyMutationRateLimit, asy
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
     const userId = c.get("user").claims.sub;
-    const { projectName, company, location } = await c.req.json();
+    const body = await c.req.json();
+    const { projectName, company, location } = body;
+
+    // Stamp the active project (same rule as the upload POST).
+    let projectId: string | null | undefined = body.projectId;
+    if (projectId === undefined) {
+      const user = await storage.getUser(userId);
+      projectId = (user as any)?.activeProjectId ?? null;
+    }
 
     const drawing = await storage.createLayoutDrawing({
       userId,
+      projectId,
       projectName,
       company,
       location,
@@ -228,6 +265,73 @@ layoutDrawings.put("/layout-drawings/:id/scale", mutationRateLimit, async (c) =>
     return c.json(updatedDrawing);
   } catch (error) {
     console.error("Error updating layout drawing scale:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// POST /api/layout-drawings/:id/copy-to-project
+// Clones a drawing (title/image/calibration + all markups) into a
+// destination project the caller also owns. Smaller jobs frequently
+// belong to a larger site family, so the same drawing legitimately
+// needs to live in more than one project. The new row gets a fresh
+// id, `project_id = destination`, and a copied set of markups that
+// point to the new drawing id. Source drawing is untouched.
+layoutDrawings.post("/layout-drawings/:id/copy-to-project", mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const sourceId = c.req.param("id");
+    const { projectId: destProjectId } = await c.req.json();
+
+    if (!destProjectId || typeof destProjectId !== "string") {
+      return c.json({ error: "projectId is required" }, 400);
+    }
+
+    // Validate caller owns the source drawing.
+    const source = await storage.getLayoutDrawing(sourceId);
+    if (!source || source.userId !== userId) {
+      return c.json({ error: "Layout drawing not found" }, 404);
+    }
+
+    // Validate caller owns the destination project.
+    const destProject = await storage.getProject(destProjectId);
+    if (!destProject || (destProject as any).userId !== userId) {
+      return c.json({ error: "Destination project not found" }, 404);
+    }
+
+    // Refuse to copy into the same project — prevents accidental dupes
+    // on the same project and keeps the client dialog's job clear.
+    if ((source as any).projectId && (source as any).projectId === destProjectId) {
+      return c.json({ error: "Source already belongs to that project" }, 400);
+    }
+
+    // Copy the drawing row with the destination project stamped.
+    // Strip id / createdAt / updatedAt / deletedAt so the DB generates
+    // fresh ones. Everything else (title-block metadata, calibration,
+    // file pointers) rides along verbatim.
+    const { id: _srcId, createdAt: _srcC, updatedAt: _srcU, deletedAt: _srcD, projectId: _srcP, ...carry } = source as any;
+    const copied = await storage.createLayoutDrawing({
+      ...carry,
+      userId,
+      projectId: destProjectId,
+    } as any);
+
+    // Carry over markups too — a drawing without its markups is a
+    // blank template, not a copy. Reset ids and point them at the
+    // new drawing.
+    const srcMarkups = await storage.getLayoutMarkups(sourceId);
+    for (const m of srcMarkups) {
+      const { id: _mId, createdAt: _mC, updatedAt: _mU, deletedAt: _mD, layoutDrawingId: _mL, ...mCarry } = m as any;
+      await storage.createLayoutMarkup({
+        ...mCarry,
+        layoutDrawingId: copied.id,
+      } as any);
+    }
+
+    return c.json(copied, 201);
+  } catch (error) {
+    console.error("Error copying layout drawing to project:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });

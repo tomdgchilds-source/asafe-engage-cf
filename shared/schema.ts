@@ -994,6 +994,14 @@ export const currencyRates = pgTable("currency_rates", {
 export const layoutDrawings = pgTable("layout_drawings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
+  // Which project this drawing belongs to. Nullable because legacy
+  // drawings created before per-project scoping (or by users who
+  // never picked an active project) stay orphaned — they remain
+  // visible to their owner regardless of which project is active.
+  // ON DELETE SET NULL so deleting a project doesn't cascade-wipe
+  // its drawing history. Markups inherit scoping via their parent
+  // drawing FK — no separate project_id column on layout_markups.
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: "set null" }),
   projectName: varchar("project_name"),
   company: varchar("company"),
   location: varchar("location"),

@@ -32,7 +32,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Project, CustomerCompany, ProjectContact, CartItem } from "@shared/schema";
+import type {
+  Project,
+  CustomerCompany,
+  ProjectContact,
+  CartItem,
+  LayoutDrawing,
+} from "@shared/schema";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 
 type ProjectWithCustomer = Project & {
@@ -81,10 +87,12 @@ export function ProjectSwitcher() {
   const [createOpen, setCreateOpen] = useState(false);
   // Switch-confirm state — only populated when a pending switch would
   // hide data. `null` means no dialog; otherwise holds the destination
-  // project + the cart-item count we'd be leaving behind.
+  // project + a human-readable summary of what'd be hidden (cart
+  // items and/or an open unsaved drawing).
   const [pendingSwitch, setPendingSwitch] = useState<{
     dest: ProjectWithCustomer;
     currentCount: number;
+    openDrawingTitle: string | null;
   } | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -166,12 +174,15 @@ export function ProjectSwitcher() {
   }, [projects, search]);
 
   // Decide whether picking `dest` should pop the confirm dialog.
-  // Rule:
-  //   - current cart empty → switch immediately (no confirm).
-  //   - current cart non-empty AND destination cart contains the exact
-  //     same set of item IDs (e.g. every item is a project_id IS NULL
-  //     orphan that'll appear under both projects) → switch immediately.
-  //   - otherwise → confirm (data would be hidden).
+  // Rule: fire ONLY when switching would hide work.
+  //   - Cart side: current cart non-empty AND destination cart
+  //     doesn't contain the exact same set of item IDs.
+  //   - Drawing side: an open drawing on the Layout page belongs to
+  //     the CURRENT project (reading the window flag set by
+  //     LayoutDrawing.tsx when the editor is mounted). Orphan
+  //     drawings (project_id IS NULL) are visible in both, so they
+  //     don't count as hidden.
+  // Either signal alone is enough to prompt.
   const handlePick = async (p: ProjectWithCustomer) => {
     if (p.id === active?.id) {
       setOpen(false);
@@ -187,24 +198,45 @@ export function ProjectSwitcher() {
       ]);
       const current: CartItem[] = curRes.ok ? await curRes.json() : [];
       const destItems: CartItem[] = destRes.ok ? await destRes.json() : [];
-      if (current.length === 0) {
-        switchActive.mutate(p.id);
-        return;
-      }
+
+      // Cart peek: does switching hide any current cart items?
       const curIds = new Set(current.map((c) => c.id));
       const destIds = new Set(destItems.map((c) => c.id));
       const sameSet =
         curIds.size === destIds.size &&
         Array.from(curIds).every((id) => destIds.has(id));
-      if (sameSet) {
+      const cartWouldHide = current.length > 0 && !sameSet;
+
+      // Drawing peek: is there a drawing open on the Layout page
+      // that belongs to the current project? If it's an orphan
+      // (null project_id) it shows up under both projects, so the
+      // switch wouldn't hide it.
+      const w = window as any;
+      const openDrawingId: string | undefined = w.__openLayoutDrawingId;
+      const openDrawingProjectId: string | null | undefined = w.__openLayoutDrawingProjectId;
+      let openDrawingTitle: string | null = null;
+      if (openDrawingId && openDrawingProjectId && openDrawingProjectId === active?.id) {
+        // Try the react-query cache first so we can name the drawing
+        // in the dialog; fall back to a generic label if not cached.
+        const cached = queryClient.getQueryData<LayoutDrawing[]>(["/api/layout-drawings"]);
+        const match = cached?.find((d) => d.id === openDrawingId);
+        openDrawingTitle = match?.fileName ?? "your open drawing";
+      }
+      const drawingWouldHide = openDrawingTitle !== null;
+
+      if (!cartWouldHide && !drawingWouldHide) {
         switchActive.mutate(p.id);
         return;
       }
-      setPendingSwitch({ dest: p, currentCount: current.length });
+      setPendingSwitch({
+        dest: p,
+        currentCount: current.length,
+        openDrawingTitle,
+      });
     } catch (err) {
       // Peek failed — fall back to a direct switch rather than
       // blocking the user on a flaky network.
-      console.error("Cart peek failed, switching without confirm:", err);
+      console.error("Switch peek failed, switching without confirm:", err);
       switchActive.mutate(p.id);
     } finally {
       setChecking(false);
@@ -388,12 +420,22 @@ export function ProjectSwitcher() {
               Switch to {pendingSwitch?.dest.name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Your current project cart has {pendingSwitch?.currentCount} item
-              {pendingSwitch?.currentCount === 1 ? "" : "s"}. They'll stay
-              attached to {active?.name} — you'll see{" "}
+              {pendingSwitch?.currentCount && pendingSwitch.currentCount > 0 ? (
+                <>
+                  Your current project cart has {pendingSwitch.currentCount} item
+                  {pendingSwitch.currentCount === 1 ? "" : "s"}.{" "}
+                </>
+              ) : null}
+              {pendingSwitch?.openDrawingTitle ? (
+                <>
+                  You have an open drawing ({pendingSwitch.openDrawingTitle})
+                  that belongs to {active?.name}.{" "}
+                </>
+              ) : null}
+              This work will stay attached to {active?.name} — you'll see{" "}
               {pendingSwitch?.dest.customerCompany?.name ??
                 pendingSwitch?.dest.name}
-              's cart after switching.
+              's view after switching.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

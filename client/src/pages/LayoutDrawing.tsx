@@ -4,17 +4,42 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Package, ShoppingCart, PenTool, FileImage, Upload } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Package, ShoppingCart, PenTool, FileImage, Upload, MoreHorizontal, Copy, Loader2 } from "lucide-react";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
 import { LayoutMarkupEditor } from "@/components/layout-markup";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import type { LayoutDrawing as LayoutDrawingType, CartItem as CartItemType } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import type { LayoutDrawing as LayoutDrawingType, CartItem as CartItemType, Project, CustomerCompany } from "@shared/schema";
+
+type ProjectWithCustomer = Project & { customerCompany: CustomerCompany | null };
+type ActiveProject = ProjectWithCustomer | null;
 
 export default function LayoutDrawing() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedDrawing, setSelectedDrawing] = useState<LayoutDrawingType | null>(null);
   const [isMarkupEditorOpen, setIsMarkupEditorOpen] = useState(false);
+  // Copy-to-project dialog state. `null` = closed. Holds the drawing
+  // the user is copying so the dialog can render its title and target
+  // the right row on confirm.
+  const [copySource, setCopySource] = useState<LayoutDrawingType | null>(null);
 
   // Set page title and meta description
   useEffect(() => {
@@ -30,9 +55,69 @@ export default function LayoutDrawing() {
     queryKey: ['/api/cart'],
   });
 
-  // Fetch existing layout drawings
+  // Fetch existing layout drawings (worker filters to the active
+  // project + any legacy orphans).
   const { data: drawings = [] } = useQuery<LayoutDrawingType[]>({
     queryKey: ['/api/layout-drawings'],
+  });
+
+  // Active project + full project list drive the copy-to-project
+  // picker. We only fetch projects once the user actually opens a
+  // copy dialog (see `enabled` below) to keep the page cheap.
+  const { data: activeProject } = useQuery<ActiveProject>({
+    queryKey: ["/api/active-project"],
+    staleTime: 30_000,
+    retry: false,
+  });
+  const { data: projects = [] } = useQuery<ProjectWithCustomer[]>({
+    queryKey: ["/api/projects"],
+    enabled: !!copySource,
+    staleTime: 30_000,
+  });
+
+  // Signal to ProjectSwitcher: when a drawing is open in the editor,
+  // switching projects would hide it (and any unsaved strokes). We
+  // write a simple window flag the switcher's peek logic can read
+  // without having to climb up the React tree. Cleared on close.
+  useEffect(() => {
+    const w = window as any;
+    if (isMarkupEditorOpen && selectedDrawing) {
+      w.__openLayoutDrawingId = selectedDrawing.id;
+      w.__openLayoutDrawingProjectId = (selectedDrawing as any).projectId ?? null;
+    } else {
+      delete w.__openLayoutDrawingId;
+      delete w.__openLayoutDrawingProjectId;
+    }
+    return () => {
+      delete w.__openLayoutDrawingId;
+      delete w.__openLayoutDrawingProjectId;
+    };
+  }, [isMarkupEditorOpen, selectedDrawing]);
+
+  const copyMutation = useMutation({
+    mutationFn: async ({ id, projectId }: { id: string; projectId: string }) => {
+      const res = await apiRequest(
+        `/api/layout-drawings/${id}/copy-to-project`,
+        "POST",
+        { projectId },
+      );
+      return (await res.json()) as LayoutDrawingType;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/layout-drawings"] });
+      setCopySource(null);
+      toast({
+        title: "Drawing copied",
+        description: "A linked copy now lives in the selected project.",
+      });
+    },
+    onError: (err: unknown) => {
+      toast({
+        title: "Copy failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleDrawingSelect = (drawing: LayoutDrawingType) => {
@@ -44,6 +129,14 @@ export default function LayoutDrawing() {
     setIsMarkupEditorOpen(false);
     setSelectedDrawing(null);
   };
+
+  // Projects available as copy targets: everything the user owns
+  // except the drawing's own project (or the active project if the
+  // drawing is an unassigned orphan).
+  const copyTargets = projects.filter((p) => {
+    const currentProjectId = (copySource as any)?.projectId ?? activeProject?.id ?? null;
+    return p.id !== currentProjectId;
+  });
 
   // Transform cart items for the markup editor
   const cartItemsForEditor = cartItems.map(item => ({
@@ -120,27 +213,58 @@ export default function LayoutDrawing() {
                     {drawings.slice(0, 6).map((drawing) => (
                       <div
                         key={drawing.id}
-                        onClick={() => handleDrawingSelect(drawing)}
-                        className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                        className="relative border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         data-testid={`drawing-${drawing.id}`}
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <FileImage className="h-5 w-5 text-gray-400" />
-                          {drawing.isScaleSet && (
-                            <Badge variant="outline" className="text-xs">
-                              Scale Set
-                            </Badge>
-                          )}
+                        {/* Row-level menu: copy the drawing into another
+                            project. Stops propagation so clicking the
+                            dots doesn't open the editor. */}
+                        <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                data-testid={`drawing-menu-${drawing.id}`}
+                                aria-label="Drawing actions"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setCopySource(drawing)}
+                                data-testid={`drawing-copy-${drawing.id}`}
+                              >
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy to project…
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-1">
-                          {drawing.fileName}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {drawing.company} • {drawing.location}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(drawing.updatedAt || drawing.createdAt).toLocaleDateString()}
-                        </p>
+                        <div
+                          onClick={() => handleDrawingSelect(drawing)}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-start justify-between mb-2 pr-10">
+                            <FileImage className="h-5 w-5 text-gray-400" />
+                            {drawing.isScaleSet && (
+                              <Badge variant="outline" className="text-xs">
+                                Scale Set
+                              </Badge>
+                            )}
+                          </div>
+                          <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-1">
+                            {drawing.fileName}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            {drawing.company} • {drawing.location}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(drawing.updatedAt || drawing.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -238,6 +362,72 @@ export default function LayoutDrawing() {
           cartItems={cartItemsForEditor}
         />
       )}
+
+      {/* Copy-to-project dialog. Lists every project the user owns
+          except the source drawing's current project; clicking a row
+          clones the drawing + all markups into that project. */}
+      <Dialog
+        open={!!copySource}
+        onOpenChange={(o) => {
+          if (!o) setCopySource(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy drawing to another project</DialogTitle>
+            <DialogDescription>
+              A linked copy of{" "}
+              <span className="font-medium">{copySource?.fileName}</span> will
+              be created in the project you pick. The original stays where it
+              is.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[360px] overflow-y-auto -mx-1 py-1">
+            {copyTargets.length === 0 ? (
+              <div className="text-sm text-muted-foreground px-3 py-6 text-center">
+                No other projects to copy into.
+              </div>
+            ) : (
+              copyTargets.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    if (copySource) {
+                      copyMutation.mutate({ id: copySource.id, projectId: p.id });
+                    }
+                  }}
+                  disabled={copyMutation.isPending}
+                  className="w-full text-left px-3 py-2 rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+                  data-testid={`copy-target-${p.id}`}
+                >
+                  <div className="text-sm font-medium text-foreground truncate">
+                    {p.customerCompany?.name ?? "No customer"}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {p.name}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCopySource(null)}
+              disabled={copyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {copyMutation.isPending && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                Copying…
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

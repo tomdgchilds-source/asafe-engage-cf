@@ -464,9 +464,13 @@ export interface IStorage {
   saveUserServiceSelection(userId: string, serviceOptionId: string): Promise<UserServiceSelection>;
   
   // Layout Drawing operations
-  getLayoutDrawings(userId: string): Promise<LayoutDrawing[]>;
+  // When activeProjectId is provided, filters to that project's drawings
+  // plus any project_id IS NULL orphans (drawings created before the
+  // per-project feature, or by users without an active project).
+  // When undefined, returns ALL drawings the user owns (legacy behaviour).
+  getLayoutDrawings(userId: string, activeProjectId?: string | null): Promise<LayoutDrawing[]>;
   getLayoutDrawing(id: string): Promise<LayoutDrawing | undefined>;
-  createLayoutDrawing(drawing: { userId: string; projectName?: string; company?: string; location?: string; fileName: string; fileUrl: string; fileType: string; thumbnailUrl?: string }): Promise<LayoutDrawing>;
+  createLayoutDrawing(drawing: { userId: string; projectId?: string | null; projectName?: string; company?: string; location?: string; fileName: string; fileUrl: string; fileType: string; thumbnailUrl?: string }): Promise<LayoutDrawing>;
   deleteLayoutDrawing(id: string): Promise<void>;
   getTrashedLayoutDrawings(userId: string): Promise<LayoutDrawing[]>;
   restoreLayoutDrawing(id: string): Promise<void>;
@@ -2855,12 +2859,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Layout Drawing operations
-  async getLayoutDrawings(userId: string): Promise<LayoutDrawing[]> {
+  async getLayoutDrawings(userId: string, activeProjectId?: string | null): Promise<LayoutDrawing[]> {
+    // No project scope — return everything the user owns (backward
+    // compatible for callers that haven't been plumbed through yet).
+    if (activeProjectId === undefined) {
+      return await this.db
+        .select()
+        .from(layoutDrawings)
+        .where(and(
+          eq(layoutDrawings.userId, userId),
+          isNull(layoutDrawings.deletedAt)
+        ))
+        .orderBy(desc(layoutDrawings.createdAt));
+    }
+    // Explicit null → return only orphan (project_id IS NULL) drawings.
+    if (activeProjectId === null) {
+      return await this.db
+        .select()
+        .from(layoutDrawings)
+        .where(and(
+          eq(layoutDrawings.userId, userId),
+          isNull(layoutDrawings.projectId),
+          isNull(layoutDrawings.deletedAt)
+        ))
+        .orderBy(desc(layoutDrawings.createdAt));
+    }
+    // Project scope — that project's drawings PLUS legacy orphans so
+    // drawings created before the user picked a project remain visible.
     return await this.db
       .select()
       .from(layoutDrawings)
       .where(and(
         eq(layoutDrawings.userId, userId),
+        or(isNull(layoutDrawings.projectId), eq(layoutDrawings.projectId, activeProjectId)),
         isNull(layoutDrawings.deletedAt)
       ))
       .orderBy(desc(layoutDrawings.createdAt));
@@ -2877,15 +2908,16 @@ export class DatabaseStorage implements IStorage {
     return drawing;
   }
 
-  async createLayoutDrawing(drawing: { 
-    userId: string; 
-    projectName?: string; 
-    company?: string; 
-    location?: string; 
-    fileName: string; 
-    fileUrl: string; 
-    fileType: string; 
-    thumbnailUrl?: string 
+  async createLayoutDrawing(drawing: {
+    userId: string;
+    projectId?: string | null;
+    projectName?: string;
+    company?: string;
+    location?: string;
+    fileName: string;
+    fileUrl: string;
+    fileType: string;
+    thumbnailUrl?: string
   }): Promise<LayoutDrawing> {
     const [newDrawing] = await this.db
       .insert(layoutDrawings)
