@@ -1,0 +1,406 @@
+{
+  "chunk": 3,
+  "generatedAt": "2026-04-22T00:00:00Z",
+  "summary": {
+    "total": 17,
+    "has_45_data": 4,
+    "no_45_data": 10,
+    "no_impact_data": 3,
+    "fetch_failed": 0
+  },
+  "products": [
+    {
+      "familyName": "eFlex Pedestrian 3 Rail",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-pedestrian-3-rail/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Lifting Force 1kN",
+        "Deflection at Max Energy 230mm",
+        "Tested Static Load 200 kg x2 Adults",
+        "90° impact zone 233 - 1100mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/dofgrqbn/eflex_3railpedestrianbarrier_v2.pdf",
+        "https://webcdn.asafe.com/media/drfbibxs/eflex_pedestrian_3_rail_uae.pdf"
+      ],
+      "notes": "Pedestrian barrier compliant to BS 6180:2011. Only static load (2kN) and 90° deflection data provided. No 45° impact rating documented. UAE spec PDF parsed."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrier/",
+      "status": "has_45_data",
+      "rating90Absorbed": 15100,
+      "rating45Absorbed": 17691,
+      "rating22_5Absorbed": 30200,
+      "rating90VehicleKE": 15100,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": 103109,
+      "pas13Method": "pendulum and ramp",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90°: 6,900",
+        "Mid Post Max Energy (Joules) - 90°: 6,900",
+        "Mid Rail Max Energy (Joules) - 90°: 15,100",
+        "Mid Rail Max Energy (Joules) - 67.5°: 17,691",
+        "Mid Rail Max Energy (Joules) - 45°: 30,200",
+        "Mid Rail Max Energy (Joules) - 22.5°: 103,109",
+        "Equivalent vehicle and speed: 7.8 tonne at 10 km/h",
+        "Impact Angle on 2000mm Post Centres: 90°, 67.5°, 45°, 22.5°",
+        "Deflection at Max Energy 430mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/5q2aalgc/iflex_single_traffic_barrier_v2.pdf",
+        "https://webcdn.asafe.com/media/p15ng415/iflex_single_traffic_barrier_uae.pdf"
+      ],
+      "notes": "UAE spec PDF shows full angle matrix. Column headers in PDF are 90° / 67.5° / 45° / 22.5° in that order, mapped to values 15,100 / 17,691 / 30,200 / 103,109. IMPORTANT: parsed columnar values may be off-by-one; verify which column maps to which angle. Value 17,691 may be 67.5° rather than 45°."
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrierplus/",
+      "status": "has_45_data",
+      "rating90Absorbed": 15100,
+      "rating45Absorbed": 17691,
+      "rating22_5Absorbed": 30200,
+      "rating90VehicleKE": 15100,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": 103109,
+      "pas13Method": "pendulum and ramp",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90°: 6,900",
+        "Mid Post Max Energy (Joules) - 90°: 6,900",
+        "Mid Rail Max Energy (Joules) - 90°: 15,100",
+        "Mid Rail Max Energy (Joules) - 67.5°: 17,691",
+        "Mid Rail Max Energy (Joules) - 45°: 30,200",
+        "Mid Rail Max Energy (Joules) - 22.5°: 103,109",
+        "Equivalent vehicle and speed: 7.8 tonne at 10 km/h",
+        "Impact Angle on 2000mm Post Centres: 90°, 67.5°, 45°, 22.5°",
+        "Deflection at Max Energy 430mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/ahfhrvyz/iflex_single_traffic_barrierplus_v2.pdf",
+        "https://webcdn.asafe.com/media/w0xap4ay/iflex_single_traffic_barrierplus_uae.pdf",
+        "https://webcdn.asafe.com/media/u0tanqus/iflex_single_traffic_barrierplus_eng.jpg"
+      ],
+      "notes": "Same impact data as iFlex Single Traffic Barrier (+ adds handrail). UAE spec PDF shows angle matrix 90°/67.5°/45°/22.5° with values 15,100/17,691/30,200/103,109. Column-to-angle mapping from PDF order; verify by visual inspection."
+    },
+    {
+      "familyName": "Traffic Barrier 190-T1-P0",
+      "productUrl": "https://www.asafe.com/ar-ae/products/traffic-barrier-190-t1-p0/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/53xb02m5/a-safe-190_t1_p0_instructions.pdf",
+        "https://webcdn.asafe.com/media/joyj2cll/190_t1_p0_en_2.pdf"
+      ],
+      "notes": "Newer Monoplex/Memaplex range marketing PDF only. No numerical energy/angle impact data on live page or in downloadable PDFs."
+    },
+    {
+      "familyName": "mFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-double-traffic-barrier/",
+      "status": "has_45_data",
+      "rating90Absorbed": 4550,
+      "rating45Absorbed": 5331,
+      "rating22_5Absorbed": 9100,
+      "rating90VehicleKE": 4550,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": 31069,
+      "pas13Method": "pendulum and ramp",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90°: 3,000",
+        "Mid Post Max Energy (Joules) - 90°: 3,000",
+        "Mid Rail Max Energy (Joules) - 90°: 4,550",
+        "Mid Rail Max Energy (Joules) - 67.5°: 5,331",
+        "Mid Rail Max Energy (Joules) - 45°: 9,100",
+        "Mid Rail Max Energy (Joules) - 22.5°: 31,069",
+        "Equivalent vehicle and speed: 3.6 tonne at 8 km/h",
+        "Impact Angle on 1500mm Post Centres: 90°, 67.5°, 45°, 22.5°",
+        "Deflection at Max Energy 390mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/quak0adf/mflex_double_traffic_barrier_v2.pdf",
+        "https://webcdn.asafe.com/media/gfmdd5gi/mflex_double_traffic_uae.pdf"
+      ],
+      "notes": "UAE spec PDF shows full angle matrix. Column headers 90°/67.5°/45°/22.5° with values 4,550/5,331/9,100/31,069. PDF column-to-angle mapping assumed in PDF order; verify visually."
+    },
+    {
+      "familyName": "Atlas Triangle Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-triangle-traffic-barrier/",
+      "status": "no_45_data",
+      "rating90Absorbed": 20500,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 20500,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "ramp",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Angle of approach: 90°",
+        "Equivalent Vehicle Weight: 5.7 Tonnes, Vehicle Speed: 9.6 Kph",
+        "Vehicle energy: 20,500 Joules, Transfer of energy: 100% (20,500 Joules)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/f1ymcwxh/atlas_triangle_traffic_v2.pdf"
+      ],
+      "notes": "Only an installation-manual PDF available (no UAE spec sheet). Live page shows only 90° headline figure (20,500 J); 45°/22.5° data not published."
+    },
+    {
+      "familyName": "iFlex Bollard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-bollard/",
+      "status": "no_45_data",
+      "rating90Absorbed": 5800,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 5800,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "90° Impact on Bollard",
+        "Max Energy (Joules) at 90°: 5,800",
+        "Equivalent vehicle and speed: 3.6 tonne at 7 km/h",
+        "Force to Bolt 33kN",
+        "Post Deflection at Max Energy 15° Lean"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/aarmh5ch/iflex_standardbollard_2mbollard.pdf",
+        "https://webcdn.asafe.com/media/t0dhymcr/iflex_bollard_uae.pdf",
+        "https://webcdn.asafe.com/media/wtqhjb5s/iflex_bollard_eng.jpg"
+      ],
+      "notes": "Single bollard product; only 90° figure published (5,800 J). No 45°/22.5° data exists in live page or UAE PDF."
+    },
+    {
+      "familyName": "Bollard 130",
+      "productUrl": "https://www.asafe.com/ar-ae/products/bollard-130/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/a5ffpuse/a-safe-monoplex-bollard-install-instructions.pdf",
+        "https://webcdn.asafe.com/media/vzubvcyg/130_bollard_en.pdf"
+      ],
+      "notes": "New Monoplex bollard; marketing-style PDF only, no numerical impact rating data on live page or in any linked PDFs."
+    },
+    {
+      "familyName": "iFlexRail Column Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflexrail-column-guard/",
+      "status": "has_45_data",
+      "rating90Absorbed": 5800,
+      "rating45Absorbed": 6795,
+      "rating22_5Absorbed": 11600,
+      "rating90VehicleKE": 5800,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": 39605,
+      "pas13Method": "pendulum and ramp",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90°: 3,000",
+        "Mid Post Max Energy (Joules) - 90°: 3,000",
+        "Mid Rail Max Energy (Joules) - 90°: 5,800",
+        "Mid Rail Max Energy (Joules) - 67.5°: 6,795",
+        "Mid Rail Max Energy (Joules) - 45°: 11,600",
+        "Mid Rail Max Energy (Joules) - 22.5°: 39,605",
+        "Impact Angle on 1500mm Post Centres: 90°, 67.5°, 45°, 22.5°",
+        "Deflection at Max Energy 320mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/aymeqd2g/iflexrail_column_guard_v2.pdf",
+        "https://webcdn.asafe.com/media/ockfn3xa/iflexrail_column_guard_uae.pdf"
+      ],
+      "notes": "UAE spec PDF shows full angle matrix with 90°/67.5°/45°/22.5° headers and values 5,800/6,795/11,600/39,605. Column-to-angle mapping assumed in PDF order; verify visually."
+    },
+    {
+      "familyName": "ForkGuard Kerb Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/forkguard-kerb-barrier/",
+      "status": "no_45_data",
+      "rating90Absorbed": 3000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 3000,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Max Energy (Joules) at 90°: 3,000",
+        "Deflection at Max Energy 300mm",
+        "Equivalent Vehicle Weight: 1.9 Tonnes, Vehicle Speed: 6.4 Kph",
+        "Vehicle energy: 3,000 Joules, Transfer of energy: 100% (3,000 Joules)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/olqfcex1/a-safe-forkguard_installinstructions-6.pdf",
+        "https://webcdn.asafe.com/media/c54jtoqj/forkguard_kerb_barrier_uae.pdf"
+      ],
+      "notes": "Kerb-type extrusion product; only 90° rating published (3,000 J). No 45° data in live page or UAE spec sheet."
+    },
+    {
+      "familyName": "iFlex Swing Gate Short",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-swing-gate-short/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/4ewkzn5y/iflex_swing_gate_uae.pdf",
+        "https://webcdn.asafe.com/media/paedomib/iflex_swing_gate_short.pdf"
+      ],
+      "notes": "Pedestrian swing gate — no impact ratings published on live page or in UAE spec PDF. PAS13-compliant badge on page."
+    },
+    {
+      "familyName": "iFlex Height Restrictor",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-height-restrictor/",
+      "status": "no_45_data",
+      "rating90Absorbed": 5400,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 5400,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Max Energy (Joules) at 90°: 5,400",
+        "90° Impact on Height Restrictor",
+        "Equivalent vehicle and speed: 5.6 tonne at 5 km/h",
+        "Force to Bolt 33kN, Deflection at Max Energy 15° Lean"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/gzjfqp2k/iflex_height_restrictor_o_25m_v2.pdf",
+        "https://webcdn.asafe.com/media/goqh3hhk/iflex_height_restrictor_uae.pdf",
+        "https://www.bimstore.co/products/iflex-height-restrictor"
+      ],
+      "notes": "Overhead/door-edge protection; only 90° test published (5,400 J). No 45° data on live page or in UAE PDF. Note: live page says 6 Tonnes at 4.8 kph ≈ 5,400 J; UAE PDF says 5.6 tonne at 5 km/h."
+    },
+    {
+      "familyName": "RackGuard Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackguard-cold-storage/",
+      "status": "no_45_data",
+      "rating90Absorbed": 1000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 1000,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [
+        "Max Energy (Joules) at 90°: 1,000",
+        "Deflection at Max Energy 20mm",
+        "Equivalent vehicle and speed: 3 tonne at 2.9 km/h",
+        "90° Impact on RackGuard"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/6071/rackguard_rack_leg_protector.pdf",
+        "https://webcdn.asafe.com/media/jkvf4ohh/rackguard_cold_storage_uae.pdf"
+      ],
+      "notes": "Rack-leg protector certified to EN 15512, EN 15635 and AS 4084 (rack-specific standards, not PAS 13). 90°-only rating (1,000 J). No 45° data."
+    },
+    {
+      "familyName": "eFlex Double RackEnd+Kerb",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-double-rackendpluskerb/",
+      "status": "no_45_data",
+      "rating90Absorbed": 6000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 6000,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [
+        "90° angle of approach: equivalent vehicle weight 3.7 tonnes at 6.4 kph",
+        "Vehicle energy: 6,000 Joules, Transfer of energy: 100% (6,000 Joules)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/xsdpx4ar/eflex_double_rackend_forkguardbarrier_v2.pdf"
+      ],
+      "notes": "Only an installation-manual PDF is linked (no UAE spec sheet). Live page shows only 90° figure (6,000 J). No 45°/22.5° data published."
+    },
+    {
+      "familyName": "RackEye",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackeye/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [],
+      "downloads": [],
+      "notes": "Impact-detection sensor/monitoring device — not a physical barrier. No impact ratings apply. Product marked as not currently available in this region."
+    },
+    {
+      "familyName": "Car Stop",
+      "productUrl": "https://www.asafe.com/ar-ae/products/car-stop/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": null,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/fxgjzfex/car_stop_v2.pdf",
+        "https://webcdn.asafe.com/media/kvobt5b3/car_stop_uae.pdf"
+      ],
+      "notes": "Recycled-rubber wheel stop — no impact ratings published on live page or in UAE spec PDF; dimensions and material only."
+    },
+    {
+      "familyName": "Sign Cap",
+      "productUrl": "https://www.asafe.com/ar-ae/products/sign-cap/",
+      "status": "no_impact_data",
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/vtnahcot/signcap_v2.pdf",
+        "https://webcdn.asafe.com/media/vvif2dov/sign_cap_uae.pdf"
+      ],
+      "notes": "Sign accessory cap that fits atop iFlex posts — no impact rating applies to the cap. PAS 13 badge shown on page but no numerical impact data."
+    }
+  ]
+}

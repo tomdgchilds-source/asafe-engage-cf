@@ -1,0 +1,502 @@
+{
+  "chunk": 2,
+  "generatedAt": "2026-04-22T00:00:00Z",
+  "summary": {
+    "total": 17,
+    "with_any_45_data": 7,
+    "with_only_90_data": 6,
+    "no_data": 4,
+    "fetch_failures": 0
+  },
+  "products": [
+    {
+      "familyName": "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-barrier-3-rail-cold-storage/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/qvtntppj/iflex_pedestrian_3_rail_cold_storage_uae.pdf"
+      ],
+      "rating90Absorbed": 5800,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 5800,
+      "rating45VehicleKE": 11600,
+      "rating22_5VehicleKE": 39605,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 3,700",
+        "Mid Rail Max Energy (Joules) 90° = 5,800",
+        "Mid Rail 67.5° = 6,795",
+        "Mid Rail 45° Impact on 1500mm Post Centres = 11,600",
+        "Mid Rail 22.5° = 39,605",
+        "Equivalent vehicle and speed: 4.6 tonne @ 8 km/h",
+        "Tech sheet headline: 11,600 Joules (Deflection at Max Energy 320mm)",
+        "HTML page also states 90°: 2.3 Tonnes × 8 kph = 5,800 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/qvtntppj/iflex_pedestrian_3_rail_cold_storage_uae.pdf",
+        "https://webcdn.asafe.com/media/4bggy4sa/iflex_pedestrian_3_rail_barrier_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test matrix (1500mm post centres) gives 90°/67.5°/45°/22.5°; 45° vehicle KE = 11,600 J matches Tech sheet headline. Memaplex Sub-Zero construction for cold storage. Catalog value 5,800 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "Pedestrian Barrier 190-T2-P1",
+      "productUrl": "https://www.asafe.com/ar-ae/products/pedestrian-barrier-190-t2-p1/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/l4rjex3j/190_t2_p1_en_2.pdf"
+      ],
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": false,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/l4rjex3j/190_t2_p1_en_2.pdf",
+        "https://webcdn.asafe.com/media/5vwp3lrm/a-safe-190_t2_p1_instructions.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "No impact data on product page or brochure PDF. The brochure describes Monoplex material and applications but states no Joules figures, no PAS 13 badge. No 45° value available — report as null."
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrier/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/nrafiqxl/iflex_double_traffic_uae.pdf"
+      ],
+      "rating90Absorbed": 20500,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 20500,
+      "rating45VehicleKE": 41000,
+      "rating22_5VehicleKE": 139983,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Rail Max Energy (Joules) 90° = 20,500",
+        "Mid Rail 67.5° = 24,017",
+        "Mid Rail 45° Impact on 2000mm Post Centres = 41,000",
+        "Mid Rail 22.5° = 139,983",
+        "Equivalent vehicle and speed: 10.6 tonne @ 10 km/h",
+        "Tech sheet headline: 41,000 Joules (Deflection at Max Energy 380mm, Force to Bolt 34kN)",
+        "HTML page also cites 90°: 5.7 tonnes × 9.6 kph = 20,500 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/nrafiqxl/iflex_double_traffic_uae.pdf",
+        "https://webcdn.asafe.com/media/jcij4yen/iflex_double_traffic_barrier_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test matrix on 2000mm post centres; 45° vehicle KE = 41,000 J matches Tech sheet headline. Catalog value 20,500 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrierplus/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/kqqezlar/iflex_double_trafficplus_uae.pdf"
+      ],
+      "rating90Absorbed": 20500,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 20500,
+      "rating45VehicleKE": 41000,
+      "rating22_5VehicleKE": 139983,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Rail Max Energy (Joules) 90° = 20,500",
+        "Mid Rail 67.5° = 24,017",
+        "Mid Rail 45° Impact on 2000mm Post Centres = 41,000",
+        "Mid Rail 22.5° = 139,983",
+        "Equivalent vehicle and speed: 10.6 tonne @ 10 km/h",
+        "Tech sheet headline: 41,000 Joules (Deflection at Max Energy 380mm, Force to Bolt 34kN)",
+        "HTML page: 90° 5.7 Tonnes × 9.6 Kph = 20,500 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/kqqezlar/iflex_double_trafficplus_uae.pdf",
+        "https://webcdn.asafe.com/media/0lddn5gp/iflex_double_traffic_barrierplus_v2.pdf",
+        "https://webcdn.asafe.com/media/fgvlqvvy/iflex_double_trafficplus_barrier_eng.jpg"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet matrix identical to non-plus iFlex Double Traffic Barrier (+ variant adds handrail/hi-viz). 45° vehicle KE = 41,000 J. Catalog value 20,500 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "mFlex Single Traffic Ground",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-ground/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/sp5pq4am/mflex_single_traffic_ground_level_uae.pdf"
+      ],
+      "rating90Absorbed": 2700,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 2700,
+      "rating45VehicleKE": 5400,
+      "rating22_5VehicleKE": 18437,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 3,000",
+        "Mid Post Max Energy (Joules) - 90° = 3,000",
+        "Mid Rail Max Energy (Joules) 90° = 2,700 (tech sheet shows '2.700' with period — treated as 2,700 matching mFlex single barrier figures)",
+        "Mid Rail 67.5° = 3,163",
+        "Mid Rail 45° Impact on 1500mm Post Centres = 5,400",
+        "Mid Rail 22.5° = 18,437",
+        "Equivalent vehicle and speed: 2.1 tonne @ 5 mph",
+        "Tech sheet headline: 5,400 Joules (Deflection at Max Energy 360mm)",
+        "HTML page also describes both pendulum and ramp test at 90°"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/sp5pq4am/mflex_single_traffic_ground_level_uae.pdf",
+        "https://webcdn.asafe.com/media/g5moupnb/mflex_ground_traffic_barrier_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test on 1500mm post centres; 45° vehicle KE = 5,400 J matches headline. Catalog value 2,700 J = Mid Rail 90° absorbed. Note PDF text rendered '2.700' for 90° — this is 2,700 J (consistent with mFlex Single family in chunk 1)."
+    },
+    {
+      "familyName": "Atlas Polygon Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-polygon-traffic-barrier/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/0kphapy4/atlas_polygon_traffic_v2.pdf"
+      ],
+      "rating90Absorbed": 20500,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 20500,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "90°: Example vehicle weight 5.7 tonnes at 9.6 kph, vehicle energy 20,500 Joules, transfer of energy 100% (20,500 Joules)",
+        "45° and 22.5° angles appear in technical specification diagram on product page but no numerical values given"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/0kphapy4/atlas_polygon_traffic_v2.pdf"
+      ],
+      "fetch_issues": "No published tech-sheet PDF linked on product page — only the installation guide. Installation guide has no impact data.",
+      "notes": "Product page shows 90° impact at 20,500 J with 100% transfer and depicts 45°/22.5° angle diagrams with no numerical values. No tech-sheet PDF available. No documented 45° figure — report as null. Atlas family 20,500 J datasheet header matches Atlas Double Traffic Barrier+ in chunk 1 which has full 4-angle matrix, but Polygon variant's own tech sheet is not published."
+    },
+    {
+      "familyName": "Heavy Duty Topple Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/heavy-duty-topple-barrier/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/tpwbc51p/heavy_duty_topple_barrier_uae.pdf"
+      ],
+      "rating90Absorbed": 20500,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 20500,
+      "rating45VehicleKE": 41000,
+      "rating22_5VehicleKE": 139983,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Post Max Energy (Joules) - 90° = 6,900",
+        "Mid Rail Max Energy (Joules) 90° = 20,500",
+        "Mid Rail 67.5° = 24,017",
+        "Mid Rail 45° Impact on 2200mm Post Centres = 41,000",
+        "Mid Rail 22.5° = 139,983",
+        "Equivalent vehicle and speed: 10.6 tonne @ 10 km/h",
+        "Tech sheet headline: 20,500 Joules (Deflection at Max Energy 380mm)",
+        "HTML page: 90°: 5.7 Tonnes × 9.6 Kph = 20,500 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/tpwbc51p/heavy_duty_topple_barrier_uae.pdf",
+        "https://webcdn.asafe.com/media/qirhstl3/iflex-heavy-duty-topple-install-instructions.pdf",
+        "https://webcdn.asafe.com/media/r41bz0qn/heavy_duty_topple_barrier_uae.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test matrix on 2200mm post centres; 45° vehicle KE = 41,000 J. Note tech sheet headline emphasises 20,500 J (90° vehicle KE, labelled 'Mid Rail 90° Impact on 2200mm Post Centres'), not the 45° value. Catalog value 20,500 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "Bollard 190",
+      "productUrl": "https://www.asafe.com/ar-ae/products/bollard-190/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/unobinmn/190_bollard_en.pdf"
+      ],
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/unobinmn/190_bollard_en.pdf",
+        "https://webcdn.asafe.com/media/a5ffpuse/a-safe-monoplex-bollard-install-instructions.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Monoplex Bollard brochure has no Joules figures or impact test matrix. Product page confirms 'PAS 13 Tested' and TÜV Nord certification but withholds numerical performance specs (offers certification reports on request). No 45° data available — report as null."
+    },
+    {
+      "familyName": "FlexiShield Corner Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/flexishield-corner-guard/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/xm1bidih/flexishield_corner_guard_uae.pdf"
+      ],
+      "rating90Absorbed": 200,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 200,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": false,
+      "testDescriptionsByAngle": [
+        "Tested Impact Energy: 200 Joules",
+        "90° Impact on Corner Guard",
+        "HTML: Equivalent Vehicle Weight 0.5 Tonnes × 3.2 Kph = 200 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/xm1bidih/flexishield_corner_guard_uae.pdf",
+        "https://webcdn.asafe.com/media/xx5jzys1/flexishieldcornerguard_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Low-energy scuff protector (200 J at 90°). Tech sheet has no 'Code of Practice / PAS 13' badge and no multi-angle table. No 45° data."
+    },
+    {
+      "familyName": "Step Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/step-guard/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/j5ddqtow/step_guard_uae.pdf"
+      ],
+      "rating90Absorbed": 15800,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 15800,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Tested Impact Energy 15,800 Joules (Step Guard 1200 and Step Guard 900)",
+        "Step Guard 600 = 10,400 Joules",
+        "90° Impact on Step Guard",
+        "Equivalent vehicle and speed: 6.4 tonne @ 8 km/h"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/j5ddqtow/step_guard_uae.pdf",
+        "https://webcdn.asafe.com/media/hlahndyx/stepguard_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Only 90° impact data. Tech sheet cites 15,800 J max (1200 & 900 variants) or 10,400 J (600 variant). No 45° or 22.5° test data. Catalog has no impactRating recorded."
+    },
+    {
+      "familyName": "Under Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/under-guard/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/g0xl3tnf/under_guard_uae.pdf"
+      ],
+      "rating90Absorbed": 15800,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 15800,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Fork impact (front): 6000kg × 8 km/h = 15,800 J",
+        "Fork impact (secondary): 6000kg × 6.7 km/h = 11,200 J",
+        "Rear impact: 6000kg × 1.6 km/h = 650 J",
+        "Point load (safety boot rating): 2000kg, 200 J",
+        "Static load test: 600 kg, 1.14 m (1.56 kN/ft)",
+        "*Impact above 7,000 J may cause damage to Pallet Mesh top",
+        "All impacts described are direct/front (effectively 90°); no angle matrix provided"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/g0xl3tnf/under_guard_uae.pdf",
+        "https://webcdn.asafe.com/media/hwknkfdh/asafe_underguard_installinstructions.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Under-rack ForkGuard; only direct (90°) fork-impact figures provided. No 45°/22.5° data. Catalog had no impactRating."
+    },
+    {
+      "familyName": "Traffic Gate",
+      "productUrl": "https://www.asafe.com/ar-ae/products/traffic-gate/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/3clp4rvs/traffic_gate_uae.pdf"
+      ],
+      "rating90Absorbed": 14000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 14000,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "vehicle",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "Tested Impact Energy 14,000 Joules",
+        "Mid Rail 90° Impact on 2000mm Post Centres",
+        "3,230 kg vehicle @ 10.4 km/h = 14,000 J",
+        "Deflection at Max Energy 536mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/3clp4rvs/traffic_gate_uae.pdf",
+        "https://webcdn.asafe.com/media/rlglxwge/a-safe-trafficgate_installinstructionsv10-1.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Only 90° Mid Rail data. Vehicle-style rating (3,230 kg @ 10.4 kph). No 45°/22.5° matrix on tech sheet. Catalog value 14,000 J matches."
+    },
+    {
+      "familyName": "RackGuard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/rackguard/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/1ubi2irr/rackguard_uae_11_25.pdf"
+      ],
+      "rating90Absorbed": 1000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 1000,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": "pendulum",
+      "pas13Certified": false,
+      "testDescriptionsByAngle": [
+        "Max Energy (Joules) = 1,000",
+        "Tested Impact Energy 1,000 Joules",
+        "90° Impact on RackGuard",
+        "Equivalent vehicle: 3 tonne @ 2.9 km/h",
+        "Deflection at Max Energy 20mm"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/1ubi2irr/rackguard_uae_11_25.pdf",
+        "https://webcdn.asafe.com/media/g4bozf2y/rackguard_rack_leg_protector_v2.pdf",
+        "https://webcdn.asafe.com/media/aw2ptuoz/rackguard_uae.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Rack-leg protector — tested to EN 15512, EN 15635, AS 4084 and TÜV Nord (not the PAS 13 framework). pas13Certified=false because the tech sheet and page cite EN 15512 / AS 4084 standards instead of PAS 13. Only 90° data (1,000 J). Product page also mentions pendulum-style test method."
+    },
+    {
+      "familyName": "eFlex Double RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-double-rackend-barrier/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/42khy3mj/eflex_double_rackend_barrier_uae.pdf"
+      ],
+      "rating90Absorbed": 6000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 6000,
+      "rating45VehicleKE": 12000,
+      "rating22_5VehicleKE": 40971,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 3,600",
+        "Mid Rail Max Energy (Joules) 90° = 6,000",
+        "Mid Rail 67.5° = 7,029",
+        "Mid Rail 45° Impact on 2000mm Post Centres = 12,000",
+        "Mid Rail 22.5° = 40,971",
+        "Deflection at Max Energy 300mm, Force to Bolt 8kN",
+        "HTML page cites 90°: 3.7 Tonnes × 6.4 Kph = 6,000 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/42khy3mj/eflex_double_rackend_barrier_uae.pdf",
+        "https://webcdn.asafe.com/media/eytmmvrl/eflex_double_rackend_barrier_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test matrix on 2000mm post centres; 45° vehicle KE = 12,000 J. Catalog value 6,000 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "Single RackEnd Barrier Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/single-rackend-barrier-cold-storage/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/gsyaeq2y/single_rackend_barrier_cold_storage.pdf"
+      ],
+      "rating90Absorbed": 4000,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": 4000,
+      "rating45VehicleKE": 8000,
+      "rating22_5VehicleKE": 27314,
+      "pas13Method": "pendulum",
+      "pas13Certified": true,
+      "testDescriptionsByAngle": [
+        "End Post Max Energy (Joules) - 90° = 3,600",
+        "Mid Rail Max Energy (Joules) 90° = 4,000",
+        "Mid Rail 67.5° = 4,686",
+        "Mid Rail 45° Impact on 2000mm Post Centres = 8,000",
+        "Mid Rail 22.5° = 27,314",
+        "Deflection at Max Energy 300mm, Force to Bolt 5kN",
+        "HTML page cites 90°: 2.5 tonnes × 6.4 kph = 4,000 J (100% transfer)"
+      ],
+      "downloads": [
+        "https://webcdn.asafe.com/media/gsyaeq2y/single_rackend_barrier_cold_storage.pdf",
+        "https://webcdn.asafe.com/media/kozndkff/cold-storage-rackend-barrier_install.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "High confidence. Tech sheet Impact Test matrix on 2000mm post centres; 45° vehicle KE = 8,000 J. Memaplex Sub-Zero construction. Catalog value 4,000 J = Mid Rail 90° absorbed."
+    },
+    {
+      "familyName": "Coach Stop",
+      "productUrl": "https://www.asafe.com/ar-ae/products/coach-stop/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/xomn3dyt/coach_stop_uae.pdf"
+      ],
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": false,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/xomn3dyt/coach_stop_uae.pdf",
+        "https://webcdn.asafe.com/media/dhwlvj1i/coach_stop_v3.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Wheel-stop / parking positioning aid. Neither tech sheet nor product page provides Joules figures or PAS 13 certification. No 45° data — report as null."
+    },
+    {
+      "familyName": "Slider Plate",
+      "productUrl": "https://www.asafe.com/ar-ae/products/slider-plate/",
+      "sources": [
+        "html",
+        "pdf:https://webcdn.asafe.com/media/heppb4kb/slider_base_plates_uae.pdf"
+      ],
+      "rating90Absorbed": null,
+      "rating45Absorbed": null,
+      "rating22_5Absorbed": null,
+      "rating90VehicleKE": null,
+      "rating45VehicleKE": null,
+      "rating22_5VehicleKE": null,
+      "pas13Method": null,
+      "pas13Certified": false,
+      "testDescriptionsByAngle": [],
+      "downloads": [
+        "https://webcdn.asafe.com/media/heppb4kb/slider_base_plates_uae.pdf",
+        "https://webcdn.asafe.com/media/facn13e0/slider-plates_v2.pdf"
+      ],
+      "fetch_issues": null,
+      "notes": "Removable ductile cast iron base plate accessory (130/158/190mm posts). Not an impact-rated barrier. Tech sheet contains no Joules data; product page mentions PAS 13 on surrounding products but no certified impact figure for the plate itself."
+    }
+  ]
+}

@@ -1,4 +1,235 @@
 {
-  "generatedAt": "2026-04-21T23:03:18.465Z",
-  "patches": []
+  "generatedAt": "2026-04-22T00:09:02.468662+00:00",
+  "patches": [
+    {
+      "familyName": "iFlex Pedestrian 3 Rail",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-3-rail/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 11600,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "eFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 20400,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "eFlex Single Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-traffic-barrierplus/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 20400,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "mFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 5400,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "Atlas Double Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-double-traffic-barrierplus/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 41000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Pedestrian Barrier 3 Rail Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-pedestrian-barrier-3-rail-cold-storage/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 11600,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 41000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Double Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-double-traffic-barrierplus/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 41000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "mFlex Single Traffic Ground",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-single-traffic-ground/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 5400,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "Heavy Duty Topple Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/heavy-duty-topple-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 41000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "eFlex Double RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-double-rackend-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 12000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "Single RackEnd Barrier Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/single-rackend-barrier-cold-storage/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 8000,
+      "pas13Certified": true,
+      "pas13Method": "pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 17691,
+      "pas13Certified": true,
+      "pas13Method": "pendulum and ramp",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrierplus/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 17691,
+      "pas13Certified": true,
+      "pas13Method": "pendulum and ramp",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "mFlex Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/mflex-double-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 5331,
+      "pas13Certified": true,
+      "pas13Method": "pendulum and ramp",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlexRail Column Guard",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflexrail-column-guard/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 6795,
+      "pas13Certified": true,
+      "pas13Method": "pendulum and ramp",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrier-cold-storage/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 30200,
+      "pas13Certified": true,
+      "pas13Method": "dynamic impact test (climate-controlled sub-zero)",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single Traffic Barrier+ Cold Storage",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-traffic-barrierplus-cold-storage/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 30200,
+      "pas13Certified": true,
+      "pas13Method": "dynamic impact test (climate-controlled sub-zero)",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "Atlas Double Traffic Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/atlas-double-traffic-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 41000,
+      "pas13Certified": true,
+      "pas13Method": "dynamic pendulum and ramp impact",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single Car Park Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-car-park-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 30200,
+      "pas13Certified": true,
+      "pas13Method": "dynamic ramp and pendulum impact",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlexRail Column Guard+",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflexrail-column-guardplus/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 27500,
+      "pas13Certified": true,
+      "pas13Method": "dynamic impact test",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "eFlex Single RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/eflex-single-rackend-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 8000,
+      "pas13Certified": true,
+      "pas13Method": "dynamic impact pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    },
+    {
+      "familyName": "iFlex Single RackEnd Barrier",
+      "productUrl": "https://www.asafe.com/ar-ae/products/iflex-single-rackend-barrier/",
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 30200,
+      "pas13Certified": true,
+      "pas13Method": "dynamic impact pendulum",
+      "notes": "45\u00b0 vehicle KE from UAE technical sheet (merged)"
+    }
+  ]
 }

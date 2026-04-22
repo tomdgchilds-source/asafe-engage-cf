@@ -20,7 +20,7 @@
       "category": "pedestrian-barriers",
       "description": "Designed to segregate and safeguard pedestrians from moving vehicles and workplace hazards. Suitable for both indoor and outdoor use. Ideal for facilities with lightweight vehicles or shallow angle impact risks. Flexible, energy-absorbing barriers visually define traffic routes while physically protecting pedestrians and drivers through impact cushioning and deflection.",
       "features": [
-        "100mm Ø Rails",
+        "100mm \u00d8 Rails",
         "Impact Zone = 450 - 1100mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -29,14 +29,16 @@
         "Fully modular system",
         "Available in yellow, black or grey"
       ],
-      "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules",
-      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "impactRating": 11600,
+      "impactRatingRaw": "11,600 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90\u00b0 angle of approach, 100% energy transfer (5,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 5800
+        "joules": 5800,
+        "joules45": 11600,
+        "joules90": 5800
       },
       "variants": [],
       "heightRange": {
@@ -74,7 +76,8 @@
         "iFlex Single Traffic Barrier+",
         "iFlex Double Traffic Barrier+"
       ],
-      "rawText": "iFlex Pedestrian 3 Rail. Designed to segregate and safeguard pedestrians from moving vehicles and workplace hazards. 100mm Ø Rails. Impact Zone 450-1100mm. Patented Coupling Technology. PAS 13 tested by TÜV Nord - 5,800 Joules at 2.3 tonnes / 8 kph / 90°,45°,22.5°. Suitable for lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, manual pallet truck, electric pedestrian stacker, pedestrians."
+      "rawText": "iFlex Pedestrian 3 Rail. Designed to segregate and safeguard pedestrians from moving vehicles and workplace hazards. 100mm \u00d8 Rails. Impact Zone 450-1100mm. Patented Coupling Technology. PAS 13 tested by T\u00dcV Nord - 5,800 Joules at 2.3 tonnes / 8 kph / 90\u00b0,45\u00b0,22.5\u00b0. Suitable for lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, manual pallet truck, electric pedestrian stacker, pedestrians.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Pedestrian Barrier 3 Rail Cold Storage",
@@ -82,7 +85,7 @@
       "category": "cold-storage",
       "description": "Purpose-engineered for sub-zero environments. Segregates and safeguards pedestrians from moving vehicles in cold storage facilities with lightweight vehicles, addressing shallow angle impact risks.",
       "features": [
-        "100mm Ø Rails",
+        "100mm \u00d8 Rails",
         "Impact Zone = 450 - 1100mm",
         "Patented Coupling Technology",
         "Multi-directional posts",
@@ -91,14 +94,16 @@
         "Coloured black as standard",
         "Engineered for sub-zero environments"
       ],
-      "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules",
-      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "impactRating": 11600,
+      "impactRatingRaw": "11,600 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90\u00b0 angle of approach, 100% energy transfer (5,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 5800
+        "joules": 5800,
+        "joules45": 11600,
+        "joules90": 5800
       },
       "variants": [],
       "heightRange": {
@@ -132,7 +137,8 @@
         "ForkGuard Cold Storage",
         "iFlex Height Restrictor Cold Storage"
       ],
-      "rawText": "iFlex Pedestrian Barrier 3 Rail Cold Storage - sub-zero engineered pedestrian 3-rail barrier. PAS 13 tested 5800J / 2.3t / 8 Kph."
+      "rawText": "iFlex Pedestrian Barrier 3 Rail Cold Storage - sub-zero engineered pedestrian 3-rail barrier. PAS 13 tested 5800J / 2.3t / 8 Kph.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "eFlex Pedestrian 3 Rail",
@@ -361,7 +367,7 @@
       "category": "traffic-barriers",
       "description": "Designed to shield buildings, machinery and equipment from damage caused by vehicle collisions. This flexible, heavy-duty safety barrier system defines vehicle routes and guides drivers while absorbing and deflecting impacts. Ideal for facilities with high traffic volume in indoor and outdoor environments.",
       "features": [
-        "190mm Ø Rail",
+        "190mm \u00d8 Rail",
         "Impact Zone = 205 - 395mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -372,14 +378,16 @@
         "Rails and posts easily replaced in-situ",
         "Available in numerous lengths"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (15,100 Joules)",
+      "impactRating": 17691,
+      "impactRatingRaw": "17,691 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90\u00b0 approach angle, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 17691,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -422,7 +430,8 @@
         "iFlex Single Traffic Barrier Cold Storage",
         "eFlex Single Traffic Barrier"
       ],
-      "rawText": "iFlex Single Traffic Barrier - high-strength heavy-duty traffic barrier. 190mm Ø rail. Impact zone 205-395mm. PAS 13 tested (TÜV Nord) - 15,100J / 4.2t / 9.6 Kph / 90°, 45°, 22.5°. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker."
+      "rawText": "iFlex Single Traffic Barrier - high-strength heavy-duty traffic barrier. 190mm \u00d8 rail. Impact zone 205-395mm. PAS 13 tested (T\u00dcV Nord) - 15,100J / 4.2t / 9.6 Kph / 90\u00b0, 45\u00b0, 22.5\u00b0. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Single Traffic Barrier Cold Storage",
@@ -430,7 +439,7 @@
       "category": "cold-storage",
       "description": "Purpose-engineered flexible, heavy-duty barrier system designed for cold stores and frozen food facilities. Shields buildings, machinery and equipment from vehicle collision damage.",
       "features": [
-        "190mm Ø Rail",
+        "190mm \u00d8 Rail",
         "Impact Zone = 205 - 395mm",
         "Patented Coupling Technology",
         "Additional Base Options",
@@ -440,14 +449,16 @@
         "Coloured black as standard",
         "Engineered for sub-zero environments"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15٬100 Joules",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "impactRating": 30200,
+      "impactRatingRaw": "30,200 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 30200,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -480,7 +491,8 @@
         "mFlex Single Traffic Barrier",
         "iFlex Single Traffic Barrier"
       ],
-      "rawText": "iFlex Single Traffic Barrier Cold Storage - sub-zero variant. 15,100J PAS 13 tested. Black standard."
+      "rawText": "iFlex Single Traffic Barrier Cold Storage - sub-zero variant. 15,100J PAS 13 tested. Black standard.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "eFlex Single Traffic Barrier",
@@ -488,7 +500,7 @@
       "category": "traffic-barriers",
       "description": "Flexible mid-strength barrier designed to shield buildings, machinery and equipment from vehicle impacts. Absorbs and deflects impact forces while offering visual guidance to prevent accidents. Suitable for medium traffic volume facilities and base build specifications, indoor and outdoor use.",
       "features": [
-        "158mm Ø Rail",
+        "158mm \u00d8 Rail",
         "Impact Zone = 204 - 362mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -497,14 +509,16 @@
         "Multi-directional posts",
         "Fully modular system"
       ],
-      "impactRating": 10200,
-      "impactRatingRaw": "10,200 Joules",
-      "vehicleTest": "Equivalent Vehicle Weight: 2.8 Tonnes, Vehicle Speed: 9.6 Kph, 90° angle of approach, 100% energy transfer (10,200 Joules)",
+      "impactRating": 20400,
+      "impactRatingRaw": "20,400 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "Equivalent Vehicle Weight: 2.8 Tonnes, Vehicle Speed: 9.6 Kph, 90\u00b0 angle of approach, 100% energy transfer (10,200 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 10200
+        "joules": 10200,
+        "joules45": 20400,
+        "joules90": 10200
       },
       "variants": [],
       "heightRange": {
@@ -538,7 +552,8 @@
         "iFlex Single Traffic Barrier",
         "iFlex Single Traffic Barrier Cold Storage"
       ],
-      "rawText": "eFlex Single Traffic Barrier - mid-strength 158mm rail, 10,200J at 2.8t/9.6kph. Yellow/black standard. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker."
+      "rawText": "eFlex Single Traffic Barrier - mid-strength 158mm rail, 10,200J at 2.8t/9.6kph. Yellow/black standard. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, electric high reach truck, horizontal order picker.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Double Traffic Barrier",
@@ -546,7 +561,7 @@
       "category": "traffic-barriers",
       "description": "Heavy-duty barrier designed to protect buildings, machinery and equipment from high-energy vehicle impacts using twin traffic-strength rails. Ideal for facilities with high volumes of heavyweight vehicles in operation.",
       "features": [
-        "190mm Ø Base Rails",
+        "190mm \u00d8 Base Rails",
         "Impact Zone = 205 - 745mm",
         "Patented Coupling Technology",
         "Additional Base Options",
@@ -555,14 +570,16 @@
         "Fully modular system",
         "Available in yellow, black or grey"
       ],
-      "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle, 100% energy transfer (20,500 Joules)",
+      "impactRating": 41000,
+      "impactRatingRaw": "41,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 20500
+        "joules": 20500,
+        "joules45": 41000,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -596,7 +613,8 @@
         "eFlex Single Traffic Barrier",
         "mFlex Single Traffic Ground"
       ],
-      "rawText": "iFlex Double Traffic Barrier - twin 190mm rails. 20,500J PAS 13 tested with TÜV Nord. Impact zone 205-745mm. Heavy-duty vehicles: engine counterbalance HD forklift, heavy duty counterbalance, high rack stacker, electric high reach, electric tow tractor."
+      "rawText": "iFlex Double Traffic Barrier - twin 190mm rails. 20,500J PAS 13 tested with T\u00dcV Nord. Impact zone 205-745mm. Heavy-duty vehicles: engine counterbalance HD forklift, heavy duty counterbalance, high rack stacker, electric high reach, electric tow tractor.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Single Traffic Barrier+",
@@ -604,7 +622,7 @@
       "category": "pedestrian-barriers",
       "description": "High-strength, dual-function barrier designed to protect pedestrians, assets and infrastructure from vehicle impacts while separating and guiding traffic in busy, high-traffic facilities. Combines pedestrian handrail with traffic-strength impact barrier.",
       "features": [
-        "190mm Ø Base Rail",
+        "190mm \u00d8 Base Rail",
         "Impact Zone = 205 - 395mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -612,14 +630,16 @@
         "Fully modular system",
         "Multi-directional posts"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+      "impactRating": 17691,
+      "impactRatingRaw": "17,691 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90\u00b0 angle, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 17691,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -659,7 +679,8 @@
         "eFlex Pedestrian 3 Rail",
         "iFlex Single Traffic Barrier"
       ],
-      "rawText": "iFlex Single Traffic Barrier+ - dual-function barrier with handrail. 190mm rail, 15,100J PAS 13 (TÜV Nord). Impact zone 205-395mm."
+      "rawText": "iFlex Single Traffic Barrier+ - dual-function barrier with handrail. 190mm rail, 15,100J PAS 13 (T\u00dcV Nord). Impact zone 205-395mm.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Single Traffic Barrier+ Cold Storage",
@@ -667,7 +688,7 @@
       "category": "cold-storage",
       "description": "Purpose-engineered for sub-zero environments such as frozen food storage facilities. High-strength, dual-function barrier for pedestrian orientation and vehicle impact protection.",
       "features": [
-        "190mm Ø Base Rail",
+        "190mm \u00d8 Base Rail",
         "Impact Zone = 205 - 395mm",
         "Patented Coupling Technology",
         "Fully modular construction",
@@ -675,14 +696,16 @@
         "Available in numerous lengths",
         "Coloured black as standard"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15٬100 Joules",
-      "vehicleTest": "4.2 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "impactRating": 30200,
+      "impactRatingRaw": "30,200 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "4.2 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 30200,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -714,7 +737,8 @@
         "mFlex Single Traffic Barrier",
         "iFlex Single Traffic Barrier"
       ],
-      "rawText": "iFlex Single Traffic Barrier+ Cold Storage - sub-zero variant with pedestrian handrail. 15,100J PAS 13 tested."
+      "rawText": "iFlex Single Traffic Barrier+ Cold Storage - sub-zero variant with pedestrian handrail. 15,100J PAS 13 tested.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "eFlex Single Traffic Barrier+",
@@ -722,7 +746,7 @@
       "category": "pedestrian-barriers",
       "description": "Mid-strength, dual-function barrier designed to protect pedestrians, assets and infrastructure from vehicle impacts while separating and guiding traffic. Ideal for facilities with medium traffic volumes and shallow angle impact risks.",
       "features": [
-        "158mm Ø Base Rail",
+        "158mm \u00d8 Base Rail",
         "Impact Zone 204-362mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -731,14 +755,16 @@
         "Multi-directional posts",
         "In-built modularity"
       ],
-      "impactRating": 10168,
-      "impactRatingRaw": "10,168 Joules",
-      "vehicleTest": "19.3 tonnes at 9.6 kph, 22.5° angle of approach, 14.6% energy transfer (69,650 J total vehicle energy)",
+      "impactRating": 20400,
+      "impactRatingRaw": "20,400 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "19.3 tonnes at 9.6 kph, 22.5\u00b0 angle of approach, 14.6% energy transfer (69,650 J total vehicle energy)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 10168
+        "joules": 10168,
+        "joules45": 20400,
+        "joules90": 10200
       },
       "variants": [],
       "heightRange": {
@@ -771,7 +797,8 @@
         "Atlas Double Traffic Barrier+",
         "eFlex Single Traffic Barrier"
       ],
-      "rawText": "eFlex Single Traffic Barrier+ - mid-strength with handrail. 158mm rail. PAS 13 tested. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, pedestrians."
+      "rawText": "eFlex Single Traffic Barrier+ - mid-strength with handrail. 158mm rail. PAS 13 tested. Suitable for heavy duty counterbalance forklift, lightweight counterbalance forklift, horizontal order picker, electric pedestrian truck, pedestrians.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Double Traffic Barrier+",
@@ -779,7 +806,7 @@
       "category": "pedestrian-barriers",
       "description": "Industrial-strength dual-function safety barrier designed to protect pedestrians, assets and infrastructure from vehicle impacts in high-traffic environments where both pedestrian and heavyweight vehicle traffic share space.",
       "features": [
-        "190mm Ø Base Rails",
+        "190mm \u00d8 Base Rails",
         "Impact Zone = 205 - 745mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
@@ -787,14 +814,16 @@
         "Fully modular construction",
         "Available in yellow, black or grey"
       ],
-      "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "impactRating": 41000,
+      "impactRatingRaw": "41,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 20500
+        "joules": 20500,
+        "joules45": 41000,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -832,7 +861,8 @@
         "Atlas Double Traffic Barrier+",
         "iFlex Double Traffic Barrier"
       ],
-      "rawText": "iFlex Double Traffic Barrier+ - twin 190mm rails with pedestrian handrail. 20,500J PAS 13 (TÜV Nord). Heavy-duty vehicles."
+      "rawText": "iFlex Double Traffic Barrier+ - twin 190mm rails with pedestrian handrail. 20,500J PAS 13 (T\u00dcV Nord). Heavy-duty vehicles.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Traffic Barrier 190-T1-P0",
@@ -951,21 +981,23 @@
       "category": "traffic-barriers",
       "description": "Ground level protection designed to safeguard walls, structures, goods and machinery from low-energy impacts. Provides traffic segregation with visual guidance for manually operated equipment.",
       "features": [
-        "100mm Ø Rail",
+        "100mm \u00d8 Rail",
         "Impact Zone = 150 - 250mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
         "Available in yellow, black or grey",
         "Fully modular system"
       ],
-      "impactRating": 2700,
-      "impactRatingRaw": "2,700 Joules",
-      "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+      "impactRating": 5400,
+      "impactRatingRaw": "5,400 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "1.1 tonnes at 8 kph, 90\u00b0 angle, 2,700 Joules with 100% energy transfer",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 2700
+        "joules": 2700,
+        "joules45": 5400,
+        "joules90": 2700
       },
       "variants": [],
       "heightRange": {
@@ -997,7 +1029,8 @@
         "iFlex Single Traffic Barrier Cold Storage",
         "eFlex Single Traffic Barrier"
       ],
-      "rawText": "mFlex Single Traffic Barrier - 100mm ground-level barrier. 2700J PAS 13. Manual pallet truck, electric pedestrian stacker, frame roll container."
+      "rawText": "mFlex Single Traffic Barrier - 100mm ground-level barrier. 2700J PAS 13. Manual pallet truck, electric pedestrian stacker, frame roll container.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "mFlex Single Traffic Ground",
@@ -1005,20 +1038,22 @@
       "category": "traffic-barriers",
       "description": "Safeguards walls, structures, goods and machinery from low-energy impacts at near-ground level. Guides vehicles and prevents encroachment onto protected areas.",
       "features": [
-        "100mm Ø Rail",
+        "100mm \u00d8 Rail",
         "Impact Zone = 50 - 150mm",
         "Patented Coupling Technology",
         "Multi-directional posts",
         "Fully modular system"
       ],
-      "impactRating": 2700,
-      "impactRatingRaw": "2,700 Joules",
-      "vehicleTest": "1.1 tonnes at 8 kph, 90° angle, 2,700 Joules with 100% energy transfer",
+      "impactRating": 5400,
+      "impactRatingRaw": "5,400 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "1.1 tonnes at 8 kph, 90\u00b0 angle, 2,700 Joules with 100% energy transfer",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 2700
+        "joules": 2700,
+        "joules45": 5400,
+        "joules90": 2700
       },
       "variants": [],
       "heightRange": {
@@ -1051,7 +1086,8 @@
         "iFlex Single Traffic Barrier Cold Storage",
         "eFlex Single Traffic Barrier"
       ],
-      "rawText": "mFlex Single Traffic Ground - near-ground level 50-150mm barrier. 2700J PAS 13."
+      "rawText": "mFlex Single Traffic Ground - near-ground level 50-150mm barrier. 2700J PAS 13.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "mFlex Double Traffic Barrier",
@@ -1059,20 +1095,22 @@
       "category": "traffic-barriers",
       "description": "Designed to safeguard walls, structures, goods and machinery from lightweight hand operated equipment and powered pallet trucks.",
       "features": [
-        "100mm Ø Rails",
+        "100mm \u00d8 Rails",
         "Impact Zone = 150 - 450mm",
         "Patented Coupling Technology",
         "Electrophoretic Coated Base",
         "Fully modular construction"
       ],
-      "impactRating": 4550,
-      "impactRatingRaw": "4,550 Joules",
-      "vehicleTest": "3.6 tonnes at 8 kph, 50% energy transfer (4,550 Joules) at 45° angle of approach",
+      "impactRating": 5331,
+      "impactRatingRaw": "5,331 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "3.6 tonnes at 8 kph, 50% energy transfer (4,550 Joules) at 45\u00b0 angle of approach",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 4550
+        "joules": 4550,
+        "joules45": 5331,
+        "joules90": 4550
       },
       "variants": [],
       "heightRange": {
@@ -1104,7 +1142,8 @@
         "eFlex Single Traffic Barrier",
         "iFlex Double Traffic Barrier"
       ],
-      "rawText": "mFlex Double Traffic Barrier - two 100mm rails, 150-450mm impact zone. PAS 13 4,550J transferred."
+      "rawText": "mFlex Double Traffic Barrier - two 100mm rails, 150-450mm impact zone. PAS 13 4,550J transferred.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Atlas Double Traffic Barrier",
@@ -1112,7 +1151,7 @@
       "category": "traffic-barriers",
       "description": "Heavy-duty barrier engineered to withstand repeated impacts from large workplace vehicles in airport operations. Protects baggage conveyors, floodlight masts, pier and charging units.",
       "features": [
-        "190mm Ø Rails",
+        "190mm \u00d8 Rails",
         "Impact Zone = 205 - 745mm",
         "Patented Coupling Technology",
         "Galvanised Base as Standard",
@@ -1120,14 +1159,16 @@
         "Rotating Wear Collars",
         "Multi-directional posts"
       ],
-      "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "impactRating": 41000,
+      "impactRatingRaw": "41,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 20500
+        "joules": 20500,
+        "joules45": 41000,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -1157,7 +1198,8 @@
         "mFlex Double Traffic Barrier",
         "Atlas Triangle Traffic Barrier"
       ],
-      "rawText": "Atlas Double Traffic Barrier - airport-grade heavy-duty. 20,500J PAS 13 (TÜV Nord). For Charlatte/Linde baggage trucks, tow tractors, pushback tugs, ULDs."
+      "rawText": "Atlas Double Traffic Barrier - airport-grade heavy-duty. 20,500J PAS 13 (T\u00dcV Nord). For Charlatte/Linde baggage trucks, tow tractors, pushback tugs, ULDs.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Atlas Double Traffic Barrier+",
@@ -1173,14 +1215,16 @@
         "Rotating wear collars",
         "Multi-directional posts"
       ],
-      "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° approach angle, 100% energy transfer (20,500 Joules)",
+      "impactRating": 41000,
+      "impactRatingRaw": "41,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 approach angle, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 20500
+        "joules": 20500,
+        "joules45": 41000,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -1212,7 +1256,8 @@
         "Atlas Triangle Traffic Barrier",
         "mFlex Double Traffic Barrier"
       ],
-      "rawText": "Atlas Double Traffic Barrier+ - airport dual-function with handrail. 20,500J PAS 13 (TÜV Nord)."
+      "rawText": "Atlas Double Traffic Barrier+ - airport dual-function with handrail. 20,500J PAS 13 (T\u00dcV Nord).",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Atlas Polygon Traffic Barrier",
@@ -1228,12 +1273,13 @@
       ],
       "impactRating": 20500,
       "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 20500
+        "joules": 20500,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -1265,7 +1311,8 @@
         "Atlas Double Traffic Barrier+",
         "mFlex Double Traffic Barrier"
       ],
-      "rawText": "Atlas Polygon Traffic Barrier - airport floodlight/mast protection. 20,500J PAS 13."
+      "rawText": "Atlas Polygon Traffic Barrier - airport floodlight/mast protection. 20,500J PAS 13.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Atlas Triangle Traffic Barrier",
@@ -1281,12 +1328,13 @@
       ],
       "impactRating": 20500,
       "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 20500
+        "joules": 20500,
+        "joules90": 20500
       },
       "variants": [],
       "heightRange": {
@@ -1317,7 +1365,8 @@
         "Atlas Double Traffic Barrier+",
         "mFlex Double Traffic Barrier"
       ],
-      "rawText": "Atlas Triangle Traffic Barrier - funnels heavyweight vehicles through doorways. 20,500J PAS 13."
+      "rawText": "Atlas Triangle Traffic Barrier - funnels heavyweight vehicles through doorways. 20,500J PAS 13.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Single Car Park Barrier",
@@ -1331,9 +1380,9 @@
         "Suitable for indoor and outdoor environments",
         "Grey standard with other colours available"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules",
-      "vehicleTest": "1.5 tonnes at 16 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "impactRating": 30200,
+      "impactRatingRaw": "30,200 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "1.5 tonnes at 16 kph, 90\u00b0 angle of approach, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [
@@ -1342,7 +1391,9 @@
           "EN 1991"
         ],
         "method": "vehicle",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 30200,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": null,
@@ -1369,7 +1420,8 @@
         "mFlex Single Traffic Barrier",
         "mFlex Double Traffic Barrier"
       ],
-      "rawText": "iFlex Single Car Park Barrier - car-park specific barrier. 15,100J PAS 13, BS 6180/DETR, BS 6399, EN 1991. Grey standard."
+      "rawText": "iFlex Single Car Park Barrier - car-park specific barrier. 15,100J PAS 13, BS 6180/DETR, BS 6399, EN 1991. Grey standard.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Topple Barrier",
@@ -1390,7 +1442,8 @@
         "certified": true,
         "sections": [],
         "method": null,
-        "joules": null
+        "joules": null,
+        "joules90": 6900
       },
       "variants": [
         {
@@ -1433,7 +1486,8 @@
         "Heavy Duty ForkGuard Kerb Barrier",
         "iFlex Single Traffic Barrier"
       ],
-      "rawText": "Topple Barrier - tall barrier for stacked storage. Heights 3600mm and 5300mm with integrated ForkGuard. Modular, yellow or black. PAS 13 compliant."
+      "rawText": "Topple Barrier - tall barrier for stacked storage. Heights 3600mm and 5300mm with integrated ForkGuard. Modular, yellow or black. PAS 13 compliant.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Heavy Duty Topple Barrier",
@@ -1447,14 +1501,16 @@
         "Heights from 3600mm to 5300mm",
         "Suitable for impact heights 205mm-745mm"
       ],
-      "impactRating": 20500,
-      "impactRatingRaw": "20,500 Joules",
-      "vehicleTest": "5.7 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (20,500 Joules)",
+      "impactRating": 41000,
+      "impactRatingRaw": "41,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "5.7 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (20,500 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 20500
+        "joules": 20500,
+        "joules45": 41000,
+        "joules90": 20500
       },
       "variants": [
         {
@@ -1499,7 +1555,8 @@
         "ForkGuard Kerb Barrier",
         "mFlex Single Traffic Barrier"
       ],
-      "rawText": "Heavy Duty Topple Barrier - 3600/5300mm heights, integrated ForkGuard. 20,500J PAS 13."
+      "rawText": "Heavy Duty Topple Barrier - 3600/5300mm heights, integrated ForkGuard. 20,500J PAS 13.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Bollard",
@@ -1516,12 +1573,13 @@
       ],
       "impactRating": 5800,
       "impactRatingRaw": "5,800 Joules",
-      "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "vehicleTest": "4.3 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (5,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 5800
+        "joules": 5800,
+        "joules90": 5800
       },
       "variants": [
         {
@@ -1589,7 +1647,8 @@
         "eFlex Single RackEnd+Kerb",
         "eFlex Double RackEnd+Kerb"
       ],
-      "rawText": "iFlex Bollard - 190mm standard bollard available 835/1200/2000mm heights. 5,800J PAS 13 at 4.3t/6.4kph. Yellow or grey."
+      "rawText": "iFlex Bollard - 190mm standard bollard available 835/1200/2000mm heights. 5,800J PAS 13 at 4.3t/6.4kph. Yellow or grey.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Heavy Duty Bollard",
@@ -1604,12 +1663,13 @@
       ],
       "impactRating": 8800,
       "impactRatingRaw": "8,800 Joules",
-      "vehicleTest": "5.5 tonnes at 6.4 kph, 90° angle, 100% energy transfer (8,800 Joules)",
+      "vehicleTest": "5.5 tonnes at 6.4 kph, 90\u00b0 angle, 100% energy transfer (8,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 8800
+        "joules": 8800,
+        "joules90": 8800
       },
       "variants": [
         {
@@ -1662,7 +1722,8 @@
         "eFlex Single RackEnd+Kerb",
         "eFlex Double RackEnd+Kerb"
       ],
-      "rawText": "iFlex Heavy Duty Bollard - reinforced for HD vehicles. 8,800J PAS 13 at 5.5t/6.4 kph. Rotating wear collars. Yellow or grey, 1200/2000mm."
+      "rawText": "iFlex Heavy Duty Bollard - reinforced for HD vehicles. 8,800J PAS 13 at 5.5t/6.4 kph. Rotating wear collars. Yellow or grey, 1200/2000mm.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Bollard Cold Storage",
@@ -1678,12 +1739,13 @@
       ],
       "impactRating": 6900,
       "impactRatingRaw": "6,900 Joules",
-      "vehicleTest": "4.3 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,900 Joules)",
+      "vehicleTest": "4.3 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (6,900 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 6900
+        "joules": 6900,
+        "joules90": 5800
       },
       "variants": [
         {
@@ -1728,7 +1790,8 @@
         "eFlex Single RackEnd+Kerb",
         "eFlex Double RackEnd+Kerb"
       ],
-      "rawText": "iFlex Bollard Cold Storage - sub-zero variant. 6,900J PAS 13. Available 835/1200/2000mm."
+      "rawText": "iFlex Bollard Cold Storage - sub-zero variant. 6,900J PAS 13. Available 835/1200/2000mm.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Bollard 190",
@@ -1782,7 +1845,7 @@
         "iFlex Heavy Duty Bollard",
         "Sign Post"
       ],
-      "rawText": "Monoplex Bollard 190 Heavy Duty - three-layer PAS 13 and TÜV Nord certified bollard. For engine counterbalance HD forklift, VNA equipment, HD counterbalance forklift, order picker, cars, pedestrian trucks/stackers."
+      "rawText": "Monoplex Bollard 190 Heavy Duty - three-layer PAS 13 and T\u00dcV Nord certified bollard. For engine counterbalance HD forklift, VNA equipment, HD counterbalance forklift, order picker, cars, pedestrian trucks/stackers."
     },
     {
       "familyName": "Bollard 130",
@@ -1893,7 +1956,7 @@
         "iFlex Heavy Duty Bollard",
         "Sign Post"
       ],
-      "rawText": "Monoplex Bollard (130 Standard & 190 Heavy Duty) - three-layer PAS 13 / TÜV Nord certified flagship Monoplex bollard."
+      "rawText": "Monoplex Bollard (130 Standard & 190 Heavy Duty) - three-layer PAS 13 / T\u00dcV Nord certified flagship Monoplex bollard."
     },
     {
       "familyName": "FlexiShield Column Guard",
@@ -1911,12 +1974,13 @@
       ],
       "impactRating": 1600,
       "impactRatingRaw": "1,600 Joules",
-      "vehicleTest": "1.8 Tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (1,600 Joules)",
+      "vehicleTest": "1.8 Tonnes at 4.8 kph, 90\u00b0 approach angle, 100% energy transfer (1,600 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 1600
+        "joules": 1600,
+        "joules90": 1600
       },
       "variants": [],
       "heightRange": {
@@ -1951,7 +2015,8 @@
         "iFlexRail Column Guard+",
         "Padded Column Guard"
       ],
-      "rawText": "FlexiShield Column Guard - modular stackable column wrap. 1,600J PAS 13. Fits square/rectangle columns. 520mm per unit."
+      "rawText": "FlexiShield Column Guard - modular stackable column wrap. 1,600J PAS 13. Fits square/rectangle columns. 520mm per unit.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "FlexiShield Corner Guard",
@@ -1967,12 +2032,13 @@
       ],
       "impactRating": 200,
       "impactRatingRaw": "200 Joules",
-      "vehicleTest": "0.5 tonnes at 3.2 kph, 90° angle of approach, 100% energy transfer (200 Joules)",
+      "vehicleTest": "0.5 tonnes at 3.2 kph, 90\u00b0 angle of approach, 100% energy transfer (200 Joules)",
       "pas13": {
         "certified": false,
         "sections": [],
         "method": null,
-        "joules": 200
+        "joules": 200,
+        "joules90": 200
       },
       "variants": [],
       "heightRange": {
@@ -2004,7 +2070,8 @@
         "iFlexRail Column Guard+",
         "Padded Column Guard"
       ],
-      "rawText": "FlexiShield Corner Guard - wall edge/door frame protector. 200J at 0.5t/3.2kph. Stackable 0-1000mm per unit."
+      "rawText": "FlexiShield Corner Guard - wall edge/door frame protector. 200J at 0.5t/3.2kph. Stackable 0-1000mm per unit.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlexRail Column Guard",
@@ -2012,7 +2079,7 @@
       "category": "column-protection",
       "description": "Bespoke column protection designed to provide impact-resisting barriers for building supports and structures of any size and shape. Available as two- or three-sided units.",
       "features": [
-        "100mm Ø Rails",
+        "100mm \u00d8 Rails",
         "Impact Zone = 450 - 1100mm",
         "Any Column Shape or Location",
         "Patented Coupling Technology",
@@ -2020,14 +2087,16 @@
         "Fully modular and adaptable",
         "Two- or three-sided units"
       ],
-      "impactRating": 5800,
-      "impactRatingRaw": "5,800 Joules",
-      "vehicleTest": "2.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (5,800 Joules)",
+      "impactRating": 6795,
+      "impactRatingRaw": "6,795 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "2.3 tonnes at 8 kph, 90\u00b0 angle of approach, 100% energy transfer (5,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 5800
+        "joules": 5800,
+        "joules45": 6795,
+        "joules90": 5800
       },
       "variants": [],
       "heightRange": {
@@ -2067,7 +2136,8 @@
         "iFlexRail Column Guard+",
         "Padded Column Guard"
       ],
-      "rawText": "iFlexRail Column Guard - bespoke column protection, 2 or 3 sided. 5,800J PAS 13 (TÜV Nord). 100mm rails, impact zone 450-1100mm."
+      "rawText": "iFlexRail Column Guard - bespoke column protection, 2 or 3 sided. 5,800J PAS 13 (T\u00dcV Nord). 100mm rails, impact zone 450-1100mm.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlexRail Column Guard+",
@@ -2083,14 +2153,16 @@
         "Yellow, black, grey colors",
         "Impact height 205-395mm"
       ],
-      "impactRating": 13750,
-      "impactRatingRaw": "13,750 Joules",
-      "vehicleTest": "3.8 tonnes at 9.6 kph, 90° angle of approach, 100% energy transfer (13,750 Joules)",
+      "impactRating": 27500,
+      "impactRatingRaw": "27,500 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "3.8 tonnes at 9.6 kph, 90\u00b0 angle of approach, 100% energy transfer (13,750 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 13750
+        "joules": 13750,
+        "joules45": 27500,
+        "joules90": 13750
       },
       "variants": [],
       "heightRange": {
@@ -2125,7 +2197,8 @@
         "iFlexRail Column Guard",
         "Padded Column Guard"
       ],
-      "rawText": "iFlexRail Column Guard+ - column protection with integrated traffic rail. 13,750J PAS 13 (TÜV Nord). 3.8t/9.6kph."
+      "rawText": "iFlexRail Column Guard+ - column protection with integrated traffic rail. 13,750J PAS 13 (T\u00dcV Nord). 3.8t/9.6kph.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "Padded Column Guard",
@@ -2180,7 +2253,7 @@
         "iFlexRail Column Guard+",
         "iFlex Bollard"
       ],
-      "rawText": "Padded Column Guard - foam wrap, 50mm thick, 1800mm. 360° pedestrian-soft protection."
+      "rawText": "Padded Column Guard - foam wrap, 50mm thick, 1800mm. 360\u00b0 pedestrian-soft protection."
     },
     {
       "familyName": "Step Guard",
@@ -2202,7 +2275,8 @@
         "certified": true,
         "sections": [],
         "method": null,
-        "joules": null
+        "joules": null,
+        "joules90": 15800
       },
       "variants": [
         {
@@ -2253,7 +2327,8 @@
         "iFlex Single RackEnd+Kerb",
         "Heavy Duty ForkGuard Kerb Barrier"
       ],
-      "rawText": "Step Guard - low-level ground protection with driver step functionality. 600/900/1200mm lengths. Up to 6,400kg vehicles. PAS 13 tested."
+      "rawText": "Step Guard - low-level ground protection with driver step functionality. 600/900/1200mm lengths. Up to 6,400kg vehicles. PAS 13 tested.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "ForkGuard Kerb Barrier",
@@ -2270,12 +2345,13 @@
       ],
       "impactRating": 3000,
       "impactRatingRaw": "3,000 Joules",
-      "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+      "vehicleTest": "1.9 tonnes at 6.4 kph, 90\u00b0 angle, 100% energy transfer (3,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 3000
+        "joules": 3000,
+        "joules90": 3000
       },
       "variants": [],
       "heightRange": {
@@ -2311,7 +2387,8 @@
         "eFlex Single RackEnd+Kerb",
         "iFlex Single RackEnd+Kerb"
       ],
-      "rawText": "ForkGuard Kerb Barrier - ground-level fork deflection. 3,000J PAS 13 at 1.9t/6.4kph. Impact 0-183mm."
+      "rawText": "ForkGuard Kerb Barrier - ground-level fork deflection. 3,000J PAS 13 at 1.9t/6.4kph. Impact 0-183mm.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Heavy Duty ForkGuard Kerb Barrier",
@@ -2328,12 +2405,13 @@
       ],
       "impactRating": 15800,
       "impactRatingRaw": "15,800 Joules",
-      "vehicleTest": "6.3 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,800 Joules)",
+      "vehicleTest": "6.3 tonnes at 8 kph, 90\u00b0 angle of approach, 100% energy transfer (15,800 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 15800
+        "joules": 15800,
+        "joules90": 15800
       },
       "variants": [],
       "heightRange": {
@@ -2369,7 +2447,8 @@
         "iFlex Single RackEnd+Kerb",
         "Step Guard"
       ],
-      "rawText": "Heavy Duty ForkGuard Kerb Barrier - reinforced fork-deflecting kerb. 15,800J PAS 13 at 6.3t/8kph."
+      "rawText": "Heavy Duty ForkGuard Kerb Barrier - reinforced fork-deflecting kerb. 15,800J PAS 13 at 6.3t/8kph.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "ForkGuard Cold Storage",
@@ -2385,12 +2464,13 @@
       ],
       "impactRating": 3000,
       "impactRatingRaw": "3,000 Joules",
-      "vehicleTest": "1.9 tonnes at 6.4 kph, 90° angle, 100% energy transfer (3,000 Joules)",
+      "vehicleTest": "1.9 tonnes at 6.4 kph, 90\u00b0 angle, 100% energy transfer (3,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 3000
+        "joules": 3000,
+        "joules90": 3000
       },
       "variants": [],
       "heightRange": {
@@ -2422,7 +2502,8 @@
         "eFlex Single RackEnd+Kerb",
         "iFlex Single RackEnd+Kerb"
       ],
-      "rawText": "ForkGuard Cold Storage - sub-zero ForkGuard. 3,000J PAS 13. Black with blue trim."
+      "rawText": "ForkGuard Cold Storage - sub-zero ForkGuard. 3,000J PAS 13. Black with blue trim.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Under Guard",
@@ -2443,7 +2524,8 @@
         "certified": null,
         "sections": [],
         "method": null,
-        "joules": null
+        "joules": null,
+        "joules90": 15800
       },
       "variants": [
         {
@@ -2482,7 +2564,8 @@
         "ForkGuard Kerb Barrier",
         "iFlex Single RackEnd Barrier"
       ],
-      "rawText": "Under Guard - anti-under-ride rack buffer. 1270x1070 or 1200x1000mm. Nylon/polypropylene."
+      "rawText": "Under Guard - anti-under-ride rack buffer. 1270x1070 or 1200x1000mm. Nylon/polypropylene.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Swing Gate Short",
@@ -2721,12 +2804,13 @@
       ],
       "impactRating": 14000,
       "impactRatingRaw": "14,000 Joules",
-      "vehicleTest": "3.2 tonnes at 10.4 kph, 90° angle, 100% energy transfer (14,000 Joules)",
+      "vehicleTest": "3.2 tonnes at 10.4 kph, 90\u00b0 angle, 100% energy transfer (14,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 14000
+        "joules": 14000,
+        "joules90": 14000
       },
       "variants": [
         {
@@ -2775,7 +2859,8 @@
         "iFlex Heavy Duty Bollard",
         "iFlex Height Restrictor"
       ],
-      "rawText": "Traffic Gate - loading dock barrier with gas-assisted lift, positive lock. Widths 2/2.5/3m. 14,000J PAS 13 (TÜV Nord) at 3.2t/10.4kph."
+      "rawText": "Traffic Gate - loading dock barrier with gas-assisted lift, positive lock. Widths 2/2.5/3m. 14,000J PAS 13 (T\u00dcV Nord) at 3.2t/10.4kph.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Height Restrictor",
@@ -2793,12 +2878,13 @@
       ],
       "impactRating": 5400,
       "impactRatingRaw": "5,400 Joules",
-      "vehicleTest": "6 tonnes at 4.8 kph, 90° approach angle, 100% energy transfer (5,400 Joules)",
+      "vehicleTest": "6 tonnes at 4.8 kph, 90\u00b0 approach angle, 100% energy transfer (5,400 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 5400
+        "joules": 5400,
+        "joules90": 5400
       },
       "variants": [
         {
@@ -2841,7 +2927,8 @@
         "Alarm Bar",
         "Dock Buffer"
       ],
-      "rawText": "iFlex Height Restrictor - customizable up to 5m high/6m wide in 100mm increments. 5,400J PAS 13 (TÜV Nord). Galvanised base."
+      "rawText": "iFlex Height Restrictor - customizable up to 5m high/6m wide in 100mm increments. 5,400J PAS 13 (T\u00dcV Nord). Galvanised base.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Height Restrictor Cold Storage",
@@ -2857,12 +2944,13 @@
       ],
       "impactRating": 5400,
       "impactRatingRaw": "5,400 Joules",
-      "vehicleTest": "6 tonnes at 4.8 kph, 90° angle of approach, 100% energy transfer (5,400 Joules)",
+      "vehicleTest": "6 tonnes at 4.8 kph, 90\u00b0 angle of approach, 100% energy transfer (5,400 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 5400
+        "joules": 5400,
+        "joules90": 5400
       },
       "variants": [],
       "heightRange": {
@@ -2893,7 +2981,8 @@
         "Dock Buffer",
         "Alarm Bar"
       ],
-      "rawText": "iFlex Height Restrictor Cold Storage - sub-zero height restrictor. 5,400J PAS 13."
+      "rawText": "iFlex Height Restrictor Cold Storage - sub-zero height restrictor. 5,400J PAS 13.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Alarm Bar",
@@ -2971,7 +3060,8 @@
           "FEM 10.2.02"
         ],
         "method": "pendulum",
-        "joules": null
+        "joules": null,
+        "joules90": 1000
       },
       "variants": [
         {
@@ -3016,18 +3106,19 @@
         "eFlex Single RackEnd Barrier",
         "eFlex Double RackEnd Barrier"
       ],
-      "rawText": "RackGuard - TÜV Nord/PAS 13 certified rack leg protector. 400mm or 600mm heights. Compression hinge. AS 4084, EN 15635, EN 15512, FEM 10.2.02 compliant."
+      "rawText": "RackGuard - T\u00dcV Nord/PAS 13 certified rack leg protector. 400mm or 600mm heights. Compression hinge. AS 4084, EN 15635, EN 15512, FEM 10.2.02 compliant.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "RackGuard Cold Storage",
       "productUrl": "https://www.asafe.com/ar-ae/products/rackguard-cold-storage/",
       "category": "cold-storage",
-      "description": "Specifically engineered for sub-zero environments such as frozen food storage facilities. Protects rack legs and uprights from front, side and scrape impacts by workplace vehicles. Rated to -30°C.",
+      "description": "Specifically engineered for sub-zero environments such as frozen food storage facilities. Protects rack legs and uprights from front, side and scrape impacts by workplace vehicles. Rated to -30\u00b0C.",
       "features": [
         "Compression Hinge",
         "Centralising Rubber Lug",
         "Simple Installation",
-        "Engineered for Cold Storage -30°C",
+        "Engineered for Cold Storage -30\u00b0C",
         "Ten frictional grip points"
       ],
       "impactRating": null,
@@ -3037,7 +3128,8 @@
         "certified": null,
         "sections": [],
         "method": null,
-        "joules": null
+        "joules": null,
+        "joules90": 1000
       },
       "variants": [
         {
@@ -3077,7 +3169,8 @@
         "iFlex Single RackEnd+Kerb",
         "eFlex Double RackEnd+Kerb"
       ],
-      "rawText": "RackGuard Cold Storage - -30°C rated rack leg protector. 400mm or 600mm."
+      "rawText": "RackGuard Cold Storage - -30\u00b0C rated rack leg protector. 400mm or 600mm.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "eFlex Single RackEnd Barrier",
@@ -3093,14 +3186,16 @@
         "Spinning collars",
         "Yellow rails/posts standard"
       ],
-      "impactRating": 4000,
-      "impactRatingRaw": "4,000 Joules",
-      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° approach angle, 100% energy transfer (4,000 Joules)",
+      "impactRating": 8000,
+      "impactRatingRaw": "8,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90\u00b0 approach angle, 100% energy transfer (4,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 4000
+        "joules": 4000,
+        "joules45": 8000,
+        "joules90": 4000
       },
       "variants": [],
       "heightRange": {
@@ -3132,7 +3227,8 @@
         "eFlex Double RackEnd+Kerb",
         "iFlex Single RackEnd Barrier"
       ],
-      "rawText": "eFlex Single RackEnd Barrier - 90x90mm rail single rack end. 4,000J PAS 13 (TÜV Nord) at 2.5t/6.4kph. Impact 255-345mm."
+      "rawText": "eFlex Single RackEnd Barrier - 90x90mm rail single rack end. 4,000J PAS 13 (T\u00dcV Nord) at 2.5t/6.4kph. Impact 255-345mm.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "eFlex Single RackEnd+Kerb",
@@ -3148,12 +3244,13 @@
       ],
       "impactRating": 4000,
       "impactRatingRaw": "4,000 Joules",
-      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (4,000 Joules)",
       "pas13": {
         "certified": false,
         "sections": [],
         "method": "vehicle",
-        "joules": 4000
+        "joules": 4000,
+        "joules90": 4000
       },
       "variants": [],
       "heightRange": {
@@ -3183,7 +3280,8 @@
         "eFlex Double RackEnd+Kerb",
         "iFlex Single RackEnd Barrier"
       ],
-      "rawText": "eFlex Single RackEnd+Kerb - rack end with integrated ForkGuard. 4,000J PAS 13 at 2.5t/6.4 kph."
+      "rawText": "eFlex Single RackEnd+Kerb - rack end with integrated ForkGuard. 4,000J PAS 13 at 2.5t/6.4 kph.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "eFlex Double RackEnd Barrier",
@@ -3197,14 +3295,16 @@
         "Circular end posts",
         "Spinning collars"
       ],
-      "impactRating": 6000,
-      "impactRatingRaw": "6,000 Joules",
-      "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+      "impactRating": 12000,
+      "impactRatingRaw": "12,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "3.7 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (6,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 6000
+        "joules": 6000,
+        "joules45": 12000,
+        "joules90": 6000
       },
       "variants": [],
       "heightRange": {
@@ -3238,7 +3338,8 @@
         "eFlex Single RackEnd+Kerb",
         "eFlex Single RackEnd Barrier"
       ],
-      "rawText": "eFlex Double RackEnd Barrier - two 90x90mm rails. 6,000J PAS 13 at 3.7t/6.4kph. Impact 185-405mm."
+      "rawText": "eFlex Double RackEnd Barrier - two 90x90mm rails. 6,000J PAS 13 at 3.7t/6.4kph. Impact 185-405mm.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "eFlex Double RackEnd+Kerb",
@@ -3254,12 +3355,13 @@
       ],
       "impactRating": 6000,
       "impactRatingRaw": "6,000 Joules",
-      "vehicleTest": "3.7 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (6,000 Joules)",
+      "vehicleTest": "3.7 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (6,000 Joules)",
       "pas13": {
         "certified": false,
         "sections": [],
         "method": "vehicle",
-        "joules": 6000
+        "joules": 6000,
+        "joules90": 6000
       },
       "variants": [],
       "heightRange": {
@@ -3290,7 +3392,8 @@
         "iFlex Single RackEnd Barrier",
         "iFlex Single RackEnd+Kerb"
       ],
-      "rawText": "eFlex Double RackEnd+Kerb - double rail with ForkGuard. 6,000J PAS 13 at 3.7t/6.4kph."
+      "rawText": "eFlex Double RackEnd+Kerb - double rail with ForkGuard. 6,000J PAS 13 at 3.7t/6.4kph.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "iFlex Single RackEnd Barrier",
@@ -3298,21 +3401,23 @@
       "category": "rack-protection",
       "description": "Heavy-duty protection for rack ends defending against impact accidents and preventing damage. 190mm rail with circular end posts and spinning wear collars.",
       "features": [
-        "190mm Ø Rail",
+        "190mm \u00d8 Rail",
         "Impact Zone = 205 - 395mm",
         "Patented Coupling Technology",
         "Rotating Wear Collars",
         "Circular end posts",
         "Hygiene seals"
       ],
-      "impactRating": 15100,
-      "impactRatingRaw": "15,100 Joules",
-      "vehicleTest": "6 tonnes at 8 kph, 90° angle, 100% energy transfer (15,100 Joules)",
+      "impactRating": 30200,
+      "impactRatingRaw": "30,200 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "6 tonnes at 8 kph, 90\u00b0 angle, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "pendulum",
-        "joules": 15100
+        "joules": 15100,
+        "joules45": 30200,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -3345,7 +3450,8 @@
         "eFlex Single RackEnd+Kerb",
         "eFlex Single RackEnd Barrier"
       ],
-      "rawText": "iFlex Single RackEnd Barrier - 190mm heavy-duty rack end. 15,100J PAS 13 (TÜV Nord) at 6t/8kph."
+      "rawText": "iFlex Single RackEnd Barrier - 190mm heavy-duty rack end. 15,100J PAS 13 (T\u00dcV Nord) at 6t/8kph.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "iFlex Single RackEnd+Kerb",
@@ -3360,12 +3466,13 @@
       ],
       "impactRating": 15100,
       "impactRatingRaw": "15,100 Joules",
-      "vehicleTest": "6 tonnes at 8 kph, 90° angle of approach, 100% energy transfer (15,100 Joules)",
+      "vehicleTest": "6 tonnes at 8 kph, 90\u00b0 angle of approach, 100% energy transfer (15,100 Joules)",
       "pas13": {
         "certified": false,
         "sections": [],
         "method": "vehicle",
-        "joules": 15100
+        "joules": 15100,
+        "joules90": 15100
       },
       "variants": [],
       "heightRange": {
@@ -3396,13 +3503,14 @@
         "eFlex Double RackEnd Barrier",
         "eFlex Single RackEnd+Kerb"
       ],
-      "rawText": "iFlex Single RackEnd+Kerb - 190mm rack end with integrated ForkGuard. 15,100J PAS 13."
+      "rawText": "iFlex Single RackEnd+Kerb - 190mm rack end with integrated ForkGuard. 15,100J PAS 13.",
+      "impactRatingAngle": 90
     },
     {
       "familyName": "Single RackEnd Barrier Cold Storage",
       "productUrl": "https://www.asafe.com/ar-ae/products/single-rackend-barrier-cold-storage/",
       "category": "cold-storage",
-      "description": "Engineered barrier for cold storage facilities protecting racking aisle ends from turning vehicle impacts. Memaplex SubZero material rated to -30°C.",
+      "description": "Engineered barrier for cold storage facilities protecting racking aisle ends from turning vehicle impacts. Memaplex SubZero material rated to -30\u00b0C.",
       "features": [
         "Rotating wear collars",
         "Circular end posts",
@@ -3410,14 +3518,16 @@
         "Flexes without cracking in sub-zero",
         "Black with blue details"
       ],
-      "impactRating": 4000,
-      "impactRatingRaw": "4,000 Joules",
-      "vehicleTest": "2.5 tonnes at 6.4 kph, 90° angle of approach, 100% energy transfer (4,000 Joules)",
+      "impactRating": 8000,
+      "impactRatingRaw": "8,000 J max vehicle energy at 45\u00b0 \u2014 per UAE technical sheet",
+      "vehicleTest": "2.5 tonnes at 6.4 kph, 90\u00b0 angle of approach, 100% energy transfer (4,000 Joules)",
       "pas13": {
         "certified": true,
         "sections": [],
         "method": "vehicle",
-        "joules": 4000
+        "joules": 4000,
+        "joules45": 8000,
+        "joules90": 4000
       },
       "variants": [],
       "heightRange": {
@@ -3448,7 +3558,8 @@
         "iFlex Bollard Cold Storage",
         "iFlex Pedestrian Barrier 3 Rail Cold Storage"
       ],
-      "rawText": "Single RackEnd Barrier Cold Storage - Memaplex SubZero material -30°C. 4,000J PAS 13."
+      "rawText": "Single RackEnd Barrier Cold Storage - Memaplex SubZero material -30\u00b0C. 4,000J PAS 13.",
+      "impactRatingAngle": 45
     },
     {
       "familyName": "RackEye",
