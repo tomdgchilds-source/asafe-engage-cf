@@ -2213,15 +2213,36 @@ app.post("/api/admin/ingest-product-suitability", async (c) => {
     const { neon } = await import("@neondatabase/serverless");
     const sqlClient = neon(c.env.DATABASE_URL);
 
+    // The PDF dataset's `matchedDbIds` use the synthetic "family-<slug>"
+    // shape the /api/products route builds from each DB product name
+    // (see worker/routes/products.ts ~line 409:
+    //   id: `family-${product.name.replace(/\s+/g, "-").toLowerCase()}`).
+    // We reverse-resolve back to the real DB UUIDs by slugifying each row.
+    const familySlug = (name: string): string =>
+      `family-${name.replace(/\s+/g, "-").toLowerCase()}`;
+    const dbRows = (await sqlClient`
+      SELECT id, name FROM products WHERE is_active = true
+    `) as Array<{ id: string; name: string }>;
+    const slugToDbIds = new Map<string, string[]>();
+    for (const row of dbRows) {
+      const s = familySlug(row.name);
+      const list = slugToDbIds.get(s) || [];
+      list.push(row.id);
+      slugToDbIds.set(s, list);
+    }
+
     let ingested = 0;
     let pdfMatched = 0;
     let pdfUnmatched = 0;
     const unmatchedPdfIds: string[] = [];
-    const missingDbRows: Array<{ dbId: string; productName: string }> = [];
+    const missingDbRows: Array<{ familySlug: string; productName: string }> =
+      [];
 
     for (const p of pdfProducts) {
-      const dbIds: string[] = Array.isArray(p.matchedDbIds) ? p.matchedDbIds : [];
-      if (dbIds.length === 0) {
+      const familyIds: string[] = Array.isArray(p.matchedDbIds)
+        ? p.matchedDbIds
+        : [];
+      if (familyIds.length === 0) {
         pdfUnmatched++;
         unmatchedPdfIds.push(p.productName);
         continue;
@@ -2230,18 +2251,23 @@ app.post("/api/admin/ingest-product-suitability", async (c) => {
       // Store the full per-product PDF entry (minus matchedDbIds/sourceFile
       // — bookkeeping, not UI-relevant).
       const { matchedDbIds: _m, sourceFile: _s, ...payload } = p;
-      for (const dbId of dbIds) {
-        const result = (await sqlClient`
-          UPDATE products
-          SET suitability_data = ${JSON.stringify(payload)}::jsonb,
-              updated_at = now()
-          WHERE id = ${dbId}
-          RETURNING id
-        `) as Array<{ id: string }>;
-        if (result.length > 0) {
-          ingested += result.length;
-        } else {
-          missingDbRows.push({ dbId, productName: p.productName });
+      for (const slug of familyIds) {
+        const realIds = slugToDbIds.get(slug) || [];
+        if (realIds.length === 0) {
+          missingDbRows.push({ familySlug: slug, productName: p.productName });
+          continue;
+        }
+        for (const dbId of realIds) {
+          const result = (await sqlClient`
+            UPDATE products
+            SET suitability_data = ${JSON.stringify(payload)}::jsonb,
+                updated_at = now()
+            WHERE id = ${dbId}
+            RETURNING id
+          `) as Array<{ id: string }>;
+          if (result.length > 0) {
+            ingested += result.length;
+          }
         }
       }
     }
@@ -2253,7 +2279,7 @@ app.post("/api/admin/ingest-product-suitability", async (c) => {
         pdfMatched,
         pdfUnmatched,
         dbRowsIngested: ingested,
-        missingDbRows: missingDbRows.length,
+        missingFamilySlugs: missingDbRows.length,
       },
       missingDbRows,
       unmatchedPdfProducts: unmatchedPdfIds,
