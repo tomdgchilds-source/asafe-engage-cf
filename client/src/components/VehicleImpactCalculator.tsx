@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Pas13VerdictPanel } from "@/components/Pas13VerdictPanel";
+import { Pas13ChatPanel } from "@/components/Pas13ChatPanel";
 import { pas13Verdict } from "@shared/pas13Rules";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -932,10 +933,13 @@ export function VehicleImpactCalculator() {
         {/* Calculator Input */}
         <Card className="bg-gray-50 dark:bg-gray-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
-              Impact Parameters
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="h-5 w-5" />
+                Impact Parameters
+              </CardTitle>
+              <Pas13ChatPanel compact buttonLabel="Ask PAS 13" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>

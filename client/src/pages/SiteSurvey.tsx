@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Pas13ChatPanel } from '@/components/Pas13ChatPanel';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -803,6 +804,7 @@ export default function SiteSurvey() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Pas13ChatPanel buttonLabel="Ask PAS 13" />
           {/* Quick Load Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

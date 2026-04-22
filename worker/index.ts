@@ -45,6 +45,7 @@ import search from "./routes/search";
 import installations from "./routes/installations";
 import installTeams from "./routes/installTeams";
 import basePlates from "./routes/basePlates";
+import pas13Chat from "./routes/pas13Chat";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -119,6 +120,7 @@ app.route("/api", search);
 app.route("/api", installations);
 app.route("/api", installTeams);
 app.route("/api", basePlates);
+app.route("/api", pas13Chat);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

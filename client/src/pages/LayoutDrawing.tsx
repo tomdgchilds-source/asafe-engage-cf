@@ -21,6 +21,7 @@ import {
 import { ArrowLeft, Package, ShoppingCart, PenTool, FileImage, Upload, MoreHorizontal, Copy, Loader2 } from "lucide-react";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
 import { LayoutMarkupEditor } from "@/components/layout-markup";
+import { Pas13ChatPanel } from "@/components/Pas13ChatPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -166,7 +167,7 @@ export default function LayoutDrawing() {
         {/* Page Title */}
         <div className="flex items-center mb-8">
           <PenTool className="h-8 w-8 mr-3 text-purple-600" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Layout Drawing
             </h1>
@@ -174,6 +175,7 @@ export default function LayoutDrawing() {
               Upload your floor plan and mark safety barrier placements
             </p>
           </div>
+          <Pas13ChatPanel buttonLabel="Ask PAS 13" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
