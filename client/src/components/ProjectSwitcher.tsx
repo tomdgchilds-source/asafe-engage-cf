@@ -10,6 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,7 +32,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Project, CustomerCompany, ProjectContact } from "@shared/schema";
+import type { Project, CustomerCompany, ProjectContact, CartItem } from "@shared/schema";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 
 type ProjectWithCustomer = Project & {
@@ -69,6 +79,14 @@ export function ProjectSwitcher() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  // Switch-confirm state — only populated when a pending switch would
+  // hide data. `null` means no dialog; otherwise holds the destination
+  // project + the cart-item count we'd be leaving behind.
+  const [pendingSwitch, setPendingSwitch] = useState<{
+    dest: ProjectWithCustomer;
+    currentCount: number;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const { data: active } = useQuery<ActiveProject>({
     queryKey: ["/api/active-project"],
@@ -146,6 +164,52 @@ export function ProjectSwitcher() {
       : sorted;
     return scoped.slice(0, 10);
   }, [projects, search]);
+
+  // Decide whether picking `dest` should pop the confirm dialog.
+  // Rule:
+  //   - current cart empty → switch immediately (no confirm).
+  //   - current cart non-empty AND destination cart contains the exact
+  //     same set of item IDs (e.g. every item is a project_id IS NULL
+  //     orphan that'll appear under both projects) → switch immediately.
+  //   - otherwise → confirm (data would be hidden).
+  const handlePick = async (p: ProjectWithCustomer) => {
+    if (p.id === active?.id) {
+      setOpen(false);
+      return;
+    }
+    setChecking(true);
+    try {
+      const [curRes, destRes] = await Promise.all([
+        fetch("/api/cart", { credentials: "include" }),
+        fetch(`/api/cart?projectId=${encodeURIComponent(p.id)}`, {
+          credentials: "include",
+        }),
+      ]);
+      const current: CartItem[] = curRes.ok ? await curRes.json() : [];
+      const destItems: CartItem[] = destRes.ok ? await destRes.json() : [];
+      if (current.length === 0) {
+        switchActive.mutate(p.id);
+        return;
+      }
+      const curIds = new Set(current.map((c) => c.id));
+      const destIds = new Set(destItems.map((c) => c.id));
+      const sameSet =
+        curIds.size === destIds.size &&
+        Array.from(curIds).every((id) => destIds.has(id));
+      if (sameSet) {
+        switchActive.mutate(p.id);
+        return;
+      }
+      setPendingSwitch({ dest: p, currentCount: current.length });
+    } catch (err) {
+      // Peek failed — fall back to a direct switch rather than
+      // blocking the user on a flaky network.
+      console.error("Cart peek failed, switching without confirm:", err);
+      switchActive.mutate(p.id);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   if (!isAuthenticated) return null;
 
@@ -239,8 +303,8 @@ export function ProjectSwitcher() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => switchActive.mutate(p.id)}
-                    disabled={switchActive.isPending}
+                    onClick={() => handlePick(p)}
+                    disabled={switchActive.isPending || checking}
                     className={cn(
                       "w-full flex items-center gap-2 px-2 py-2 rounded-md text-left min-h-[44px]",
                       "hover:bg-muted transition-colors",
@@ -303,7 +367,7 @@ export function ProjectSwitcher() {
               <Settings2 className="mr-2 h-4 w-4" />
               Manage projects
             </Button>
-            {switchActive.isPending && (
+            {(switchActive.isPending || checking) && (
               <div className="flex items-center justify-center py-1">
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
               </div>
@@ -312,6 +376,46 @@ export function ProjectSwitcher() {
         </PopoverContent>
       </Popover>
       <NewProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <AlertDialog
+        open={!!pendingSwitch}
+        onOpenChange={(o) => {
+          if (!o) setPendingSwitch(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Switch to {pendingSwitch?.dest.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your current project cart has {pendingSwitch?.currentCount} item
+              {pendingSwitch?.currentCount === 1 ? "" : "s"}. They'll stay
+              attached to {active?.name} — you'll see{" "}
+              {pendingSwitch?.dest.customerCompany?.name ??
+                pendingSwitch?.dest.name}
+              's cart after switching.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-switch">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#FFC72C] text-black hover:bg-[#FFC72C]/90"
+              onClick={() => {
+                if (pendingSwitch) {
+                  const id = pendingSwitch.dest.id;
+                  setPendingSwitch(null);
+                  switchActive.mutate(id);
+                }
+              }}
+              data-testid="button-confirm-switch"
+            >
+              Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

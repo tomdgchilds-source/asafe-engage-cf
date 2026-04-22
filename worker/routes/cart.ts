@@ -7,14 +7,32 @@ import { createStorage } from "../storage";
 
 const cart = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// GET /api/cart - list user cart items
+// GET /api/cart - list user cart items scoped to their active project.
+// Optional ?projectId=<id> override lets the client peek another
+// project's cart (used by ProjectSwitcher to decide whether the
+// switch-confirm dialog needs to fire). If the user has no active
+// project and no override is supplied, falls back to returning
+// EVERYTHING they own (backward compatible). Project-scoped queries
+// also return project_id IS NULL orphans — items added before this
+// feature, or before the user picked a project.
 cart.get("/cart", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
 
     const userId = c.get("user").claims.sub;
-    const cartItems = await storage.getUserCart(userId);
+    const overrideRaw = c.req.query("projectId");
+    let scope: string | null | undefined;
+    if (overrideRaw !== undefined) {
+      // Empty / "null" / "none" strings → explicit orphan-only view.
+      scope = overrideRaw && overrideRaw !== "null" && overrideRaw !== "none"
+        ? overrideRaw
+        : null;
+    } else {
+      const user = await storage.getUser(userId);
+      scope = (user as any)?.activeProjectId ?? undefined;
+    }
+    const cartItems = await storage.getUserCart(userId, scope);
     return c.json(cartItems);
   } catch (error) {
     console.error("Error fetching cart items:", error);
@@ -30,7 +48,16 @@ cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
 
     const userId = c.get("user").claims.sub;
     const body = await c.req.json();
-    const cartItem = { ...body, userId };
+    // Stamp the active project so per-project filtering picks it up.
+    // Body override wins when present (e.g. a flow that explicitly
+    // targets a different project); otherwise fall back to the
+    // user's current activeProjectId. Never silently drop it.
+    let projectId: string | null | undefined = body.projectId;
+    if (projectId === undefined) {
+      const user = await storage.getUser(userId);
+      projectId = (user as any)?.activeProjectId ?? null;
+    }
+    const cartItem = { ...body, userId, projectId };
 
     // Fix referenceImages if it's a string
     if (cartItem.referenceImages && typeof cartItem.referenceImages === "string") {
@@ -188,12 +215,18 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
       });
     }
 
+    // Resolve the active project once so every item added in this
+    // batch inherits it (keeps the new cart project-scoped).
+    const user = await storage.getUser(userId);
+    const activeProjectId = (user as any)?.activeProjectId ?? null;
+
     // Add all items to cart with their metadata
     const addedItems = [];
     for (const item of items) {
       const cartItem = {
         ...item,
         userId,
+        projectId: item.projectId ?? activeProjectId,
         siteSurveyId: projectInfo?.siteSurveyId,
         areaName: item.areaName,
         zoneName: item.zoneName,

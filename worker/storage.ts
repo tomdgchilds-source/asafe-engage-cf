@@ -324,7 +324,11 @@ export interface IStorage {
   createQuoteRequestItem(item: InsertQuoteRequestItem): Promise<QuoteRequestItem>;
   
   // Cart operations
-  getUserCart(userId: string): Promise<CartItem[]>;
+  // When activeProjectId is provided, filters to that project's items
+  // plus any project_id IS NULL orphans (items added before the
+  // per-project cart feature, or by users without an active project).
+  // When undefined, returns ALL items the user owns (legacy behaviour).
+  getUserCart(userId: string, activeProjectId?: string | null): Promise<CartItem[]>;
   addToCart(item: InsertCartItem): Promise<CartItem>;
   updateCartItem(id: string, updates: Partial<InsertCartItem>): Promise<CartItem>;
   removeFromCart(id: string): Promise<void>;
@@ -1739,11 +1743,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Cart operations
-  async getUserCart(userId: string): Promise<CartItem[]> {
+  async getUserCart(userId: string, activeProjectId?: string | null): Promise<CartItem[]> {
+    // No project scope — return everything the user owns (backward
+    // compatible for callers that haven't been plumbed through yet).
+    if (activeProjectId === undefined) {
+      return await this.db
+        .select()
+        .from(cartItems)
+        .where(eq(cartItems.userId, userId))
+        .orderBy(desc(cartItems.createdAt));
+    }
+    // Explicit null → return only orphan (project_id IS NULL) items.
+    if (activeProjectId === null) {
+      return await this.db
+        .select()
+        .from(cartItems)
+        .where(and(eq(cartItems.userId, userId), isNull(cartItems.projectId)))
+        .orderBy(desc(cartItems.createdAt));
+    }
+    // Project scope — that project's items PLUS legacy orphans so
+    // items added before the user picked a project remain visible.
     return await this.db
       .select()
       .from(cartItems)
-      .where(eq(cartItems.userId, userId))
+      .where(
+        and(
+          eq(cartItems.userId, userId),
+          or(isNull(cartItems.projectId), eq(cartItems.projectId, activeProjectId)),
+        ),
+      )
       .orderBy(desc(cartItems.createdAt));
   }
 

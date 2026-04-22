@@ -1094,6 +1094,86 @@ app.post("/api/admin/apply-vehicle-thumbnails", async (c) => {
   }
 });
 
+// Cart → Project link: adds cart_items.project_id (nullable FK to
+// projects.id with ON DELETE SET NULL so deleting a project doesn't
+// cascade-wipe its cart history), creates a supporting index, and
+// backfills existing rows from each owner's users.active_project_id
+// (only where the user has one — orphans with NULL project_id stay
+// visible to their owner as legacy items).
+//
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN, same
+// pattern as /admin/apply-install-schema.
+app.post("/api/admin/apply-cart-project-link", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Column probe: was the FK already present before this run?
+    const preCols = await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'cart_items' AND column_name = 'project_id'
+    `;
+    const existedBefore = (preCols as any[]).length > 0;
+
+    await sqlClient`
+      ALTER TABLE cart_items
+      ADD COLUMN IF NOT EXISTS project_id VARCHAR
+      REFERENCES projects(id) ON DELETE SET NULL
+    `;
+
+    // Index probe.
+    const preIdx = await sqlClient`
+      SELECT indexname FROM pg_indexes
+      WHERE tablename = 'cart_items' AND indexname = 'cart_items_project_idx'
+    `;
+    const indexExistedBefore = (preIdx as any[]).length > 0;
+
+    await sqlClient`
+      CREATE INDEX IF NOT EXISTS cart_items_project_idx ON cart_items(project_id)
+    `;
+
+    // Backfill: assign each existing cart row the owner's currently-
+    // active project, only where project_id IS NULL and the user has
+    // one. Users without an active_project_id keep NULL (orphans).
+    const backfillResult = await sqlClient`
+      UPDATE cart_items ci
+      SET project_id = u.active_project_id
+      FROM users u
+      WHERE ci.user_id = u.id
+        AND ci.project_id IS NULL
+        AND u.active_project_id IS NOT NULL
+      RETURNING ci.id
+    `;
+    const backfilled = (backfillResult as any[]).length;
+
+    return c.json({
+      ok: true,
+      altered: existedBefore ? 0 : 1,
+      indexed: indexExistedBefore ? 0 : 1,
+      backfilled,
+    });
+  } catch (e: any) {
+    console.error("apply-cart-project-link failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Apply impact rating corrections from the verification report.
 // Reads the bundled patch file at build time and runs targeted UPDATEs
 // on the products table for entries where the live asafe.com page

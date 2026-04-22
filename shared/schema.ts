@@ -594,6 +594,13 @@ export const quoteRequestItems = pgTable("quote_request_items", {
 export const cartItems = pgTable("cart_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  // Which project this cart item belongs to. Nullable because legacy
+  // items added before the per-project cart feature (or by users who
+  // never picked an active project) stay orphaned — they remain
+  // visible to their owner regardless of which project is active.
+  // ON DELETE SET NULL so deleting a project doesn't cascade-wipe
+  // its cart history.
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: "set null" }),
   productName: varchar("product_name").notNull(),
   unitPrice: real("unit_price").notNull(),
   quantity: real("quantity").notNull(), // For barriers: meters, for items: pieces
