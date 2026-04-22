@@ -451,6 +451,13 @@ export const products = pgTable("products", {
   // depth, biggest pad, strictest substrate). Nullable — products not
   // listed in the PDF (e.g. RackGuard, Alarm Bar, Sign Cap) remain null.
   groundWorksData: jsonb("ground_works_data"),
+  // Geometry + structural data extracted from the master Product Impact
+  // Testing PDF (ASAFE_ProductImpactTesting_PRH-1012). Populated by
+  // /api/admin/apply-master-testing. Distinct from impactRating (which
+  // is the headline 45° vehicle KE) — this is post diameters, rail
+  // diameters, impact zones, fork-guard heights, angle-test scope.
+  // Nullable.
+  impactTestingData: jsonb("impact_testing_data"),
   // Metadata
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),

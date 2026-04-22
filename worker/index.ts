@@ -7,6 +7,10 @@ import { requestContext } from "./middleware/requestContext";
 import { getDb } from "./db";
 import { createStorage } from "./storage";
 import { runBackups } from "./scheduled/backupExporter";
+import {
+  matchByNameVariants,
+  normaliseCanonical,
+} from "../shared/nameNormalise";
 
 // Route imports
 import auth from "./routes/auth";
@@ -1322,6 +1326,20 @@ app.post("/api/admin/apply-impact-corrections", async (c) => {
     const applied: Array<{ familyName: string; matched: number; newValue: number | null }> = [];
     const notMatched: string[] = [];
 
+    // Pre-index DB products by canonical name so we can fuzzy-match patch
+    // familyName → DB id via matchByNameVariants. Falls back through the
+    // historical aggressive normaliser so no previously-matching patch
+    // regresses (only additions).
+    const dbRows = (await sqlClient`SELECT id, name FROM products`) as Array<{
+      id: string;
+      name: string;
+    }>;
+    const byCanonical = new Map<string, { id: string; name: string }>();
+    for (const row of dbRows) {
+      const k = normaliseCanonical(row.name);
+      if (k && !byCanonical.has(k)) byCanonical.set(k, row);
+    }
+
     for (const p of patches) {
       // Try exact name match first, then ILIKE with the family name.
       // Keep updates narrow — only overwrite impactRating + pas13 bits
@@ -1349,12 +1367,27 @@ app.post("/api/admin/apply-impact-corrections", async (c) => {
 
       if (sets.length <= 1) continue; // nothing to update
 
+      // Primary path: exact case-insensitive match (preserves historical
+      // behaviour). If it misses, fall through to matchByNameVariants
+      // (canonical → strip-trailing → aggressive → substring).
       const nameIdx = params.length + 1;
-      params.push(p.familyName);
-      const res = (await sqlClient(
+      const paramsExact = [...params, p.familyName];
+      let res = (await sqlClient(
         `UPDATE products SET ${sets.join(", ")} WHERE lower(name) = lower($${nameIdx}) RETURNING id`,
-        params,
+        paramsExact,
       )) as any[];
+
+      if (res.length === 0) {
+        const hit = matchByNameVariants(p.familyName, byCanonical);
+        if (hit) {
+          const fuzzyIdx = params.length + 1;
+          const paramsFuzzy = [...params, hit.id];
+          res = (await sqlClient(
+            `UPDATE products SET ${sets.join(", ")} WHERE id = $${fuzzyIdx} RETURNING id`,
+            paramsFuzzy,
+          )) as any[];
+        }
+      }
 
       if (res.length === 0) {
         notMatched.push(p.familyName);
@@ -1408,22 +1441,13 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
       ? catalog
       : catalog.products || [];
 
-    function norm(s: string | null | undefined): string {
-      if (!s) return "";
-      let v = s.toLowerCase().trim();
-      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
-      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
-      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
-        v = v.split(f).join("");
-      }
-      v = v.replace(/[^a-z0-9]+/g, " ").trim();
-      return v;
-    }
-
-    // Build catalog index by normalized name + URL slug fallback.
+    // Build catalog index by canonical name (conservative) + URL slug
+    // fallback. matchByNameVariants handles "+"/"plus", CS/cold-storage,
+    // trailing-filler-strip, and the historical aggressive normaliser as
+    // fallback — see shared/nameNormalise.ts.
     const catByKey = new Map<string, any>();
     for (const p of catalogProducts) {
-      const k = norm(p.familyName);
+      const k = normaliseCanonical(p.familyName);
       if (k && !catByKey.has(k)) catByKey.set(k, p);
       if (p.productUrl) {
         const slug = String(p.productUrl)
@@ -1431,7 +1455,7 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
           .split("/")
           .pop()
           ?.replace(/-/g, " ");
-        const slugKey = norm(slug || "");
+        const slugKey = normaliseCanonical(slug || "");
         if (slugKey && !catByKey.has(slugKey)) catByKey.set(slugKey, p);
       }
     }
@@ -1448,8 +1472,7 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
     const alreadyOk: Array<{ id: string; name: string }> = [];
 
     for (const p of dbProducts) {
-      const key = norm(p.name);
-      const cat = catByKey.get(key);
+      const cat = matchByNameVariants(p.name, catByKey);
       if (!cat) {
         unmatched.push({ id: p.id, name: p.name });
         continue;
@@ -1593,20 +1616,6 @@ app.post("/api/admin/upload-certificates", async (c) => {
     const urlPattern: string =
       manifest.publicUrlPattern || "/api/certificates/{slug}.pdf";
 
-    // Shared normaliser — matches the scheme in /admin/sync-catalog-to-db so
-    // "iFlex Single Traffic" ≈ "iFlex Single Traffic+" ≈ "iflex single traffic plus".
-    function norm(s: string | null | undefined): string {
-      if (!s) return "";
-      let v = s.toLowerCase().trim();
-      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
-      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
-      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
-        v = v.split(f).join("");
-      }
-      v = v.replace(/[^a-z0-9]+/g, " ").trim();
-      return v;
-    }
-
     const { neon } = await import("@neondatabase/serverless");
     const sqlClient = neon(c.env.DATABASE_URL);
 
@@ -1619,13 +1628,15 @@ app.post("/api/admin/upload-certificates", async (c) => {
 
     // Two indexes: exact-id for when the manifest supplies a `family-*`
     // slug (derived from name via the public-API convention), and
-    // normalised-name for fuzzy hints.
+    // normalised-name (canonical) for fuzzy hints — matchByNameVariants
+    // handles "+"/"plus", CS ↔ cold storage, trailing-filler-strip, and
+    // the historical aggressive fallback (shared/nameNormalise.ts).
     const byFamilyId = new Map<string, any>();
     const byNormName = new Map<string, any>();
     for (const p of dbProducts) {
       const familyId = `family-${String(p.name).replace(/\s+/g, "-").toLowerCase()}`;
       byFamilyId.set(familyId, p);
-      const nk = norm(p.name);
+      const nk = normaliseCanonical(p.name);
       if (nk && !byNormName.has(nk)) byNormName.set(nk, p);
     }
 
@@ -1695,11 +1706,13 @@ app.post("/api/admin/upload-certificates", async (c) => {
 
       for (const key of candidateKeys) {
         let product: any | undefined =
-          byFamilyId.get(key) || byNormName.get(norm(key));
+          byFamilyId.get(key) ||
+          matchByNameVariants(key, byNormName) ||
+          undefined;
         if (!product) {
           // Try key as a hint even if it looks like a family id
           const stripped = key.replace(/^family-/, "").replace(/-/g, " ");
-          product = byNormName.get(norm(stripped));
+          product = matchByNameVariants(stripped, byNormName) || undefined;
         }
         if (!product) {
           unmatched.push(key);
@@ -2518,6 +2531,21 @@ app.post("/api/admin/apply-master-testing", async (c) => {
     }> = [];
     const notMatched: string[] = [];
 
+    // Pre-index DB products for fuzzy fallback. Primary path is still
+    // case-insensitive equality; matchByNameVariants only fires when that
+    // misses (e.g. PDF uses "iFlex Single Traffic Barrier" but DB name is
+    // "iFlex Single Traffic"). Purely additive — never overrides a strict
+    // match. See shared/nameNormalise.ts.
+    const dbRows = (await sqlClient`SELECT id, name FROM products`) as Array<{
+      id: string;
+      name: string;
+    }>;
+    const byCanonical = new Map<string, { id: string; name: string }>();
+    for (const row of dbRows) {
+      const k = normaliseCanonical(row.name);
+      if (k && !byCanonical.has(k)) byCanonical.set(k, row);
+    }
+
     for (const p of patches) {
       const impactTestingData = {
         sourcePdf:
@@ -2563,12 +2591,26 @@ app.post("/api/admin/apply-master-testing", async (c) => {
       }
       sets.push("updated_at = now()");
 
+      // Strict match first (historical behaviour).
       const nameIdx = params.length + 1;
-      params.push(p.familyName);
-      const res = (await sqlClient(
+      const paramsExact = [...params, p.familyName];
+      let res = (await sqlClient(
         `UPDATE products SET ${sets.join(", ")} WHERE lower(name) = lower($${nameIdx}) RETURNING id`,
-        params,
+        paramsExact,
       )) as any[];
+
+      // Fuzzy fallback — only fires when strict missed.
+      if (res.length === 0) {
+        const hit = matchByNameVariants(p.familyName, byCanonical);
+        if (hit) {
+          const fuzzyIdx = params.length + 1;
+          const paramsFuzzy = [...params, hit.id];
+          res = (await sqlClient(
+            `UPDATE products SET ${sets.join(", ")} WHERE id = $${fuzzyIdx} RETURNING id`,
+            paramsFuzzy,
+          )) as any[];
+        }
+      }
 
       if (res.length === 0) {
         notMatched.push(p.familyName);
@@ -2777,19 +2819,35 @@ app.post("/api/admin/ingest-maintenance-data", async (c) => {
       subcategory: string | null;
     }>;
 
-    // Shared normaliser — same scheme as /admin/sync-catalog-to-db and
-    // /admin/upload-certificates. Collapses "iFlex Single Traffic+" /
-    // "iflex single traffic plus" / "iFlex Single Traffic barrier".
-    function norm(s: string | null | undefined): string {
-      if (!s) return "";
-      let v = s.toLowerCase().trim();
-      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
-      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
-      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
-        v = v.split(f).join("");
+    // Maintenance matching is asymmetric: we check whether each DB product
+    // "contains" a family label (not strict map lookup). For each product
+    // we try the conservative canonical form first, then fall back to the
+    // aggressive form for backward-compat with previously-matching rows.
+    // See shared/nameNormalise.ts for the helper semantics.
+    const { normaliseAggressive } = await import("../shared/nameNormalise");
+
+    function containsAnyVariant(haystackName: string, needle: string): boolean {
+      const hCanon = normaliseCanonical(haystackName);
+      const nCanon = normaliseCanonical(needle);
+      if (nCanon && (hCanon.startsWith(nCanon) || hCanon.includes(nCanon))) {
+        return true;
       }
-      v = v.replace(/[^a-z0-9]+/g, " ").trim();
-      return v;
+      const hAgg = normaliseAggressive(haystackName);
+      const nAgg = normaliseAggressive(needle);
+      if (nAgg && (hAgg.startsWith(nAgg) || hAgg.includes(nAgg))) {
+        return true;
+      }
+      return false;
+    }
+
+    function containsKeyword(haystack: string, keyword: string): boolean {
+      const hCanon = normaliseCanonical(haystack);
+      const kCanon = normaliseCanonical(keyword);
+      if (kCanon && hCanon.includes(kCanon)) return true;
+      const hAgg = normaliseAggressive(haystack);
+      const kAgg = normaliseAggressive(keyword);
+      if (kAgg && hAgg.includes(kAgg)) return true;
+      return false;
     }
 
     let matched = 0;
@@ -2797,10 +2855,6 @@ app.post("/api/admin/ingest-maintenance-data", async (c) => {
     const unmatched: Array<{ id: string; name: string }> = [];
 
     for (const product of dbProducts) {
-      const nameNorm = norm(product.name);
-      const catNorm = norm(product.category);
-      const subNorm = norm(product.subcategory);
-
       // Find the first family whose appliesToFamilies / appliesToCategoryKeywords
       // matches this product. Family prefix/containment matching wins over
       // category keyword matching (more specific).
@@ -2809,12 +2863,7 @@ app.post("/api/admin/ingest-maintenance-data", async (c) => {
         const families: string[] = Array.isArray(fam.appliesToFamilies)
           ? fam.appliesToFamilies
           : [];
-        if (
-          families.some((f) => {
-            const fn = norm(f);
-            return fn && (nameNorm.startsWith(fn) || nameNorm.includes(fn));
-          })
-        ) {
+        if (families.some((f) => f && containsAnyVariant(product.name, f))) {
           matchedFamily = fam;
           break;
         }
@@ -2826,12 +2875,11 @@ app.post("/api/admin/ingest-maintenance-data", async (c) => {
             : [];
           if (
             keywords.some((k) => {
-              const kn = norm(k);
+              if (!k) return false;
               return (
-                kn &&
-                (catNorm.includes(kn) ||
-                  subNorm.includes(kn) ||
-                  nameNorm.includes(kn))
+                containsKeyword(product.category || "", k) ||
+                containsKeyword(product.subcategory || "", k) ||
+                containsKeyword(product.name, k)
               );
             })
           ) {
@@ -3126,6 +3174,123 @@ app.post("/api/admin/apply-base-plates-schema", async (c) => {
   }
 });
 
+// Insert the iFlex Heavy Duty Bollard product row from
+// scripts/data/asafe-catalog.json if it's missing. The BP-GALV base plate
+// compatibility maps to "Heavy Duty Bollard" (alias → "iFlex Heavy Duty
+// Bollard"), but the DB has no matching row; without this seed the plate
+// ends up with zero edges even though the PDF lists it as compatible.
+//
+// Idempotent — skips insert if a row with this name already exists.
+// Gated by MIGRATION_TOKEN (bearer), same pattern as the sibling one-offs.
+app.post("/api/admin/seed-heavy-duty-bollard", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const catalogModule: any = await import("../scripts/data/asafe-catalog.json");
+    const catalog = catalogModule.default || catalogModule;
+    const catalogProducts: any[] = Array.isArray(catalog)
+      ? catalog
+      : catalog.products || [];
+    const entry = catalogProducts.find(
+      (p: any) => p?.familyName === "iFlex Heavy Duty Bollard",
+    );
+    if (!entry) {
+      return c.json(
+        {
+          ok: false,
+          message: "iFlex Heavy Duty Bollard not found in asafe-catalog.json",
+        },
+        404,
+      );
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Idempotency: skip if the row already exists (case-insensitive).
+    const existing = (await sqlClient`
+      SELECT id, name FROM products
+      WHERE lower(name) = lower(${entry.familyName})
+      LIMIT 1
+    `) as Array<{ id: string; name: string }>;
+    if (existing.length > 0) {
+      return c.json({
+        ok: true,
+        skipped: true,
+        reason: "Product already exists",
+        id: existing[0].id,
+        name: existing[0].name,
+      });
+    }
+
+    const pas13 = entry.pas13 || {};
+    const heightMin = entry?.heightRange?.minMm ?? null;
+    const heightMax = entry?.heightRange?.maxMm ?? null;
+    const imageUrl = Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0
+      ? entry.imageUrls[0]
+      : null;
+    const applications = Array.isArray(entry.applications)
+      ? entry.applications
+      : [];
+    const industries = Array.isArray(entry.industries) ? entry.industries : [];
+    const features = Array.isArray(entry.features) ? entry.features : [];
+
+    // Insert with the same column set as seed-products. Price left null —
+    // Heavy Duty Bollard is a catalog family without a DB price list
+    // entry; variants carry their own SKU pricing once the pricelist
+    // ingest is rerun.
+    const rows = (await sqlClient`
+      INSERT INTO products (
+        id, name, category, subcategory, description,
+        impact_rating, height_min, height_max,
+        pas_13_compliant, pas_13_test_method, pas_13_test_joules,
+        currency, image_url,
+        applications, industries, features,
+        pricing_logic, technical_sheet_url, installation_guide_url,
+        is_active, created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), ${entry.familyName}, ${entry.category || "bollards"},
+        ${entry.subcategory || null}, ${entry.description || ""},
+        ${entry.impactRating ?? null}, ${heightMin}, ${heightMax},
+        ${pas13.certified ?? false}, ${pas13.method ?? null},
+        ${pas13.joules ?? entry.impactRating ?? null},
+        'AED', ${imageUrl},
+        ${JSON.stringify(applications)}::jsonb,
+        ${JSON.stringify(industries)}::jsonb,
+        ${JSON.stringify(features)}::jsonb,
+        'per_unit',
+        ${entry.technicalSheetUrl || null},
+        ${entry.installationGuideUrl || null},
+        true, now(), now()
+      )
+      RETURNING id, name
+    `) as Array<{ id: string; name: string }>;
+
+    return c.json({
+      ok: true,
+      inserted: true,
+      id: rows[0].id,
+      name: rows[0].name,
+      source: "scripts/data/asafe-catalog.json (iFlex Heavy Duty Bollard)",
+    });
+  } catch (e: any) {
+    console.error("seed-heavy-duty-bollard failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Ingest scripts/data/base-plates.json into base_plates +
 // base_plate_product_compatibility. Idempotent — ON CONFLICT on plate code
 // updates metadata; ON CONFLICT on the (plate,product) edge is a no-op.
@@ -3200,13 +3365,18 @@ app.post("/api/admin/ingest-base-plates", async (c) => {
     }
 
     // Pull all products once — resolving PDF labels to DB products via
-    // explicit alias list first, then case-insensitive substring match.
+    // explicit alias list first, then case-insensitive substring match,
+    // then canonical-normaliser fallback (handles "+"/"plus", CS ↔ cold
+    // storage, trailing-filler variants). See shared/nameNormalise.ts.
     const dbProducts = (await sqlClient`
       SELECT id, name FROM products WHERE is_active IS NOT FALSE
     `) as Array<{ id: string; name: string }>;
     const dbByLowerName = new Map<string, { id: string; name: string }>();
+    const dbByCanonical = new Map<string, { id: string; name: string }>();
     for (const p of dbProducts) {
       dbByLowerName.set(p.name.toLowerCase(), p);
+      const k = normaliseCanonical(p.name);
+      if (k && !dbByCanonical.has(k)) dbByCanonical.set(k, p);
     }
 
     function resolveProducts(familyLabel: string): Array<{ id: string; name: string }> {
@@ -3221,13 +3391,22 @@ app.post("/api/admin/ingest-base-plates", async (c) => {
         }
         // Partial match with a min-length guard so short words don't
         // over-match.
+        let addedPartial = false;
         for (const p of dbProducts) {
           const pLow = p.name.toLowerCase();
           if (pLow === low) {
             resolved.set(p.id, p);
+            addedPartial = true;
           } else if (low.length >= 8 && (pLow.includes(low) || low.includes(pLow))) {
             resolved.set(p.id, p);
+            addedPartial = true;
           }
+        }
+        // Canonical-variant fallback — only fires when neither exact nor
+        // partial matched. Purely additive; never replaces a partial hit.
+        if (!addedPartial) {
+          const hit = matchByNameVariants(alias, dbByCanonical);
+          if (hit) resolved.set(hit.id, hit);
         }
       }
       return [...resolved.values()];
@@ -3462,23 +3641,14 @@ app.post("/api/admin/ingest-groundworks", async (c) => {
     const { neon } = await import("@neondatabase/serverless");
     const sqlClient = neon(c.env.DATABASE_URL);
 
-    // Shared normaliser — same scheme as /admin/upload-certificates.
-    function norm(s: string | null | undefined): string {
-      if (!s) return "";
-      let v = s.toLowerCase().trim();
-      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
-      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
-      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
-        v = v.split(f).join("");
-      }
-      v = v.replace(/[^a-z0-9]+/g, " ").trim();
-      return v;
-    }
-
+    // Build DB index by canonical (conservative) name. matchByNameVariants
+    // tries canonical → strip-trailing → aggressive → substring in order,
+    // so previously-matching rows still hit and additional "barrier/rail/
+    // guard" variants now match too. See shared/nameNormalise.ts.
     const dbRows = (await sqlClient`SELECT id, name FROM products`) as any[];
     const byNorm = new Map<string, any>();
     for (const p of dbRows) {
-      const k = norm(p.name);
+      const k = normaliseCanonical(p.name);
       if (k && !byNorm.has(k)) byNorm.set(k, p);
     }
 
@@ -3489,8 +3659,7 @@ app.post("/api/admin/ingest-groundworks", async (c) => {
 
     for (const e of entries) {
       const family = e.productFamily as string;
-      const key = norm(family);
-      const product = byNorm.get(key);
+      const product = matchByNameVariants(family, byNorm);
       if (!product) {
         unmatchedFamilies.push(family);
         results.push({ family, dbId: null });
