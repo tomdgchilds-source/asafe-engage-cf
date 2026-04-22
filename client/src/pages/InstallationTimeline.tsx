@@ -49,6 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { InstallationSitePrepPanel } from "@/components/InstallationSitePrepPanel";
+import { InstallationPreVisitVideos } from "@/components/InstallationPreVisitVideos";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -979,6 +980,13 @@ function InstallationDrawer({
                   destructive: does NOT auto-generate install tasks, and
                   renders nothing when no products have ground-works data. */}
               <InstallationSitePrepPanel order={detail.order} />
+
+              {/* Watch before site visit — YouTube install videos for
+                  every product on this install's linked order. Pulled from
+                  GET /api/installations/:id/install-videos (joins through
+                  order.items → product_resources → resources). Renders
+                  only when the install has at least one linked video. */}
+              <InstallationPreVisitVideos installationId={installationId} />
 
               {/* Team assignments */}
               <Card>

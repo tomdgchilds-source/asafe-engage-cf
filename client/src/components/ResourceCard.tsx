@@ -40,9 +40,17 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
       }
     });
     
-    // Open the document in a new tab/window for viewing
+    // Open the document in a new tab/window for viewing. Embed URLs
+    // (https://www.youtube.com/embed/<id>) open as a bare iframe page
+    // when popped into a new tab — users expect the full YouTube UI with
+    // title/description/suggestions. Convert to the watch URL shape so
+    // the new tab renders normally. Product detail still uses the embed
+    // form in its lightbox iframe (see ProductInstallVideos).
     if (resource.fileUrl) {
-      window.open(resource.fileUrl, '_blank', 'noopener,noreferrer');
+      let target = resource.fileUrl;
+      const embedMatch = target.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/);
+      if (embedMatch) target = `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+      window.open(target, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -98,7 +106,12 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
   };
 
   const FileIcon = getFileIcon(resource.fileType || '');
-  const isVideo = resource.fileType === 'video' || resource.fileUrl?.includes('youtube.com') || resource.fileUrl?.includes('youtu.be');
+  const isVideo =
+    resource.fileType === 'video' ||
+    resource.resourceType === 'Installation Video' ||
+    resource.resourceType === 'Video Guides' ||
+    resource.fileUrl?.includes('youtube.com') ||
+    resource.fileUrl?.includes('youtu.be');
 
   return (
     <Card className="group hover:shadow-lg transition-all duration-300" data-testid={`resource-card-${resource.id}`}>
@@ -110,7 +123,10 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
             </Badge>
             {resource.resourceType && (
               <Badge variant="outline" className="ml-2 text-xs">
-                {resource.resourceType === 'Video Guides' ? 'Video' : 'PDF'}
+                {resource.resourceType === 'Video Guides' ||
+                resource.resourceType === 'Installation Video'
+                  ? 'Video'
+                  : 'PDF'}
               </Badge>
             )}
           </div>
@@ -155,14 +171,15 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
                   loading="lazy"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    // Try fallback thumbnail for YouTube videos
-                    if (resource.thumbnailUrl?.includes('youtube.com')) {
-                      const videoId = resource.fileUrl?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n]+)/)?.[1];
-                      if (videoId && !target.dataset.fallback) {
-                        target.dataset.fallback = 'true';
-                        target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-                        return;
-                      }
+                    // Try fallback thumbnail for YouTube videos — covers
+                    // watch?v= / youtu.be / embed URL shapes.
+                    const videoId = resource.fileUrl?.match(
+                      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/,
+                    )?.[1];
+                    if (videoId && !target.dataset.fallback) {
+                      target.dataset.fallback = 'true';
+                      target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                      return;
                     }
                     // If all fails, show the icon fallback
                     target.style.display = 'none';

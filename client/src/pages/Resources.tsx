@@ -42,25 +42,38 @@ export default function Resources() {
   });
 
   const resourceTypes = [
-    { 
-      value: "Technical Specifications", 
-      label: "Product Datasheets", 
+    {
+      value: "Technical Specifications",
+      label: "Product Datasheets",
       icon: FileText,
       description: "Technical specifications and detailed product drawings",
       color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
       count: resources?.filter((r: Resource) => r.resourceType === "Technical Specifications").length || 0
     },
-    { 
-      value: "Installation Guides", 
-      label: "Installation Guides", 
+    {
+      value: "Installation Guides",
+      label: "Installation Guides",
       icon: FileText,
       description: "Step-by-step installation instructions and videos",
       color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
       count: resources?.filter((r: Resource) => r.resourceType === "Installation Guides").length || 0
     },
-    { 
-      value: "Video Guides", 
-      label: "Videos & Tutorials", 
+    {
+      // "Installation Video" is κ's resource_type tag shared with the
+      // /api/admin/ingest-installation-videos endpoint. Visible as a
+      // top-level filter chip so reps can browse every YouTube fitting
+      // guide without drilling into a product. Keeps the label short ("Installation Videos")
+      // even though the DB value is singular.
+      value: "Installation Video",
+      label: "Installation Videos",
+      icon: Video,
+      description: "YouTube fitting guides from A-SAFE's installation playlist",
+      color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+      count: resources?.filter((r: Resource) => r.resourceType === "Installation Video").length || 0
+    },
+    {
+      value: "Video Guides",
+      label: "Videos & Tutorials",
       icon: Video,
       description: "Impact tests and educational content",
       color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",

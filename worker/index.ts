@@ -46,6 +46,7 @@ import installations from "./routes/installations";
 import installTeams from "./routes/installTeams";
 import basePlates from "./routes/basePlates";
 import pas13Chat from "./routes/pas13Chat";
+import installVideos from "./routes/installVideos";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -121,6 +122,7 @@ app.route("/api", installations);
 app.route("/api", installTeams);
 app.route("/api", basePlates);
 app.route("/api", pas13Chat);
+app.route("/api", installVideos);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -4051,6 +4053,265 @@ app.post("/api/admin/apply-pas13-orders-schema", async (c) => {
     return c.json({ ok: true, message: "orders.pas_13_warnings ensured" });
   } catch (e: any) {
     console.error("apply-pas13-orders-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// ─── Installation Videos Ingest ─────────────────────────
+// One-shot admin endpoint that pulls A-SAFE's Installation Videos YouTube
+// playlist (PL0sD7WA0DgAOGIVdB761OnG6m5pWmFYtp) from the bundled
+// scripts/data/installation-videos.json dataset, upserts each video as a
+// `resources` row tagged `resourceType='Installation Video'`, and writes
+// the per-video → product edges into `product_resources`. Idempotent:
+// re-running matches on the YouTube video ID and UPSERTs.
+//
+// Adds the defensive `external_id` + `external_url` columns on `resources`
+// so we can dedupe κ's existing 26 entries (matched by the videoId
+// extracted from their fileUrl — `?v=<id>`) without trashing descriptions
+// κ hand-wrote. The incoming rows from this ingest set:
+//   - fileUrl       = https://www.youtube.com/embed/<videoId>  (iframe-ready)
+//   - externalUrl   = https://youtu.be/<videoId>               (share link)
+//   - external_id   = <videoId>                                (upsert key)
+//   - description   = playlist description + chapter markers serialised
+//   - category      = resources.category chosen per-video (first matched
+//                     product's category, or "Installation" as fallback)
+//
+// product_resources edges are INSERTed with ON CONFLICT DO NOTHING on
+// the existing (product_id, resource_id) unique constraint.
+//
+// Gated by MIGRATION_TOKEN (bearer), same pattern as sibling admin
+// endpoints. Response returns {inserted, updated, productEdges, unmatched}.
+app.post("/api/admin/ingest-installation-videos", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json(
+      { ok: false, message: "MIGRATION_TOKEN not configured" },
+      500,
+    );
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const datasetModule: any = await import(
+      "../scripts/data/installation-videos.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const videos: Array<{
+      videoId: string;
+      title: string;
+      duration: number;
+      thumbnailUrl: string;
+      description: string;
+      publishedAt: string | null;
+      chapters: Array<{ label: string; startSec: number; endSec: number }>;
+      matchedProducts: Array<{
+        productId: string;
+        productName: string;
+        confidence: number;
+      }>;
+    }> = dataset.videos || [];
+    const unmatched = dataset.unmatched || [];
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // 1. Defensive schema: add external_id + external_url on resources if
+    //    the column doesn't exist yet. Safe to re-run.
+    await sqlClient`ALTER TABLE resources ADD COLUMN IF NOT EXISTS external_id varchar`;
+    await sqlClient`ALTER TABLE resources ADD COLUMN IF NOT EXISTS external_url varchar`;
+    // Supporting index so the external_id lookup on each re-run is cheap.
+    // Not a UNIQUE index — κ's pre-existing rows don't have external_id
+    // populated until this run back-fills them — we want the first ingest
+    // to complete without tripping a constraint.
+    await sqlClient`CREATE INDEX IF NOT EXISTS resources_external_id_idx ON resources (external_id)`;
+
+    // 2. Back-fill external_id on any existing rows whose fileUrl is already
+    //    a YouTube watch URL so dedupe hits them on the first run. Safe to
+    //    re-run — the regex_replace is a no-op when external_id is already set.
+    await sqlClient`
+      UPDATE resources
+      SET external_id = regexp_replace(file_url, '^.*[?&]v=([A-Za-z0-9_-]{6,})(?:[&].*)?$', '\\1')
+      WHERE external_id IS NULL
+        AND file_url ~ '[?&]v=[A-Za-z0-9_-]{6,}'
+    `;
+    await sqlClient`
+      UPDATE resources
+      SET external_id = regexp_replace(file_url, '^.*youtu\\.be/([A-Za-z0-9_-]{6,}).*$', '\\1')
+      WHERE external_id IS NULL
+        AND file_url ~ 'youtu\\.be/[A-Za-z0-9_-]{6,}'
+    `;
+    await sqlClient`
+      UPDATE resources
+      SET external_id = regexp_replace(file_url, '^.*/embed/([A-Za-z0-9_-]{6,}).*$', '\\1')
+      WHERE external_id IS NULL
+        AND file_url ~ 'youtube\\.com/embed/[A-Za-z0-9_-]{6,}'
+    `;
+
+    // Map DB product categories → resources.category labels. The resources
+    // page groups by display categories (Bollards, Rack Protection, …),
+    // which are a superset of product.category's slug form. We map inline
+    // so the scraped dataset (shared with frontend) stays category-agnostic.
+    const CATEGORY_LABEL: Record<string, string> = {
+      "traffic-guardrails": "Traffic Barriers",
+      "pedestrian-guardrails": "Pedestrian Safety",
+      "bollards": "Bollards",
+      "column-protection": "Column Protection",
+      "rack-protection": "Rack Protection",
+      "kerb-barriers": "Kerb Barriers",
+      "gates": "Gates & Access",
+      "height-restrictors": "Height Restrictors",
+      "topple-barriers": "Topple Barriers",
+      "accessories": "Accessories",
+      "stops": "Accessories",
+      "retractable": "Accessories",
+    };
+
+    // Need product.category per productId so we can pick a category label
+    // for each video's resource row. One SELECT covers the whole playlist.
+    const allProductIds = Array.from(
+      new Set(videos.flatMap((v) => v.matchedProducts.map((m) => m.productId))),
+    );
+    const productCategoryById = new Map<string, string>();
+    if (allProductIds.length > 0) {
+      const rows = (await sqlClient`
+        SELECT id, category FROM products WHERE id = ANY(${allProductIds})
+      `) as Array<{ id: string; category: string | null }>;
+      for (const r of rows) productCategoryById.set(r.id, r.category || "");
+    }
+
+    // 3. Upsert each video. Strategy:
+    //    - Look up by external_id first (covers re-runs).
+    //    - If no hit, look up by the legacy fileUrl variants κ may have
+    //      inserted (watch?v= / youtu.be / embed) — set external_id at
+    //      the same time so the next run hits the primary path.
+    //    - Always UPDATE title + description + thumbnail on match. Leave
+    //      κ's hand-tuned category alone (she picked friendlier names
+    //      than our auto-derivation).
+    //    - INSERT when both lookups miss.
+    let inserted = 0;
+    let updated = 0;
+    let productEdges = 0;
+    let edgesSkippedDup = 0;
+    const resourceIdByVideoId = new Map<string, string>();
+
+    for (const v of videos) {
+      const embedUrl = `https://www.youtube.com/embed/${v.videoId}`;
+      const shareUrl = `https://youtu.be/${v.videoId}`;
+      const firstProdCat =
+        v.matchedProducts[0]?.productId &&
+        productCategoryById.get(v.matchedProducts[0].productId);
+      const category =
+        (firstProdCat && CATEGORY_LABEL[firstProdCat]) || "Installation";
+
+      // Serialise chapters into the description so the UI can render
+      // "0:00 — Intro / 0:45 — Fixing / …" under the video without a
+      // separate chapters column. Original description preserved above.
+      const chapterLines = v.chapters.length
+        ? "\n\nChapters:\n" +
+          v.chapters
+            .map((ch) => {
+              const mm = Math.floor(ch.startSec / 60);
+              const ss = (ch.startSec % 60).toString().padStart(2, "0");
+              return `  ${mm}:${ss} — ${ch.label}`;
+            })
+            .join("\n")
+        : "";
+      const description = (v.description || "").trim() + chapterLines;
+
+      // Phase 1: lookup by external_id (primary path after first run).
+      let existing = (await sqlClient`
+        SELECT id FROM resources WHERE external_id = ${v.videoId} LIMIT 1
+      `) as Array<{ id: string }>;
+
+      // Phase 2: legacy fileUrl match — catches κ's 26 rows on their first
+      // ingest run where external_id was null before the back-fill above.
+      if (existing.length === 0) {
+        const watchUrl = `https://www.youtube.com/watch?v=${v.videoId}`;
+        existing = (await sqlClient`
+          SELECT id FROM resources
+          WHERE file_url = ${watchUrl}
+             OR file_url = ${embedUrl}
+             OR file_url = ${shareUrl}
+          LIMIT 1
+        `) as Array<{ id: string }>;
+      }
+
+      let resourceId: string;
+      if (existing.length > 0) {
+        resourceId = existing[0].id;
+        await sqlClient`
+          UPDATE resources
+          SET title = ${v.title},
+              description = ${description},
+              thumbnail_url = ${v.thumbnailUrl},
+              file_url = ${embedUrl},
+              external_id = ${v.videoId},
+              external_url = ${shareUrl},
+              resource_type = 'Installation Video',
+              file_type = 'video',
+              is_active = true,
+              updated_at = now()
+          WHERE id = ${resourceId}
+        `;
+        updated++;
+      } else {
+        const rows = (await sqlClient`
+          INSERT INTO resources (
+            title, category, resource_type, description,
+            file_url, thumbnail_url, file_type,
+            download_count, is_active, external_id, external_url,
+            created_at, updated_at
+          ) VALUES (
+            ${v.title}, ${category}, 'Installation Video', ${description},
+            ${embedUrl}, ${v.thumbnailUrl}, 'video',
+            0, true, ${v.videoId}, ${shareUrl},
+            now(), now()
+          )
+          RETURNING id
+        `) as Array<{ id: string }>;
+        resourceId = rows[0].id;
+        inserted++;
+      }
+      resourceIdByVideoId.set(v.videoId, resourceId);
+
+      // product_resources edges — one row per (productId, resourceId).
+      // Uses the existing unique constraint on the join table (see
+      // shared/schema.ts) to make this idempotent on re-runs.
+      for (const m of v.matchedProducts) {
+        const r = (await sqlClient`
+          INSERT INTO product_resources (product_id, resource_id)
+          VALUES (${m.productId}, ${resourceId})
+          ON CONFLICT (product_id, resource_id) DO NOTHING
+          RETURNING id
+        `) as Array<{ id: string }>;
+        if (r.length > 0) productEdges++;
+        else edgesSkippedDup++;
+      }
+    }
+
+    return c.json({
+      ok: true,
+      inserted,
+      updated,
+      productEdges,
+      edgesSkippedDup,
+      unmatched: unmatched.length,
+      unmatchedDetails: unmatched,
+      summary: {
+        playlistSize: videos.length,
+        resourcesTouched: inserted + updated,
+      },
+    });
+  } catch (e: any) {
+    console.error("ingest-installation-videos failed:", e);
     return c.json({ ok: false, message: e?.message || String(e) }, 500);
   }
 });

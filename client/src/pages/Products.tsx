@@ -18,6 +18,7 @@ import { ProductSuitabilityBlock } from "@/components/ProductSuitabilityBlock";
 import { ProductMaintenanceBlock } from "@/components/ProductMaintenanceBlock";
 import { ProductGroundWorksBlock } from "@/components/ProductGroundWorksBlock";
 import { ProductBasePlatesPanel } from "@/components/ProductBasePlatesPanel";
+import { ProductInstallVideos } from "@/components/ProductInstallVideos";
 import { useAuth } from "../hooks/useAuth";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -590,6 +591,20 @@ export default function Products() {
               has no compatible plates (add-ons, rack accessories). */}
           <div className="mt-6 sm:mt-8">
             <ProductBasePlatesPanel
+              productId={individualProduct.id}
+              productName={individualProduct.name}
+            />
+          </div>
+
+          {/* Installation Videos — per-product YouTube install guides
+              sourced from A-SAFE's Installation Videos playlist. Backed by
+              GET /api/products/:id/install-videos (joined through
+              product_resources). Renders thumbnails that open a lightbox
+              modal with an autoplayed embed. Family-level matches tagged
+              with a "covers this product family" badge. Hides when the
+              product has no linked videos. */}
+          <div className="mt-6 sm:mt-8">
+            <ProductInstallVideos
               productId={individualProduct.id}
               productName={individualProduct.name}
             />
