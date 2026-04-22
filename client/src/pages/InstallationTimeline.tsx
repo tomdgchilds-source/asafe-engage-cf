@@ -48,6 +48,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { InstallationSitePrepPanel } from "@/components/InstallationSitePrepPanel";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -971,6 +972,13 @@ function InstallationDrawer({
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Site Prep Requirements — aggregated strictest values across
+                  every product on this installation's linked order. Sourced
+                  from products.ground_works_data (PDF: PRH-1005). Non-
+                  destructive: does NOT auto-generate install tasks, and
+                  renders nothing when no products have ground-works data. */}
+              <InstallationSitePrepPanel order={detail.order} />
 
               {/* Team assignments */}
               <Card>

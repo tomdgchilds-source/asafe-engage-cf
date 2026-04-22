@@ -15,6 +15,8 @@ import { EnhancedQuoteRequestModal } from "@/components/EnhancedQuoteRequestModa
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { ProductComparison } from "@/components/ProductComparison";
 import { ProductSuitabilityBlock } from "@/components/ProductSuitabilityBlock";
+import { ProductMaintenanceBlock } from "@/components/ProductMaintenanceBlock";
+import { ProductGroundWorksBlock } from "@/components/ProductGroundWorksBlock";
 import { useAuth } from "../hooks/useAuth";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -557,6 +559,27 @@ export default function Products() {
           <div className="mt-6 sm:mt-8">
             <ProductSuitabilityBlock
               data={(individualProduct as any).suitabilityData}
+              productName={individualProduct.name}
+            />
+          </div>
+
+          {/* Product Maintenance accordion — sourced from
+              products.maintenance_data (PDF: ASAFE_ProductMaintenance PRH-1001).
+              Null-safe: renders nothing for products outside the
+              Memaplex/Monoplex/RackGuard/Traffic Gate taxonomy. */}
+          <div className="mt-4 sm:mt-6">
+            <ProductMaintenanceBlock
+              data={(individualProduct as any).maintenanceData}
+              productName={individualProduct.name}
+            />
+          </div>
+
+          {/* Ground Works / installation prerequisites — sourced from
+              products.ground_works_data (PDF: ASAFE_GroundWorks PRH-1005).
+              Null-safe: renders nothing for products without a PDF entry. */}
+          <div className="mt-4 sm:mt-6">
+            <ProductGroundWorksBlock
+              data={(individualProduct as any).groundWorksData}
               productName={individualProduct.name}
             />
           </div>

@@ -1,0 +1,117 @@
+{
+  "_meta": {
+    "generatedAt": "2026-04-22T06:00:00+00:00",
+    "sourceFile": "Available Base Plates.pdf",
+    "notes": [
+      "Source: A-SAFE 'Available Base Plates' compatibility matrix PDF (single page, 5-plate × 18-product grid).",
+      "Only the 'Standard Zinc nickel, electrophoretic' plate is marked as available to order without additional lead time per the PDF footer — the other four plate types ship on request.",
+      "Plate images/dimensions are not on this PDF; dimension + fixing fields have been inferred from A-SAFE's public installation data where certain, otherwise left null.",
+      "Compatibility is product-family level — every variant in a family inherits the same plate compatibility."
+    ],
+    "plateCount": 5,
+    "productRowCount": 18,
+    "leadTimeStandardPlate": "Standard Zinc nickel, electrophoretic"
+  },
+  "plates": [
+    {
+      "code": "BP-STD-ZN",
+      "name": "Standard Zinc nickel, electrophoretic",
+      "description": "A-SAFE's default base plate. Zinc-nickel electrophoretic coating for corrosion resistance in normal indoor and light-outdoor environments. Ships without additional lead time on any product it is compatible with.",
+      "boltSize": "M12 hex head through-bolt",
+      "boltLengthMm": null,
+      "plateDimensionsMm": null,
+      "coating": "Zinc-nickel electrophoretic",
+      "fixingType": "through-bolt",
+      "substrateNotes": "Concrete slab recommended; asphalt not suitable without sub-slab fixing.",
+      "imageDescription": "Black electrophoretic-coated steel plate with four countersunk bolt recesses and a square profile."
+    },
+    {
+      "code": "BP-CSK-BOLT",
+      "name": "Countersunk Bolts",
+      "description": "Standard plate fitted with countersunk (flush) bolts. Reduces trip hazard and low-clearance vehicle snag risk versus the hex-head default. Available on request — not stocked for same-day despatch.",
+      "boltSize": "M12 countersunk",
+      "boltLengthMm": null,
+      "plateDimensionsMm": null,
+      "coating": "Standard (electrophoretic)",
+      "fixingType": "through-bolt (countersunk)",
+      "substrateNotes": "Concrete slab recommended. Flush-head fixing ideal where forklift tynes or pedestrians transit directly over the plate.",
+      "imageDescription": "Black plate with four flush countersunk bolt heads sitting level with the top surface."
+    },
+    {
+      "code": "BP-SS316-STD",
+      "name": "Stainless Steel 316 Standard",
+      "description": "Marine-grade 316 stainless steel base plate with standard hex-head fixings. For high-corrosion environments (food and beverage, coastal, chemical, pharma). Available on request.",
+      "boltSize": "M12 hex head (316 stainless)",
+      "boltLengthMm": null,
+      "plateDimensionsMm": null,
+      "coating": "Stainless Steel 316 (uncoated)",
+      "fixingType": "through-bolt",
+      "substrateNotes": "Concrete slab recommended. Specify 316 anchors when paired with this plate to avoid galvanic mismatch.",
+      "imageDescription": "Bright stainless-steel plate with raised hex-head bolts and visible bolt recesses."
+    },
+    {
+      "code": "BP-SS316-CSK",
+      "name": "Stainless Steel 316 Countersunk",
+      "description": "316 stainless plate with flush countersunk bolts — combines marine-grade corrosion resistance with a low-profile top surface. Available on request.",
+      "boltSize": "M12 countersunk (316 stainless)",
+      "boltLengthMm": null,
+      "plateDimensionsMm": null,
+      "coating": "Stainless Steel 316 (uncoated)",
+      "fixingType": "through-bolt (countersunk)",
+      "substrateNotes": "Concrete slab recommended. Combine with 316 anchors in wet / washdown zones.",
+      "imageDescription": "Bright stainless-steel plate with four flush countersunk bolt heads."
+    },
+    {
+      "code": "BP-GALV",
+      "name": "Galvanised Steel",
+      "description": "Hot-dip galvanised heavy-duty steel base plate. Used on the higher-rated Atlas Traffic Barrier and Heavy Duty Bollard ranges where the plate carries significantly more impact load than the standard barrier families. Available on request.",
+      "boltSize": "M16 hex head",
+      "boltLengthMm": null,
+      "plateDimensionsMm": null,
+      "coating": "Hot-dip galvanised",
+      "fixingType": "through-bolt (heavy-duty)",
+      "substrateNotes": "Reinforced concrete recommended — matches the HD load case of Atlas / HD Bollard products.",
+      "imageDescription": "Dull-grey galvanised steel plate, thicker than the standard plate, with four raised hex-head bolts."
+    }
+  ],
+  "compatibility": [
+    { "product": "iFlex Pedestrian 3 Rail",          "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "iFlex Single Traffic",             "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "iFlex Double Traffic",             "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "iFlex Single Traffic+",            "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "iFlex Double Traffic+",            "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "eFlex Single Traffic",             "plates": ["BP-STD-ZN"] },
+    { "product": "eFlex Single Traffic+",            "plates": ["BP-STD-ZN"] },
+    { "product": "Atlas Traffic Barrier",            "plates": ["BP-GALV"] },
+    { "product": "Atlas Traffic Barrier+",           "plates": ["BP-GALV"] },
+    { "product": "mFlex Single Traffic",             "plates": ["BP-STD-ZN"] },
+    { "product": "mFlex Double Traffic",             "plates": ["BP-STD-ZN"] },
+    { "product": "mFlex Single Traffic - Ground Level","plates": ["BP-STD-ZN"] },
+    { "product": "eFlex Single Rack End",            "plates": ["BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "eFlex Double Rack End",            "plates": ["BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "Bollard 190 / 210",                "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] },
+    { "product": "Heavy Duty Bollard",               "plates": ["BP-GALV"] },
+    { "product": "Height Restrictors",               "plates": ["BP-STD-ZN", "BP-SS316-STD"] },
+    { "product": "Gate Posts",                       "plates": ["BP-STD-ZN", "BP-CSK-BOLT", "BP-SS316-CSK"] }
+  ],
+  "productFamilyAliases": {
+    "iFlex Pedestrian 3 Rail":    ["iFlex Pedestrian 3 Rail", "CS iFlex Pedestrian 3 Rail", "eFlex Pedestrian 3 Rail", "Pedestrian Barrier 130-T0-P3", "Pedestrian Barrier 190-T1-P2", "Pedestrian Barrier 190-T2-P1"],
+    "iFlex Single Traffic":       ["iFlex Single Traffic Barrier", "CS iFlex Single Traffic", "Traffic Barrier 190-T1-P0", "Traffic Barrier 190-T2-P0"],
+    "iFlex Double Traffic":       ["iFlex Double Traffic Barrier"],
+    "iFlex Single Traffic+":      ["iFlex Single Traffic Barrier+", "CS iFlex Single Traffic+"],
+    "iFlex Double Traffic+":      ["iFlex Double Traffic Barrier+"],
+    "eFlex Single Traffic":       ["eFlex Single Traffic Barrier"],
+    "eFlex Single Traffic+":      ["eFlex Single Traffic Barrier+"],
+    "Atlas Traffic Barrier":      ["Atlas Polygon Traffic Barrier", "Atlas Triangle Traffic Barrier"],
+    "Atlas Traffic Barrier+":     ["Atlas Double Traffic Barrier+", "Atlas Double Traffic Barrier"],
+    "mFlex Single Traffic":       ["mFlex Single Traffic Barrier"],
+    "mFlex Double Traffic":       ["mFlex Double Traffic Barrier"],
+    "mFlex Single Traffic - Ground Level": ["mFlex Single Traffic Barrier - Ground Level", "mFlex Ground Level"],
+    "eFlex Single Rack End":      ["eFlex Single RackEnd Barrier", "eFlex Single RackEnd+Kerb", "Single RackEnd Barrier Cold Storage"],
+    "eFlex Double Rack End":      ["eFlex Double RackEnd Barrier", "eFlex Double RackEnd+Kerb"],
+    "Bollard 190 / 210":          ["Bollard 190", "Bollard 210", "Monoplex Bollard", "iFlex Bollard", "iFlex Bollard Cold Storage"],
+    "Heavy Duty Bollard":         ["iFlex Heavy Duty Bollard"],
+    "Height Restrictors":         ["iFlex Height Restrictor", "iFlex Height Restrictor Cold Storage", "Alarm Bar"],
+    "Gate Posts":                 ["Traffic Gate", "iFlex Swing Gate Short", "iFlex Swing Gate Long"]
+  }
+}

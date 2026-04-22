@@ -437,6 +437,20 @@ export const products = pgTable("products", {
   // detail page reads it without a second round-trip. Nullable — unmatched
   // rows (no family keyword hit) stay null and the component renders nothing.
   maintenanceData: jsonb("maintenance_data"),
+  // GroundWorks dataset (PDF: ASAFE_GroundWorks_PRH-1005-A-SAFE).
+  // Per-product installation prerequisites: { basePlateType, minSlabThicknessMm,
+  // concreteGrade, concreteStandard, postDiameterMm, basePlateDimensionsMm,
+  // anchorSpec, anchorDiameterMm, anchorDepthMm, edgeDistanceMm,
+  // concretePadLengthMm|concretePadLengthNote, concretePadWidthMm,
+  // concretePadDepthMm, hardcoreDepthMm, slabRebarSpec, substrateNotes,
+  // curingDays, sourcePage, rawText, _globalRules }. Populated by
+  // /api/admin/ingest-groundworks from scripts/data/product-groundworks.json.
+  // Surfaced on the product detail page via ProductGroundWorksBlock and
+  // aggregated across all products on an installation in the Installation
+  // Timeline's "Site Prep Requirements" summary (worst-case: max anchor
+  // depth, biggest pad, strictest substrate). Nullable — products not
+  // listed in the PDF (e.g. RackGuard, Alarm Bar, Sign Cap) remain null.
+  groundWorksData: jsonb("ground_works_data"),
   // Metadata
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -545,6 +559,64 @@ export const productResources = pgTable("product_resources", {
 }, (table) => ({
   uniqueProductResource: unique().on(table.productId, table.resourceId),
 }));
+
+// base_plates — A-SAFE's 5 base-plate SKUs (Standard Zinc nickel electrophoretic,
+// Countersunk Bolts, SS 316 Standard, SS 316 Countersunk, Galvanised Steel) plus
+// any future plate types. Source: "Available Base Plates" PDF.
+// Populated by /api/admin/ingest-base-plates from scripts/data/base-plates.json
+// (code is the stable identifier; ON CONFLICT(code) DO UPDATE refreshes metadata
+// on re-run). Read by the product-detail panel + Add-to-Cart selector.
+// Kept as its own table (not a jsonb column on products) because:
+//   (a) compatibility is many-to-many — 18 product families x 2-3 plates each
+//       (~ 40 edges) with heavy overlap; normalising keeps payload flat and
+//       admin edits single-row instead of repeated across every product.
+//   (b) plates will gain technical-sheet + image URLs soon; a table owns those
+//       cleanly where a jsonb blob would need duplicating per product.
+export const basePlates = pgTable("base_plates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(), // stable SKU, e.g. BP-STD-ZN
+  name: varchar("name").notNull(),
+  description: text("description"),
+  boltSize: varchar("bolt_size"), // "M12 hex head through-bolt"
+  boltLengthMm: integer("bolt_length_mm"),
+  plateDimensionsMm: varchar("plate_dimensions_mm"), // "150x150x8"
+  coating: varchar("coating"), // "Zinc-nickel electrophoretic", "Stainless Steel 316"...
+  fixingType: varchar("fixing_type"), // "through-bolt", "chemical anchor", "bolt-down"...
+  substrateNotes: text("substrate_notes"), // "Concrete slab recommended; asphalt not suitable"
+  isStandardStock: boolean("is_standard_stock").default(false), // true only for BP-STD-ZN per the PDF footer
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// base_plate_product_compatibility — many-to-many link between base_plates and
+// products. UNIQUE(base_plate_id, product_id) enforces idempotent upserts when
+// the admin ingest endpoint re-runs (ON CONFLICT DO NOTHING). One row per
+// product-plate pair; reading "plates for this product" is a single indexed
+// join.
+export const basePlateProductCompatibility = pgTable(
+  "base_plate_product_compatibility",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    basePlateId: varchar("base_plate_id")
+      .notNull()
+      .references(() => basePlates.id, { onDelete: "cascade" }),
+    productId: varchar("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniquePlateProduct: unique().on(table.basePlateId, table.productId),
+    productIdx: index("bp_compat_product_idx").on(table.productId),
+    plateIdx: index("bp_compat_plate_idx").on(table.basePlateId),
+  }),
+);
+
+export type BasePlate = typeof basePlates.$inferSelect;
+export type InsertBasePlate = typeof basePlates.$inferInsert;
+export type BasePlateProductCompatibility =
+  typeof basePlateProductCompatibility.$inferSelect;
 
 // FAQ table
 export const faqs = pgTable("faqs", {

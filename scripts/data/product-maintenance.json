@@ -1,0 +1,177 @@
+{
+  "_meta": {
+    "source": "ASAFE_ProductMaintenance_PRH-1001-A-SAFE-26022024-2 1.pdf",
+    "docRef": "PRH1001ASAFE260220242",
+    "docTitle": "Product Maintenance",
+    "docVersion": "Version 2 - February 2024",
+    "dateCreated": "August 2023",
+    "authors": [
+      "Matthew Briggs",
+      "Jerry Budby"
+    ],
+    "numPages": 15,
+    "extractedAt": "2026-04-22T06:23:29.239Z",
+    "shape": "global-plus-family-overlay"
+  },
+  "products": [
+    {
+      "productName": "__GLOBAL__",
+      "global": true,
+      "appliesToFamilies": [
+        "*"
+      ],
+      "inspectionFrequency": "annual",
+      "inspectionNotes": "Base plate fixings: check torque setting every 12 months, or sooner if an impact has occurred. Pins & caps: check regularly for loosening from general use and cleaning — remove pin covers and retighten with the A-SAFE tool.",
+      "cleaningInstructions": "Regular cleaning reduces dirt and debris infiltrating crucial mechanical parts; lack of cleaning may shorten product lifespan and cause component failures. Carry out a full risk assessment before cleaning; wear gloves and eye protection; dispose of waste water per national regulations.",
+      "damageAssessment": [
+        "Check base plate fixing torque every 12 months — or immediately after any known impact.",
+        "Remove pin covers periodically and retighten pins with the A-SAFE tool if they have loosened."
+      ],
+      "warrantyConditions": "A-SAFE disclaims all liability for injuries or ill health sustained during cleaning, maintenance or the use of chemical substances. Users are responsible for following proper safety procedures and using appropriate protective measures. Consult Safety Data Sheets (SDS) and Technical Data Sheets (TDS) from chemical suppliers before using any cleaning product on A-SAFE polymer. Product integrity warranties assume the inspection and cleaning cadence described in this document has been followed; damaged components (crease marks, cracks, base deformation, inner-layer deformation) must be replaced rather than repaired to preserve system integrity.",
+      "recommendedSpares": [
+        "Pin caps",
+        "Pins (rail + post)",
+        "Base plate fixings"
+      ],
+      "rawText": "Barrier maintenance   Tra\u001dic Gate maintenance Base plate \u001cfixings Pins and caps A\u001fSAFE also advise that you check for caps and pins that may have loosened as a result of general use and cleaning. This can be done by removing the pin covers and tightening the pin using the A\u001fSAFE tool. A\u001fSAFE recommend that you check base plate \u001cfixings every 12 months or sooner if you know an impact has occurred. This should be done by checking that the torque setting of each \u001cixing is set to the correct factory \u001cfigure. Following advise from A\u001fSAFE mechanical engineers, we would advise regular maintenance check-ups to ensure maximum performance and safety. Like any other mechanical product, over time \u001cfixings and \u001cfittings may come loose due to day to day usage of the product. Please see below best practice maintenance tips. We suggest regular re-tightening of \u001cfixings in key areas of Tra\u001dic Gate. Over time \u001cfixings may loosen resulting in operational issues.  03 PRH\u001f1001\u001fA\u001fSAFE\u001f26022024\u001f2"
+    },
+    {
+      "productName": "Memaplex Barrier Family",
+      "global": false,
+      "appliesToFamilies": [
+        "iFlex",
+        "FlexiShield",
+        "ShieldRail"
+      ],
+      "appliesToCategoryKeywords": [
+        "barrier",
+        "guardrail"
+      ],
+      "inspectionFrequency": "annual",
+      "inspectionNotes": "Base plate fixings: check torque setting every 12 months, or sooner if an impact has occurred. Pins & caps: check regularly for loosening from general use and cleaning — remove pin covers and retighten with the A-SAFE tool.",
+      "cleaningInstructions": "Internal: warm water + kitchen cleaner on a non-abrasive cloth; wipe each rail and post, remove all dust/dirt from fixing points, then wipe dry. External: use a jet wash to lift stubborn dirt, then a stronger rubber-suited detergent on marked areas (see A-SAFE chemical-resistance list, pages 7–9 of PRH-1001). Never leave water pooled in fixing points. Full risk assessment before cleaning; gloves and eye protection throughout; dispose of waste water per national regulations.",
+      "damageAssessment": [
+        "Rail alignment: rail and coupling cover out of alignment — indicative of a reasonable-energy impact or repeated low-level impacts. If any further indicators are present, replace the affected section; otherwise inspect coupling, sleeve, rail pin, post pin and post in depth.",
+        "Light areas (post/rail whitening): material has been taken beyond its elastic limit. At least one reasonable-energy impact, or many lower-energy ones. Continuous inspection of the area recommended.",
+        "Crease markings: fatigue from repeated reasonable-energy impacts. Replace any section showing this — overall integrity is compromised.",
+        "Rail area lightening (between rail pin and post): repeated medium-energy impacts. Full guardrail inspection; replace affected parts.",
+        "Inner layer deformation: inner rail material visible around the coupling sleeve on the exterior — near-maximum-energy impact. Replace the affected system.",
+        "Base deformation: base deformed / fixings pulling out of the ground — near-maximum-energy impact. Replace the affected system.",
+        "Cracking: cracks anywhere in the system — severe damage events, integrity negated. Replace the affected parts.",
+        "Scratches and scrapes: deep scratches from light collisions with vehicles or pallets. Monitor quantity and outer shape — if any crack appears, replace the product."
+      ],
+      "warrantyConditions": "A-SAFE disclaims all liability for injuries or ill health sustained during cleaning, maintenance or the use of chemical substances. Users are responsible for following proper safety procedures and using appropriate protective measures. Consult Safety Data Sheets (SDS) and Technical Data Sheets (TDS) from chemical suppliers before using any cleaning product on A-SAFE polymer. Product integrity warranties assume the inspection and cleaning cadence described in this document has been followed; damaged components (crease marks, cracks, base deformation, inner-layer deformation) must be replaced rather than repaired to preserve system integrity.",
+      "recommendedSpares": [
+        "Rail pins",
+        "Post pins",
+        "Pin caps",
+        "Couplings / coupling sleeves",
+        "Base plate fixings (to factory torque spec)",
+        "Replacement rail sections (for creased / cracked rails)",
+        "Replacement post sections (for cracked / lightened posts)"
+      ],
+      "rawText": "For product that has been used in an indoor environment, we suggest the following cleaning method. Use warm water and a kitchen cleaner mix to wipe each rail and post. For this action, we suggest using a non abrasive cloth. Ensure that all dust and dirt is removed from the \u001cixing points of the barrier. In areas that may have endured marking from vehicles, we suggest a stronger detergent more suited to cleaning rubber. Refer to page 7, 8 and 9 of this document for chemicals that are suitable. Once clean, wipe dry ensuring no pools of water are being held in any of the \u001cixing points. External use Internal use Memaplex cleaning A\u001fSAFE recommends regular cleaning of our safety products to reduce dirt and debris in\u001ciltrating crucial mechanical parts. Lack of cleaning may result in a reduced lifespan and component failures. Before cleaning starts, ensure that you carry out a full risk assessment of the area where you are working. Gloves and eye protection should be worn during the cleaning process. Once cleaning is complete, disposal of waste water must be carried out in accordance with national regulations.  1   2  For external environment cleaning, we suggest the following method. Dirt and grime can build up more regularly on product that is installed outside. Therefore A\u001fSAFE suggest the use of a jet wash to remove more stubborn dirt.  1  4 3  In areas that may have endured marking from vehicles we suggest using a cloth and a stronger detergent more suited to cleaning rubber. Refer to pages 7, 8 and 9 of this document for chemicals that are suitable. Once clean, wipe dry ensuring no pools of water are being held in any of the \u001cixing points.  3 2  05 PRH\u001f1001\u001fA\u001fSAFE\u001f26022024\u001f2"
+    },
+    {
+      "productName": "Monoplex Barrier Family",
+      "global": false,
+      "appliesToFamilies": [
+        "Memaplex Post",
+        "Monoplex",
+        "Atlas",
+        "Bollard"
+      ],
+      "appliesToCategoryKeywords": [
+        "bollard",
+        "post"
+      ],
+      "inspectionFrequency": "annual",
+      "inspectionNotes": "Base plate fixings: check torque setting every 12 months, or sooner if an impact has occurred. Pins & caps: check regularly for loosening from general use and cleaning — remove pin covers and retighten with the A-SAFE tool.",
+      "cleaningInstructions": "Warm water + kitchen cleaner on a non-abrasive cloth for each post. Remove all dust/dirt from fixing points and wipe dry — never leave water pooled at fixings. Refer to the A-SAFE chemical-resistance list (pages 10–11 of PRH-1001). Full risk assessment before cleaning; gloves and eye protection throughout; dispose of waste water per national regulations.",
+      "damageAssessment": [
+        "Rail alignment: rail and coupling cover out of alignment — indicative of a reasonable-energy impact or repeated low-level impacts. If any further indicators are present, replace the affected section; otherwise inspect coupling, sleeve, rail pin, post pin and post in depth.",
+        "Light areas (post/rail whitening): material has been taken beyond its elastic limit. At least one reasonable-energy impact, or many lower-energy ones. Continuous inspection of the area recommended.",
+        "Crease markings: fatigue from repeated reasonable-energy impacts. Replace any section showing this — overall integrity is compromised.",
+        "Rail area lightening (between rail pin and post): repeated medium-energy impacts. Full guardrail inspection; replace affected parts.",
+        "Inner layer deformation: inner rail material visible around the coupling sleeve on the exterior — near-maximum-energy impact. Replace the affected system.",
+        "Base deformation: base deformed / fixings pulling out of the ground — near-maximum-energy impact. Replace the affected system.",
+        "Cracking: cracks anywhere in the system — severe damage events, integrity negated. Replace the affected parts.",
+        "Scratches and scrapes: deep scratches from light collisions with vehicles or pallets. Monitor quantity and outer shape — if any crack appears, replace the product."
+      ],
+      "warrantyConditions": "A-SAFE disclaims all liability for injuries or ill health sustained during cleaning, maintenance or the use of chemical substances. Users are responsible for following proper safety procedures and using appropriate protective measures. Consult Safety Data Sheets (SDS) and Technical Data Sheets (TDS) from chemical suppliers before using any cleaning product on A-SAFE polymer. Product integrity warranties assume the inspection and cleaning cadence described in this document has been followed; damaged components (crease marks, cracks, base deformation, inner-layer deformation) must be replaced rather than repaired to preserve system integrity.",
+      "recommendedSpares": [
+        "Rail pins",
+        "Post pins",
+        "Pin caps",
+        "Couplings / coupling sleeves",
+        "Base plate fixings (to factory torque spec)",
+        "Replacement rail sections (for creased / cracked rails)",
+        "Replacement post sections (for cracked / lightened posts)"
+      ],
+      "rawText": "Monoplex cleaning Use warm water and a kitchen cleaner mix to wipe each post. For this action, we suggest using a non abrasive cloth. Ensure that all dust and dirt is removed from the \u001cixing points of the barrier. Please refer to pages 10 and 11 of this document for chemicals that are suitable.  1  Once clean, wipe dry ensuring no pools of water are being held in any of the \u001cixing points. Before cleaning Monoplex material, ensure that you carry out a full risk assessment of the area where you are working. Gloves and eye protection should be worn during the cleaning process. Once cleaning is complete, disposal of waste water must be carried out in accordance with national regulations.  2  06 PRH\u001f1001\u001fA\u001fSAFE\u001f26022024\u001f2"
+    },
+    {
+      "productName": "RackGuard Family",
+      "global": false,
+      "appliesToFamilies": [
+        "RackGuard",
+        "Rack End Barrier",
+        "RackEye"
+      ],
+      "appliesToCategoryKeywords": [
+        "rack"
+      ],
+      "inspectionFrequency": "annual",
+      "inspectionNotes": "Base plate fixings: check torque setting every 12 months, or sooner if an impact has occurred. Pins & caps: check regularly for loosening from general use and cleaning — remove pin covers and retighten with the A-SAFE tool.",
+      "cleaningInstructions": "Warm water + kitchen cleaner on a non-abrasive cloth for each post. Remove all dust/dirt from fixing points and wipe dry — never leave water pooled at fixings. Refer to the A-SAFE chemical-resistance list (pages 10–11 of PRH-1001). Full risk assessment before cleaning; gloves and eye protection throughout; dispose of waste water per national regulations.",
+      "damageAssessment": [
+        "Scuff damage: minor black marks from low-energy impacts (truck wheels, pallets, palletised loads). No further inspection or removal required.",
+        "Light scrape / light gouge: shallow groove from low-energy metal-contact impacts (truck fork, sharp edge, load). General inspection of rack leg; RackGuard can stay in place.",
+        "Heavy gouge mark: deep groove from higher-energy metal-contact impact. General inspection of rack leg; RackGuard must be removed and replaced.",
+        "Cracking & splitting: split in the material from high-energy, high-speed impact. General inspection of rack leg; RackGuard must be removed and replaced."
+      ],
+      "warrantyConditions": "A-SAFE disclaims all liability for injuries or ill health sustained during cleaning, maintenance or the use of chemical substances. Users are responsible for following proper safety procedures and using appropriate protective measures. Consult Safety Data Sheets (SDS) and Technical Data Sheets (TDS) from chemical suppliers before using any cleaning product on A-SAFE polymer. Product integrity warranties assume the inspection and cleaning cadence described in this document has been followed; damaged components (crease marks, cracks, base deformation, inner-layer deformation) must be replaced rather than repaired to preserve system integrity.",
+      "recommendedSpares": [
+        "Replacement RackGuard units (for heavy-gouge or cracked units)",
+        "RackGuard fixings"
+      ],
+      "rawText": "Examples of RackGuard damage  Scuff damage   Light Scrape /Light Gouge mark  Visual appearance -  Minor black marks appearing on any part of the RackGuard indicate a scuff impact.  How has this occurred -  Scuff marks are created by low energy impacts from truck wheels, pallets and palletised loads.  Action required -  Scuff marks do not require any further inspection of rack leg or removal of RackGuard. Scrape impact  Visual appearance -  Several small dark scratch / scrape marks appear usually on the side of the RackGuard but can also appear on the face.  How has this occurred -  Scrape impacts occur when a pallet or palletised load is dragged across the surface of the RackGuard.  Action required -  A general inspection of the rack leg is required. Light gouges and light scrapes do not require the RackGuard to be removed. Heavy gouge mark  Visual appearance -  A heavy gouge appears as a deep groove in the surface of the RackGuard.  How has this occurred -  A heavy gouge has occurred due to contact with a metal surface such as forks of the truck, sharp edge of a truck or with a load being transported – A heavy gouge indicates an impact with higher energy and higher speed than a light gouge.  Action required -  A general inspection of the rack leg is required. RackGuard should be removed and replaced. Cracking & Splitting  Visual appearance -  A crack appears as a split in the material.  How has this occurred -  A crack / split is a result of a high energy / high speed impact.  Action required -  A general inspection of the rack leg is required. RackGuard should be removed and replaced.  Visual appearance -  A light gouge appears as a groove on the surface of a RackGuard.  How has this occurred -  A light gouge has occurred due to contact with a metal surface such as forks of the truck, sharp edge of a truck or load being transported – usually low energy, low speed impacts.  Action required -  A general inspection of the rack leg is required. Light gouges and light "
+    },
+    {
+      "productName": "Traffic Gate Family",
+      "global": false,
+      "appliesToFamilies": [
+        "Traffic Gate",
+        "Pedestrian Gate",
+        "Swing Gate",
+        "Slide Gate"
+      ],
+      "appliesToCategoryKeywords": [
+        "gate"
+      ],
+      "inspectionFrequency": "quarterly",
+      "inspectionNotes": "Re-tighten fixings in key areas of the Traffic Gate regularly — fixings may loosen with day-to-day use and cause operational issues. Check base plate torque at least every 12 months or sooner after any impact.",
+      "cleaningInstructions": "Internal: warm water + kitchen cleaner on a non-abrasive cloth; wipe each rail and post, remove all dust/dirt from fixing points, then wipe dry. External: use a jet wash to lift stubborn dirt, then a stronger rubber-suited detergent on marked areas (see A-SAFE chemical-resistance list, pages 7–9 of PRH-1001). Never leave water pooled in fixing points. Full risk assessment before cleaning; gloves and eye protection throughout; dispose of waste water per national regulations.",
+      "damageAssessment": [
+        "Regular re-tightening of fixings in key areas of the Traffic Gate — fixings may loosen over time and cause operational issues.",
+        "Inspect latches, hinges and pivots for wear and free movement.",
+        "Check that the gate swings/slides through its full range without binding.",
+        "Rail alignment: rail and coupling cover out of alignment — indicative of a reasonable-energy impact or repeated low-level impacts. If any further indicators are present, replace the affected section; otherwise inspect coupling, sleeve, rail pin, post pin and post in depth.",
+        "Light areas (post/rail whitening): material has been taken beyond its elastic limit. At least one reasonable-energy impact, or many lower-energy ones. Continuous inspection of the area recommended.",
+        "Crease markings: fatigue from repeated reasonable-energy impacts. Replace any section showing this — overall integrity is compromised.",
+        "Rail area lightening (between rail pin and post): repeated medium-energy impacts. Full guardrail inspection; replace affected parts.",
+        "Inner layer deformation: inner rail material visible around the coupling sleeve on the exterior — near-maximum-energy impact. Replace the affected system.",
+        "Base deformation: base deformed / fixings pulling out of the ground — near-maximum-energy impact. Replace the affected system.",
+        "Cracking: cracks anywhere in the system — severe damage events, integrity negated. Replace the affected parts.",
+        "Scratches and scrapes: deep scratches from light collisions with vehicles or pallets. Monitor quantity and outer shape — if any crack appears, replace the product."
+      ],
+      "warrantyConditions": "A-SAFE disclaims all liability for injuries or ill health sustained during cleaning, maintenance or the use of chemical substances. Users are responsible for following proper safety procedures and using appropriate protective measures. Consult Safety Data Sheets (SDS) and Technical Data Sheets (TDS) from chemical suppliers before using any cleaning product on A-SAFE polymer. Product integrity warranties assume the inspection and cleaning cadence described in this document has been followed; damaged components (crease marks, cracks, base deformation, inner-layer deformation) must be replaced rather than repaired to preserve system integrity.",
+      "recommendedSpares": [
+        "Gate latches",
+        "Hinges / pivot fixings",
+        "Replacement fixings (to factory torque spec)"
+      ],
+      "rawText": "Barrier maintenance   Tra\u001dic Gate maintenance Base plate \u001cfixings Pins and caps A\u001fSAFE also advise that you check for caps and pins that may have loosened as a result of general use and cleaning. This can be done by removing the pin covers and tightening the pin using the A\u001fSAFE tool. A\u001fSAFE recommend that you check base plate \u001cfixings every 12 months or sooner if you know an impact has occurred. This should be done by checking that the torque setting of each \u001cixing is set to the correct factory \u001cfigure. Following advise from A\u001fSAFE mechanical engineers, we would advise regular maintenance check-ups to ensure maximum performance and safety. Like any other mechanical product, over time \u001cfixings and \u001cfittings may come loose due to day to day usage of the product. Please see below best practice maintenance tips. We suggest regular re-tightening of \u001cfixings in key areas of Tra\u001dic Gate. Over time \u001cfixings may loosen resulting in operational issues.  03 PRH\u001f1001\u001fA\u001fSAFE\u001f26022024\u001f2"
+    }
+  ]
+}
