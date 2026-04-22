@@ -3219,19 +3219,32 @@ app.post("/api/admin/seed-heavy-duty-bollard", async (c) => {
     const { neon } = await import("@neondatabase/serverless");
     const sqlClient = neon(c.env.DATABASE_URL);
 
-    // Idempotency: skip if the row already exists (case-insensitive).
+    // Idempotency: if a row with this name already exists, reactivate it
+    // (in case a previous ingest soft-deleted it) and short-circuit without
+    // re-inserting.
     const existing = (await sqlClient`
-      SELECT id, name FROM products
+      SELECT id, name, is_active FROM products
       WHERE lower(name) = lower(${entry.familyName})
       LIMIT 1
-    `) as Array<{ id: string; name: string }>;
+    `) as Array<{ id: string; name: string; is_active: boolean | null }>;
     if (existing.length > 0) {
+      const wasInactive = existing[0].is_active === false;
+      if (wasInactive) {
+        await sqlClient`
+          UPDATE products
+          SET is_active = true, updated_at = now()
+          WHERE id = ${existing[0].id}
+        `;
+      }
       return c.json({
         ok: true,
         skipped: true,
-        reason: "Product already exists",
+        reason: wasInactive
+          ? "Product existed inactive; reactivated"
+          : "Product already exists",
         id: existing[0].id,
         name: existing[0].name,
+        reactivated: wasInactive,
       });
     }
 
