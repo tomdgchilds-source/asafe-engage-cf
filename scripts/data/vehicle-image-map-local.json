@@ -1,89 +1,89 @@
 {
   "_meta": {
-    "generatedAt": "2026-04-22T04:58:00.000Z",
-    "notes": "v3 detailed hand-authored SVG illustrations. v1 (Wikimedia photos) and v2 (Tabler 2-px line icons) retained alongside for rollback. Local public paths under /assets/vehicles/ served by the Cloudflare ASSETS binding.",
-    "iconSet": "v3 in-house detailed vehicle illustrations (charcoal outline + safety yellow body + warm grey accents palette, three-quarter side view, 256x256 viewBox)"
+    "generatedAt": "2026-04-22T10:10:00.000Z",
+    "notes": "v4 black-silhouette industrial-pictogram icons (single author, consistent family). v1 photos, v2 line icons, and v3 cartoons retained on disk for rollback. Local public paths under /assets/vehicles/ served by the Cloudflare ASSETS binding.",
+    "iconSet": "v4 ISO 7010 / A-SAFE safety-sign pictogram style: solid #111111 silhouettes on white, operator drawn to scale where applicable, no colour, no stroke outlines, 256x256 viewBox."
   },
   "vehicles": [
     {
       "name": "Pedestrians",
-      "localPath": "/assets/vehicles/pedestrians.v3.svg"
+      "localPath": "/assets/vehicles/pedestrians.v4.svg"
     },
     {
       "name": "Manual Pallet Truck",
-      "localPath": "/assets/vehicles/manual-pallet-truck.v3.svg"
+      "localPath": "/assets/vehicles/manual-pallet-truck.v4.svg"
     },
     {
       "name": "Electric Pallet Truck",
-      "localPath": "/assets/vehicles/electric-pallet-truck.v3.svg"
+      "localPath": "/assets/vehicles/electric-pallet-truck.v4.svg"
     },
     {
       "name": "Rider Pallet Truck",
-      "localPath": "/assets/vehicles/rider-pallet-truck.v3.svg"
+      "localPath": "/assets/vehicles/rider-pallet-truck.v4.svg"
     },
     {
       "name": "Walkie Stacker",
-      "localPath": "/assets/vehicles/walkie-stacker.v3.svg"
+      "localPath": "/assets/vehicles/walkie-stacker.v4.svg"
     },
     {
       "name": "Low-Level Order Picker",
-      "localPath": "/assets/vehicles/low-level-order-picker.v3.svg"
+      "localPath": "/assets/vehicles/low-level-order-picker.v4.svg"
     },
     {
       "name": "High-Level Order Picker",
-      "localPath": "/assets/vehicles/high-level-order-picker.v3.svg"
+      "localPath": "/assets/vehicles/high-level-order-picker.v4.svg"
     },
     {
       "name": "Counterbalance Forklift (1.5T)",
-      "localPath": "/assets/vehicles/counterbalance-forklift-1-5t.v3.svg"
+      "localPath": "/assets/vehicles/counterbalance-forklift-1-5t.v4.svg"
     },
     {
       "name": "Counterbalance Forklift (2.5T)",
-      "localPath": "/assets/vehicles/counterbalance-forklift-2-5t.v3.svg"
+      "localPath": "/assets/vehicles/counterbalance-forklift-2-5t.v4.svg"
     },
     {
       "name": "Counterbalance Forklift (5T)",
-      "localPath": "/assets/vehicles/counterbalance-forklift-5t.v3.svg"
+      "localPath": "/assets/vehicles/counterbalance-forklift-5t.v4.svg"
     },
     {
       "name": "Reach Truck",
-      "localPath": "/assets/vehicles/reach-truck.v3.svg"
+      "localPath": "/assets/vehicles/reach-truck.v4.svg"
     },
     {
       "name": "Very Narrow Aisle (VNA) Truck",
-      "localPath": "/assets/vehicles/very-narrow-aisle-vna-truck.v3.svg"
+      "localPath": "/assets/vehicles/very-narrow-aisle-vna-truck.v4.svg"
     },
     {
       "name": "Heavy-Duty Forklift (10T+)",
-      "localPath": "/assets/vehicles/heavy-duty-forklift-10t.v3.svg"
+      "localPath": "/assets/vehicles/heavy-duty-forklift-10t.v4.svg"
     },
     {
       "name": "Telehandler",
-      "localPath": "/assets/vehicles/telehandler.v3.svg"
+      "localPath": "/assets/vehicles/telehandler.v4.svg"
     },
     {
       "name": "Tow Tractor / Tugger",
-      "localPath": "/assets/vehicles/tow-tractor-tugger.v3.svg"
+      "localPath": "/assets/vehicles/tow-tractor-tugger.v4.svg"
     },
     {
       "name": "AGV (Automated Guided Vehicle)",
-      "localPath": "/assets/vehicles/agv-automated-guided-vehicle.v3.svg"
+      "localPath": "/assets/vehicles/agv-automated-guided-vehicle.v4.svg"
     },
     {
       "name": "Scissor Lift / MEWP",
-      "localPath": "/assets/vehicles/scissor-lift-mewp.v3.svg"
+      "localPath": "/assets/vehicles/scissor-lift-mewp.v4.svg"
     },
     {
       "name": "HGV / Rigid Truck (7.5T)",
-      "localPath": "/assets/vehicles/hgv-rigid-truck-7-5t.v3.svg"
+      "localPath": "/assets/vehicles/hgv-rigid-truck-7-5t.v4.svg"
     },
     {
       "name": "HGV / Articulated Truck (40T)",
-      "localPath": "/assets/vehicles/hgv-articulated-truck-40t.v3.svg"
+      "localPath": "/assets/vehicles/hgv-articulated-truck-40t.v4.svg"
     },
     {
       "name": "Delivery Van / Light Commercial",
-      "localPath": "/assets/vehicles/delivery-van-light-commercial.v3.svg"
+      "localPath": "/assets/vehicles/delivery-van-light-commercial.v4.svg"
     }
   ]
 }

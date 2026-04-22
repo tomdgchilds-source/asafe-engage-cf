@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Pedestrians">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Left walking figure -->
+  <g fill="#111111">
+    <circle cx="92" cy="50" r="13"/>
+    <path d="M80 68 L104 68 L108 118 L102 150 L114 210 L104 214 L94 162 L88 214 L78 214 L80 150 L76 118 Z"/>
+    <path d="M80 72 L62 110 L68 116 L86 86 Z"/>
+    <path d="M104 72 L122 108 L116 114 L100 86 Z"/>
+  </g>
+  <!-- Right walking figure (mid-stride) -->
+  <g fill="#111111">
+    <circle cx="170" cy="50" r="13"/>
+    <path d="M158 68 L182 68 L186 118 L180 150 L194 210 L184 214 L172 158 L162 214 L152 214 L158 150 L154 118 Z"/>
+    <path d="M182 72 L204 98 L198 106 L176 88 Z"/>
+    <path d="M158 72 L142 110 L148 116 L160 90 Z"/>
+  </g>
+</svg>

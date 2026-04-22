@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Heavy-Duty Forklift 10T+">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Heavy-duty: wide stance, massive counterweight, chunky 3-stage mast, exhaust -->
+  <g fill="#111111">
+    <!-- Chunky 3-stage mast -->
+    <rect x="42" y="26" width="12" height="184"/>
+    <rect x="60" y="26" width="12" height="184"/>
+    <rect x="46" y="14" width="12" height="26"/>
+    <rect x="56" y="6" width="10" height="22"/>
+    <rect x="38" y="20" width="40" height="12"/>
+    <!-- Heavy forks -->
+    <rect x="10" y="184" width="76" height="12"/>
+    <rect x="10" y="184" width="8" height="22"/>
+    <rect x="78" y="184" width="8" height="22"/>
+    <!-- Wide chassis (large) -->
+    <path d="M76 94 L206 94 L236 150 L242 210 L76 210 Z"/>
+    <!-- Beefy counterweight -->
+    <path d="M218 148 L248 148 L250 210 L218 210 Z"/>
+    <!-- Exhaust stack -->
+    <rect x="180" y="24" width="14" height="74"/>
+    <rect x="174" y="14" width="26" height="14"/>
+    <!-- Overhead guard (ROPS cab) -->
+    <rect x="88" y="20" width="8" height="84"/>
+    <rect x="172" y="20" width="8" height="84"/>
+    <rect x="86" y="14" width="96" height="10"/>
+    <rect x="90" y="38" width="88" height="5"/>
+    <!-- Operator -->
+    <circle cx="130" cy="60" r="12"/>
+    <path d="M122 76 L138 76 L146 108 L114 108 Z"/>
+    <!-- Big sturdy wheels, wide stance -->
+    <circle cx="108" cy="214" r="18"/>
+    <circle cx="212" cy="214" r="18"/>
+  </g>
+</svg>

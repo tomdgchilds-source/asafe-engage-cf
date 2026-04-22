@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Telehandler">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Chassis (4-wheel) -->
+    <path d="M30 156 L226 156 L230 200 L26 200 Z"/>
+    <!-- Cab in the middle -->
+    <path d="M60 100 L120 100 L120 158 L50 158 Z"/>
+    <!-- cab window cut-out -->
+    <path d="M66 108 L114 108 L114 148 L58 148 Z" fill="#FFFFFF"/>
+    <!-- Operator in cab (small) -->
+    <circle cx="86" cy="120" r="7"/>
+    <rect x="78" y="126" width="16" height="22"/>
+    <!-- Boom extended diagonally upward + forward (the tell) -->
+    <path d="M124 128 L232 24 L246 38 L138 142 Z"/>
+    <!-- telescoping inner boom section -->
+    <path d="M180 76 L232 24 L244 36 L192 88 Z" fill="#FFFFFF"/>
+    <path d="M180 76 L232 24 L244 36 L192 88 Z"/>
+    <!-- Forks at end of boom -->
+    <path d="M234 26 L252 14 L252 22 L240 34 Z"/>
+    <path d="M242 34 L258 22" stroke="#111111" stroke-width="3"/>
+    <rect x="228" y="18" width="22" height="6" transform="rotate(-45 238 20)"/>
+    <!-- boom pivot at rear of cab -->
+    <circle cx="128" cy="132" r="8"/>
+    <!-- Wheels (4-wheel chassis, 2 visible) -->
+    <circle cx="64" cy="206" r="16"/>
+    <circle cx="64" cy="206" r="6" fill="#FFFFFF"/>
+    <circle cx="200" cy="206" r="16"/>
+    <circle cx="200" cy="206" r="6" fill="#FFFFFF"/>
+  </g>
+</svg>

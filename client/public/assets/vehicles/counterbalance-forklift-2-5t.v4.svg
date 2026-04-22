@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Counterbalance Forklift 2.5T">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- MID-SIZE 2.5T: 2-stage mast, moderate counterweight -->
+  <g fill="#111111">
+    <!-- 2-stage mast (taller, with inner slide rail) -->
+    <rect x="66" y="48" width="8" height="160"/>
+    <rect x="80" y="48" width="8" height="160"/>
+    <!-- inner telescoping stage -->
+    <rect x="72" y="30" width="10" height="54"/>
+    <rect x="62" y="42" width="30" height="10"/>
+    <!-- Forks (medium) -->
+    <rect x="30" y="190" width="62" height="6"/>
+    <rect x="30" y="190" width="6" height="14"/>
+    <rect x="86" y="190" width="6" height="14"/>
+    <!-- Chassis (medium) -->
+    <path d="M88 114 L180 114 L204 160 L204 208 L88 208 Z"/>
+    <!-- Counterweight (moderate) -->
+    <path d="M190 158 L214 158 L214 208 L190 208 Z"/>
+    <!-- Overhead guard (taller cab) -->
+    <rect x="96" y="38" width="6" height="82"/>
+    <rect x="174" y="38" width="6" height="82"/>
+    <rect x="94" y="34" width="88" height="8"/>
+    <rect x="98" y="52" width="80" height="4"/>
+    <!-- Seated operator -->
+    <circle cx="130" cy="74" r="11"/>
+    <path d="M122 88 L138 88 L144 120 L116 120 Z"/>
+    <!-- wheels -->
+    <circle cx="112" cy="212" r="12"/>
+    <circle cx="188" cy="212" r="12"/>
+  </g>
+</svg>

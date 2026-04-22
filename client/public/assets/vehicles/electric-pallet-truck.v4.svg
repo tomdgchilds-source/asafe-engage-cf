@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Electric Pallet Truck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Operator standing beside tiller -->
+  <g fill="#111111">
+    <circle cx="176" cy="62" r="11"/>
+    <path d="M168 76 L184 76 L192 136 L196 188 L186 190 L180 140 L174 190 L164 190 L166 140 L162 136 Z"/>
+    <!-- arm on tiller handle -->
+    <path d="M168 84 L140 110 L134 118 L140 124 L174 96 Z"/>
+  </g>
+  <!-- Curved tiller handle (the tell) -->
+  <g fill="#111111">
+    <path d="M122 110 C 102 128, 104 150, 124 168 L 132 164 C 118 150, 118 134, 130 118 Z"/>
+    <rect x="118" y="104" width="22" height="10" rx="3"/>
+  </g>
+  <!-- Electric drive unit at back (bulky) -->
+  <g fill="#111111">
+    <path d="M130 160 L176 160 L188 188 L186 204 L128 204 Z"/>
+    <!-- drive wheel -->
+    <circle cx="152" cy="210" r="8"/>
+  </g>
+  <!-- Long forks at the front -->
+  <g fill="#111111">
+    <rect x="32" y="198" width="100" height="6"/>
+    <rect x="32" y="198" width="6" height="14"/>
+    <rect x="126" y="198" width="6" height="14"/>
+    <circle cx="40" cy="212" r="4"/>
+    <circle cx="120" cy="212" r="4"/>
+  </g>
+</svg>

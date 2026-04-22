@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Reach Truck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Tall mast -->
+  <g fill="#111111">
+    <rect x="104" y="20" width="8" height="190"/>
+    <rect x="118" y="20" width="8" height="190"/>
+    <rect x="100" y="14" width="30" height="10"/>
+  </g>
+  <!-- Reach-pantograph scissor mechanism beneath forks (the tell) -->
+  <g fill="#111111">
+    <rect x="128" y="160" width="40" height="5" transform="rotate(18 148 162)"/>
+    <rect x="128" y="160" width="40" height="5" transform="rotate(-18 148 162)"/>
+    <!-- pivot nodes -->
+    <circle cx="134" cy="158" r="3"/>
+    <circle cx="164" cy="166" r="3"/>
+  </g>
+  <!-- Forks extended forward on reach carriage -->
+  <g fill="#111111">
+    <rect x="160" y="174" width="70" height="6"/>
+    <rect x="160" y="174" width="6" height="14"/>
+    <rect x="224" y="174" width="6" height="14"/>
+  </g>
+  <!-- Outrigger straddle legs (distinguishing tell) -->
+  <g fill="#111111">
+    <rect x="132" y="200" width="100" height="10"/>
+    <circle cx="146" cy="214" r="5"/>
+    <circle cx="220" cy="214" r="5"/>
+  </g>
+  <!-- Stand-on operator compartment, sideways facing (small cab behind mast) -->
+  <g fill="#111111">
+    <!-- compartment body -->
+    <path d="M30 114 L96 114 L96 210 L30 210 Z"/>
+    <!-- operator head facing sideways -->
+    <circle cx="62" cy="96" r="11"/>
+    <!-- overhead guard -->
+    <rect x="26" y="28" width="6" height="90"/>
+    <rect x="94" y="28" width="6" height="90"/>
+    <rect x="26" y="22" width="74" height="8"/>
+    <!-- rear wheel -->
+    <circle cx="62" cy="214" r="6"/>
+  </g>
+</svg>

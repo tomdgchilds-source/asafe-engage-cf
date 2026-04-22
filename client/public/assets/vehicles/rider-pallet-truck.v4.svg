@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Rider Pallet Truck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Operator standing on rear platform -->
+  <g fill="#111111">
+    <circle cx="196" cy="58" r="11"/>
+    <path d="M188 72 L204 72 L210 128 L212 172 L202 174 L198 132 L192 174 L182 174 L184 132 L182 128 Z"/>
+    <!-- arms forward on tiller -->
+    <path d="M188 82 L156 100 L152 108 L160 114 L192 94 Z"/>
+  </g>
+  <!-- Small rear platform -->
+  <g fill="#111111">
+    <rect x="168" y="174" width="62" height="18"/>
+  </g>
+  <!-- Vertical tiller / control column (the tell) -->
+  <g fill="#111111">
+    <rect x="148" y="94" width="10" height="96"/>
+    <rect x="140" y="88" width="26" height="10" rx="3"/>
+    <!-- control head box -->
+    <rect x="142" y="106" width="22" height="18"/>
+  </g>
+  <!-- Drive unit rear -->
+  <g fill="#111111">
+    <path d="M156 178 L230 178 L232 206 L154 206 Z"/>
+    <circle cx="180" cy="210" r="7"/>
+    <circle cx="218" cy="210" r="7"/>
+  </g>
+  <!-- Long forks -->
+  <g fill="#111111">
+    <rect x="24" y="198" width="128" height="6"/>
+    <rect x="24" y="198" width="6" height="14"/>
+    <rect x="146" y="198" width="6" height="14"/>
+    <circle cx="32" cy="212" r="4"/>
+    <circle cx="140" cy="212" r="4"/>
+  </g>
+</svg>

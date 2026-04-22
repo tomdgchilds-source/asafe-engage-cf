@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Delivery Van / Light Commercial">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Compact van profile: sloped bonnet, boxy rear -->
+    <path d="M24 140 L52 112 L104 112 L104 124 L224 124 L224 196 L24 196 Z"/>
+    <!-- Windscreen -->
+    <path d="M60 120 L100 120 L100 138 L50 138 Z" fill="#FFFFFF"/>
+    <!-- Side window (driver door) -->
+    <path d="M62 142 L96 142 L96 162 L62 162 Z" fill="#FFFFFF"/>
+    <!-- Cargo body divider (subtle) -->
+    <rect x="104" y="124" width="3" height="72" fill="#FFFFFF"/>
+    <!-- Rear door split -->
+    <rect x="216" y="132" width="3" height="60" fill="#FFFFFF"/>
+    <!-- Ground beam -->
+    <rect x="22" y="196" width="204" height="6"/>
+    <!-- Small 2-axle -->
+    <circle cx="66" cy="208" r="10"/>
+    <circle cx="66" cy="208" r="4" fill="#FFFFFF"/>
+    <circle cx="186" cy="208" r="10"/>
+    <circle cx="186" cy="208" r="4" fill="#FFFFFF"/>
+  </g>
+</svg>

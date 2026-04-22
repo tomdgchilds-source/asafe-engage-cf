@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="HGV / Articulated Truck 40T">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Tractor cab (larger, up front) -->
+    <path d="M6 108 L54 108 L64 150 L64 196 L6 196 Z"/>
+    <!-- cab window -->
+    <path d="M14 116 L50 116 L58 146 L14 146 Z" fill="#FFFFFF"/>
+    <!-- Fifth-wheel coupling gap between tractor and trailer (the articulation tell) -->
+    <rect x="64" y="160" width="10" height="14"/>
+    <!-- Long articulated trailer (full frame length) -->
+    <path d="M74 92 L250 92 L250 190 L74 190 Z"/>
+    <!-- rear door split -->
+    <rect x="242" y="100" width="3" height="80" fill="#FFFFFF"/>
+    <!-- trailer-tractor connection line -->
+    <rect x="72" y="100" width="4" height="90" fill="#FFFFFF"/>
+    <!-- Chassis beam -->
+    <rect x="4" y="196" width="250" height="6"/>
+    <!-- Multi-axle: 1 tractor steer + 2 drive + 3 trailer -->
+    <circle cx="22" cy="208" r="10"/>
+    <circle cx="22" cy="208" r="4" fill="#FFFFFF"/>
+    <circle cx="46" cy="208" r="10"/>
+    <circle cx="46" cy="208" r="4" fill="#FFFFFF"/>
+    <!-- trailer tri-axle (close together) -->
+    <circle cx="188" cy="208" r="10"/>
+    <circle cx="188" cy="208" r="4" fill="#FFFFFF"/>
+    <circle cx="212" cy="208" r="10"/>
+    <circle cx="212" cy="208" r="4" fill="#FFFFFF"/>
+    <circle cx="236" cy="208" r="10"/>
+    <circle cx="236" cy="208" r="4" fill="#FFFFFF"/>
+  </g>
+</svg>

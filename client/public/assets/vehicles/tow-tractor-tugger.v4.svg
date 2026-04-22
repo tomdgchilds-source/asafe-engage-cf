@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Tow Tractor / Tugger">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Small seated tractor body -->
+    <path d="M74 132 L156 132 L170 178 L74 178 Z"/>
+    <!-- Low-profile hood / bonnet -->
+    <path d="M74 148 L60 172 L74 178 Z"/>
+    <!-- Steering column -->
+    <rect x="110" y="108" width="6" height="28"/>
+    <circle cx="113" cy="106" r="10" fill="none" stroke="#111111" stroke-width="4"/>
+    <!-- Seated operator -->
+    <circle cx="134" cy="92" r="11"/>
+    <path d="M124 108 L144 108 L150 152 L120 152 Z"/>
+    <!-- Rear tow hitch (the tell) -->
+    <rect x="170" y="166" width="20" height="6"/>
+    <circle cx="194" cy="169" r="6"/>
+    <!-- Short trailer hint at the back -->
+    <path d="M206 150 L244 150 L244 186 L206 186 Z"/>
+    <!-- hitch bar from tractor to trailer -->
+    <rect x="198" y="166" width="14" height="4"/>
+    <!-- Wheels -->
+    <circle cx="94" cy="186" r="12"/>
+    <circle cx="94" cy="186" r="5" fill="#FFFFFF"/>
+    <circle cx="152" cy="186" r="12"/>
+    <circle cx="152" cy="186" r="5" fill="#FFFFFF"/>
+    <circle cx="218" cy="194" r="8"/>
+    <circle cx="238" cy="194" r="8"/>
+  </g>
+</svg>

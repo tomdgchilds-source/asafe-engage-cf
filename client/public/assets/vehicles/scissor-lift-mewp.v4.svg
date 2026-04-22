@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Scissor Lift / MEWP">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- 4-wheel base -->
+    <path d="M42 174 L214 174 L218 198 L38 198 Z"/>
+    <circle cx="66" cy="204" r="10"/>
+    <circle cx="190" cy="204" r="10"/>
+    <!-- Scissor mechanism (3 stacked X-patterns, the tell) -->
+    <g stroke="#111111" stroke-width="6" stroke-linecap="round">
+      <!-- bottom X -->
+      <line x1="70" y1="170" x2="186" y2="130"/>
+      <line x1="186" y1="170" x2="70" y2="130"/>
+      <!-- middle X -->
+      <line x1="70" y1="130" x2="186" y2="90"/>
+      <line x1="186" y1="130" x2="70" y2="90"/>
+      <!-- top X -->
+      <line x1="70" y1="90" x2="186" y2="50"/>
+      <line x1="186" y1="90" x2="70" y2="50"/>
+    </g>
+    <!-- Pivot nodes -->
+    <circle cx="128" cy="150" r="4"/>
+    <circle cx="128" cy="110" r="4"/>
+    <circle cx="128" cy="70" r="4"/>
+    <!-- Platform on top -->
+    <rect x="46" y="38" width="164" height="12"/>
+    <!-- Railings -->
+    <rect x="46" y="10" width="6" height="30"/>
+    <rect x="204" y="10" width="6" height="30"/>
+    <rect x="46" y="10" width="164" height="5"/>
+    <rect x="50" y="22" width="156" height="4"/>
+    <!-- Operator silhouette on platform -->
+    <circle cx="128" cy="22" r="7"/>
+    <rect x="120" y="30" width="16" height="8"/>
+  </g>
+</svg>

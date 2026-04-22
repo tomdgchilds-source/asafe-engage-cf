@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="AGV Automated Guided Vehicle">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Low flat deck silhouette with rounded top (NO operator = autonomous tell) -->
+    <path d="M34 148 L222 148 Q 236 148, 236 162 L236 198 Q 236 204, 230 204 L26 204 Q 20 204, 20 198 L20 162 Q 20 148, 34 148 Z"/>
+    <!-- Subtle tapered top surface so it reads as a puck/rover, not a box -->
+    <path d="M50 136 L206 136 Q 218 136, 220 148 L36 148 Q 38 136, 50 136 Z"/>
+    <!-- Beacon dot on top (the tell) -->
+    <circle cx="128" cy="126" r="8"/>
+    <!-- beacon stem -->
+    <rect x="124" y="130" width="8" height="8"/>
+    <!-- Sensor slit/LIDAR window on front -->
+    <rect x="32" y="168" width="14" height="20" fill="#FFFFFF"/>
+    <!-- Faint navigation line strip on floor -->
+    <rect x="40" y="210" width="176" height="2" fill="#111111"/>
+    <!-- Wheels (partly hidden under low chassis) -->
+    <circle cx="62" cy="208" r="7"/>
+    <circle cx="196" cy="208" r="7"/>
+  </g>
+</svg>

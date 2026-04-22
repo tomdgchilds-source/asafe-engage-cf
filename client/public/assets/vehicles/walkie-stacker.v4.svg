@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Walkie Stacker">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <!-- Operator walking behind stacker -->
+  <g fill="#111111">
+    <circle cx="198" cy="56" r="11"/>
+    <path d="M190 70 L206 70 L214 130 L218 186 L208 188 L202 134 L196 188 L186 188 L188 134 L184 130 Z"/>
+    <path d="M190 80 L160 104 L156 112 L164 116 L194 96 Z"/>
+  </g>
+  <!-- Stacker body with short vertical mast (1-2 stages) -->
+  <g fill="#111111">
+    <!-- tiller curve -->
+    <path d="M144 104 C 128 120, 128 142, 148 160 L156 156 C 142 142, 142 124, 152 112 Z"/>
+    <!-- drive/battery box -->
+    <rect x="140" y="158" width="56" height="46"/>
+    <!-- short vertical mast (1 stage) -->
+    <rect x="94" y="70" width="8" height="144"/>
+    <rect x="108" y="70" width="8" height="144"/>
+    <rect x="90" y="64" width="30" height="10"/>
+    <!-- stubby forks -->
+    <rect x="52" y="192" width="50" height="8"/>
+    <rect x="52" y="192" width="6" height="14"/>
+    <rect x="96" y="192" width="6" height="14"/>
+    <!-- chain sheave at top -->
+    <circle cx="105" cy="80" r="6"/>
+    <!-- wheels -->
+    <circle cx="156" cy="210" r="7"/>
+    <circle cx="186" cy="210" r="7"/>
+    <circle cx="62" cy="210" r="5"/>
+  </g>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="HGV / Rigid Truck 7.5T">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <line x1="16" y1="216" x2="240" y2="216" stroke="#EEEEEE" stroke-width="1"/>
+  <g fill="#111111">
+    <!-- Cab (short, forward) -->
+    <path d="M20 122 L70 122 L78 152 L78 196 L20 196 Z"/>
+    <!-- cab window cut -->
+    <path d="M28 130 L66 130 L72 148 L28 148 Z" fill="#FFFFFF"/>
+    <!-- Rigid box-body (the tell: single continuous body, not articulated) -->
+    <path d="M78 102 L230 102 L230 196 L78 196 Z"/>
+    <!-- rear door split -->
+    <rect x="222" y="110" width="3" height="80" fill="#FFFFFF"/>
+    <!-- body-cab gap -->
+    <rect x="76" y="110" width="4" height="86" fill="#FFFFFF"/>
+    <!-- Chassis beam -->
+    <rect x="16" y="196" width="220" height="8"/>
+    <!-- Two axles (2-axle rigid tell) -->
+    <circle cx="52" cy="210" r="12"/>
+    <circle cx="52" cy="210" r="5" fill="#FFFFFF"/>
+    <circle cx="196" cy="210" r="12"/>
+    <circle cx="196" cy="210" r="5" fill="#FFFFFF"/>
+  </g>
+</svg>
