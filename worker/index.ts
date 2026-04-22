@@ -2684,6 +2684,360 @@ app.post("/api/admin/upload-master-testing-resource", async (c) => {
   }
 });
 
+// Product Maintenance schema — idempotent DDL adding one jsonb column:
+//   products.maintenance_data — per-product maintenance/inspection/cleaning/
+//                               warranty/spares payload merged from the
+//                               A-SAFE Product Maintenance PDF (PRH-1001).
+// Gated by MIGRATION_TOKEN (bearer). Safe to re-run.
+app.post("/api/admin/apply-maintenance-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const pre = (await sqlClient`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'products' AND column_name = 'maintenance_data'
+    `) as Array<{ column_name: string }>;
+    const existed = pre.length > 0;
+
+    await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS maintenance_data jsonb`;
+
+    return c.json({
+      ok: true,
+      altered: existed ? 0 : 1,
+      column: existed ? "already-present" : "added",
+    });
+  } catch (e: any) {
+    console.error("apply-maintenance-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Ingest the extracted Product Maintenance PDF dataset into
+// products.maintenance_data. The source PDF is generic — one __GLOBAL__
+// entry plus four per-family entries (Memaplex / Monoplex / RackGuard /
+// Traffic Gate). For each DB product we pick the best-matching family entry
+// (by name prefix OR category keyword), merge it with the __GLOBAL__ entry
+// (family takes precedence), and write the composed payload. Products that
+// don't match any family stay null (UI renders nothing).
+// Idempotent; re-running overwrites with the same payload.
+app.post("/api/admin/ingest-maintenance-data", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const datasetModule: any = await import(
+      "../scripts/data/product-maintenance.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const entries: any[] = dataset.products || [];
+
+    const globalEntry = entries.find((e) => e.global === true) || null;
+    const familyEntries = entries.filter((e) => e.global !== true);
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Pull every product row so we can match locally in one query.
+    const dbProducts = (await sqlClient`
+      SELECT id, name, category, subcategory
+      FROM products
+    `) as Array<{
+      id: string;
+      name: string;
+      category: string | null;
+      subcategory: string | null;
+    }>;
+
+    // Shared normaliser — same scheme as /admin/sync-catalog-to-db and
+    // /admin/upload-certificates. Collapses "iFlex Single Traffic+" /
+    // "iflex single traffic plus" / "iFlex Single Traffic barrier".
+    function norm(s: string | null | undefined): string {
+      if (!s) return "";
+      let v = s.toLowerCase().trim();
+      v = v.replace(/barrier\+/g, "plus").replace(/\+/g, "plus");
+      if (v.startsWith("cs ")) v = v.slice(3) + " cold storage";
+      for (const f of [" barrier", " rail", " guard", " rack end", " rackend"]) {
+        v = v.split(f).join("");
+      }
+      v = v.replace(/[^a-z0-9]+/g, " ").trim();
+      return v;
+    }
+
+    let matched = 0;
+    const matchedRows: Array<{ id: string; name: string; family: string }> = [];
+    const unmatched: Array<{ id: string; name: string }> = [];
+
+    for (const product of dbProducts) {
+      const nameNorm = norm(product.name);
+      const catNorm = norm(product.category);
+      const subNorm = norm(product.subcategory);
+
+      // Find the first family whose appliesToFamilies / appliesToCategoryKeywords
+      // matches this product. Family prefix/containment matching wins over
+      // category keyword matching (more specific).
+      let matchedFamily: any = null;
+      for (const fam of familyEntries) {
+        const families: string[] = Array.isArray(fam.appliesToFamilies)
+          ? fam.appliesToFamilies
+          : [];
+        if (
+          families.some((f) => {
+            const fn = norm(f);
+            return fn && (nameNorm.startsWith(fn) || nameNorm.includes(fn));
+          })
+        ) {
+          matchedFamily = fam;
+          break;
+        }
+      }
+      if (!matchedFamily) {
+        for (const fam of familyEntries) {
+          const keywords: string[] = Array.isArray(fam.appliesToCategoryKeywords)
+            ? fam.appliesToCategoryKeywords
+            : [];
+          if (
+            keywords.some((k) => {
+              const kn = norm(k);
+              return (
+                kn &&
+                (catNorm.includes(kn) ||
+                  subNorm.includes(kn) ||
+                  nameNorm.includes(kn))
+              );
+            })
+          ) {
+            matchedFamily = fam;
+            break;
+          }
+        }
+      }
+
+      if (!matchedFamily) {
+        unmatched.push({ id: product.id, name: product.name });
+        continue;
+      }
+
+      // Merge — family overrides global where keys overlap. Damage
+      // assessments + spare parts concatenate (family first, deduped).
+      const damageAssessment = [
+        ...(matchedFamily.damageAssessment || []),
+        ...(globalEntry?.damageAssessment || []),
+      ];
+      const recommendedSpares = [
+        ...(matchedFamily.recommendedSpares || []),
+        ...(globalEntry?.recommendedSpares || []),
+      ];
+      const seenDamage = new Set<string>();
+      const seenSpares = new Set<string>();
+      const mergedPayload = {
+        inspectionFrequency:
+          matchedFamily.inspectionFrequency ||
+          globalEntry?.inspectionFrequency ||
+          null,
+        inspectionNotes:
+          matchedFamily.inspectionNotes ||
+          globalEntry?.inspectionNotes ||
+          null,
+        cleaningInstructions:
+          matchedFamily.cleaningInstructions ||
+          globalEntry?.cleaningInstructions ||
+          null,
+        damageAssessment: damageAssessment.filter((d: string) => {
+          if (seenDamage.has(d)) return false;
+          seenDamage.add(d);
+          return true;
+        }),
+        warrantyConditions:
+          matchedFamily.warrantyConditions ||
+          globalEntry?.warrantyConditions ||
+          null,
+        recommendedSpares: recommendedSpares.filter((s: string) => {
+          if (seenSpares.has(s)) return false;
+          seenSpares.add(s);
+          return true;
+        }),
+        appliedFrom: matchedFamily.productName,
+        sourceDocRef: dataset?._meta?.docRef || null,
+        sourceDocTitle: dataset?._meta?.docTitle || null,
+      };
+
+      const result = (await sqlClient`
+        UPDATE products
+        SET maintenance_data = ${JSON.stringify(mergedPayload)}::jsonb,
+            updated_at = now()
+        WHERE id = ${product.id}
+        RETURNING id
+      `) as Array<{ id: string }>;
+      if (result.length > 0) {
+        matched++;
+        matchedRows.push({
+          id: product.id,
+          name: product.name,
+          family: matchedFamily.productName,
+        });
+      }
+    }
+
+    return c.json({
+      ok: true,
+      matched,
+      unmatched: unmatched.length,
+      unmatchedProducts: unmatched,
+      familyCounts: familyEntries.reduce(
+        (acc: Record<string, number>, fam) => {
+          acc[fam.productName] = matchedRows.filter(
+            (r) => r.family === fam.productName,
+          ).length;
+          return acc;
+        },
+        {},
+      ),
+      totalProducts: dbProducts.length,
+    });
+  } catch (e: any) {
+    console.error("ingest-maintenance-data failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Seed the `resources` table with the A-SAFE Product Maintenance guide PDF
+// (PRH-1001). The PDF is pre-uploaded to R2 at
+// maintenance/product-maintenance-guide.pdf via `wrangler r2 object put`.
+// Idempotent — matched by (title, resource_type).
+// Gated by MIGRATION_TOKEN (bearer), same pattern as /admin/upload-certificates.
+app.post("/api/admin/upload-maintenance-guide", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const title = "A-SAFE Product Maintenance Guide (PRH-1001)";
+    const resourceType = "Maintenance Guide";
+    const category = "Maintenance";
+    const description =
+      "Official A-SAFE maintenance and cleaning guide covering barrier inspection, " +
+      "pins/caps/base-plate fixing checks, Memaplex & Monoplex cleaning methods, " +
+      "chemical-resistance tables, and damage-assessment indicators for all product " +
+      "families (Memaplex / Monoplex / RackGuard / Traffic Gates).";
+    const fileUrl = "/api/maintenance/product-maintenance-guide.pdf";
+    const fileSize = 10818781; // bytes
+    const thumbnailUrl: string | null = null;
+
+    const existing = (await sqlClient`
+      SELECT id
+      FROM resources
+      WHERE title = ${title} AND resource_type = ${resourceType}
+      LIMIT 1
+    `) as any[];
+
+    let resourceId: string;
+    let action: "inserted" | "refreshed";
+    if (existing.length > 0) {
+      resourceId = existing[0].id;
+      action = "refreshed";
+      await sqlClient`
+        UPDATE resources
+        SET description = ${description},
+            file_url = ${fileUrl},
+            file_size = ${fileSize},
+            file_type = 'pdf',
+            category = ${category},
+            thumbnail_url = ${thumbnailUrl},
+            is_active = true,
+            updated_at = now()
+        WHERE id = ${resourceId}
+      `;
+    } else {
+      const rows = (await sqlClient`
+        INSERT INTO resources (
+          title, category, resource_type, description,
+          file_url, thumbnail_url, file_size, file_type,
+          download_count, is_active, created_at, updated_at
+        ) VALUES (
+          ${title}, ${category}, ${resourceType}, ${description},
+          ${fileUrl}, ${thumbnailUrl}, ${fileSize}, 'pdf',
+          0, true, now(), now()
+        )
+        RETURNING id
+      `) as any[];
+      resourceId = rows[0].id;
+      action = "inserted";
+    }
+
+    return c.json({ ok: true, action, resourceId, fileUrl });
+  } catch (e: any) {
+    console.error("upload-maintenance-guide failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Serve the Product Maintenance PDF from R2 at maintenance/<file>.pdf.
+// Public read-only; mirrors /api/certificates/:file so the Resources page
+// link works without authentication.
+app.get("/api/maintenance/:file", async (c) => {
+  const file = c.req.param("file");
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid maintenance filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`maintenance/${file}`);
+  if (!obj) {
+    return c.json({ message: "Maintenance document not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Content-Disposition", `inline; filename="${file}"`);
+  return new Response(obj.body as any, { headers });
+});
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side
