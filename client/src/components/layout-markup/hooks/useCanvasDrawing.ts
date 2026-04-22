@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { DrawingPoint, MarkupPath } from "../types";
 import { getDistance } from "../utils";
+import { MIN_ZOOM, MAX_ZOOM } from "../constants";
 
 interface UseCanvasDrawingOptions {
   isImageFile: boolean;
@@ -8,7 +9,19 @@ interface UseCanvasDrawingOptions {
   imageRef: React.RefObject<HTMLImageElement>;
   containerRef: React.RefObject<HTMLDivElement>;
   pdfDimensions: { width: number; height: number };
+  /** Pixels per mm from the calibration hook. Null/undefined until calibrated. */
+  drawingScale?: number | null;
+  /** Zoom level at calibration time. drawingScale is expressed in
+   *  content-space px/mm relative to this zoom — the screen-pixel
+   *  conversion needs the ratio between live zoom and scale zoom. */
+  scaleZoomLevel?: number | null;
 }
+
+/** Minimum screen-pixel stroke width for scale-aware rendering. Below
+ *  this threshold thin products like bollards at fit-to-window vanish
+ *  entirely, so we clamp the visual stroke to ~0.75 px so lines never
+ *  disappear. Has no effect on the persisted product width. */
+const MIN_VISUAL_STROKE_PX = 0.75;
 
 /**
  * Manages all pan/zoom/draw state and provides coordinate transforms
@@ -20,6 +33,8 @@ export function useCanvasDrawing({
   imageRef,
   containerRef,
   pdfDimensions,
+  drawingScale = null,
+  scaleZoomLevel = null,
 }: UseCanvasDrawingOptions) {
   // Drawing state
   const [currentPath, setCurrentPath] = useState<MarkupPath | null>(null);
@@ -61,7 +76,12 @@ export function useCanvasDrawing({
   const [isHighQualityRender, setIsHighQualityRender] = useState<boolean>(true);
   const renderDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Dynamic stroke width calculation based on zoom level
+  // Dynamic stroke width calculation based on zoom level. This is the
+  // LEGACY path — screen-pixel width divided by zoom so the stroke looks
+  // the same no matter how zoomed in the user is. Used for freehand
+  // drawings without a product, scale-calibration lines, and any
+  // pre-calibration markup. Scale-aware product strokes go through
+  // getProductStrokeWidth below instead.
   const getStrokeWidth = useCallback((baseWidth: number) => {
     if (isImageFile || isBlankCanvas) {
       const dynamicWidth = (baseWidth * 0.15) / zoomLevel;
@@ -71,6 +91,54 @@ export function useCanvasDrawing({
       return baseWidth * scaleFactor;
     }
   }, [zoomLevel, isImageFile, isBlankCanvas, pdfDimensions.width]);
+
+  /**
+   * Scale-aware stroke width for a markup that carries a real-world
+   * barrier width (productWidthMm). Returns the value to hand to
+   * <path strokeWidth> such that the rendered band is exactly
+   * `productWidthMm` on the calibrated drawing.
+   *
+   * We work in content-space px (the SVG viewBox coordinate space) the
+   * whole overlay already lives in — so the outer `transform: scale(zoom)`
+   * on the SVG layer takes care of the on-screen magnification. In
+   * content-space the stroke width is simply
+   *     productWidthMm × drawingScale
+   * where drawingScale is the pixels-per-mm captured during calibration.
+   *
+   * Returns null when we can't compute the real-world width — the caller
+   * falls back to the legacy `getStrokeWidth(n)` pixel stroke.
+   */
+  const getProductStrokeWidth = useCallback(
+    (markup: { productWidthMm?: number | null } | null | undefined): number | null => {
+      if (!markup || !markup.productWidthMm || markup.productWidthMm <= 0) return null;
+      if (!drawingScale || drawingScale <= 0) return null;
+
+      // Content-space stroke width. The SVG overlay is already CSS-scaled
+      // by `zoomLevel` (for images) or `pdfScale` (for PDFs), so a
+      // stroke of `productWidthMm × drawingScale` in content-space
+      // lands on screen as `productWidthMm × drawingScale × zoom` — the
+      // real-world size. No further division by zoom.
+      const contentSpaceStroke = markup.productWidthMm * drawingScale;
+
+      // The on-screen screen-pixel stroke, purely for the clamp below.
+      // We render in content-space, but the visibility clamp has to be
+      // expressed in screen pixels to decide whether the stroke would
+      // vanish.
+      const effectiveZoom = isImageFile || isBlankCanvas ? zoomLevel : pdfScale;
+      const onScreenStroke = contentSpaceStroke * (effectiveZoom > 0 ? effectiveZoom : 1);
+
+      if (onScreenStroke < MIN_VISUAL_STROKE_PX) {
+        // Clamp to the minimum visual thickness so 130mm at fit-to-window
+        // on an A0 sheet (where on-screen stroke might be ~0.2px) still
+        // reads as a line. Convert the minimum back into content-space
+        // so the outer transform lands us on-screen at the clamp.
+        return MIN_VISUAL_STROKE_PX / (effectiveZoom > 0 ? effectiveZoom : 1);
+      }
+
+      return contentSpaceStroke;
+    },
+    [drawingScale, isImageFile, isBlankCanvas, zoomLevel, pdfScale],
+  );
 
   const getPointRadius = useCallback((baseRadius: number) => {
     if (isImageFile || isBlankCanvas) {
@@ -108,6 +176,82 @@ export function useCanvasDrawing({
       return baseWidth / pdfScale;
     }
   }, [zoomLevel, isImageFile, isBlankCanvas, pdfScale]);
+
+  // ── Precision: right-angle snap + endpoint snap ─────────────────
+  // Right-angle snap is a user-intent toggle (driven by the shift key
+  // or toolbar button) that constrains new segments to 0°/45°/90°
+  // relative to the last anchored point. We intentionally DON'T fire
+  // the snap when isShiftHeld is already repurposed for pan — the
+  // drawing UI treats shift as the snap lever, pan uses alt/middle.
+  const [isRightAngleSnap, setIsRightAngleSnap] = useState<boolean>(false);
+  const [lastSnappedEndpoint, setLastSnappedEndpoint] = useState<DrawingPoint | null>(null);
+
+  /**
+   * Constrain a proposed point to 0°/45°/90° relative to `anchor`
+   * when the right-angle snap is active. If snap is off, returns the
+   * point unchanged so callers can drop it in regardless.
+   */
+  const applyRightAngleSnap = useCallback(
+    (anchor: DrawingPoint, point: DrawingPoint, active: boolean): DrawingPoint => {
+      if (!active) return point;
+
+      const dx = point.x - anchor.x;
+      const dy = point.y - anchor.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance === 0) return point;
+
+      // Snap to the closest of the 8 principal angles (45° resolution).
+      const angle = Math.atan2(dy, dx);
+      const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+
+      return {
+        x: anchor.x + Math.cos(snappedAngle) * distance,
+        y: anchor.y + Math.sin(snappedAngle) * distance,
+      };
+    },
+    [],
+  );
+
+  /**
+   * If `point` is within 8 screen pixels of any existing endpoint in
+   * `candidates`, snap to it and return the snapped coord. Otherwise
+   * return the original coord. The 8px threshold is expressed in
+   * CONTENT space, scaled by the live zoom so the snap feels like
+   * 8 *screen* pixels at every magnification.
+   *
+   * `candidates` is a flat list of {x, y} points in content-space —
+   * callers typically pass the first and last point of each existing
+   * markup, because mid-polyline joins make no sense for ends-only
+   * snap.
+   */
+  const snapToEndpoint = useCallback(
+    (point: DrawingPoint, candidates: DrawingPoint[]): { point: DrawingPoint; snappedTo: DrawingPoint | null } => {
+      if (!candidates.length) return { point, snappedTo: null };
+
+      // 8 screen px → (8 / effectiveZoom) content-space px.
+      const effectiveZoom = isImageFile || isBlankCanvas ? zoomLevel : pdfScale;
+      const threshold = 8 / (effectiveZoom > 0 ? effectiveZoom : 1);
+      const sqThreshold = threshold * threshold;
+
+      let best: DrawingPoint | null = null;
+      let bestSq = sqThreshold;
+      for (const c of candidates) {
+        const dx = c.x - point.x;
+        const dy = c.y - point.y;
+        const sq = dx * dx + dy * dy;
+        if (sq <= bestSq) {
+          best = c;
+          bestSq = sq;
+        }
+      }
+
+      if (best) {
+        return { point: { x: best.x, y: best.y }, snappedTo: best };
+      }
+      return { point, snappedTo: null };
+    },
+    [isImageFile, isBlankCanvas, zoomLevel, pdfScale],
+  );
 
   // Convert screen coordinates to content-space SVG coordinates.
   //
@@ -295,7 +439,7 @@ export function useCanvasDrawing({
         const pinchCenterY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - containerRect.top;
 
         if (isImageFile) {
-          const newZoom = Math.min(Math.max(zoomLevel * scale, 0.02), 10);
+          const newZoom = Math.min(Math.max(zoomLevel * scale, MIN_ZOOM), MAX_ZOOM);
           if (Math.abs(newZoom - zoomLevel) > 0.005) {
             const unscaledX = (pinchCenterX - newPanPosition.x) / zoomLevel;
             const unscaledY = (pinchCenterY - newPanPosition.y) / zoomLevel;
@@ -320,7 +464,7 @@ export function useCanvasDrawing({
             }
           }
         } else {
-          const newScale = Math.min(Math.max(pdfScale * scale, 0.02), 10);
+          const newScale = Math.min(Math.max(pdfScale * scale, MIN_ZOOM), MAX_ZOOM);
           if (Math.abs(newScale - pdfScale) > 0.005) {
             const unscaledX = (pinchCenterX - newPanPosition.x) / pdfScale;
             const unscaledY = (pinchCenterY - newPanPosition.y) / pdfScale;
@@ -460,13 +604,13 @@ export function useCanvasDrawing({
     // reports many small ticks so cumulative zoom is still responsive.
     const zoomFactor = event.deltaY > 0 ? 1 / 1.12 : 1.12;
 
-    // Full range: 2% to 10× — covers fit-to-window on an A0 sheet all
-    // the way to pixel-peeping detail inspection.
-    const MIN = 0.02;
-    const MAX = 10;
+    // Full range comes from constants.ts (MIN_ZOOM / MAX_ZOOM) so the
+    // pinch-zoom path and the on-screen +/- buttons all agree. Raising
+    // MAX_ZOOM past 10 only helps if the PDF also re-rasterises at the
+    // higher scale — see CanvasOverlay's tiered <Page scale> logic.
 
     if (isImageFile || isBlankCanvas) {
-      const newZoom = Math.min(Math.max(zoomLevel * zoomFactor, MIN), MAX);
+      const newZoom = Math.min(Math.max(zoomLevel * zoomFactor, MIN_ZOOM), MAX_ZOOM);
       if (newZoom !== zoomLevel) {
         const unscaledX = (mouseX - imagePosition.x) / zoomLevel;
         const unscaledY = (mouseY - imagePosition.y) / zoomLevel;
@@ -480,7 +624,7 @@ export function useCanvasDrawing({
         setZoomLevel(newZoom);
       }
     } else {
-      const newScale = Math.min(Math.max(pdfScale * zoomFactor, MIN), MAX);
+      const newScale = Math.min(Math.max(pdfScale * zoomFactor, MIN_ZOOM), MAX_ZOOM);
 
       if (Math.abs(newScale - pdfScale) > 0.0001) {
         const docX = (mouseX - imagePosition.x) / pdfScale;
@@ -561,10 +705,19 @@ export function useCanvasDrawing({
 
     // Stroke/size functions
     getStrokeWidth,
+    getProductStrokeWidth,
     getPointRadius,
     getMarkerRadius,
     getMarkerFontSize,
     getMarkerStrokeWidth,
+
+    // Precision / snap
+    isRightAngleSnap,
+    setIsRightAngleSnap,
+    lastSnappedEndpoint,
+    setLastSnappedEndpoint,
+    applyRightAngleSnap,
+    snapToEndpoint,
 
     // Event handlers
     createTouchStartHandler,

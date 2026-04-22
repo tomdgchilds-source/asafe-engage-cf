@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Document, Page } from 'react-pdf';
 import { Button } from "@/components/ui/button";
 import { X, Pen, Wand2, Move, Trash2, ShoppingCart } from "lucide-react";
@@ -6,6 +6,38 @@ import { pdfOptions } from "../constants";
 import { generatePathString, parsePathData } from "../utils";
 import { computeBarrierSymbol } from "@/utils/barrierSymbol";
 import type { CartItem, DrawingPoint, MarkupPath, LayoutMarkup } from "../types";
+
+/**
+ * Tiered raster scale for the PDF <Page>.
+ *
+ * With `useOnlyCssZoom: false`, pdf.js re-rasterises the page every
+ * time the <Page width> prop changes. That keeps strokes crisp at any
+ * zoom — but re-rastering a big A0/A1 CAD sheet at 40× would blow past
+ * 1GB of canvas memory on a low-end tablet. So we tier:
+ *
+ *   zoom ≤ 4   → raster at the actual zoom (pixel-accurate, 0-4×
+ *                range covers the overwhelming majority of sessions)
+ *   4 < z ≤ 12 → raster at 4×, CSS-scale the fractional overshoot
+ *                by (z/4) → gives ~3× CSS stretch which stays visually
+ *                acceptable up to 12× zoom
+ *   z > 12    → raster at 8×, CSS-scale the rest (max 5× stretch at
+ *                zoom 40) — still sharp enough for barrier placement,
+ *                and caps raster memory at 4× the base-fit canvas
+ *
+ * Returns { rasterScale, cssOvershoot } where the <Page> uses
+ * rasterScale and the wrapper <div> uses transform:scale(cssOvershoot).
+ */
+function computeRasterTier(zoom: number): { rasterScale: number; cssOvershoot: number } {
+  if (zoom <= 4) {
+    return { rasterScale: zoom, cssOvershoot: 1 };
+  }
+  if (zoom <= 12) {
+    const rasterScale = Math.min(zoom, 4);
+    return { rasterScale, cssOvershoot: zoom / rasterScale };
+  }
+  const rasterScale = Math.min(zoom, 8);
+  return { rasterScale, cssOvershoot: zoom / rasterScale };
+}
 
 interface CanvasOverlayProps {
   // Drawing metadata
@@ -78,11 +110,26 @@ interface CanvasOverlayProps {
 
   // Rendering functions
   getStrokeWidth: (base: number) => number;
+  /**
+   * Scale-aware stroke width for markups that carry a real-world
+   * productWidthMm. Returns null when not resolvable (no product, no
+   * scale calibration) — render falls back to getStrokeWidth.
+   */
+  getProductStrokeWidth: (
+    markup: { productWidthMm?: number | null } | null | undefined,
+  ) => number | null;
   getPointRadius: (base: number) => number;
   getMarkerRadius: (base: number) => number;
   getMarkerFontSize: (base: number) => number;
   getMarkerStrokeWidth: (base: number) => number;
   getProductColor: (cartItemId: string) => string;
+
+  /**
+   * Width (mm) of the product the designer is currently drawing with.
+   * Used so the live `currentPath` preview renders at the correct
+   * physical width before the markup is saved.
+   */
+  activeProductWidthMm?: number | null;
 
   // Event handlers
   handleTouchStart: (e: React.TouchEvent) => void;
@@ -149,6 +196,8 @@ export function CanvasOverlay({
   setIsRepositioning,
   setRepositionMarkupId,
   getStrokeWidth,
+  getProductStrokeWidth,
+  activeProductWidthMm,
   getPointRadius,
   getMarkerRadius,
   getMarkerFontSize,
@@ -192,6 +241,31 @@ export function CanvasOverlay({
     // array on refetch, and the user's in-session edits also produce a new
     // array. viewMode / drawingScale / cartItems all force a recompute too.
   }, [markups, viewMode, drawingScale, cartItems]);
+
+  // Debounced raster scale: wheel scroll fires 30+ events/sec, and each
+  // re-raster cancels the last mid-render. Keep a live CSS-only preview
+  // tracking the user's zoom, and only push a new pdf.js raster after
+  // 200ms of no new zoom events. Pan feels instant; crispness catches up.
+  const [debouncedPdfScale, setDebouncedPdfScale] = useState(pdfScale);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPdfScale(pdfScale);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [pdfScale]);
+
+  // Debounced tier drives the actual raster <Page scale> so pdf.js only
+  // re-rasterises once the user settles. The live zoom (pdfScale) drives
+  // the CSS overshoot on the wrapper below, so the user's zoom still
+  // feels instant even if pdf.js is mid-raster.
+  const rasterTier = useMemo(() => computeRasterTier(debouncedPdfScale), [debouncedPdfScale]);
+
+  // The rendered-canvas pixel dimensions (what pdf.js actually paints)
+  // are pdfDimensions × rasterTier.rasterScale. To keep on-screen size
+  // aligned with the user's current zoom, we CSS-scale the Page canvas
+  // by (pdfScale / rasterTier.rasterScale). When user and raster tiers
+  // match, this is exactly 1 and no CSS scaling is applied.
+  const pdfCssOvershoot = pdfScale / rasterTier.rasterScale;
 
   return (
     <div className="flex-1 relative bg-gray-50 dark:bg-gray-800 overflow-hidden">
@@ -321,6 +395,24 @@ export function CanvasOverlay({
               options={pdfOptions}
               className="drawing-canvas"
             >
+              {/* Wrap the <Page> so we can CSS-scale the rastered canvas
+               * to match the user's current zoom without remounting the
+               * page. When liveTier.rasterScale matches the debounced
+               * rasterTier.rasterScale AND the raw zoom, overshoot is 1
+               * and the canvas is shown at its native size.
+               *
+               * During active zoom: the raster stays at the debounced
+               * scale (so we aren't re-rasterising 30×/sec), and the CSS
+               * overshoot animates live → zoom feels instant, then sharpens
+               * when the user stops. */}
+              <div
+                style={{
+                  transform: `scale(${pdfCssOvershoot})`,
+                  transformOrigin: '0 0',
+                  width: `${pdfDimensions.width * rasterTier.rasterScale}px`,
+                  height: `${pdfDimensions.height * rasterTier.rasterScale}px`,
+                }}
+              >
               <Page
                 /* NEVER key on pdfScale — that forces a remount on every
                  * scale change and pdf.js leaves the canvas with
@@ -334,21 +426,21 @@ export function CanvasOverlay({
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
                 renderMode="canvas"
-                /* pdfScale here is the raw fit ratio (see
-                 * fitContentToContainer in LayoutMarkupEditor) —
-                 * the PDF's native pt dimensions multiplied by it
-                 * give us the actual render-px size. The old formula
-                 * multiplied container width by this ratio, which
-                 * shrinks landscape CAD drawings to a tiny swatch. */
-                width={pdfDimensions.width * pdfScale}
+                /* rasterTier.rasterScale is the tiered (and debounced)
+                 * raster resolution — NOT the user's raw zoom. pdf.js
+                 * re-rasterises when this changes, so we only push a new
+                 * value after 200ms of zoom idle. For zoom ≤ 4 this is
+                 * identical to pdfScale (pixel-accurate); past 4 the CSS
+                 * overshoot on the wrapper covers the rest. */
+                width={pdfDimensions.width * rasterTier.rasterScale}
                 /* Boost the rendering-DPR when the fit scale is small
                  * so thin CAD lines (0.1–0.3mm) stay visible. On a
                  * fit-to-window of a big A0/A1 sheet pdfScale can be
                  * ~0.05, and a 2x DPR renders those lines sub-pixel
                  * — the entire drawing fades to near-white 240-grey.
-                 * Clamping to max 4 keeps memory reasonable (~32MB
-                 * for a 4k × 2.8k canvas). */
-                devicePixelRatio={Math.min(4, Math.max(window.devicePixelRatio || 1, 1 / Math.max(0.15, pdfScale)))}
+                 * At higher rasterScales we don't need the DPR boost,
+                 * because the base raster is already high-res. */
+                devicePixelRatio={Math.min(4, Math.max(window.devicePixelRatio || 1, 1 / Math.max(0.15, rasterTier.rasterScale)))}
                 canvasBackground="white"
                 loading={
                   <div className="flex items-center justify-center h-full w-full bg-gray-100 dark:bg-gray-800">
@@ -366,6 +458,7 @@ export function CanvasOverlay({
                   </div>
                 }
               />
+              </div>
             </Document>
             )}
           </div>
@@ -524,24 +617,49 @@ export function CanvasOverlay({
                       {`${symbol.spec.family} · ${(symbol.totalLengthMm / 1000).toFixed(2)} m · ${symbol.postCount} posts · ${symbol.railCount} rails`}
                     </title>
                   </>
-                ) : (
-                  <path
-                    d={pathString}
-                    stroke={invalidMarkups.has(markup.id) ? '#EF4444' : color}
-                    strokeWidth={getStrokeWidth(isBlankCanvas ? 2.5 : 2.0)}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                    opacity={isBlankCanvas ? 0.85 : (isHighQualityRender ? 1 : 0.8)}
-                    style={{
-                      filter: isBlankCanvas
-                        ? 'drop-shadow(0 1px 2px rgba(0,0,50,0.3)) drop-shadow(0 0 1px rgba(0,0,100,0.2))'
-                        : invalidMarkups.has(markup.id)
-                          ? 'drop-shadow(0 0 2px rgba(239,68,68,0.8))'
-                          : 'drop-shadow(0 0 1px rgba(0,0,0,0.6))'
-                    }}
-                  />
-                )}
+                ) : (() => {
+                  // Scale-aware stroke when the markup carries a real
+                  // product width AND the drawing is calibrated. Falls
+                  // back to the legacy fixed-pixel stroke otherwise so
+                  // pre-calibration freehand drawings still render.
+                  const productStroke = getProductStrokeWidth(
+                    markup as { productWidthMm?: number | null },
+                  );
+                  const strokeWidth =
+                    productStroke ?? getStrokeWidth(isBlankCanvas ? 2.5 : 2.0);
+                  const isPhysicalWidth = productStroke !== null;
+
+                  return (
+                    <path
+                      d={pathString}
+                      stroke={invalidMarkups.has(markup.id) ? '#EF4444' : color}
+                      strokeWidth={strokeWidth}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                      // Physical-width bands read better slightly more
+                      // translucent — the viewer sees the CAD linework
+                      // underneath the barrier band rather than a
+                      // fully-opaque yellow slab.
+                      opacity={
+                        isPhysicalWidth
+                          ? 0.7
+                          : isBlankCanvas
+                            ? 0.85
+                            : isHighQualityRender
+                              ? 1
+                              : 0.8
+                      }
+                      style={{
+                        filter: isBlankCanvas
+                          ? 'drop-shadow(0 1px 2px rgba(0,0,50,0.3)) drop-shadow(0 0 1px rgba(0,0,100,0.2))'
+                          : invalidMarkups.has(markup.id)
+                            ? 'drop-shadow(0 0 2px rgba(239,68,68,0.8))'
+                            : 'drop-shadow(0 0 1px rgba(0,0,0,0.6))'
+                      }}
+                    />
+                  );
+                })()}
                 {points.length > 0 && (
                   <g
                     onClick={(e) => {
@@ -584,12 +702,24 @@ export function CanvasOverlay({
             );
           })}
 
-          {/* Current drawing path - real-time feedback */}
-          {currentPath && currentPath.points.length > 1 && (
+          {/* Current drawing path - real-time feedback. When the
+              designer is drawing with a calibrated scale + a known
+              product width we render the live preview at its real
+              physical size, so what they see IS what they'll get. */}
+          {currentPath && currentPath.points.length > 1 && (() => {
+            const liveProductStroke = getProductStrokeWidth(
+              activeProductWidthMm
+                ? { productWidthMm: activeProductWidthMm }
+                : null,
+            );
+            const liveStrokeWidth =
+              liveProductStroke ?? getStrokeWidth(isBlankCanvas ? 2.8 : 2.0);
+            const isPhysicalWidth = liveProductStroke !== null;
+            return (
             <path
               d={generatePathString(currentPath.points)}
               stroke={currentPath.color || '#FF0000'}
-              strokeWidth={getStrokeWidth(isBlankCanvas ? 2.8 : 2.0)}
+              strokeWidth={liveStrokeWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
               fill="none"
@@ -597,7 +727,7 @@ export function CanvasOverlay({
                 filter: isBlankCanvas
                   ? 'drop-shadow(0 1px 2px rgba(50,0,0,0.4)) drop-shadow(0 0 1px rgba(100,0,0,0.3))'
                   : 'drop-shadow(0 0 1px rgba(255,0,0,0.8))',
-                opacity: isBlankCanvas ? 0.9 : 1
+                opacity: isPhysicalWidth ? 0.65 : isBlankCanvas ? 0.9 : 1
               }}
             />
           )}

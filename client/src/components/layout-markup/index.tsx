@@ -25,6 +25,7 @@ import { isImageFileType, isBlankCanvasType, getProductColor as getProductColorU
 import { useCanvasDrawing } from "./hooks/useCanvasDrawing";
 import { useImageLoader } from "./hooks/useImageLoader";
 import { useScaleCalibration } from "./hooks/useScaleCalibration";
+import { MIN_ZOOM, MAX_ZOOM } from "./constants";
 import { Toolbar } from "./components/Toolbar";
 import { ProductSidebar } from "./components/ProductSidebar";
 import { CanvasOverlay } from "./components/CanvasOverlay";
@@ -1035,6 +1036,94 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     }
   }, [deleteMarkupMutation]);
 
+  // Zoom keyboard shortcuts — scoped to the layout-drawing container so
+  // they don't hijack "+" / "-" in any other context. Only act when the
+  // event target is inside the canvas container and we're not typing in
+  // an input. Step factor 1.25 matches a comfortable keyboard-paced zoom
+  // (too small and each press feels unresponsive; too big and you
+  // overshoot).
+  //
+  // Bindings:
+  //   +  /  =   → zoom in 1.25×
+  //   -  /  _   → zoom out 1/1.25×
+  //   0         → fit to page
+  //   1         → 100% (pixel-accurate)
+  const handleZoomShortcut = useCallback((event: KeyboardEvent) => {
+    if (!isOpen) return;
+    const container = containerRef.current;
+    if (!container) return;
+    // Container-scoped: only fire when focus / target sits inside the
+    // canvas container. Dialog root contains the container so the whole
+    // layout-drawing UI counts, but unrelated app UI (sidebar, nav) does
+    // not steal the shortcut.
+    const target = event.target as Node | null;
+    if (target && !container.contains(target) && target !== document.body) {
+      return;
+    }
+    const active = document.activeElement as HTMLElement | null;
+    const tag = active?.tagName;
+    const isTyping =
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      (active?.isContentEditable ?? false);
+    if (isTyping) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    const key = event.key;
+    if (key === '+' || key === '=') {
+      event.preventDefault();
+      const factor = 1.25;
+      if (isImageFile || isBlankCanvas) {
+        canvas.setZoomLevel((z) => Math.min(MAX_ZOOM, z * factor));
+      } else if (isPdfFile) {
+        canvas.setPdfScale((s) => Math.min(MAX_ZOOM, s * factor));
+      }
+    } else if (key === '-' || key === '_') {
+      event.preventDefault();
+      const factor = 1 / 1.25;
+      if (isImageFile || isBlankCanvas) {
+        canvas.setZoomLevel((z) => Math.max(MIN_ZOOM, z * factor));
+      } else if (isPdfFile) {
+        canvas.setPdfScale((s) => Math.max(MIN_ZOOM, s * factor));
+      }
+    } else if (key === '0') {
+      event.preventDefault();
+      // Fit to page — reuse the same path the zoom-fit button uses.
+      if (isImageFile || isBlankCanvas) {
+        const img = imageRef.current;
+        if (img?.naturalWidth && img?.naturalHeight) {
+          fitRef.current(img.naturalWidth, img.naturalHeight, "image");
+        }
+      } else if (isPdfFile && pdfDimensions.width && pdfDimensions.height) {
+        fitRef.current(pdfDimensions.width, pdfDimensions.height, "pdf");
+      }
+    } else if (key === '1') {
+      event.preventDefault();
+      // 100% — native 1:1 scale. Centre the drawing in the viewport.
+      const container = containerRef.current;
+      if (!container) return;
+      const cw = container.offsetWidth;
+      const ch = container.offsetHeight;
+      if (isImageFile || isBlankCanvas) {
+        const img = imageRef.current;
+        if (img?.naturalWidth && img?.naturalHeight) {
+          canvas.setZoomLevel(1);
+          canvas.setImagePosition({
+            x: Math.max(0, (cw - img.naturalWidth) / 2),
+            y: Math.max(0, (ch - img.naturalHeight) / 2),
+          });
+        }
+      } else if (isPdfFile && pdfDimensions.width && pdfDimensions.height) {
+        canvas.setPdfScale(1);
+        canvas.setImagePosition({
+          x: Math.max(0, (cw - pdfDimensions.width) / 2),
+          y: Math.max(0, (ch - pdfDimensions.height) / 2),
+        });
+      }
+    }
+  }, [isOpen, isImageFile, isBlankCanvas, isPdfFile, pdfDimensions.width, pdfDimensions.height, canvas]);
+
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
     if (event.key === 'Shift') canvas.setIsShiftHeld(false);
     if (event.key === 'Control' || event.key === 'Meta') canvas.setIsCtrlHeld(false);
@@ -1048,13 +1137,15 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('keydown', handleZoomShortcut);
     }
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleZoomShortcut);
     };
-  }, [isOpen, handleKeyDown, handleKeyUp]);
+  }, [isOpen, handleKeyDown, handleKeyUp, handleZoomShortcut]);
 
   // Close handler
   const handleClose = () => {
@@ -1485,9 +1576,9 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
                   onClick={() => {
                     const factor = 1.5;
                     if (isImageFile || isBlankCanvas) {
-                      canvas.setZoomLevel((z) => Math.min(10, z * factor));
+                      canvas.setZoomLevel((z) => Math.min(MAX_ZOOM, z * factor));
                     } else if (isPdfFile) {
-                      canvas.setPdfScale((s) => Math.min(10, s * factor));
+                      canvas.setPdfScale((s) => Math.min(MAX_ZOOM, s * factor));
                     }
                   }}
                   className="w-11 h-11 rounded-md text-white hover:bg-white/20 active:bg-white/30 flex items-center justify-center text-lg font-bold"
@@ -1525,9 +1616,9 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
                   onClick={() => {
                     const factor = 1 / 1.5;
                     if (isImageFile || isBlankCanvas) {
-                      canvas.setZoomLevel((z) => Math.max(0.02, z * factor));
+                      canvas.setZoomLevel((z) => Math.max(MIN_ZOOM, z * factor));
                     } else if (isPdfFile) {
-                      canvas.setPdfScale((s) => Math.max(0.02, s * factor));
+                      canvas.setPdfScale((s) => Math.max(MIN_ZOOM, s * factor));
                     }
                   }}
                   className="w-11 h-11 rounded-md text-white hover:bg-white/20 active:bg-white/30 flex items-center justify-center text-xl font-bold"

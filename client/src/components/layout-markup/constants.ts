@@ -29,8 +29,15 @@ export const pdfOptions = {
   verbosity: 0, // Reduce logging overhead
   maxImageSize: 16777216, // 16MB limit for mobile
   standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`,
-  // Better memory management on mobile
-  useOnlyCssZoom: true,
+  // useOnlyCssZoom:true told pdf.js to rasterise the page once at 1× and
+  // let the browser CSS-scale the bitmap for every subsequent zoom. That
+  // keeps memory low but goes visibly blurry past ~2-3× zoom — which is
+  // exactly where designers start doing fine-detail barrier placement.
+  // We now drive the actual <Page scale={…}> from the zoom level (tiered
+  // — see CanvasOverlay) so pdf.js re-rasterises at a matching resolution
+  // and strokes stay crisp at 10×+ zoom. CSS scale still handles the
+  // fractional overshoot to keep zoom interaction instant.
+  useOnlyCssZoom: false,
   textLayerMode: 0, // Disable text layer for better performance
   disableAutoFetch: false,
   disableStream: false,
@@ -38,6 +45,17 @@ export const pdfOptions = {
   // Mobile-specific optimizations
   isEvalSupported: false // Better security and performance
 };
+
+// Shared zoom clamp bounds — used by both the mouse-wheel handler and
+// the pinch-to-zoom path in useCanvasDrawing, plus the on-screen zoom
+// buttons in index.tsx. Bumping MAX_ZOOM here is the single lever for
+// "let designers zoom further in".
+//
+// 40× covers pixel-peeping on a 1:100 A0 sheet (real-world mm → ~0.1px
+// at fit-to-window would become ~4px at 40×, comfortably clickable).
+// Lower bound stays at 2% so big landscape CAD sheets can still fit.
+export const MIN_ZOOM = 0.02;
+export const MAX_ZOOM = 40;
 
 // Simple color system for products
 export const productColors = [
