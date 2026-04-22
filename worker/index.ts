@@ -3849,6 +3849,179 @@ app.get("/api/groundworks/:file", async (c) => {
   return new Response(obj.body as any, { headers });
 });
 
+// ─── PAS 13:2017 (Level-1) ────────────────────────────────────────────────
+// Structural ingestion + authoritative Resource upload. L2 (deterministic
+// rule engine) and L3 (RAG chat + video playlist) build on top of this.
+// The PDF was pre-uploaded to R2 at `standards/pas-13-2017.pdf` via
+// `wrangler r2 object put`. Structure metadata (TOC, definitions, annexes)
+// lives at scripts/data/pas13-structure.json and is consumed by
+// shared/pas13Citations.ts for in-app citation chips.
+//
+// Public-read passthrough for the PDF. Mirrors /api/certificates/:file —
+// auth-free so anonymous Resources visitors can stream it.
+app.get("/api/standards/:file", async (c) => {
+  const file = c.req.param("file");
+  // Guard: only allow kebab-case + .pdf (prevents traversal). Matches the
+  // certificates-route regex for consistency.
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid standard filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`standards/${file}`);
+  if (!obj) {
+    return c.json({ message: "Standard not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Content-Disposition", `inline; filename="${file}"`);
+  return new Response(obj.body as any, { headers });
+});
+
+// Seed the `resources` table with the PAS 13:2017 standard. The PDF is
+// pre-uploaded to R2 at `standards/pas-13-2017.pdf` (see the runbook).
+// One resources row of type="Standard", category="Safety Standards",
+// with fileUrl pointing at /api/standards/pas-13-2017.pdf so the
+// Resources page streams it back out of R2.
+//
+// Idempotent on the resource slug (matched by title + resource_type) —
+// re-running converges. Gated by MIGRATION_TOKEN (bearer), same pattern
+// as the sibling /api/admin/upload-* endpoints.
+app.post("/api/admin/seed-pas13-resource", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+
+  try {
+    const title =
+      "PAS 13:2017 — Code of practice for safety barriers used in traffic management";
+    const description =
+      "BSI PAS 13:2017 Code of practice for safety barriers used in traffic management within workplace environments, with test methods for safety barrier impact resilience. Covers risk assessment, safety-barrier design, kinetic-energy calculation, and pendulum / vehicle / sled-and-ramp impact test methods. This app is PAS 13 aligned and references the standard for structural guidance.";
+    const resourceType = "Standard";
+    const category = "Safety Standards";
+    const fileUrl = "/api/standards/pas-13-2017.pdf";
+    const thumbnailUrl: string | null = null;
+
+    // Confirm the R2 object exists before we insert the DB row — otherwise
+    // the Resources page will render a broken link. Defensive: the
+    // upload step is manual (wrangler r2 object put) so this guards
+    // against ordering mistakes.
+    const bucket = c.env.R2_BUCKET;
+    if (!bucket) {
+      return c.json(
+        { ok: false, message: "R2 bucket not configured" },
+        500,
+      );
+    }
+    const head = await bucket.head("standards/pas-13-2017.pdf");
+    if (!head) {
+      return c.json(
+        {
+          ok: false,
+          message:
+            "R2 object standards/pas-13-2017.pdf not found — upload the PDF before seeding.",
+        },
+        412,
+      );
+    }
+    const fileSize = head.size ?? null;
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Idempotency: does a resource with this title + type already exist?
+    const existing = (await sqlClient`
+      SELECT id
+      FROM resources
+      WHERE title = ${title} AND resource_type = ${resourceType}
+      LIMIT 1
+    `) as any[];
+
+    if (existing.length > 0) {
+      const resourceId = existing[0].id;
+      // Keep description/url in sync in case the metadata was tweaked.
+      await sqlClient`
+        UPDATE resources
+        SET description = ${description},
+            file_url = ${fileUrl},
+            file_size = ${fileSize},
+            file_type = 'pdf',
+            category = ${category},
+            thumbnail_url = ${thumbnailUrl},
+            is_active = true,
+            updated_at = now()
+        WHERE id = ${resourceId}
+      `;
+      return c.json({
+        ok: true,
+        resourceId,
+        alreadyExists: true,
+        fileUrl,
+        fileSize,
+      });
+    }
+
+    const rows = (await sqlClient`
+      INSERT INTO resources (
+        title, category, resource_type, description,
+        file_url, thumbnail_url, file_size, file_type,
+        download_count, is_active, created_at, updated_at
+      ) VALUES (
+        ${title}, ${category}, ${resourceType}, ${description},
+        ${fileUrl}, ${thumbnailUrl}, ${fileSize}, 'pdf',
+        0, true, now(), now()
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `) as any[];
+
+    // ON CONFLICT DO NOTHING means an empty result set on a race — re-read
+    // by title to return a deterministic id either way.
+    let resourceId: string;
+    if (rows.length > 0) {
+      resourceId = rows[0].id;
+    } else {
+      const refetch = (await sqlClient`
+        SELECT id FROM resources
+        WHERE title = ${title} AND resource_type = ${resourceType}
+        LIMIT 1
+      `) as any[];
+      if (refetch.length === 0) {
+        return c.json(
+          { ok: false, message: "Insert failed and no existing row found" },
+          500,
+        );
+      }
+      resourceId = refetch[0].id;
+    }
+
+    return c.json({
+      ok: true,
+      resourceId,
+      alreadyExists: false,
+      fileUrl,
+      fileSize,
+    });
+  } catch (e: any) {
+    console.error("seed-pas13-resource failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side
