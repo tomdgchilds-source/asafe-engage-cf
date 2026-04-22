@@ -2367,6 +2367,323 @@ app.get("/api/geo", (c) => {
   });
 });
 
+// ─── Master Impact Testing — Reconciled patch + Resource upload (ν) ───
+// This block is appended to the tail of the file deliberately so concurrent
+// agents (ι, κ, μ, ξ, ο, θ) writing in this region don't collide on rebase.
+// Three endpoints + a public PDF route, all gated by MIGRATION_TOKEN where
+// they mutate state. Pattern mirrors the existing apply-impact-corrections
+// and upload-certificates endpoints — see those for the canonical shape.
+
+// Public read-only download for the master Product Impact Testing PDF
+// uploaded to R2 at testing/<file>.pdf. Auth-free so the Resources page
+// can link to it for anonymous customers (same rationale as the
+// /api/certificates/:file endpoint).
+app.get("/api/testing/:file", async (c) => {
+  const file = c.req.param("file");
+  if (!/^[a-z0-9][a-z0-9-]*\.pdf$/i.test(file)) {
+    return c.json({ message: "Invalid testing filename" }, 400);
+  }
+  const bucket = c.env.R2_BUCKET;
+  if (!bucket) {
+    return c.json({ message: "R2 bucket not configured" }, 500);
+  }
+  const obj = await bucket.get(`testing/${file}`);
+  if (!obj) {
+    return c.json({ message: "Testing PDF not found" }, 404);
+  }
+  const headers = new Headers();
+  headers.set(
+    "Content-Type",
+    obj.httpMetadata?.contentType || "application/pdf",
+  );
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Content-Disposition", `inline; filename="${file}"`);
+  return new Response(obj.body as any, { headers });
+});
+
+// One-shot DDL — adds products.impact_testing_data jsonb if missing.
+// Stores the per-product master-doc geometry (post diameter, rail diameter,
+// impact zone, fork-guard / bollard heights, impact-angle scope, source
+// page) without disturbing any existing column. Idempotent IF NOT EXISTS.
+app.post("/api/admin/apply-master-testing-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json(
+      { ok: false, message: "MIGRATION_TOKEN not configured" },
+      500,
+    );
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    await sqlClient`
+      ALTER TABLE products
+      ADD COLUMN IF NOT EXISTS impact_testing_data jsonb
+    `;
+    return c.json({ ok: true, message: "products.impact_testing_data ensured" });
+  } catch (e: any) {
+    console.error("apply-master-testing-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Apply the reconciled master Impact Testing patch to the products table.
+// Reads scripts/data/master-testing-patch.json (built by
+// scripts/buildMasterTestingPatch.mjs from product-impact-testing.json +
+// cert-impact-patch.json). For each patch entry:
+//   - If newValue is non-null AND the cert won (or cert-only), update
+//     impact_rating + pas_13_test_joules + pas_13_compliant + pas_13_test_method.
+//   - Always write the master-doc geometry payload into
+//     products.impact_testing_data so the spec-sheet block can render
+//     post diameter / rail diameter / impact zone / angle scope.
+//   - When the cert-side joule conflicts with an existing impact_rating in
+//     the DB, prefer the cert (matches /apply-impact-corrections behaviour).
+//
+// Idempotent — re-running converges. Gated by MIGRATION_TOKEN (bearer).
+// Matches by lower(products.name) = lower(familyName).
+app.post("/api/admin/apply-master-testing", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json(
+      { ok: false, message: "MIGRATION_TOKEN not configured" },
+      500,
+    );
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  try {
+    let patchData: any;
+    try {
+      patchData =
+        (await import("../scripts/data/master-testing-patch.json")).default ||
+        (await import("../scripts/data/master-testing-patch.json"));
+    } catch {
+      return c.json(
+        {
+          ok: false,
+          message:
+            "No master-testing-patch.json bundled — run scripts/buildMasterTestingPatch.mjs first.",
+        },
+        404,
+      );
+    }
+
+    type PatchEntry = {
+      familyName: string;
+      status: string;
+      newValue: number | null;
+      pas13Certified: boolean | null;
+      pas13Method: string | null;
+      impactRatingRaw: string | null;
+      vehicleTest: string | null;
+      masterPostDiameter: string | null;
+      masterRailDiameter: string | null;
+      masterImpactZone: string | null;
+      masterForkGuardHeight: string | null;
+      masterBollardHeight: string | null;
+      masterImpactAngleScope: string | null;
+      masterPageNum: number | null;
+      notes: string | null;
+    };
+    const patches: PatchEntry[] = patchData.patches || [];
+    if (patches.length === 0) {
+      return c.json({ ok: true, applied: 0, message: "No patches to apply." });
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const applied: Array<{
+      familyName: string;
+      matched: number;
+      newValue: number | null;
+      status: string;
+    }> = [];
+    const notMatched: string[] = [];
+
+    for (const p of patches) {
+      const impactTestingData = {
+        sourcePdf:
+          "ASAFE_ProductImpactTesting_PRH-1012-A-SAFE-30012024-1.pdf",
+        documentReference: "PRH-1012-A-SAFE-30012024-1",
+        sourcePage: p.masterPageNum,
+        postDiameter: p.masterPostDiameter,
+        railDiameter: p.masterRailDiameter,
+        impactZone: p.masterImpactZone,
+        forkGuardHeight: p.masterForkGuardHeight,
+        bollardHeight: p.masterBollardHeight,
+        impactAngleScope: p.masterImpactAngleScope,
+        certFamily:
+          p.status === "certOnly" ||
+          p.status === "certWon" ||
+          p.status === "agreed"
+            ? p.impactRatingRaw
+            : null,
+        vehicleTest: p.vehicleTest,
+        reconciliationStatus: p.status,
+        reconciliationNotes: p.notes,
+      };
+
+      const sets: string[] = [];
+      const params: any[] = [];
+
+      sets.push("impact_testing_data = $" + (params.length + 1));
+      params.push(JSON.stringify(impactTestingData));
+
+      if (p.newValue != null) {
+        sets.push("impact_rating = $" + (params.length + 1));
+        params.push(p.newValue);
+        sets.push("pas_13_test_joules = $" + (params.length + 1));
+        params.push(p.newValue);
+      }
+      if (p.pas13Certified != null) {
+        sets.push("pas_13_compliant = $" + (params.length + 1));
+        params.push(p.pas13Certified);
+      }
+      if (p.pas13Method) {
+        sets.push("pas_13_test_method = $" + (params.length + 1));
+        params.push(p.pas13Method);
+      }
+      sets.push("updated_at = now()");
+
+      const nameIdx = params.length + 1;
+      params.push(p.familyName);
+      const res = (await sqlClient(
+        `UPDATE products SET ${sets.join(", ")} WHERE lower(name) = lower($${nameIdx}) RETURNING id`,
+        params,
+      )) as any[];
+
+      if (res.length === 0) {
+        notMatched.push(p.familyName);
+      } else {
+        applied.push({
+          familyName: p.familyName,
+          matched: res.length,
+          newValue: p.newValue,
+          status: p.status,
+        });
+      }
+    }
+
+    return c.json({
+      ok: true,
+      totalPatches: patches.length,
+      applied: applied.length,
+      notMatched,
+      reconciliationSummary: patchData.reconciliationSummary,
+      details: applied,
+    });
+  } catch (e: any) {
+    console.error("apply-master-testing failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Seed the resources table with one row pointing at the master Impact
+// Testing PDF (uploaded out-of-band to R2 at testing/product-impact-
+// testing-master.pdf). Idempotent — matched by (title, resource_type) per
+// κ's upload-certificates pattern.
+app.post("/api/admin/upload-master-testing-resource", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json(
+      { ok: false, message: "MIGRATION_TOKEN not configured" },
+      500,
+    );
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  try {
+    const title =
+      "Product Impact Testing — Master Document (PRH-1012, May 2024)";
+    const description =
+      "A-SAFE Product Impact Suitability master document. 47-page reference covering 43 protective products with per-product post/rail diameters, impact-zone ranges, impact-angle scope (45°/90° vs 90°-only), and the per-vehicle traffic-light suitability matrix at typical workplace weights and speeds. Companion to the individual PAS 13 / EN test certificates indexed under Safety Standards.";
+    const resourceType = "Test Report";
+    const category = "Safety Standards";
+    const fileUrl = "/api/testing/product-impact-testing-master.pdf";
+    const fileSize = 20274739;
+    const thumbnailUrl =
+      "https://webcdn.asafe.com/media/4250/atlas-double-traffic-barrier-ramp.jpg";
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const existing = (await sqlClient`
+      SELECT id
+      FROM resources
+      WHERE title = ${title} AND resource_type = ${resourceType}
+      LIMIT 1
+    `) as any[];
+
+    let resourceId: string;
+    let action: string;
+    if (existing.length > 0) {
+      resourceId = existing[0].id;
+      await sqlClient`
+        UPDATE resources
+        SET description = ${description},
+            file_url = ${fileUrl},
+            file_size = ${fileSize},
+            file_type = 'pdf',
+            category = ${category},
+            thumbnail_url = ${thumbnailUrl},
+            is_active = true,
+            updated_at = now()
+        WHERE id = ${resourceId}
+      `;
+      action = "refreshed";
+    } else {
+      const rows = (await sqlClient`
+        INSERT INTO resources (
+          title, category, resource_type, description,
+          file_url, thumbnail_url, file_size, file_type,
+          download_count, is_active, created_at, updated_at
+        ) VALUES (
+          ${title}, ${category}, ${resourceType}, ${description},
+          ${fileUrl}, ${thumbnailUrl}, ${fileSize}, 'pdf',
+          0, true, now(), now()
+        )
+        RETURNING id
+      `) as any[];
+      resourceId = rows[0].id;
+      action = "inserted";
+    }
+
+    return c.json({
+      ok: true,
+      action,
+      resourceId,
+      title,
+      fileUrl,
+      resourceType,
+      category,
+    });
+  } catch (e: any) {
+    console.error("upload-master-testing-resource failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side

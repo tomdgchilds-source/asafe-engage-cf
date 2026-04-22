@@ -1,6 +1,6 @@
 {
   "_description": "Reconciled per-product impact dataset. Joule values come from ι's cert-impact-patch.json (PAS 13 / EN test certificates — authoritative for absorbed energy). Spec geometry and impact-angle scope come from ν's product-impact-testing.json (parsed from the 47-page Product Impact Suitability master PDF). Conflict policy: cert wins on Joules; master adds geometry. The two datasets are largely orthogonal (the master PDF doesn't print Joules in its text stream), so most entries are 'certOnly' (Joule from cert + metadata from master) or 'bothNull' (no PAS 13 cert exists for that family — geometry only).",
-  "generatedAt": "2026-04-22T06:33:47.099Z",
+  "generatedAt": "2026-04-22T06:44:45.621Z",
   "source": "Reconciled: cert-impact-patch.json (ι) + product-impact-testing.json (ν)",
   "reconciliationSummary": {
     "masterDocProductsCount": 43,
