@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Low-level order picker with stand-on platform">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="140" cy="228" rx="110" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- forks (short, usually with extension) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="32" y="186" width="120" height="12" rx="2" fill="#FFC72C"/>
+    <path d="M32 186 L22 190 L22 196 L32 200 Z" fill="#FFC72C"/>
+    <rect x="32" y="202" width="120" height="10" rx="2" fill="#2A2A2A"/>
+  </g>
+
+  <!-- pallet on forks (already loaded with picked cartons) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="40" y="158" width="106" height="28" fill="#D0D0D0"/>
+    <path d="M40 170 L146 170" stroke-width="2"/>
+    <rect x="60" y="132" width="30" height="28" fill="#FFC72C"/>
+    <rect x="94" y="140" width="22" height="20" fill="#FFC72C"/>
+    <rect x="120" y="134" width="22" height="26" fill="#FFC72C"/>
+  </g>
+
+  <!-- operator stand platform with console -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- platform floor -->
+    <rect x="152" y="190" width="90" height="22" fill="#D0D0D0"/>
+    <path d="M158 198 L240 198 M158 204 L240 204" stroke-width="2"/>
+    <!-- console pedestal -->
+    <rect x="156" y="110" width="56" height="82" rx="4" fill="#FFC72C"/>
+    <!-- display -->
+    <rect x="164" y="120" width="40" height="22" fill="#2A2A2A"/>
+    <rect x="168" y="124" width="32" height="14" fill="#D0D0D0"/>
+    <!-- handlebar grips protruding -->
+    <path d="M156 138 L138 138 L138 148 L156 148" fill="#FFC72C"/>
+    <path d="M212 138 L232 138 L232 148 L212 148" fill="#FFC72C"/>
+    <!-- wraparound safety rail -->
+    <path d="M212 130 L212 96 L248 96 L248 188" stroke-width="5" fill="none"/>
+  </g>
+
+  <!-- drive wheel -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="184" cy="216" r="13"/>
+    <circle cx="184" cy="216" r="4" fill="#D0D0D0"/>
+  </g>
+  <circle cx="228" cy="216" r="10" fill="#2A2A2A" stroke="#2A2A2A" stroke-width="3"/>
+  <circle cx="44" cy="218" r="7" fill="#2A2A2A" stroke="#2A2A2A" stroke-width="3"/>
+</svg>

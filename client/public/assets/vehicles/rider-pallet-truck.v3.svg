@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Rider pallet truck with stand-on platform">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="130" cy="228" rx="118" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- forks -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="16" y="188" width="136" height="14" rx="2" fill="#FFC72C"/>
+    <path d="M16 188 L8 192 L8 198 L16 202 Z" fill="#FFC72C"/>
+    <rect x="16" y="206" width="136" height="10" rx="2" fill="#2A2A2A"/>
+  </g>
+
+  <!-- power head / battery box + stand-on platform -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- battery tower -->
+    <rect x="152" y="96" width="54" height="112" rx="4" fill="#FFC72C"/>
+    <!-- display panel -->
+    <rect x="158" y="108" width="42" height="22" rx="2" fill="#2A2A2A"/>
+    <rect x="162" y="113" width="34" height="12" fill="#D0D0D0"/>
+    <!-- vent slots -->
+    <path d="M158 142 L200 142 M158 150 L200 150 M158 158 L200 158" stroke-width="2"/>
+    <!-- stand-on operator platform behind -->
+    <rect x="204" y="176" width="44" height="34" rx="2" fill="#D0D0D0"/>
+    <!-- platform tread -->
+    <path d="M208 184 L244 184 M208 192 L244 192 M208 200 L244 200" stroke-width="2"/>
+    <!-- backrest / grab bar -->
+    <path d="M206 176 L206 110 L246 110 L246 176" stroke-width="4" fill="none"/>
+    <!-- horizontal handrail grip -->
+    <path d="M218 110 L234 110" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- tiller / steering column (short, mounted on power head) -->
+  <g stroke="#2A2A2A" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M180 96 Q176 76 174 60"/>
+  </g>
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="150" y="46" width="50" height="20" rx="8" fill="#FFC72C"/>
+    <circle cx="164" cy="56" r="5" fill="#2A2A2A"/>
+    <circle cx="186" cy="56" r="5" fill="#2A2A2A"/>
+  </g>
+
+  <!-- drive wheel under power head -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="182" cy="218" r="14"/>
+    <circle cx="182" cy="218" r="5" fill="#D0D0D0"/>
+  </g>
+  <!-- castor wheel at rear of platform -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="226" cy="218" r="9"/>
+  </g>
+  <!-- load wheel at fork tip -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="28" cy="218" r="7"/>
+  </g>
+</svg>

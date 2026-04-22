@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Automated guided vehicle with flat deck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="226" rx="118" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- guide path line on floor (dashed yellow) -->
+  <path d="M10 220 L246 220" stroke="#FFC72C" stroke-width="4" stroke-dasharray="10 6"/>
+
+  <!-- load deck (flat top) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="24" y="86" width="208" height="18" rx="2" fill="#D0D0D0"/>
+    <path d="M24 96 L232 96" stroke-width="2"/>
+  </g>
+
+  <!-- pallet or tote on deck -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="64" y="44" width="128" height="42" fill="#FFC72C"/>
+    <path d="M64 58 L192 58 M64 72 L192 72" stroke-width="2"/>
+    <rect x="72" y="78" width="10" height="8" fill="#2A2A2A"/>
+    <rect x="120" y="78" width="10" height="8" fill="#2A2A2A"/>
+    <rect x="172" y="78" width="10" height="8" fill="#2A2A2A"/>
+  </g>
+
+  <!-- main chassis body -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="20" y="104" width="216" height="92" rx="8" fill="#FFC72C"/>
+    <!-- LED indicator strip around perimeter -->
+    <rect x="28" y="114" width="200" height="4" fill="#2A2A2A"/>
+    <rect x="28" y="186" width="200" height="4" fill="#2A2A2A"/>
+    <!-- LIDAR / sensor turrets (front and rear corners) -->
+    <rect x="14" y="132" width="16" height="22" rx="3" fill="#2A2A2A"/>
+    <circle cx="22" cy="143" r="4" fill="#FFC72C"/>
+    <rect x="226" y="132" width="16" height="22" rx="3" fill="#2A2A2A"/>
+    <circle cx="234" cy="143" r="4" fill="#FFC72C"/>
+    <!-- E-STOP button (red-ish, shown as yellow to match palette) -->
+    <circle cx="128" cy="142" r="10" fill="#FFC72C" stroke="#2A2A2A" stroke-width="3"/>
+    <circle cx="128" cy="142" r="5" fill="#2A2A2A"/>
+    <!-- status display -->
+    <rect x="66" y="158" width="46" height="22" fill="#2A2A2A"/>
+    <path d="M72 167 L106 167 M72 173 L98 173" stroke="#D0D0D0" stroke-width="2"/>
+    <!-- charging contacts -->
+    <rect x="146" y="158" width="46" height="22" fill="#2A2A2A"/>
+    <path d="M152 162 L152 176 M160 162 L160 176 M168 162 L168 176 M176 162 L176 176 M184 162 L184 176" stroke="#FFC72C" stroke-width="2"/>
+  </g>
+
+  <!-- wheels with omnidirectional style caster pattern -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="54" cy="214" r="14"/>
+    <circle cx="54" cy="214" r="5" fill="#D0D0D0"/>
+    <path d="M42 214 L66 214 M54 202 L54 226" stroke="#D0D0D0" stroke-width="2"/>
+    <circle cx="128" cy="214" r="14"/>
+    <circle cx="128" cy="214" r="5" fill="#D0D0D0"/>
+    <circle cx="202" cy="214" r="14"/>
+    <circle cx="202" cy="214" r="5" fill="#D0D0D0"/>
+    <path d="M190 214 L214 214 M202 202 L202 226" stroke="#D0D0D0" stroke-width="2"/>
+  </g>
+</svg>

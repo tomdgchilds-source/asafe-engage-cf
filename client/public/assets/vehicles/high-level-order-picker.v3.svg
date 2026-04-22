@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="High-level order picker with elevating cab">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="232" rx="112" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- tall mast, reaching top of frame -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="60" y="16" width="14" height="208" fill="#D0D0D0"/>
+    <rect x="80" y="16" width="14" height="208" fill="#D0D0D0"/>
+    <path d="M60 60 L94 60 M60 110 L94 110 M60 160 L94 160" stroke-width="2"/>
+    <rect x="54" y="12" width="46" height="10" fill="#2A2A2A"/>
+  </g>
+
+  <!-- elevated operator cab (half-way up) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- carriage rear attached to mast -->
+    <rect x="52" y="82" width="52" height="86" fill="#FFC72C"/>
+    <!-- cab floor pallet -->
+    <rect x="102" y="132" width="82" height="14" fill="#FFC72C"/>
+    <!-- safety cage rail front -->
+    <path d="M104 132 L104 70 L184 70 L184 132" stroke-width="4" fill="none"/>
+    <!-- horizontal rail mid -->
+    <path d="M104 100 L184 100" stroke-width="3"/>
+    <!-- control console inside cab -->
+    <rect x="64" y="96" width="36" height="28" fill="#2A2A2A"/>
+    <rect x="70" y="102" width="24" height="16" fill="#D0D0D0"/>
+    <!-- steering grips -->
+    <circle cx="76" cy="134" r="5" fill="#2A2A2A"/>
+    <circle cx="92" cy="134" r="5" fill="#2A2A2A"/>
+  </g>
+
+  <!-- short auxiliary forks on front of cab (for picking from racking) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="184" y="138" width="42" height="8" fill="#FFC72C"/>
+    <rect x="184" y="148" width="42" height="6" fill="#2A2A2A"/>
+  </g>
+
+  <!-- chassis base with battery -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="48" y="182" width="160" height="36" rx="4" fill="#FFC72C"/>
+    <!-- ventilation -->
+    <path d="M60 192 L200 192 M60 202 L200 202" stroke-width="2"/>
+    <!-- warning lamp on chassis -->
+    <circle cx="200" cy="188" r="4" fill="#FFC72C" stroke="#2A2A2A" stroke-width="2"/>
+  </g>
+
+  <!-- wheels -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="76" cy="224" r="12"/>
+    <circle cx="76" cy="224" r="4" fill="#D0D0D0"/>
+    <circle cx="188" cy="224" r="12"/>
+    <circle cx="188" cy="224" r="4" fill="#D0D0D0"/>
+  </g>
+</svg>

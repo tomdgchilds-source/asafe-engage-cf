@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Counterbalance forklift 2.5 tonne">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="134" cy="230" rx="112" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- mast -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="58" y="28" width="14" height="170" fill="#D0D0D0"/>
+    <rect x="78" y="28" width="14" height="170" fill="#D0D0D0"/>
+    <rect x="52" y="22" width="44" height="10" fill="#2A2A2A"/>
+    <path d="M58 80 L92 80 M58 130 L92 130" stroke-width="2"/>
+    <path d="M96 56 L122 88" stroke="#2A2A2A" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <!-- carriage & forks (slightly longer than 1.5T) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="50" y="144" width="48" height="16" fill="#FFC72C"/>
+    <rect x="14" y="162" width="74" height="12" fill="#FFC72C"/>
+    <rect x="14" y="174" width="74" height="8" fill="#2A2A2A"/>
+    <path d="M14 162 L6 166 L6 178 L14 182 Z" fill="#FFC72C"/>
+  </g>
+
+  <!-- chassis body (mid size, larger counterweight) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <path d="M96 90 L196 90 L224 126 L228 198 L100 198 Z" fill="#FFC72C"/>
+    <!-- counterweight -->
+    <rect x="210" y="160" width="26" height="38" fill="#2A2A2A"/>
+    <!-- hood crease -->
+    <path d="M96 148 L212 148" stroke-width="2"/>
+    <!-- side grab handle -->
+    <path d="M104 112 L132 112" stroke-width="4" stroke-linecap="round"/>
+    <!-- headlamp -->
+    <circle cx="102" cy="176" r="5" fill="#D0D0D0" stroke="#2A2A2A" stroke-width="2"/>
+    <!-- steering wheel -->
+    <circle cx="148" cy="94" r="9" fill="none" stroke-width="3"/>
+    <path d="M139 94 L157 94 M148 85 L148 103" stroke-width="2"/>
+    <!-- operator seat -->
+    <path d="M158 82 L190 82 L188 126 L158 126 Z" fill="#2A2A2A"/>
+    <!-- overhead guard -->
+    <path d="M110 90 L110 18 L204 18 L204 90" stroke-width="5" fill="none"/>
+    <path d="M108 18 L206 18 M118 32 L194 32" stroke-width="3"/>
+  </g>
+
+  <!-- wheels -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="126" cy="208" r="20"/>
+    <circle cx="126" cy="208" r="7" fill="#D0D0D0"/>
+    <path d="M115 208 L137 208 M126 197 L126 219" stroke="#D0D0D0" stroke-width="2"/>
+    <circle cx="208" cy="214" r="14"/>
+    <circle cx="208" cy="214" r="4" fill="#D0D0D0"/>
+  </g>
+</svg>

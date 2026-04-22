@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Scissor lift mobile elevated work platform">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="232" rx="120" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- elevated work platform (top) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="32" y="40" width="192" height="18" fill="#FFC72C"/>
+    <path d="M32 48 L224 48" stroke-width="2"/>
+    <!-- guardrails (vertical posts + top rail + kick plate) -->
+    <path d="M40 40 L40 8 L216 8 L216 40" stroke-width="5" fill="none"/>
+    <!-- top rail -->
+    <path d="M40 8 L216 8" stroke-width="5"/>
+    <!-- mid rail -->
+    <path d="M40 22 L216 22" stroke-width="3"/>
+    <!-- toe board -->
+    <rect x="32" y="30" width="192" height="10" fill="#2A2A2A"/>
+    <!-- vertical posts -->
+    <path d="M80 8 L80 40 M128 8 L128 40 M176 8 L176 40" stroke-width="3"/>
+    <!-- gate detail -->
+    <path d="M104 40 L104 8 M152 40 L152 8" stroke-width="3" stroke-dasharray="3 3"/>
+  </g>
+
+  <!-- scissor mechanism: two X pairs stacked (fully extended) -->
+  <g stroke="#2A2A2A" stroke-width="5" stroke-linecap="round">
+    <!-- upper X -->
+    <path d="M64 60 L192 116 M192 60 L64 116" fill="none"/>
+    <!-- lower X -->
+    <path d="M64 118 L192 174 M192 118 L64 174" fill="none"/>
+  </g>
+  <!-- pivot hubs -->
+  <g fill="#2A2A2A">
+    <circle cx="128" cy="88" r="5"/>
+    <circle cx="128" cy="146" r="5"/>
+    <circle cx="64" cy="60" r="4"/>
+    <circle cx="192" cy="60" r="4"/>
+    <circle cx="64" cy="116" r="4"/>
+    <circle cx="192" cy="116" r="4"/>
+    <circle cx="64" cy="174" r="4"/>
+    <circle cx="192" cy="174" r="4"/>
+  </g>
+
+  <!-- chassis base -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="30" y="174" width="196" height="34" rx="3" fill="#FFC72C"/>
+    <!-- diagonal stripe hazard panel -->
+    <path d="M38 180 L58 204 M58 180 L78 204 M78 180 L98 204 M98 180 L118 204" stroke="#2A2A2A" stroke-width="3"/>
+    <!-- control box outside -->
+    <rect x="154" y="182" width="44" height="20" fill="#2A2A2A"/>
+    <rect x="158" y="186" width="36" height="12" fill="#D0D0D0"/>
+  </g>
+
+  <!-- wheels -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="64" cy="218" r="14"/>
+    <circle cx="64" cy="218" r="5" fill="#D0D0D0"/>
+    <circle cx="192" cy="218" r="14"/>
+    <circle cx="192" cy="218" r="5" fill="#D0D0D0"/>
+  </g>
+</svg>

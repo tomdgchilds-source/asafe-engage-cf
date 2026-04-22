@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Electric pedestrian-operated pallet truck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="140" cy="224" rx="108" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- forks -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="30" y="182" width="168" height="14" rx="2" fill="#FFC72C"/>
+    <path d="M30 182 L20 186 L20 192 L30 196 Z" fill="#FFC72C"/>
+    <rect x="30" y="200" width="168" height="10" rx="2" fill="#2A2A2A"/>
+  </g>
+
+  <!-- large power head / battery compartment -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="192" y="110" width="60" height="90" rx="4" fill="#FFC72C"/>
+    <!-- battery vents -->
+    <path d="M200 124 L244 124 M200 134 L244 134" stroke-width="2"/>
+    <!-- operator display panel -->
+    <rect x="202" y="146" width="40" height="22" rx="2" fill="#2A2A2A"/>
+    <rect x="208" y="152" width="28" height="10" rx="1" fill="#D0D0D0"/>
+    <!-- warning lamp -->
+    <circle cx="238" cy="118" r="5" fill="#FFC72C" stroke="#2A2A2A" stroke-width="2"/>
+    <!-- lightning bolt motif -->
+    <path d="M224 172 L220 182 L228 182 L222 194" stroke="#FFC72C" stroke-width="3" fill="none"/>
+  </g>
+
+  <!-- tiller arm -->
+  <g stroke="#2A2A2A" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M220 108 Q200 62 148 44"/>
+  </g>
+  <!-- butterfly-grip tiller head -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="102" y="30" width="60" height="28" rx="12" fill="#FFC72C"/>
+    <!-- thumb-wheel throttle -->
+    <circle cx="116" cy="44" r="7" fill="#2A2A2A"/>
+    <circle cx="148" cy="44" r="7" fill="#2A2A2A"/>
+    <!-- horn / e-stop button -->
+    <circle cx="132" cy="22" r="5" fill="#FFC72C" stroke="#2A2A2A" stroke-width="2"/>
+  </g>
+
+  <!-- drive wheel (larger) -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="222" cy="210" r="16"/>
+    <circle cx="222" cy="210" r="5" fill="#D0D0D0"/>
+  </g>
+  <!-- load wheel at tip -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="42" cy="214" r="8"/>
+  </g>
+</svg>

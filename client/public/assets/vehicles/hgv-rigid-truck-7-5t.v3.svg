@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="HGV rigid truck 7.5 tonne box lorry">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="230" rx="130" ry="7" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- box body (rear cargo) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="98" y="60" width="142" height="144" rx="2" fill="#FFC72C"/>
+    <!-- box panels -->
+    <path d="M98 96 L240 96 M98 132 L240 132 M98 168 L240 168" stroke-width="2"/>
+    <!-- rear door seam -->
+    <path d="M240 80 L240 200" stroke-width="3"/>
+    <path d="M228 130 L236 130" stroke-width="3"/>
+    <!-- rear door horizontal bars (roller shutter look) -->
+    <path d="M232 80 L232 200" stroke-width="2"/>
+  </g>
+
+  <!-- cab (at front of truck, stepped) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <path d="M16 126 L16 74 L58 74 L78 92 L98 92 L98 204 L16 204 Z" fill="#FFC72C"/>
+    <!-- windscreen -->
+    <path d="M22 86 L52 86 L66 102 L22 102 Z" fill="#D0D0D0"/>
+    <!-- side window -->
+    <rect x="22" y="106" width="44" height="24" fill="#D0D0D0"/>
+    <!-- door line -->
+    <path d="M66 102 L66 188" stroke-width="2"/>
+    <!-- door handle -->
+    <rect x="58" y="140" width="6" height="4" fill="#2A2A2A"/>
+    <!-- headlamp -->
+    <rect x="16" y="152" width="14" height="16" fill="#D0D0D0" stroke="#2A2A2A" stroke-width="2"/>
+    <!-- grille -->
+    <rect x="32" y="152" width="30" height="32" fill="#2A2A2A"/>
+    <path d="M32 162 L62 162 M32 172 L62 172" stroke="#D0D0D0" stroke-width="2"/>
+    <!-- wing mirror -->
+    <rect x="18" y="62" width="6" height="20" fill="#2A2A2A"/>
+  </g>
+
+  <!-- step up into box -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <rect x="98" y="192" width="8" height="12"/>
+  </g>
+
+  <!-- wheels (2 axles) -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="52" cy="214" r="16"/>
+    <circle cx="52" cy="214" r="6" fill="#D0D0D0"/>
+    <path d="M42 214 L62 214 M52 204 L52 224" stroke="#D0D0D0" stroke-width="2"/>
+    <circle cx="186" cy="214" r="16"/>
+    <circle cx="186" cy="214" r="6" fill="#D0D0D0"/>
+    <path d="M176 214 L196 214 M186 204 L186 224" stroke="#D0D0D0" stroke-width="2"/>
+  </g>
+</svg>

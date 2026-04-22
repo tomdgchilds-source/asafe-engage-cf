@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Counterbalance forklift 1.5 tonne">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="136" cy="228" rx="106" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- mast -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="62" y="36" width="12" height="164" fill="#D0D0D0"/>
+    <rect x="80" y="36" width="12" height="164" fill="#D0D0D0"/>
+    <rect x="58" y="30" width="38" height="10" fill="#2A2A2A"/>
+    <path d="M62 80 L92 80 M62 130 L92 130" stroke-width="2"/>
+    <!-- tilt cylinder angle visible -->
+    <path d="M96 60 L120 90" stroke="#2A2A2A" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <!-- carriage & forks -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="54" y="146" width="46" height="14" fill="#FFC72C"/>
+    <rect x="22" y="162" width="64" height="10" fill="#FFC72C"/>
+    <rect x="22" y="172" width="64" height="8" fill="#2A2A2A"/>
+    <path d="M22 162 L14 166 L14 176 L22 180 Z" fill="#FFC72C"/>
+  </g>
+
+  <!-- chassis body (compact for 1.5T) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <path d="M96 98 L190 98 L212 130 L218 196 L100 196 Z" fill="#FFC72C"/>
+    <!-- counterweight rear -->
+    <rect x="198" y="162" width="26" height="34" fill="#2A2A2A"/>
+    <!-- hood seam -->
+    <path d="M96 150 L200 150" stroke-width="2"/>
+    <!-- steering wheel visible -->
+    <circle cx="150" cy="100" r="8" fill="none" stroke-width="3"/>
+    <path d="M142 100 L158 100 M150 92 L150 108" stroke-width="2"/>
+    <!-- operator seat -->
+    <path d="M160 90 L186 90 L184 124 L160 124 Z" fill="#2A2A2A"/>
+    <!-- overhead guard posts -->
+    <path d="M112 98 L112 28 L196 28 L196 98" stroke-width="4" fill="none"/>
+    <!-- roof bars -->
+    <path d="M110 28 L198 28 M120 40 L186 40" stroke-width="3"/>
+  </g>
+
+  <!-- wheels: larger front, smaller rear -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="122" cy="208" r="18"/>
+    <circle cx="122" cy="208" r="6" fill="#D0D0D0"/>
+    <circle cx="200" cy="214" r="13"/>
+    <circle cx="200" cy="214" r="4" fill="#D0D0D0"/>
+  </g>
+</svg>

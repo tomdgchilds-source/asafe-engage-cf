@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Heavy-duty forklift 10 tonne-plus">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="138" cy="234" rx="124" ry="7" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- massive mast -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="36" y="14" width="16" height="184" fill="#D0D0D0"/>
+    <rect x="58" y="14" width="16" height="184" fill="#D0D0D0"/>
+    <rect x="40" y="8" width="12" height="188" fill="#D0D0D0"/>
+    <rect x="62" y="8" width="12" height="188" fill="#D0D0D0"/>
+    <rect x="30" y="4" width="50" height="10" fill="#2A2A2A"/>
+    <path d="M36 60 L74 60 M36 110 L74 110 M36 160 L74 160" stroke-width="2"/>
+    <path d="M78 60 L110 96" stroke="#2A2A2A" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <!-- massive forks -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="20" y="134" width="64" height="22" fill="#FFC72C"/>
+    <rect x="0" y="156" width="90" height="18" fill="#FFC72C"/>
+    <rect x="0" y="174" width="90" height="10" fill="#2A2A2A"/>
+  </g>
+
+  <!-- giant chassis body -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <path d="M82 72 L210 72 L244 112 L250 206 L90 206 Z" fill="#FFC72C"/>
+    <!-- massive rear counterweight -->
+    <rect x="224" y="150" width="30" height="56" fill="#2A2A2A"/>
+    <!-- hood and louvre detail -->
+    <path d="M82 142 L228 142" stroke-width="2"/>
+    <path d="M90 156 L218 156 M90 170 L218 170 M90 184 L218 184" stroke-width="2"/>
+    <!-- exhaust stack -->
+    <rect x="186" y="4" width="12" height="40" fill="#2A2A2A"/>
+    <circle cx="192" cy="2" r="6" fill="#2A2A2A"/>
+    <path d="M186 16 L198 16" stroke-width="2"/>
+    <!-- headlamp -->
+    <circle cx="100" cy="180" r="7" fill="#D0D0D0" stroke="#2A2A2A" stroke-width="2"/>
+    <!-- fuel tank fill -->
+    <circle cx="170" cy="122" r="5" fill="#2A2A2A"/>
+    <!-- steering wheel -->
+    <circle cx="138" cy="78" r="10" fill="none" stroke-width="3"/>
+    <path d="M128 78 L148 78 M138 68 L138 88" stroke-width="2"/>
+    <!-- operator cabin (fully enclosed) -->
+    <path d="M120 72 L120 4 L222 4 L222 72" stroke-width="6" fill="none"/>
+    <rect x="130" y="18" width="82" height="38" fill="#D0D0D0"/>
+    <path d="M170 18 L170 56" stroke-width="2"/>
+    <!-- door handle -->
+    <rect x="124" y="38" width="4" height="12" fill="#2A2A2A"/>
+  </g>
+
+  <!-- huge wheels with visible treads -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="130" cy="212" r="26"/>
+    <circle cx="130" cy="212" r="10" fill="#D0D0D0"/>
+    <path d="M114 212 L146 212 M130 196 L130 228" stroke="#D0D0D0" stroke-width="2"/>
+    <circle cx="226" cy="218" r="20"/>
+    <circle cx="226" cy="218" r="7" fill="#D0D0D0"/>
+  </g>
+</svg>

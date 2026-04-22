@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Articulated HGV 40 tonne tractor and trailer">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="232" rx="136" ry="7" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- long trailer (right, large rectangular container) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="74" y="68" width="178" height="138" rx="2" fill="#FFC72C"/>
+    <!-- body panels -->
+    <path d="M74 104 L252 104 M74 140 L252 140 M74 176 L252 176" stroke-width="2"/>
+    <!-- rear doors -->
+    <path d="M244 84 L244 200" stroke-width="3"/>
+    <path d="M232 138 L240 138" stroke-width="3"/>
+    <!-- kingpin / fifth wheel visible under trailer front -->
+    <circle cx="100" cy="210" r="5" fill="#2A2A2A"/>
+  </g>
+
+  <!-- tractor unit cab (flat-fronted European style) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- cab box -->
+    <path d="M2 204 L2 64 L72 64 L72 204 Z" fill="#FFC72C"/>
+    <!-- windscreen (large flat) -->
+    <rect x="8" y="74" width="58" height="42" fill="#D0D0D0"/>
+    <path d="M38 74 L38 116" stroke-width="2"/>
+    <!-- door seam -->
+    <path d="M42 116 L42 196" stroke-width="2"/>
+    <rect x="34" y="150" width="6" height="4" fill="#2A2A2A"/>
+    <!-- grille -->
+    <rect x="10" y="126" width="52" height="20" fill="#2A2A2A"/>
+    <path d="M10 132 L62 132 M10 140 L62 140" stroke="#D0D0D0" stroke-width="2"/>
+    <!-- bumper -->
+    <rect x="0" y="180" width="72" height="14" fill="#2A2A2A"/>
+    <!-- headlamp -->
+    <rect x="8" y="158" width="14" height="14" fill="#D0D0D0" stroke="#2A2A2A" stroke-width="2"/>
+    <rect x="50" y="158" width="14" height="14" fill="#D0D0D0" stroke="#2A2A2A" stroke-width="2"/>
+    <!-- wing mirror -->
+    <rect x="0" y="60" width="8" height="24" fill="#2A2A2A"/>
+    <rect x="66" y="60" width="8" height="24" fill="#2A2A2A"/>
+  </g>
+
+  <!-- tractor wheels (2) -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="24" cy="214" r="16"/>
+    <circle cx="24" cy="214" r="5" fill="#D0D0D0"/>
+    <circle cx="54" cy="214" r="16"/>
+    <circle cx="54" cy="214" r="5" fill="#D0D0D0"/>
+  </g>
+  <!-- trailer wheels (triple axle) -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="160" cy="214" r="16"/>
+    <circle cx="160" cy="214" r="5" fill="#D0D0D0"/>
+    <circle cx="194" cy="214" r="16"/>
+    <circle cx="194" cy="214" r="5" fill="#D0D0D0"/>
+    <circle cx="228" cy="214" r="16"/>
+    <circle cx="228" cy="214" r="5" fill="#D0D0D0"/>
+  </g>
+</svg>

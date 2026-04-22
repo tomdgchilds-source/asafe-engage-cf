@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Very narrow aisle turret truck">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="132" cy="232" rx="110" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- extremely tall multi-stage mast -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="84" y="8" width="14" height="200" fill="#D0D0D0"/>
+    <rect x="104" y="8" width="14" height="200" fill="#D0D0D0"/>
+    <rect x="88" y="4" width="10" height="204" fill="#D0D0D0"/>
+    <rect x="108" y="4" width="10" height="204" fill="#D0D0D0"/>
+    <rect x="78" y="0" width="46" height="8" fill="#2A2A2A"/>
+    <path d="M84 40 L118 40 M84 80 L118 80 M84 120 L118 120 M84 160 L118 160" stroke-width="2"/>
+  </g>
+
+  <!-- turret head with side-shifting forks -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- turret housing -->
+    <rect x="60" y="100" width="82" height="50" rx="3" fill="#FFC72C"/>
+    <!-- side-shift forks extended LEFT (turret rotates 90°) -->
+    <rect x="18" y="114" width="50" height="12" fill="#FFC72C"/>
+    <rect x="18" y="126" width="50" height="8" fill="#2A2A2A"/>
+    <!-- pallet being picked sideways -->
+    <rect x="24" y="84" width="44" height="28" fill="#D0D0D0"/>
+    <path d="M24 96 L68 96" stroke-width="2"/>
+  </g>
+
+  <!-- elevating operator cab alongside mast -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="124" y="112" width="48" height="82" rx="3" fill="#FFC72C"/>
+    <!-- cab window -->
+    <rect x="130" y="120" width="36" height="30" fill="#D0D0D0"/>
+    <!-- controls -->
+    <rect x="130" y="156" width="36" height="16" fill="#2A2A2A"/>
+    <!-- safety rail top -->
+    <path d="M124 112 L124 92 L172 92 L172 112" stroke-width="4" fill="none"/>
+  </g>
+
+  <!-- chassis base (long, narrow for VNA aisles) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="60" y="188" width="180" height="30" rx="3" fill="#FFC72C"/>
+    <path d="M60 198 L240 198 M60 208 L240 208" stroke-width="2"/>
+    <!-- guide rollers for aisle rails -->
+    <circle cx="70" cy="198" r="5" fill="#2A2A2A"/>
+    <circle cx="230" cy="198" r="5" fill="#2A2A2A"/>
+  </g>
+
+  <!-- wheels (small, between wire-guided rails) -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="90" cy="224" r="10"/>
+    <circle cx="90" cy="224" r="3" fill="#D0D0D0"/>
+    <circle cx="210" cy="224" r="10"/>
+    <circle cx="210" cy="224" r="3" fill="#D0D0D0"/>
+  </g>
+</svg>

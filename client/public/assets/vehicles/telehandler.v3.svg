@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Telehandler with telescopic boom">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="130" cy="232" rx="120" ry="7" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- telescoping boom extending forward/up at ~25° -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- outer boom section -->
+    <path d="M170 86 L212 72 L218 100 L178 118 Z" fill="#FFC72C"/>
+    <!-- inner extending boom sections -->
+    <path d="M82 118 L180 70 L196 90 L104 146 Z" fill="#FFC72C"/>
+    <path d="M36 136 L108 96 L124 114 L54 166 Z" fill="#FFC72C"/>
+    <!-- boom seam detail -->
+    <path d="M82 118 L170 80 M104 146 L196 90" stroke-width="2"/>
+  </g>
+
+  <!-- fork head at boom tip with carriage -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="30" y="134" width="18" height="40" fill="#FFC72C"/>
+    <rect x="4" y="148" width="30" height="10" fill="#FFC72C"/>
+    <rect x="4" y="158" width="30" height="8" fill="#2A2A2A"/>
+    <rect x="4" y="170" width="30" height="8" fill="#2A2A2A"/>
+  </g>
+
+  <!-- operator cab (side-mounted right of boom) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="128" y="110" width="70" height="86" rx="4" fill="#FFC72C"/>
+    <!-- windscreen -->
+    <path d="M134 118 L192 118 L198 156 L134 156 Z" fill="#D0D0D0"/>
+    <path d="M166 118 L166 156" stroke-width="2"/>
+    <!-- door line -->
+    <path d="M192 118 L192 196" stroke-width="2"/>
+    <!-- grab handle -->
+    <rect x="186" y="162" width="4" height="20" fill="#2A2A2A"/>
+    <!-- roof beacon -->
+    <rect x="156" y="102" width="14" height="8" fill="#FFC72C"/>
+    <path d="M156 102 L170 102" stroke-width="2"/>
+  </g>
+
+  <!-- chassis with engine bay -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="198" y="148" width="54" height="56" rx="2" fill="#FFC72C"/>
+    <path d="M204 160 L246 160 M204 172 L246 172 M204 184 L246 184" stroke-width="2"/>
+    <!-- rear lights -->
+    <circle cx="246" cy="198" r="4" fill="#FFC72C" stroke="#2A2A2A" stroke-width="2"/>
+  </g>
+
+  <!-- stabiliser connecting boom pivot -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="218" cy="100" r="7"/>
+  </g>
+
+  <!-- 4 large tractor wheels -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <circle cx="80" cy="216" r="22"/>
+    <circle cx="80" cy="216" r="8" fill="#D0D0D0"/>
+    <path d="M68 216 L92 216 M80 202 L80 230" stroke="#D0D0D0" stroke-width="2"/>
+    <circle cx="216" cy="216" r="22"/>
+    <circle cx="216" cy="216" r="8" fill="#D0D0D0"/>
+    <path d="M204 216 L228 216 M216 202 L216 230" stroke="#D0D0D0" stroke-width="2"/>
+  </g>
+</svg>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="400" height="400" role="img" aria-label="Reach truck with telescoping mast and outrigger legs">
+  <rect width="256" height="256" fill="#FFFFFF"/>
+  <ellipse cx="132" cy="230" rx="118" ry="6" fill="#D0D0D0" opacity="0.55"/>
+
+  <!-- straddle / outrigger legs extending forward -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="12" y="190" width="180" height="14" fill="#FFC72C"/>
+    <rect x="12" y="204" width="180" height="8" fill="#2A2A2A"/>
+    <path d="M12 190 L4 194 L4 210 L12 214 Z" fill="#FFC72C"/>
+  </g>
+
+  <!-- telescoping mast mounted on pantograph reach mechanism -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <!-- outer channel -->
+    <rect x="90" y="22" width="14" height="170" fill="#D0D0D0"/>
+    <rect x="110" y="22" width="14" height="170" fill="#D0D0D0"/>
+    <!-- inner channel slightly raised -->
+    <rect x="94" y="16" width="10" height="172" fill="#D0D0D0"/>
+    <rect x="114" y="16" width="10" height="172" fill="#D0D0D0"/>
+    <rect x="84" y="12" width="46" height="10" fill="#2A2A2A"/>
+    <path d="M90 70 L124 70 M90 120 L124 120" stroke-width="2"/>
+    <!-- pantograph reach scissor mechanism -->
+    <path d="M130 120 L160 104 L130 88 M130 88 L160 104 L130 120" stroke-width="3" fill="none"/>
+  </g>
+
+  <!-- carriage + forks extended forward -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="84" y="140" width="28" height="16" fill="#FFC72C"/>
+    <rect x="48" y="158" width="56" height="12" fill="#FFC72C"/>
+    <rect x="48" y="170" width="56" height="8" fill="#2A2A2A"/>
+  </g>
+
+  <!-- cab / operator compartment (sideways-facing reach truck cab) -->
+  <g stroke="#2A2A2A" stroke-width="3" stroke-linejoin="round">
+    <rect x="154" y="88" width="84" height="104" rx="4" fill="#FFC72C"/>
+    <!-- cab window -->
+    <rect x="162" y="98" width="68" height="48" fill="#D0D0D0"/>
+    <path d="M196 98 L196 146" stroke-width="2"/>
+    <!-- display console -->
+    <rect x="164" y="152" width="44" height="22" fill="#2A2A2A"/>
+    <rect x="168" y="156" width="36" height="14" fill="#D0D0D0"/>
+    <!-- steering tiller knob / joystick -->
+    <circle cx="222" cy="162" r="6" fill="#2A2A2A"/>
+    <path d="M222 156 L222 140" stroke-width="3"/>
+    <!-- overhead guard -->
+    <path d="M156 88 L156 28 L240 28 L240 88" stroke-width="5" fill="none"/>
+    <path d="M154 28 L242 28 M166 44 L230 44" stroke-width="3"/>
+  </g>
+
+  <!-- wheels -->
+  <g stroke="#2A2A2A" stroke-width="3" fill="#2A2A2A">
+    <!-- front load wheels on outrigger legs -->
+    <circle cx="34" cy="218" r="9"/>
+    <!-- drive wheel under cab -->
+    <circle cx="190" cy="220" r="16"/>
+    <circle cx="190" cy="220" r="5" fill="#D0D0D0"/>
+    <!-- castor -->
+    <circle cx="230" cy="220" r="10"/>
+  </g>
+</svg>
