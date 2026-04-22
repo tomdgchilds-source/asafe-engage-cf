@@ -716,8 +716,14 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
       "as revision"
     );
 
-    // Clear existing cart items first
-    const existingCartItems = await storage.getCartItems(userId);
+    // Clear existing cart items for the ACTIVE PROJECT only. Without the
+    // project filter, restoring an order revision for Project A would wipe
+    // cart items the user was building under Project B (cart is now
+    // per-project since commit 427b7fd). If the user has no active
+    // project, fall back to the old user-wide clear so orphans still drain.
+    const user = await storage.getUser(userId);
+    const activeProjectId = (user as any)?.activeProjectId ?? undefined;
+    const existingCartItems = await storage.getUserCart(userId, activeProjectId);
     for (const item of existingCartItems) {
       await storage.removeFromCart(item.id);
     }

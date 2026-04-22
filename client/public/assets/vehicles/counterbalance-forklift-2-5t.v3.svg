@@ -48,4 +48,9 @@
     <circle cx="208" cy="214" r="14"/>
     <circle cx="208" cy="214" r="4" fill="#D0D0D0"/>
   </g>
+  <!-- size badge (tonnage class) -->
+  <g>
+    <rect x="8" y="8" rx="14" ry="14" width="72" height="28" fill="#FFC72C" stroke="#2A2A2A" stroke-width="2.5"/>
+    <text x="44" y="28" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#2A2A2A" text-anchor="middle">2.5T</text>
+  </g>
 </svg>

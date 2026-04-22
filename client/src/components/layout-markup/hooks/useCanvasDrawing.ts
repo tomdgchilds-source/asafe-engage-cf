@@ -19,9 +19,11 @@ interface UseCanvasDrawingOptions {
 
 /** Minimum screen-pixel stroke width for scale-aware rendering. Below
  *  this threshold thin products like bollards at fit-to-window vanish
- *  entirely, so we clamp the visual stroke to ~0.75 px so lines never
- *  disappear. Has no effect on the persisted product width. */
-const MIN_VISUAL_STROKE_PX = 0.75;
+ *  entirely, so we clamp the visual stroke so lines never disappear.
+ *  Has no effect on the persisted product width. Bumped from 0.75 to
+ *  1.0 after user feedback — 0.75 was too thin against heavy CAD
+ *  linework. */
+const MIN_VISUAL_STROKE_PX = 1.0;
 
 /**
  * Manages all pan/zoom/draw state and provides coordinate transforms
