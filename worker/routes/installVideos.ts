@@ -21,6 +21,7 @@
  */
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
+import { authMiddleware } from "../middleware/auth";
 
 const installVideos = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -127,7 +128,10 @@ installVideos.get("/products/:id/install-videos", async (c) => {
 // install's linked order's items[]. Powers the "Watch before site visit"
 // panel on /installation-timeline. Items are jsonb on orders.items, one
 // row per cart line with `productId` (and/or `productName` fallback).
-installVideos.get("/installations/:id/install-videos", async (c) => {
+//
+// Auth-gated to match the sibling `/api/installations/:id` endpoint —
+// install data carries customer + order info and shouldn't be anonymous.
+installVideos.get("/installations/:id/install-videos", authMiddleware, async (c) => {
   try {
     const installationId = decodeURIComponent(c.req.param("id"));
     if (!c.env.DATABASE_URL) return c.json({ message: "DATABASE_URL not configured" }, 500);
