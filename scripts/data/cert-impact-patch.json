@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-04-22T05:52:00+00:00",
+  "source": "PAS13 test certificates",
+  "notes": "Data sourced from 9 TUV NORD plastic-product certificates (cert ref 07/203/1326/Z/8124074649/25/KSP/*, test report MTEK23025-314 / 8124074649-T0x), digitally signed by Biel Andreas on 2025-12-23. Each PAS 13 certificate publishes absorbed-energy per impact zone (Zone 1/3 = end bays, Zone 2 = centre span, Zone 4 = low-level protection). The recorded impactRating is the minimum certified joule value across all tested zones/variants for that family - the conservative headline rating that holds for impact anywhere along the rated section. This supersedes any conflicting DB value. The T13 Rack Guard certificate is under DIN EN 15512/15635 (rack protection) and publishes no joule rating, so it only updates the test-method field.",
+  "patches": [
+    {
+      "familyName": "130-T0-P3",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 5800,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 1/3 = 5800J; Zone 2 = 6056J (1603mm) / 5800J (2403mm)",
+      "vehicleTest": "PAS 13 pendulum impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017)",
+      "notes": "Sourced from 8124074649-T01_Certificate-PAS-_A-Safe_Pedestrian-Barrier-130-T0-P3.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/1, report MTEK23025-314 / 8124074649-T01, signed 2025-12-23). Conservative rating = min across zones."
+    },
+    {
+      "familyName": "190-T1-P0",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 13400,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 1/3 = 14117J; Zone 2 = 15035J (1601mm) / 13400J (2401mm)",
+      "vehicleTest": "PAS 13 pendulum impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017)",
+      "notes": "Sourced from 8124074649-T02_Certificate-PAS-_A-Safe_Traffic-Barrier-190-T1-P0.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/2, report MTEK23025-314 / 8124074649-T02, signed 2025-12-23). Conservative rating = min across zones (2401mm span worst case)."
+    },
+    {
+      "familyName": "190-T2-P0",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 20000,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 1/3 = 20672J; Zone 2 = 20221J (1601mm) / 20000J (2401mm)",
+      "vehicleTest": "PAS 13 pendulum impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017)",
+      "notes": "Sourced from 8124074649-T03_Certificate-PAS-_A-Safe_Traffic-Barrier-190-T2-P0.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/3, report MTEK23025-314 / 8124074649-T03, signed 2025-12-23). Conservative rating = min across zones."
+    },
+    {
+      "familyName": "190-T1-P2",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 15000,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 1/3 = 15000J; Zone 2 = 15188J (1603mm) / 15194J (2403mm)",
+      "vehicleTest": "PAS 13 pendulum impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017)",
+      "notes": "Sourced from 8124074649-T04_Certificate-PAS-_A-Safe_Pedestrian-Barrier-190-T1-P2.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/4, report MTEK23025-314 / 8124074649-T04, signed 2025-12-23). Conservative rating = min across zones (Zone 1/3 = 15000J headline)."
+    },
+    {
+      "familyName": "190-T2-P1",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 19200,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 1/3 = 19200J; Zone 2 = 21352J (1603mm) / 20997J (2403mm)",
+      "vehicleTest": "PAS 13 pendulum impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017)",
+      "notes": "Sourced from 8124074649-T05_Certificate-PAS-_A-Safe_Pedestrian-Barrier-190-T2-P1.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/5, report MTEK23025-314 / 8124074649-T05, signed 2025-12-23). Conservative rating = min across zones (Zone 1/3 = 19200J headline)."
+    },
+    {
+      "familyName": "Step Guard",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": 10500,
+      "newValue": 10241,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 4 = 10241J (600mm variant) / 15453J (1200mm variant)",
+      "vehicleTest": "PAS 13 low-level impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017, Zone 4 low-level)",
+      "notes": "Sourced from 8124074649-T08_Certificate-PAS-_A-Safe_Step-Guard-600-1200.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/8, report MTEK23025-314 / 8124074649-T08, signed 2025-12-23). DB previously carried 10500J (close but off); cert supersedes with 10241J (600mm worst case; 1200mm rated to 15453J)."
+    },
+    {
+      "familyName": "Bollard Bumper",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": 5700,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 4 = 5700J",
+      "vehicleTest": "PAS 13 low-level impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017, Zone 4 low-level)",
+      "notes": "Sourced from 8124074649-T09_Certificate-PAS-_A-Safe_Bollard-Bumper.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/9, report MTEK23025-314 / 8124074649-T09, signed 2025-12-23). DB previously had null impactRating and pas13Compliant=false; cert confirms PAS 13 certification."
+    },
+    {
+      "familyName": "Traffic Gate",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": 14000,
+      "newValue": 13837,
+      "impactRatingRaw": "PAS 13 absorbed energy: Zone 2 = 13837J",
+      "vehicleTest": "PAS 13 centre-span impact test per BSI PAS 13:2017",
+      "pas13Certified": true,
+      "pas13Method": "pendulum (PAS 13:2017, Zone 2 centre)",
+      "notes": "Sourced from 8124074649-T10_Certificate-PAS-_A-Safe_Traffic-Gate.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/10, report MTEK23025-314 / 8124074649-T10, signed 2025-12-23). DB previously rounded to 14000J; cert supersedes with exact 13837J."
+    },
+    {
+      "familyName": "RackGuard - Multiple height and profile sizes",
+      "productUrl": null,
+      "status": "mismatch",
+      "currentValue": null,
+      "newValue": null,
+      "impactRatingRaw": "No joule published. Certified to DIN EN 15512:2010-09 Ch.6.4.1 shock loads + DIN EN 15635:2009-08 Ch.9.5.1 column/bracing damage assessment",
+      "vehicleTest": "EN 15512/15635 rack shock-load test",
+      "pas13Certified": true,
+      "pas13Method": "EN 15512/15635 shock load test",
+      "notes": "Sourced from 8124074649-T13_Certificate-EN-_A-Safe_RackGuard.pdf (TUV NORD cert 07/203/1326/Z/8124074649/25/KSP/13, report MTEK23025-314 / 8124074649-T13, signed 2025-12-23). Not a PAS 13 cert - rack-protection EN standard. Updates pas13TestMethod only; no joule to set."
+    }
+  ]
+}

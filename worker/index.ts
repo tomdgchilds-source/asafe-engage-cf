@@ -1282,9 +1282,18 @@ app.post("/api/admin/apply-impact-corrections", async (c) => {
   try {
     // Dynamic import so builds succeed even if the patch file hasn't
     // been generated yet (first deploy after scaffolding this endpoint).
+    //
+    // ?source=cert loads cert-impact-patch.json (authoritative PAS 13 /
+    // EN test certificates); default loads impact-verification-patch.json
+    // (catalog vs live-page reconciliation).
+    const source = c.req.query("source") || "default";
     let patchData: any;
     try {
-      patchData = (await import("../scripts/data/impact-verification-patch.json")).default || (await import("../scripts/data/impact-verification-patch.json"));
+      if (source === "cert") {
+        patchData = (await import("../scripts/data/cert-impact-patch.json")).default || (await import("../scripts/data/cert-impact-patch.json"));
+      } else {
+        patchData = (await import("../scripts/data/impact-verification-patch.json")).default || (await import("../scripts/data/impact-verification-patch.json"));
+      }
     } catch {
       return c.json({
         ok: false,
