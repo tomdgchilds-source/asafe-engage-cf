@@ -2145,6 +2145,15 @@ app.post("/api/admin/apply-suitability-schema", async (c) => {
 
     await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS suitability_data jsonb`;
     await sqlClient`ALTER TABLE vehicle_types ADD COLUMN IF NOT EXISTS suitability_labels jsonb`;
+    // Defensive: schema.ts now also references maintenance_data and
+    // ground_works_data jsonb columns (added by a concurrent agent's
+    // GroundWorks/Maintenance work). Drizzle's `select()` on the products
+    // table reads every column declared in the schema, so /api/products
+    // 500s with `column "X" does not exist` until those columns land in
+    // PG. Idempotent ADD COLUMN IF NOT EXISTS so this is safe even when
+    // the other agent's own DDL endpoint runs first.
+    await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS maintenance_data jsonb`;
+    await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS ground_works_data jsonb`;
 
     // Supporting GIN index on the vehicleSuitability array inside suitability_data.
     // Lets the Impact Calculator's cross-reference filter run as an index scan
