@@ -14,6 +14,7 @@ import { HeightRestrictorKitCard } from "@/components/HeightRestrictorKitCard";
 import { EnhancedQuoteRequestModal } from "@/components/EnhancedQuoteRequestModal";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { ProductComparison } from "@/components/ProductComparison";
+import { ProductSuitabilityBlock } from "@/components/ProductSuitabilityBlock";
 import { useAuth } from "../hooks/useAuth";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -548,6 +549,16 @@ export default function Products() {
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* Product Suitability spec-sheet block — sourced from
+              products.suitability_data (PDF: ASAFE_ProductSuitability PRH-1009).
+              Null-tolerant: renders a placeholder for the ~36 unmatched rows. */}
+          <div className="mt-6 sm:mt-8">
+            <ProductSuitabilityBlock
+              data={(individualProduct as any).suitabilityData}
+              productName={individualProduct.name}
+            />
           </div>
         </div>
       </div>

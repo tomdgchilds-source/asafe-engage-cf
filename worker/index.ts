@@ -2109,6 +2109,218 @@ app.get("/api/bootstrap-user", async (c) => {
   }
 });
 
+// Product Suitability schema — idempotent DDL adding two jsonb columns:
+//   products.suitability_data        — spec-sheet payload per product
+//   vehicle_types.suitability_labels — string[] of PDF vehicle-suitability
+//                                      labels each calculator vehicle matches
+// Gated by MIGRATION_TOKEN (bearer). Safe to re-run.
+app.post("/api/admin/apply-suitability-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Probe which columns existed before the DDL runs, so we can report
+    // altered=N (N = new columns actually created on this run).
+    const pre = (await sqlClient`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE (table_name = 'products' AND column_name = 'suitability_data')
+         OR (table_name = 'vehicle_types' AND column_name = 'suitability_labels')
+    `) as Array<{ table_name: string; column_name: string }>;
+    const existing = new Set(pre.map((r) => `${r.table_name}.${r.column_name}`));
+
+    await sqlClient`ALTER TABLE products ADD COLUMN IF NOT EXISTS suitability_data jsonb`;
+    await sqlClient`ALTER TABLE vehicle_types ADD COLUMN IF NOT EXISTS suitability_labels jsonb`;
+
+    // Supporting GIN index on the vehicleSuitability array inside suitability_data.
+    // Lets the Impact Calculator's cross-reference filter run as an index scan
+    // instead of a full-table filter once volume grows.
+    const preIdx = (await sqlClient`
+      SELECT indexname FROM pg_indexes
+      WHERE indexname = 'products_suitability_vehicle_idx'
+    `) as Array<{ indexname: string }>;
+    const indexExistedBefore = preIdx.length > 0;
+    await sqlClient`
+      CREATE INDEX IF NOT EXISTS products_suitability_vehicle_idx
+      ON products USING GIN ((suitability_data -> 'vehicleSuitability'))
+    `;
+
+    const altered =
+      (existing.has("products.suitability_data") ? 0 : 1) +
+      (existing.has("vehicle_types.suitability_labels") ? 0 : 1);
+
+    return c.json({
+      ok: true,
+      altered,
+      indexed: indexExistedBefore ? 0 : 1,
+      columns: {
+        "products.suitability_data": existing.has("products.suitability_data")
+          ? "already-present"
+          : "added",
+        "vehicle_types.suitability_labels": existing.has(
+          "vehicle_types.suitability_labels",
+        )
+          ? "already-present"
+          : "added",
+      },
+    });
+  } catch (e: any) {
+    console.error("apply-suitability-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Ingest the extracted Product Suitability PDF dataset into
+// products.suitability_data. For each PDF product with matchedDbIds.length > 0,
+// writes the full per-product entry to the corresponding DB row(s).
+// Idempotent; re-running overwrites with the same payload.
+app.post("/api/admin/ingest-product-suitability", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const datasetModule: any = await import(
+      "../scripts/data/product-suitability.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const pdfProducts: any[] = dataset.products || [];
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    let ingested = 0;
+    let pdfMatched = 0;
+    let pdfUnmatched = 0;
+    const unmatchedPdfIds: string[] = [];
+    const missingDbRows: Array<{ dbId: string; productName: string }> = [];
+
+    for (const p of pdfProducts) {
+      const dbIds: string[] = Array.isArray(p.matchedDbIds) ? p.matchedDbIds : [];
+      if (dbIds.length === 0) {
+        pdfUnmatched++;
+        unmatchedPdfIds.push(p.productName);
+        continue;
+      }
+      pdfMatched++;
+      // Store the full per-product PDF entry (minus matchedDbIds/sourceFile
+      // — bookkeeping, not UI-relevant).
+      const { matchedDbIds: _m, sourceFile: _s, ...payload } = p;
+      for (const dbId of dbIds) {
+        const result = (await sqlClient`
+          UPDATE products
+          SET suitability_data = ${JSON.stringify(payload)}::jsonb,
+              updated_at = now()
+          WHERE id = ${dbId}
+          RETURNING id
+        `) as Array<{ id: string }>;
+        if (result.length > 0) {
+          ingested += result.length;
+        } else {
+          missingDbRows.push({ dbId, productName: p.productName });
+        }
+      }
+    }
+
+    return c.json({
+      ok: true,
+      summary: {
+        pdfProducts: pdfProducts.length,
+        pdfMatched,
+        pdfUnmatched,
+        dbRowsIngested: ingested,
+        missingDbRows: missingDbRows.length,
+      },
+      missingDbRows,
+      unmatchedPdfProducts: unmatchedPdfIds,
+    });
+  } catch (e: any) {
+    console.error("ingest-product-suitability failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Apply VEHICLE_SUITABILITY_MAP (shared/vehicleSuitabilityMap.ts) into
+// vehicle_types.suitability_labels. Each entry keyed by DB vehicle name
+// writes its PDF-label array (possibly empty) to the matching row.
+// Idempotent; re-running overwrites with the same payload.
+app.post("/api/admin/apply-vehicle-suitability-labels", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { VEHICLE_SUITABILITY_MAP } = await import(
+      "../shared/vehicleSuitabilityMap"
+    );
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const results: Array<{ name: string; labels: string[]; rows: number }> = [];
+    let labelled = 0;
+    const notMatched: string[] = [];
+    for (const [name, labels] of Object.entries(VEHICLE_SUITABILITY_MAP)) {
+      const r = (await sqlClient`
+        UPDATE vehicle_types
+        SET suitability_labels = ${JSON.stringify(labels)}::jsonb,
+            updated_at = now()
+        WHERE name = ${name}
+        RETURNING id
+      `) as Array<{ id: string }>;
+      if (r.length > 0) labelled += r.length;
+      else notMatched.push(name);
+      results.push({ name, labels, rows: r.length });
+    }
+    return c.json({
+      ok: true,
+      summary: {
+        mapEntries: Object.keys(VEHICLE_SUITABILITY_MAP).length,
+        rowsUpdated: labelled,
+        notMatched: notMatched.length,
+      },
+      notMatched,
+      results,
+    });
+  } catch (e: any) {
+    console.error("apply-vehicle-suitability-labels failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Geo-location endpoint — uses Cloudflare's built-in cf object
 app.get("/api/geo", (c) => {
   const cf = (c.req.raw as any).cf;

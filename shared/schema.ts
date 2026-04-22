@@ -279,6 +279,14 @@ export const vehicleTypes = pgTable("vehicle_types", {
   // Classification
   applicationAreas: jsonb("application_areas"), // Array of where this vehicle is typically used
   industries: jsonb("industries"), // Array of industries that commonly use this vehicle
+  // PDF "Product Suitability" vehicle-suitability labels this DB vehicle type
+  // represents (one DB row may cover multiple PDF labels — e.g. "Reach Truck"
+  // matches both "Electric Reach Truck" and "High Rack Stacker"). Populated by
+  // /api/admin/apply-vehicle-suitability-labels from shared/vehicleSuitabilityMap.ts.
+  // The Impact Calculator "Products suitable for your vehicles" panel unions
+  // these labels across the user's selection, then filters products whose
+  // suitability_data.vehicleSuitability intersects the union.
+  suitabilityLabels: jsonb("suitability_labels"),
   isActive: boolean("is_active").default(true),
   isPopular: boolean("is_popular").default(false), // Track popular/commonly used vehicles
   sortOrder: integer("sort_order").default(0), // For UI ordering
@@ -406,6 +414,29 @@ export const products = pgTable("products", {
   priceListSource: varchar("price_list_source"), // e.g. PRL-1019-ASF-AED-07112025-1
   priceListVersion: varchar("price_list_version"), // e.g. 2025v1
   priceListEffectiveDate: timestamp("price_list_effective_date"),
+  // Product Suitability dataset (PDF: ASAFE_ProductSuitability_PRH-1009).
+  // The whole per-product spec-sheet entry is stored inline — environment,
+  // ATEX, base+fixing, vehicleSuitability (string[]), fitForPurposeApplications
+  // (string[]), impactZone, materialProperties, fireInformation,
+  // environmentalInformation, recyclingInformation. Populated by
+  // /api/admin/ingest-product-suitability from scripts/data/product-suitability.json.
+  // Single-fetch payload: /api/products returns it inline so the ProductSuitabilityBlock
+  // on the detail page and the cross-ref filter in the Impact Calculator can both
+  // read it without a second round-trip. Nullable — 46 of ~82 DB rows get populated
+  // (products with matchedDbIds in the PDF dataset); the rest render a placeholder.
+  suitabilityData: jsonb("suitability_data"),
+  // Product Maintenance dataset (PDF: ASAFE_ProductMaintenance_PRH-1001).
+  // Per-product payload: { inspectionFrequency, inspectionNotes,
+  // cleaningInstructions, damageAssessment (string[]), warrantyConditions,
+  // recommendedSpares (string[]), appliedFrom, rawText }. The source PDF is
+  // generic across four product families (Memaplex / Monoplex / RackGuard /
+  // Traffic Gate), so /api/admin/ingest-maintenance-data merges the
+  // __GLOBAL__ entry with the matching family entry from
+  // scripts/data/product-maintenance.json and writes the combined payload
+  // inline on every matching product row. ProductMaintenanceBlock on the
+  // detail page reads it without a second round-trip. Nullable — unmatched
+  // rows (no family keyword hit) stay null and the component renders nothing.
+  maintenanceData: jsonb("maintenance_data"),
   // Metadata
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),

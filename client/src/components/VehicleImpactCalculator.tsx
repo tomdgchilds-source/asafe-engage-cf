@@ -502,6 +502,68 @@ export function VehicleImpactCalculator() {
     enabled: !!result?.kineticEnergy,
   });
 
+  // Fetch all products for the Product-Suitability cross-reference panel.
+  // Client-side filter against `suitabilityData.vehicleSuitability` (a string[])
+  // intersected with the union of selected-vehicle `suitabilityLabels`.
+  // Only enabled once the user has selected at least one vehicle, otherwise
+  // we'd burn the fetch before it's useful.
+  const {
+    data: allProductsForSuitability,
+    isLoading: loadingSuitabilityProducts,
+  } = useQuery<any[]>({
+    queryKey: ["/api/products", "suitability-grouped"],
+    queryFn: async () => {
+      const response = await fetch("/api/products");
+      if (!response.ok) throw new Error("Failed to fetch products");
+      const data = (await response.json()) as any;
+      return Array.isArray(data) ? data : data?.products || [];
+    },
+    enabled:
+      !!inputs.selectedVehicleTypes && inputs.selectedVehicleTypes.length > 0,
+    // Cache aggressively — this is a mostly-static catalog and the panel
+    // re-runs the client-side filter whenever selection changes.
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Union of PDF vehicle-suitability labels across the user's selection.
+  // Reads `suitabilityLabels` from each selected vehicle_types row (populated
+  // by /api/admin/apply-vehicle-suitability-labels from VEHICLE_SUITABILITY_MAP).
+  const selectedSuitabilityLabels = useMemo(() => {
+    if (!vehicleTypes || !inputs.selectedVehicleTypes?.length) return new Set<string>();
+    const out = new Set<string>();
+    for (const id of inputs.selectedVehicleTypes) {
+      const v = vehicleTypes.find((vt) => vt.id === id);
+      const labels = (v as any)?.suitabilityLabels;
+      if (Array.isArray(labels)) for (const l of labels) out.add(l);
+    }
+    return out;
+  }, [vehicleTypes, inputs.selectedVehicleTypes]);
+
+  // Products whose `suitabilityData.vehicleSuitability` intersects the union
+  // (ANY-match semantics — one matching label is enough to surface it).
+  const suitableProducts = useMemo(() => {
+    if (!allProductsForSuitability || selectedSuitabilityLabels.size === 0)
+      return [];
+    const out: any[] = [];
+    for (const p of allProductsForSuitability) {
+      const sd = (p as any).suitabilityData;
+      const productLabels: string[] | undefined = sd?.vehicleSuitability;
+      if (!Array.isArray(productLabels) || productLabels.length === 0) continue;
+      let matched = false;
+      for (const l of productLabels) {
+        if (selectedSuitabilityLabels.has(l)) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) out.push(p);
+    }
+    // Sort by impact rating desc to mirror the rest of the calculator UI.
+    return out.sort(
+      (a, b) => (b.impactRating || 0) - (a.impactRating || 0),
+    );
+  }, [allProductsForSuitability, selectedSuitabilityLabels]);
+
   // Save calculation mutation
   const saveCalculation = useMutation({
     mutationFn: async (calculationData: any) => {
@@ -1543,6 +1605,109 @@ export function VehicleImpactCalculator() {
               <p className="text-center text-gray-500 dark:text-gray-400 py-4">
                 No specific product recommendations available for this energy level.
               </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Products suitable for selected vehicles — cross-references the PDF
+          Product Suitability dataset (products.suitability_data.vehicleSuitability)
+          against the union of suitabilityLabels on the user's selected
+          vehicle_types rows. Additive panel; the existing barrier
+          recommendations above remain the primary action. */}
+      {inputs.selectedVehicleTypes && inputs.selectedVehicleTypes.length > 0 && (
+        <Card className="mt-8" data-testid="suitable-products-panel">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5 text-[#B8860B]" />
+              Products Suitable for Your Vehicles
+            </CardTitle>
+            <p className="text-xs text-gray-500 mt-1">
+              Cross-referenced from the A-SAFE Product Suitability spec sheet —
+              filters products whose declared vehicle suitability includes any
+              of your selected vehicle types.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingSuitabilityProducts ? (
+              <div className="text-center py-4">
+                <div className="animate-spin h-6 w-6 border-2 border-yellow-400 border-t-transparent rounded-full mx-auto"></div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  Loading catalog…
+                </p>
+              </div>
+            ) : selectedSuitabilityLabels.size === 0 ? (
+              <p className="text-sm text-gray-500">
+                Selected vehicles have no mapped product-suitability labels yet.
+                Barrier recommendations above still apply.
+              </p>
+            ) : suitableProducts.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No perfectly matched products — try adjusting the vehicle
+                selection. The barrier recommendations above still apply.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  {suitableProducts.length} product
+                  {suitableProducts.length === 1 ? "" : "s"} match —
+                  {" "}
+                  {Array.from(selectedSuitabilityLabels)
+                    .slice(0, 4)
+                    .join(", ")}
+                  {selectedSuitabilityLabels.size > 4
+                    ? ` +${selectedSuitabilityLabels.size - 4} more`
+                    : ""}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {suitableProducts.slice(0, 12).map((product) => {
+                    const sd: any = (product as any).suitabilityData;
+                    const apps: string[] = Array.isArray(sd?.fitForPurposeApplications)
+                      ? sd.fitForPurposeApplications.slice(0, 2)
+                      : [];
+                    return (
+                      <Link
+                        key={product.id}
+                        href={`/products/${product.id}?from=calculator`}
+                      >
+                        <div
+                          className="rounded-lg border p-3 bg-white dark:bg-gray-900 hover:shadow-md hover:border-yellow-400 transition cursor-pointer h-full flex flex-col"
+                          data-testid={`suitable-product-${product.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-sm font-semibold leading-tight line-clamp-2">
+                              {product.name}
+                            </p>
+                            {product.impactRating != null && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-[#B8860B] whitespace-nowrap shrink-0">
+                                {product.impactRating.toLocaleString()}J
+                              </span>
+                            )}
+                          </div>
+                          {apps.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-auto pt-2">
+                              {apps.map((app) => (
+                                <span
+                                  key={app}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-50 border border-yellow-200 text-gray-700"
+                                >
+                                  {app}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+                {suitableProducts.length > 12 && (
+                  <p className="text-xs text-gray-500 mt-3">
+                    Showing 12 of {suitableProducts.length}. Visit the Products
+                    page and filter by vehicle type to browse the rest.
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
