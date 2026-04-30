@@ -18,6 +18,19 @@ interface MarkupListProps {
   toast: (opts: any) => void;
   queryClient: any;
   onClose: () => void;
+  /**
+   * True when the live PAS 13 guardrail check has surfaced at least one
+   * error-severity violation. Drives the "Transfer to Cart" button into
+   * the gate-confirm path instead of saving immediately.
+   */
+  hasErrorViolations?: boolean;
+  /** When true the guardrails are silenced; we skip the gate even if
+   *  hasErrorViolations is set. */
+  guardrailsDisabled?: boolean;
+  /** Wrap a save/transfer side-effect with the parent's guardrail
+   *  confirm dialog. Passes the side-effect through unchanged when no
+   *  errors exist. */
+  onSaveGuard?: (run: () => void) => void;
 }
 
 export function MarkupList({
@@ -34,10 +47,30 @@ export function MarkupList({
   toast,
   queryClient,
   onClose,
+  hasErrorViolations,
+  guardrailsDisabled,
+  onSaveGuard,
 }: MarkupListProps) {
   if (!markups || markups.length === 0) return null;
 
   const handleTransfer = async () => {
+    // PAS 13 submission gate. Errors block until the designer
+    // explicitly confirms; warnings flow through silently.
+    if (
+      !guardrailsDisabled &&
+      hasErrorViolations &&
+      typeof onSaveGuard === "function"
+    ) {
+      onSaveGuard(() => {
+        // Re-enter without the gate — the parent has confirmed.
+        void doTransfer();
+      });
+      return;
+    }
+    void doTransfer();
+  };
+
+  const doTransfer = async () => {
     hapticSuccess();
     try {
       // Group markups by product and calculate quantities

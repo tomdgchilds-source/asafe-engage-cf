@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -32,6 +32,15 @@ import { CanvasOverlay } from "./components/CanvasOverlay";
 import { MarkupList } from "./components/MarkupList";
 import { TitleBlockFrame, type BarrierKeyEntry, type TitleBlockMeta } from "./components/TitleBlockFrame";
 import { TitleBlockEditor } from "./components/TitleBlockEditor";
+import { Pas13GuardrailPanel } from "./components/Pas13GuardrailPanel";
+import {
+  evaluateGuardrails,
+  groupViolationsByMarkup,
+  readGuardrailsDisabled,
+  writeGuardrailsDisabled,
+  type GuardrailViolation,
+  type GuardrailCatalogProduct,
+} from "./utils/pas13Guardrails";
 import { exportLayoutDrawingPdf } from "@/utils/layoutDrawingPdfExport";
 
 export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: LayoutMarkupEditorProps) {
@@ -149,6 +158,70 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
   const { data: existingMarkups = [] } = useQuery<LayoutMarkup[]>({
     queryKey: ["/api/layout-drawings", drawing?.id, "markups"],
     enabled: !!drawing?.id && isOpen,
+  });
+
+  // ── PAS 13 guardrails state ────────────────────────────────────────────
+  // Admin "silence" toggle, persisted to localStorage so dev/QA can hush
+  // the panel during an unrelated session without touching schema.
+  const [guardrailsDisabled, setGuardrailsDisabled] = useState<boolean>(() =>
+    readGuardrailsDisabled(),
+  );
+  useEffect(() => {
+    writeGuardrailsDisabled(guardrailsDisabled);
+  }, [guardrailsDisabled]);
+
+  // Markup currently being pulsed by a "Show on canvas" click. Auto-
+  // clears after the SVG animation finishes (~1.4s; the animation runs
+  // for 1.2s × 2 repeats, so we hold the state slightly longer to cover
+  // both passes before the ring vanishes).
+  const [pulseMarkupId, setPulseMarkupId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pulseMarkupId) return;
+    const t = setTimeout(() => setPulseMarkupId(null), 2600);
+    return () => clearTimeout(t);
+  }, [pulseMarkupId]);
+
+  // Submission-gate state — when an "Add to project cart" or "Save"
+  // action is invoked while error-severity violations exist, we surface
+  // a confirm dialog the designer must acknowledge.
+  const [pendingSaveAction, setPendingSaveAction] = useState<
+    null | { run: () => void; errorMessages: string[] }
+  >(null);
+
+  // Catalog lookup keyed by product name — gives the rule engine
+  // impactRating / deflectionZone / substrateNotes when the products
+  // endpoint has them. Without this lookup the rules degrade to the
+  // name-matcher / family-default heuristics.
+  const { data: catalogForGuardrails = [] } = useQuery<any[]>({
+    queryKey: ["/api/products", "guardrail-lookup"],
+    queryFn: async () => {
+      const res = await fetch(
+        "/api/products?grouped=false&pageSize=200",
+        { credentials: "include" },
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: isOpen && !!drawing?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Vehicle-types catalog. The Layout Drawing tool doesn't have its own
+  // vehicle picker yet — when none are selected the
+  // `vehicle_class_mismatch` rule is a no-op. Pre-loading the catalog
+  // means the rule is wired and ready when an upstream wave adds the
+  // selector without us needing to plumb the IDs in.
+  const { data: vehicleTypesCatalog = [] } = useQuery<any[]>({
+    queryKey: ["/api/vehicle-types"],
+    queryFn: async () => {
+      const res = await fetch("/api/vehicle-types", { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: isOpen && !!drawing?.id,
+    staleTime: 10 * 60 * 1000,
   });
 
   // Sync existing markups from database with local state
@@ -1413,6 +1486,112 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     setAutoCollapseTimer(timer);
   };
 
+  // ── PAS 13 guardrails — recompute violations on every relevant change ──
+  // Keyed on markups, scale state, vehicle selection, and the catalog
+  // lookups. Cheap enough that a useMemo is plenty (no segment-vs-
+  // segment work runs without obstacles + barriers + a calibrated
+  // scale). Honours the admin "silence" toggle: returns an empty list
+  // when guardrails are disabled so the UI gates collapse cleanly.
+  const guardrailProductLookup = useMemo(() => {
+    const byName: Record<string, GuardrailCatalogProduct | undefined> = {};
+    for (const p of catalogForGuardrails as any[]) {
+      if (!p?.name) continue;
+      byName[p.name] = {
+        id: p.id,
+        name: p.name,
+        impactRatingJoules:
+          (typeof p.impactRating === "number" ? p.impactRating : null) ??
+          (typeof p.pas13TestJoules === "number" ? p.pas13TestJoules : null),
+        deflectionZoneMm:
+          typeof p.deflectionZone === "number" ? p.deflectionZone : null,
+        maxPostCentreMm:
+          (p.specifications &&
+            typeof p.specifications === "object" &&
+            typeof (p.specifications as any).maxPostCentreMm === "number"
+            ? ((p.specifications as any).maxPostCentreMm as number)
+            : null),
+        substrateNotes:
+          (p.groundWorksData &&
+            typeof p.groundWorksData === "object" &&
+            typeof (p.groundWorksData as any).substrateNotes === "string"
+            ? ((p.groundWorksData as any).substrateNotes as string)
+            : null),
+      };
+    }
+    return { byName };
+  }, [catalogForGuardrails]);
+
+  // The Layout Drawing tool doesn't yet ship its own vehicle picker, so
+  // the selectedVehicleTypeIds list is empty by default. Future waves
+  // can plumb in a project-level vehicle selection without changing this
+  // component's signature. (See report — degrades to "no signal".)
+  const selectedVehicleTypeIdsForGuardrails: string[] = useMemo(
+    () => [],
+    [],
+  );
+
+  // Free-text the floor-mismatch rule scans for substrate keywords.
+  // Combines drawing-level notes + per-markup comments so designers can
+  // type "asphalt floor" anywhere and still see the warning fire.
+  const layoutNotesForGuardrails = useMemo(() => {
+    const drawingNotes = (drawing as any)?.notesSection ?? "";
+    const markupNotes = markups
+      .map((m) => (m.comment ?? "").trim())
+      .filter(Boolean)
+      .join(" \n ");
+    return `${drawingNotes}\n${markupNotes}`.trim();
+  }, [drawing, markups]);
+
+  const guardrailViolations: GuardrailViolation[] = useMemo(() => {
+    if (guardrailsDisabled) return [];
+    return evaluateGuardrails({
+      markups: markups as any[],
+      scale: { drawingScale: scale.drawingScale, isScaleSet: scale.isScaleSet },
+      selectedVehicleTypeIds: selectedVehicleTypeIdsForGuardrails,
+      vehicleTypes: vehicleTypesCatalog as any[],
+      productLookup: guardrailProductLookup,
+      layoutNotesText: layoutNotesForGuardrails,
+    });
+  }, [
+    guardrailsDisabled,
+    markups,
+    scale.drawingScale,
+    scale.isScaleSet,
+    selectedVehicleTypeIdsForGuardrails,
+    vehicleTypesCatalog,
+    guardrailProductLookup,
+    layoutNotesForGuardrails,
+  ]);
+
+  const guardrailViolationsByMarkup = useMemo(
+    () => groupViolationsByMarkup(guardrailViolations),
+    [guardrailViolations],
+  );
+
+  const errorViolations = useMemo(
+    () => guardrailViolations.filter((v) => v.severity === "error"),
+    [guardrailViolations],
+  );
+
+  /**
+   * Save-gate helper. Wraps a save/transfer action with the PAS 13
+   * error-severity confirm dialog: warnings don't block, errors do.
+   * Pass the side-effect to run after confirmation.
+   */
+  const runWithGuardrailGate = useCallback(
+    (run: () => void) => {
+      if (guardrailsDisabled || errorViolations.length === 0) {
+        run();
+        return;
+      }
+      setPendingSaveAction({
+        run,
+        errorMessages: errorViolations.map((v) => v.message),
+      });
+    },
+    [guardrailsDisabled, errorViolations],
+  );
+
   // Build the title-block metadata from the drawing record. Any missing
   // field falls back to a sensible default at render time inside the frame.
   const titleBlockMeta: TitleBlockMeta = {
@@ -1561,6 +1740,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
               getMarkerFontSize={canvas.getMarkerFontSize}
               getMarkerStrokeWidth={canvas.getMarkerStrokeWidth}
               getProductColor={getProductColor}
+              guardrailViolationsByMarkup={guardrailViolationsByMarkup}
+              pulseMarkupId={pulseMarkupId}
               handleTouchStart={handleTouchStart}
               handleTouchMove={canvas.handleTouchMove}
               handleTouchEnd={handleTouchEnd}
@@ -1764,7 +1945,23 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
               toast={toast}
               queryClient={queryClient}
               onClose={onClose}
+              hasErrorViolations={errorViolations.length > 0}
+              guardrailsDisabled={guardrailsDisabled}
+              onSaveGuard={runWithGuardrailGate}
             />
+
+            {/* PAS 13 guardrail panel — stacked chip list of live rule
+                violations. Renders only when there's something to show
+                (or when the toggle has explicitly silenced it, so the
+                designer still has access to the re-enable button). */}
+            {(markups.length > 0 || guardrailsDisabled) && (
+              <Pas13GuardrailPanel
+                violations={guardrailViolations}
+                onShowOnCanvas={(markupId) => setPulseMarkupId(markupId)}
+                isDisabled={guardrailsDisabled}
+                onToggleDisabled={() => setGuardrailsDisabled((d) => !d)}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1830,6 +2027,61 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* PAS 13 submission-gate dialog. Surfaces only when an error-
+          severity guardrail violation exists at save time. Warnings
+          never block. Wording locked to σ's "not aligned" vocabulary. */}
+      <AlertDialog
+        open={!!pendingSaveAction}
+        onOpenChange={(open) => {
+          if (!open) setPendingSaveAction(null);
+        }}
+      >
+        <AlertDialogContent className="z-[100025]" data-testid="pas13-save-gate-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingSaveAction
+                ? `${pendingSaveAction.errorMessages.length} ${pendingSaveAction.errorMessages.length === 1 ? "error" : "errors"} remaining — not PAS 13 aligned`
+                : "PAS 13 errors detected"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Saving the layout will keep these unresolved PAS 13 issues
+                  on the drawing:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 max-h-48 overflow-y-auto">
+                  {pendingSaveAction?.errorMessages.map((m, i) => (
+                    <li key={i}>{m}</li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-gray-500 pt-1">
+                  Indicative — verify with A-SAFE engineering for procurement.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setPendingSaveAction(null)}
+              data-testid="pas13-save-gate-cancel"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const action = pendingSaveAction;
+                setPendingSaveAction(null);
+                if (action) action.run();
+              }}
+              className="bg-yellow-500 hover:bg-yellow-600 text-black"
+              data-testid="pas13-save-gate-confirm"
+            >
+              Save anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

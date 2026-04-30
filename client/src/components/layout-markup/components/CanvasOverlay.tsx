@@ -6,6 +6,7 @@ import { pdfOptions } from "../constants";
 import { generatePathString, parsePathData, getProductWidthMm } from "../utils";
 import { computeBarrierSymbol } from "@/utils/barrierSymbol";
 import type { CartItem, DrawingPoint, MarkupPath, LayoutMarkup } from "../types";
+import type { GuardrailViolation } from "../utils/pas13Guardrails";
 
 /**
  * Tiered raster scale for the PDF <Page>.
@@ -136,6 +137,14 @@ interface CanvasOverlayProps {
    *  snap has fired recently. */
   lastSnappedEndpoint?: DrawingPoint | null;
 
+  /** PAS 13 guardrail violations grouped by markupId. Drives the small
+   *  dot badge on each offending markup + the canvas pulse triggered by
+   *  the side panel's "Show on canvas" button. */
+  guardrailViolationsByMarkup?: Map<string, GuardrailViolation[]>;
+  /** Markup id currently being pulsed (set by side-panel "Show on
+   *  canvas"). Auto-cleared after ~1.4s by the parent. */
+  pulseMarkupId?: string | null;
+
   // Event handlers
   handleTouchStart: (e: React.TouchEvent) => void;
   handleTouchMove: (e: React.TouchEvent) => void;
@@ -209,6 +218,8 @@ export function CanvasOverlay({
   getMarkerFontSize,
   getMarkerStrokeWidth,
   getProductColor,
+  guardrailViolationsByMarkup,
+  pulseMarkupId,
   handleTouchStart,
   handleTouchMove,
   handleTouchEnd,
@@ -588,6 +599,16 @@ export function CanvasOverlay({
             const { points, symbol, productWidthMm } = markupSymbols[index];
             const color = markup.cartItemId ? getProductColor(markup.cartItemId) : '#6B7280';
             const pathString = generatePathString(points);
+            const violations = guardrailViolationsByMarkup?.get(markup.id);
+            const hasErrorViolation = violations?.some((v) => v.severity === "error") ?? false;
+            const hasWarningViolation = violations?.some((v) => v.severity === "warning") ?? false;
+            const violationDotColour = hasErrorViolation
+              ? "#EF4444"
+              : hasWarningViolation
+                ? "#F59E0B"
+                : null;
+            const isPulsing = pulseMarkupId === markup.id;
+            const pulseAnchor = points[0] ?? { x: markup.xPosition, y: markup.yPosition };
 
             return (
               <g key={markup.id}>
@@ -716,6 +737,79 @@ export function CanvasOverlay({
                     >
                       {markups.length - index}
                     </text>
+                  </g>
+                )}
+
+                {/* PAS 13 violation badge — small dot with hover tooltip
+                    listing every guardrail issue on this markup. Sits
+                    just above the numbered marker so it never covers the
+                    number itself. */}
+                {violationDotColour && points[0] && (
+                  <g
+                    style={{ pointerEvents: 'auto' }}
+                    data-testid={`pas13-markup-badge-${markup.id}`}
+                  >
+                    <circle
+                      cx={points[0].x + getMarkerRadius(14)}
+                      cy={points[0].y - getMarkerRadius(14)}
+                      r={getMarkerRadius(7)}
+                      fill={violationDotColour}
+                      stroke="white"
+                      strokeWidth={getMarkerStrokeWidth(1.2)}
+                    />
+                    <text
+                      x={points[0].x + getMarkerRadius(14)}
+                      y={points[0].y - getMarkerRadius(14)}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="white"
+                      fontSize={getMarkerFontSize(10)}
+                      fontWeight="bold"
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}
+                    >
+                      !
+                    </text>
+                    <title>
+                      {(violations ?? [])
+                        .map((v) => `${v.severity === 'error' ? '🚫' : '⚠️'} ${v.message}`)
+                        .join('\n\n')}
+                    </title>
+                  </g>
+                )}
+
+                {/* Side-panel "Show on canvas" pulse — short-lived ring
+                    around the markup origin so the designer sees which
+                    one the chip refers to. Auto-clears when the parent
+                    nulls pulseMarkupId. */}
+                {isPulsing && (
+                  <g
+                    data-testid={`pas13-markup-pulse-${markup.id}`}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <circle
+                      cx={pulseAnchor.x}
+                      cy={pulseAnchor.y}
+                      r={getPointRadius(20)}
+                      fill="none"
+                      stroke={violationDotColour ?? '#3B82F6'}
+                      strokeWidth={getStrokeWidth(3)}
+                      opacity={0.85}
+                    >
+                      <animate
+                        attributeName="r"
+                        from={getPointRadius(10)}
+                        to={getPointRadius(48)}
+                        dur="1.2s"
+                        repeatCount="2"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        from="0.95"
+                        to="0"
+                        dur="1.2s"
+                        repeatCount="2"
+                      />
+                    </circle>
                   </g>
                 )}
               </g>
