@@ -138,7 +138,7 @@ export const PAS13_PEDESTRIAN_SAFETY_ZONE_MIN_MM = 600;
 // to the heavier row. Callers of classifyVehicle() get `conservativeClass
 // = true` so the UI can note "rounded up from boundary".
 // ─────────────────────────────────────────────────────────────────────────
-interface VehicleClassRow {
+export interface VehicleClassRow {
   /** Internal code — e.g. "T1" (lightest) through "T4" (heaviest). */
   classCode: string;
   /** Human-readable description, rendered in UI. */
@@ -153,6 +153,12 @@ interface VehicleClassRow {
 // wins; when a value sits on the boundary the row that OWNS that
 // boundary is still considered a "fit", and the `conservativeClass` flag
 // flips true. If none fit, we cap at the heaviest class.
+//
+// IMPORTANT: this is the *seed* (default) table. Admins can override the
+// thresholds at runtime via `/admin/pas13-rules` (db-backed). The worker
+// preloads the override table from `pas13_vehicle_classes` and threads it
+// in via `setVehicleClassTableOverride()`. Client-side calls fall back to
+// this seed when no override has been installed in the current isolate.
 export const PAS13_VEHICLE_CLASS_TABLE: readonly VehicleClassRow[] = Object.freeze([
   {
     classCode: "T1",
@@ -179,6 +185,37 @@ export const PAS13_VEHICLE_CLASS_TABLE: readonly VehicleClassRow[] = Object.free
     speedMaxKmh: Number.POSITIVE_INFINITY,
   },
 ]);
+
+// Mutable mirror of the table classifyVehicle() actually consults. Starts
+// as the seed; the worker overrides it on each cold-start (and on each
+// admin edit) by calling setVehicleClassTableOverride().
+let activeVehicleClassTable: readonly VehicleClassRow[] = PAS13_VEHICLE_CLASS_TABLE;
+
+/**
+ * Replace the in-process vehicle-class table. Worker calls this at cold-
+ * start (after loading rows from `pas13_vehicle_classes`) and on every
+ * `POST /api/admin/pas13-vehicle-classes` (cache invalidation).
+ *
+ * Pass `null` to revert to the seed (used in tests).
+ */
+export function setVehicleClassTableOverride(
+  rows: readonly VehicleClassRow[] | null,
+): void {
+  if (!rows || rows.length === 0) {
+    activeVehicleClassTable = PAS13_VEHICLE_CLASS_TABLE;
+    return;
+  }
+  // Defensive: sort lightest → heaviest by mass max so callers passing
+  // unsorted rows still get the lightest-fit-wins semantic. Infinity
+  // sorts last naturally with numeric compare.
+  const sorted = [...rows].sort((a, b) => a.totalMassMaxKg - b.totalMassMaxKg);
+  activeVehicleClassTable = Object.freeze(sorted);
+}
+
+/** Read-only accessor for callers that want the currently-active table. */
+export function getActiveVehicleClassTable(): readonly VehicleClassRow[] {
+  return activeVehicleClassTable;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type Verdict = "aligned" | "borderline" | "not_aligned";
@@ -288,10 +325,15 @@ export function classifyVehicle(input: {
   const mass = Math.max(0, input.totalMassKg);
   const speed = Math.max(0, input.speedKmh);
 
+  // Read from the (mutable) active table — this is either the seed
+  // PAS13_VEHICLE_CLASS_TABLE or an admin-edited override pushed in via
+  // setVehicleClassTableOverride(). Treated as readonly here.
+  const table = activeVehicleClassTable;
+
   let chosen: VehicleClassRow | null = null;
   let onBoundary = false;
 
-  for (const row of PAS13_VEHICLE_CLASS_TABLE) {
+  for (const row of table) {
     const fitsMass = mass <= row.totalMassMaxKg;
     const fitsSpeed = speed <= row.speedMaxKmh;
     if (fitsMass && fitsSpeed) {
@@ -311,9 +353,9 @@ export function classifyVehicle(input: {
         onBoundary = true;
         // CONSERVATIVE: bump to the next-heavier row. We only ever push
         // to the IMMEDIATELY heavier class — we don't skip rows.
-        const idx = PAS13_VEHICLE_CLASS_TABLE.indexOf(row);
-        if (idx < PAS13_VEHICLE_CLASS_TABLE.length - 1) {
-          chosen = PAS13_VEHICLE_CLASS_TABLE[idx + 1];
+        const idx = table.indexOf(row);
+        if (idx < table.length - 1) {
+          chosen = table[idx + 1];
         }
       }
       break;
@@ -322,7 +364,7 @@ export function classifyVehicle(input: {
 
   if (!chosen) {
     // Fell off the table → heaviest class.
-    chosen = PAS13_VEHICLE_CLASS_TABLE[PAS13_VEHICLE_CLASS_TABLE.length - 1];
+    chosen = table[table.length - 1];
   }
 
   // §6 references Annex B as the guidance-level vehicle / angle source.

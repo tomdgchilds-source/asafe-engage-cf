@@ -4392,6 +4392,323 @@ app.post("/api/admin/test-install-team-email/:installationAssignmentId", async (
   }
 });
 
+// ─── PAS 13 Vehicle-Class Thresholds (admin) ──────────────────────────────
+//
+// Defensive `CREATE TABLE IF NOT EXISTS` migration for the new
+// `pas13_vehicle_classes` table. Idempotent — re-running converges. Gated
+// by MIGRATION_TOKEN (bearer), same pattern as the sibling apply-*-schema
+// endpoints. Seeds the four default rows (T1..T4) if the table is empty,
+// so the first deploy is non-breaking (classifyVehicle continues returning
+// the same values whether or not setVehicleClassTableOverride() has been
+// called yet).
+app.post("/api/admin/apply-pas13-classes-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS pas13_vehicle_classes (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        class_code varchar NOT NULL UNIQUE,
+        mass_min_kg integer NOT NULL DEFAULT 0,
+        mass_max_kg integer,
+        speed_min_kmh real NOT NULL DEFAULT 0,
+        speed_max_kmh real,
+        description text NOT NULL DEFAULT '',
+        updated_at timestamp DEFAULT now(),
+        updated_by varchar
+      )
+    `;
+
+    // Defensive: seed default rows iff the table is empty. Mirrors the
+    // PAS13_VEHICLE_CLASS_TABLE seed in shared/pas13Rules.ts. NULL max
+    // values on T4 are intentional — open-ended class.
+    const countRows = (await sqlClient`
+      SELECT count(*)::int AS n FROM pas13_vehicle_classes
+    `) as Array<{ n: number }>;
+    let seeded = 0;
+    if ((countRows[0]?.n ?? 0) === 0) {
+      const defaults: Array<{
+        code: string;
+        massMin: number;
+        massMax: number | null;
+        speedMin: number;
+        speedMax: number | null;
+        description: string;
+      }> = [
+        {
+          code: "T1",
+          massMin: 0,
+          massMax: 1500,
+          speedMin: 0,
+          speedMax: 6,
+          description:
+            "Manual / pedestrian-operated trucks (≤1 500 kg, ≤6 km/h)",
+        },
+        {
+          code: "T2",
+          massMin: 1501,
+          massMax: 3500,
+          speedMin: 0,
+          speedMax: 10,
+          description: "Light powered trucks (≤3 500 kg, ≤10 km/h)",
+        },
+        {
+          code: "T3",
+          massMin: 3501,
+          massMax: 7500,
+          speedMin: 0,
+          speedMax: 15,
+          description: "Counterbalance forklifts (≤7 500 kg, ≤15 km/h)",
+        },
+        {
+          code: "T4",
+          massMin: 7501,
+          massMax: null,
+          speedMin: 0,
+          speedMax: null,
+          description:
+            "Heavy industrial vehicles / reach trucks (>7 500 kg or >15 km/h)",
+        },
+      ];
+      for (const d of defaults) {
+        await sqlClient`
+          INSERT INTO pas13_vehicle_classes (
+            class_code, mass_min_kg, mass_max_kg,
+            speed_min_kmh, speed_max_kmh, description, updated_by
+          )
+          VALUES (
+            ${d.code}, ${d.massMin}, ${d.massMax},
+            ${d.speedMin}, ${d.speedMax}, ${d.description}, 'seed'
+          )
+          ON CONFLICT (class_code) DO NOTHING
+        `;
+        seeded++;
+      }
+    }
+
+    return c.json({ ok: true, table: "pas13_vehicle_classes", seeded });
+  } catch (e: any) {
+    console.error("apply-pas13-classes-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// GET /api/admin/pas13-vehicle-classes
+// Returns the current rows in lightest → heaviest order. Gated via the
+// session-based requireAdmin pattern (NOT MIGRATION_TOKEN — this is an
+// ongoing UI surface).
+app.get("/api/admin/pas13-vehicle-classes", authMiddleware, async (c) => {
+  if (!(await requireAdmin(c)))
+    return c.json({ message: "Admin access required" }, 403);
+  if (!c.env.DATABASE_URL) {
+    return c.json({ message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Defensive: if the table doesn't exist yet (migration not run), fall
+    // back to the seed defaults so the admin UI doesn't 500.
+    const tableExists = (await sqlClient`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'pas13_vehicle_classes'
+      ) AS exists
+    `) as Array<{ exists: boolean }>;
+    if (!tableExists[0]?.exists) {
+      return c.json({
+        rows: [],
+        bootstrapNeeded: true,
+        message:
+          "pas13_vehicle_classes table not yet created — run /api/admin/apply-pas13-classes-schema first.",
+      });
+    }
+
+    const rows = (await sqlClient`
+      SELECT id, class_code, mass_min_kg, mass_max_kg,
+             speed_min_kmh, speed_max_kmh, description,
+             updated_at, updated_by
+      FROM pas13_vehicle_classes
+      ORDER BY mass_min_kg ASC, class_code ASC
+    `) as Array<{
+      id: string;
+      class_code: string;
+      mass_min_kg: number;
+      mass_max_kg: number | null;
+      speed_min_kmh: number;
+      speed_max_kmh: number | null;
+      description: string;
+      updated_at: string | null;
+      updated_by: string | null;
+    }>;
+
+    return c.json({
+      rows: rows.map((r) => ({
+        id: r.id,
+        classCode: r.class_code,
+        massMinKg: r.mass_min_kg,
+        massMaxKg: r.mass_max_kg,
+        speedMinKmh: r.speed_min_kmh,
+        speedMaxKmh: r.speed_max_kmh,
+        description: r.description,
+        updatedAt: r.updated_at,
+        updatedBy: r.updated_by,
+      })),
+    });
+  } catch (e: any) {
+    console.error("pas13-vehicle-classes GET failed:", e);
+    return c.json({ message: e?.message || String(e) }, 500);
+  }
+});
+
+// POST /api/admin/pas13-vehicle-classes
+// Bulk upsert. Body: { rows: [{ classCode, massMinKg, massMaxKg | null,
+//   speedMinKmh, speedMaxKmh | null, description }] }. Each row is upserted
+// by classCode; existing rows missing from the payload are NOT deleted —
+// callers wanting to drop a class should leave it but set its bounds to
+// some sentinel (or extend this endpoint with a soft-delete column later).
+//
+// Cache invalidation: we wipe the per-isolate KV cache key so the next
+// request to anything that needs the active classification table refetches
+// the freshly-edited rows.
+app.post("/api/admin/pas13-vehicle-classes", authMiddleware, async (c) => {
+  if (!(await requireAdmin(c)))
+    return c.json({ message: "Admin access required" }, 403);
+  if (!c.env.DATABASE_URL) {
+    return c.json({ message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const session = c.get("user") as any;
+    const actorEmail =
+      (session?.claims?.email as string | undefined) ||
+      (session?.claims?.sub as string | undefined) ||
+      null;
+    const body = await c.req.json().catch(() => ({}));
+    const rows: Array<{
+      classCode?: string;
+      massMinKg?: number;
+      massMaxKg?: number | null;
+      speedMinKmh?: number;
+      speedMaxKmh?: number | null;
+      description?: string;
+    }> = Array.isArray(body?.rows) ? body.rows : [];
+
+    if (rows.length === 0) {
+      return c.json({ message: "rows[] required" }, 400);
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const accepted: string[] = [];
+    const rejected: Array<{ classCode: string | undefined; reason: string }> =
+      [];
+
+    for (const r of rows) {
+      const code = (r.classCode || "").trim();
+      if (!code) {
+        rejected.push({ classCode: r.classCode, reason: "classCode required" });
+        continue;
+      }
+      const massMin = Number(r.massMinKg);
+      const speedMin = Number(r.speedMinKmh);
+      const massMax =
+        r.massMaxKg === null || r.massMaxKg === undefined
+          ? null
+          : Number(r.massMaxKg);
+      const speedMax =
+        r.speedMaxKmh === null || r.speedMaxKmh === undefined
+          ? null
+          : Number(r.speedMaxKmh);
+      if (!Number.isFinite(massMin) || massMin < 0) {
+        rejected.push({ classCode: code, reason: "massMinKg must be ≥ 0" });
+        continue;
+      }
+      if (massMax !== null && (!Number.isFinite(massMax) || massMax <= massMin)) {
+        rejected.push({
+          classCode: code,
+          reason: "massMaxKg must be > massMinKg (or null for open-ended)",
+        });
+        continue;
+      }
+      if (!Number.isFinite(speedMin) || speedMin < 0) {
+        rejected.push({ classCode: code, reason: "speedMinKmh must be ≥ 0" });
+        continue;
+      }
+      if (
+        speedMax !== null &&
+        (!Number.isFinite(speedMax) || speedMax <= speedMin)
+      ) {
+        rejected.push({
+          classCode: code,
+          reason: "speedMaxKmh must be > speedMinKmh (or null for open-ended)",
+        });
+        continue;
+      }
+      const description = (r.description || "").toString();
+      await sqlClient`
+        INSERT INTO pas13_vehicle_classes (
+          class_code, mass_min_kg, mass_max_kg,
+          speed_min_kmh, speed_max_kmh, description,
+          updated_at, updated_by
+        )
+        VALUES (
+          ${code}, ${massMin}, ${massMax},
+          ${speedMin}, ${speedMax}, ${description},
+          now(), ${actorEmail}
+        )
+        ON CONFLICT (class_code) DO UPDATE SET
+          mass_min_kg = EXCLUDED.mass_min_kg,
+          mass_max_kg = EXCLUDED.mass_max_kg,
+          speed_min_kmh = EXCLUDED.speed_min_kmh,
+          speed_max_kmh = EXCLUDED.speed_max_kmh,
+          description = EXCLUDED.description,
+          updated_at = now(),
+          updated_by = EXCLUDED.updated_by
+      `;
+      accepted.push(code);
+    }
+
+    // Cache invalidation: bump the in-isolate epoch so the next call to
+    // any classifyVehicle()-using endpoint will re-pull. KV invalidation
+    // is a best-effort cross-isolate signal — siblings pick it up on
+    // their first read by comparing their cached version stamp.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = globalThis as any;
+      g.__pas13ClassesEpoch = Date.now();
+      if (c.env.KV_SESSIONS) {
+        await c.env.KV_SESSIONS.put(
+          "pas13:classes:epoch",
+          String(g.__pas13ClassesEpoch),
+          { expirationTtl: 60 * 60 * 24 * 7 },
+        );
+      }
+    } catch (e) {
+      console.warn("pas13 cache-bust soft-failed:", (e as any)?.message);
+    }
+
+    return c.json({ ok: true, accepted, rejected });
+  } catch (e: any) {
+    console.error("pas13-vehicle-classes POST failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
 
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),

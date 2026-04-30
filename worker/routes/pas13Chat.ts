@@ -32,6 +32,7 @@ import {
   PAS13_INDICATIVE_FOOTNOTE,
 } from "../../shared/pas13Rules";
 import { pas13Cite } from "../../shared/pas13Citations";
+import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
 
 const pas13Chat = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -511,6 +512,11 @@ pas13Chat.post("/pas13/chat", authMiddleware, async (c) => {
     : [];
 
   const t0 = Date.now();
+
+  // Pull the latest admin-edited T1..T4 thresholds so any classifyVehicle()
+  // call inside the L2 verdict reflects /admin/pas13-rules edits. Cheap on
+  // hot path (cached); soft-fails to seed values.
+  await ensurePas13ClassesLoaded(c.env);
 
   // L2 first.
   const parsed = parseCalcQuestion(question);

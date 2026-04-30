@@ -12,6 +12,7 @@ import {
 } from "../services/email";
 import { ensureInstallationForOrder } from "./installations";
 import { pas13Verdict, type Pas13Verdict } from "../../shared/pas13Rules";
+import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
 
 // Order statuses that represent "this order is won and moving towards
 // delivery/install". When an order enters any of these, we try to
@@ -287,6 +288,10 @@ orders.post("/orders", authMiddleware, async (c) => {
       citations: Pas13Verdict["citations"];
       details: Pas13Verdict["details"];
     }> = [];
+
+    // Pull the latest admin-edited T1..T4 thresholds before classifying.
+    // Cheap on hot path (cached against KV epoch); soft-fails to seed.
+    await ensurePas13ClassesLoaded(c.env);
 
     for (const item of enrichedCartItems) {
       const product = (item as any).__product;

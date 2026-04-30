@@ -59,6 +59,7 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 // hit the auth check.
 const SharedOrderView = lazy(() => import("@/pages/SharedOrderView"));
 const OrderKanban = lazy(() => import("@/pages/admin/OrderKanban"));
+const Pas13Rules = lazy(() => import("@/pages/admin/Pas13Rules"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading fallback component - use mobile optimized version
@@ -102,6 +103,11 @@ function Router() {
         {/* Admin-only Kanban board — same guard the rest of /admin/* uses. */}
         <Route path="/admin/orders">
           <AdminRoute><OrderKanban /></AdminRoute>
+        </Route>
+        {/* PAS 13 vehicle classification thresholds — admin-edit page for
+            the BITA-style T1..T4 mass/speed bands. */}
+        <Route path="/admin/pas13-rules">
+          <AdminRoute><Pas13Rules /></AdminRoute>
         </Route>
         {/* Haptic test is a dev tool — only registered in development builds */}
         {import.meta.env.DEV && (

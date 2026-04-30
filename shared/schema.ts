@@ -2282,3 +2282,42 @@ export type InsertInstallationMilestone = z.infer<typeof insertInstallationMiles
 export type InstallationAssignment = typeof installationAssignments.$inferSelect;
 export type InsertInstallationAssignment = z.infer<typeof insertInstallationAssignmentSchema>;
 
+// PAS 13 vehicle-class thresholds (T1..T4). The seed values mirror the
+// constants encoded in shared/pas13Rules.ts; admins can edit each row from
+// /admin/pas13-rules to refine the BITA-style mass/speed bands.
+//
+// Rows are stored with both min and max bounds so an admin can re-band
+// without re-deriving overlapping ranges in their head — e.g. raising T2
+// max from 3500 → 4000 simply requires raising T2.massMaxKg AND T3.massMinKg
+// to 4000.
+//
+// classifyVehicle() consumes these rows in `classCode` order. Default
+// contents on first apply: T1, T2, T3, T4 with the σ subagent's values.
+export const pas13VehicleClasses = pgTable("pas13_vehicle_classes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // T1..T4 — unique. Acts as the upsert anchor.
+  classCode: varchar("class_code").notNull().unique(),
+  // Total mass = vehicle + load (kg). Min is inclusive; max is inclusive.
+  // The heaviest row (T4) carries a NULL max (open-ended).
+  massMinKg: integer("mass_min_kg").notNull().default(0),
+  massMaxKg: integer("mass_max_kg"),
+  // Speed (km/h). Same min-inclusive/max-inclusive convention. Heaviest
+  // row carries a NULL max.
+  speedMinKmh: real("speed_min_kmh").notNull().default(0),
+  speedMaxKmh: real("speed_max_kmh"),
+  // Human-readable label rendered in the UI alongside the code.
+  description: text("description").notNull().default(""),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  // Email (or user id) of the admin who last edited the row. Free-form
+  // varchar so we don't have to enforce an FK on a possibly-deleted user.
+  updatedBy: varchar("updated_by"),
+});
+
+export const insertPas13VehicleClassSchema = createInsertSchema(pas13VehicleClasses).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type Pas13VehicleClass = typeof pas13VehicleClasses.$inferSelect;
+export type InsertPas13VehicleClass = z.infer<typeof insertPas13VehicleClassSchema>;
+
