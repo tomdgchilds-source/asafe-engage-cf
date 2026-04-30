@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "purpose": "Tag products with 'Loading Docks' (and supporting 'Service yard and dock protection') in their fitForPurposeApplications where the original PRH-1009 entry omitted the explicit dock label. Authority: ASAFE_GroundWorks_PRH-1005 (which lists the dock-gate family with a 'dock-door zones' substrate note) and the ASAFE_ProductSuitability_PRH-1009 inclusion criteria for HGV-class capable barriers.",
+    "createdAt": "2026-04-30",
+    "policy": "Conservative interpretation: products that are HGV-class capable (≥7.5T vehicle suitability or 'Engine Counterbalance Heavy Duty Forklift Truck') AND whose catalog category is plausibly deployed at a loading-dock environment (perimeter traffic, dock-door height restrictors, dock-staging bollards, vehicle stops). Skip racking-only / pedestrian-only / cold-storage-only products with no dock-context evidence."
+  },
+  "additions": [
+    {
+      "productName": "iFlex Double Traffic+",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "20kJ heavy-duty FLT-rated traffic barrier — directly suited to dock-staging perimeter where ≥10T forklifts approach loading bays."
+    },
+    {
+      "productName": "iFlex Double Traffic",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Heavy-duty FLT-rated traffic barrier; same family as Double Traffic+ minus the higher rail. Standard dock-staging perimeter."
+    },
+    {
+      "productName": "eFlex Single Traffic+",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Heavy-duty counterbalance class; appropriate for dock-zone traffic-pedestrian segregation."
+    },
+    {
+      "productName": "Topple Barrier 3.6m with ForkGuard",
+      "addApplications": ["Loading Docks"],
+      "comment": "Heavy Duty Topple Barrier family — explicitly rated for Heavy Duty Counterbalance Truck class; deployed at dock-edge approach to prevent topple at staging."
+    },
+    {
+      "productName": "Topple Barrier 5.3m with ForkGuard",
+      "addApplications": ["Loading Docks"],
+      "comment": "Same Heavy Duty Topple family; long span suits the dock-door perimeter."
+    },
+    {
+      "productName": "iFlex Height Restrictor - Top Rail",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Industrial door protection for HGV-class vehicles entering dock buildings — direct dock-door application."
+    },
+    {
+      "productName": "iFlex Height Restrictor - Post",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Companion post for the height restrictor; same dock-door deployment."
+    },
+    {
+      "productName": "Traffic Gate",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "PRH-1009 already lists 'Industrial door protection' + 'Goods In Goods Out' — these are loading-dock applications by definition."
+    },
+    {
+      "productName": "Coach Stop",
+      "addApplications": ["Loading Docks"],
+      "comment": "Service-yard category vehicle stop; coach terminals are a dock-class loading environment."
+    },
+    {
+      "productName": "Car Stop",
+      "addApplications": ["Loading Docks"],
+      "comment": "Service-yard category vehicle stop; appropriate for car-class dock entries (parking-deck loading bays)."
+    },
+    {
+      "productName": "Monoplex 190 Bollard",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "190mm OD bollard — same form factor as iFlex HD Bollard which already carries 'Service yard and dock protection'. Used for dock-perimeter pillar protection."
+    },
+    {
+      "productName": "Cold Storage iFlex 190 Bollard",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Cold-storage-rated 190mm bollard for cold-store dock entries (food/pharma temperature-controlled docks)."
+    },
+    {
+      "productName": "iFlex Single Traffic+",
+      "addApplications": ["Loading Docks"],
+      "comment": "Pedestrian + traffic segregation family deployed alongside dock-door staging when foot traffic mingles with HGV/FLT."
+    },
+    {
+      "productName": "mFlex Double Traffic Barrier",
+      "addApplications": ["Loading Docks"],
+      "comment": "Heavy-Duty Counterbalance Truck rated; suits internal goods-handling dock approaches where larger micro-barrier coverage is needed."
+    }
+  ]
+}

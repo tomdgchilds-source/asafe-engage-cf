@@ -2320,6 +2320,263 @@ app.post("/api/admin/ingest-product-suitability", async (c) => {
   }
 });
 
+// Apply manual suitability overrides from
+// scripts/data/suitability-overrides.json + scripts/data/dock-application-overrides.json.
+// Closes the catalog coverage gap F's recommendation engine flagged: 15 of 57 DB rows
+// didn't auto-match a PRH-1009 entry by family-slug, and only 1 product carried the
+// "Loading Docks" application label so heavy-dock zones returned zero options.
+//
+// suitability-overrides.json supports two shapes per entry:
+//   { dbProductName, borrowFromProductName }  -> deep-clone the cousin's
+//                                                suitability_data from
+//                                                scripts/data/product-suitability.json
+//                                                (overwriting productName) and
+//                                                stamp _overrideSource so audits can
+//                                                distinguish backfilled rows.
+//   { dbProductName, inline: { ... } }        -> write the inline payload
+//                                                directly (with _overrideSource).
+//
+// dock-application-overrides.json carries `additions: [{ productName, addApplications }]`.
+// For each row we union the additions into the existing
+// suitability_data.fitForPurposeApplications and write back. Skipped if the row
+// has no suitability_data yet (run /api/admin/apply-suitability-overrides first).
+//
+// Hard rules per spec:
+//  - never override a product that already has suitability_data set (unless it
+//    was previously stamped with _overrideSource by an earlier run — that's idempotent).
+//  - additions are unioned, never replaced (idempotent).
+// Returns { ok, suitability:{written, skipped, errors}, dockTaxonomy:{updated, skipped, errors} }.
+// Gated by MIGRATION_TOKEN (bearer).
+app.post("/api/admin/apply-suitability-overrides", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const authHeader = c.req.header("authorization") || "";
+  const provided = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  try {
+    const overridesModule: any = await import(
+      "../scripts/data/suitability-overrides.json"
+    );
+    const dockModule: any = await import(
+      "../scripts/data/dock-application-overrides.json"
+    );
+    const catalogModule: any = await import(
+      "../scripts/data/product-suitability.json"
+    );
+
+    const overrides: any[] =
+      (overridesModule.default || overridesModule).overrides || [];
+    const dockAdditions: any[] =
+      (dockModule.default || dockModule).additions || [];
+    const catalogProducts: any[] =
+      (catalogModule.default || catalogModule).products || [];
+
+    // Build a lookup by productName so borrow-from-cousin lookups are O(1).
+    const catalogByName = new Map<string, any>();
+    for (const p of catalogProducts) {
+      if (p?.productName) catalogByName.set(p.productName, p);
+    }
+
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Step 1 — backfill suitability_data for rows that are missing it.
+    const suitabilityWritten: string[] = [];
+    const suitabilitySkipped: Array<{ name: string; reason: string }> = [];
+    const suitabilityErrors: Array<{ name: string; error: string }> = [];
+
+    for (const ov of overrides) {
+      const dbName: string = ov.dbProductName;
+      if (!dbName) {
+        suitabilityErrors.push({ name: "(unknown)", error: "missing dbProductName" });
+        continue;
+      }
+      try {
+        // Look up the target row + check if it already has suitability_data
+        // (and whether that data was previously written by this endpoint).
+        const existing = (await sqlClient`
+          SELECT id, suitability_data
+          FROM products
+          WHERE name = ${dbName} AND is_active = true
+          LIMIT 1
+        `) as Array<{ id: string; suitability_data: any }>;
+
+        if (existing.length === 0) {
+          suitabilitySkipped.push({ name: dbName, reason: "row not found / inactive" });
+          continue;
+        }
+        const row = existing[0];
+        const sd = row.suitability_data;
+        // Native PDF-matched data must not be touched. Idempotent re-runs of
+        // this endpoint are fine because the previous write stamped
+        // _overrideSource — recognised here as a re-write candidate.
+        if (sd && typeof sd === "object" && !sd._overrideSource) {
+          suitabilitySkipped.push({
+            name: dbName,
+            reason: "row already has native suitability_data (PRH-1009 match) — not overriding",
+          });
+          continue;
+        }
+
+        // Resolve the payload: borrowFrom or inline.
+        let payload: any | null = null;
+        let sourceKind = "";
+        if (ov.borrowFromProductName) {
+          const cousin = catalogByName.get(ov.borrowFromProductName);
+          if (!cousin) {
+            suitabilityErrors.push({
+              name: dbName,
+              error: `borrowFromProductName "${ov.borrowFromProductName}" not found in product-suitability.json`,
+            });
+            continue;
+          }
+          // Deep-clone via JSON round-trip so we don't mutate the imported
+          // catalog object across multiple overrides.
+          const cloned = JSON.parse(JSON.stringify(cousin));
+          // Strip bookkeeping fields that aren't UI-relevant (matches the
+          // ingest-product-suitability behaviour).
+          delete cloned.matchedDbIds;
+          delete cloned.sourceFile;
+          // Override productName so the spec-sheet block on the detail page
+          // shows the DB-side label rather than the cousin's label.
+          cloned.productName = dbName;
+          payload = cloned;
+          sourceKind = `borrow:${ov.borrowFromProductName}`;
+        } else if (ov.inline && typeof ov.inline === "object") {
+          payload = JSON.parse(JSON.stringify(ov.inline));
+          if (!payload.productName) payload.productName = dbName;
+          sourceKind = "inline";
+        } else {
+          suitabilityErrors.push({
+            name: dbName,
+            error: "override entry needs either borrowFromProductName or inline",
+          });
+          continue;
+        }
+
+        payload._overrideSource = sourceKind;
+        payload._overrideAppliedAt = new Date().toISOString();
+
+        const result = (await sqlClient`
+          UPDATE products
+          SET suitability_data = ${JSON.stringify(payload)}::jsonb,
+              updated_at = now()
+          WHERE id = ${row.id}
+          RETURNING id
+        `) as Array<{ id: string }>;
+        if (result.length > 0) suitabilityWritten.push(dbName);
+      } catch (e: any) {
+        suitabilityErrors.push({ name: dbName, error: e?.message || String(e) });
+      }
+    }
+
+    // Step 2 — widen Loading Docks taxonomy. Union additions into existing
+    // fitForPurposeApplications. Idempotent — re-runs are no-ops because Set
+    // dedup'd. Skipped if the row has no suitability_data yet.
+    const dockUpdated: string[] = [];
+    const dockSkipped: Array<{ name: string; reason: string }> = [];
+    const dockErrors: Array<{ name: string; error: string }> = [];
+
+    for (const add of dockAdditions) {
+      const productName: string = add.productName;
+      const additions: string[] = Array.isArray(add.addApplications)
+        ? add.addApplications
+        : [];
+      if (!productName || additions.length === 0) {
+        dockSkipped.push({
+          name: productName ?? "(unknown)",
+          reason: "missing productName or addApplications",
+        });
+        continue;
+      }
+      try {
+        const rows = (await sqlClient`
+          SELECT id, suitability_data
+          FROM products
+          WHERE name = ${productName} AND is_active = true
+          LIMIT 1
+        `) as Array<{ id: string; suitability_data: any }>;
+
+        if (rows.length === 0) {
+          dockSkipped.push({ name: productName, reason: "row not found / inactive" });
+          continue;
+        }
+        const row = rows[0];
+        const sd = row.suitability_data;
+        if (!sd || typeof sd !== "object") {
+          dockSkipped.push({
+            name: productName,
+            reason: "suitability_data missing — run apply-suitability-overrides first",
+          });
+          continue;
+        }
+        const existingApps: string[] = Array.isArray(sd.fitForPurposeApplications)
+          ? sd.fitForPurposeApplications
+          : [];
+        const merged = new Set<string>(existingApps);
+        let added = 0;
+        for (const a of additions) {
+          if (typeof a === "string" && !merged.has(a)) {
+            merged.add(a);
+            added++;
+          }
+        }
+        if (added === 0) {
+          // Already idempotent — every addition was already on the row.
+          dockSkipped.push({
+            name: productName,
+            reason: "all additions already present (idempotent no-op)",
+          });
+          continue;
+        }
+        const newPayload = {
+          ...sd,
+          fitForPurposeApplications: Array.from(merged),
+        };
+        const result = (await sqlClient`
+          UPDATE products
+          SET suitability_data = ${JSON.stringify(newPayload)}::jsonb,
+              updated_at = now()
+          WHERE id = ${row.id}
+          RETURNING id
+        `) as Array<{ id: string }>;
+        if (result.length > 0) dockUpdated.push(productName);
+      } catch (e: any) {
+        dockErrors.push({ name: productName, error: e?.message || String(e) });
+      }
+    }
+
+    return c.json({
+      ok: true,
+      suitability: {
+        written: suitabilityWritten.length,
+        writtenNames: suitabilityWritten,
+        skipped: suitabilitySkipped,
+        errors: suitabilityErrors,
+      },
+      dockTaxonomy: {
+        updated: dockUpdated.length,
+        updatedNames: dockUpdated,
+        skipped: dockSkipped,
+        errors: dockErrors,
+      },
+    });
+  } catch (e: any) {
+    console.error("apply-suitability-overrides failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Apply VEHICLE_SUITABILITY_MAP (shared/vehicleSuitabilityMap.ts) into
 // vehicle_types.suitability_labels. Each entry keyed by DB vehicle name
 // writes its PDF-label array (possibly empty) to the matching row.

@@ -1,0 +1,139 @@
+{
+  "_meta": {
+    "purpose": "Backfill suitability_data for DB products that didn't auto-match a PRH-1009 entry via family-slug. Each override either borrows a closest-cousin entry from product-suitability.json or inlines a conservative entry for true accessories. Marked with _overrideSource so audits can distinguish backfilled rows from native PDF matches.",
+    "createdAt": "2026-04-30",
+    "ownerNote": "Conservative interpretation: when in doubt, default to Pedestrians + Pedestrian-segregation/Removable-Barrier. Accessories that aren't impact products carry impactZone=null."
+  },
+  "overrides": [
+    {
+      "dbProductName": "Heavy Duty Bollard",
+      "borrowFromProductName": "iFlex Heavy Duty Bollard",
+      "comment": "Re-activated heavy-duty bollard SKU. Spec sheet for the iFlex HD Bollard is the authoritative cousin: same 190mm OD post, same vehicle suitability list. Catalog PDF page 36."
+    },
+    {
+      "dbProductName": "Bollard, Yellow",
+      "borrowFromProductName": "Monoplex Bollard 190",
+      "comment": "Standard 190mm polymer bollard in yellow. Mechanically identical to Monoplex 190 (price-list rev confirms 190mm OD)."
+    },
+    {
+      "dbProductName": "Bollard, Grey",
+      "borrowFromProductName": "Monoplex Bollard 190",
+      "comment": "Standard 190mm polymer bollard in grey. Same body as Monoplex 190 — colour only differs."
+    },
+    {
+      "dbProductName": "FlexiShield Column Guard - Spacer Set",
+      "borrowFromProductName": "FlexiShield Column Guard",
+      "comment": "Spacer set is a fitting accessory for the FlexiShield Column Guard system; inherits the host product's suitability envelope."
+    },
+    {
+      "dbProductName": "Flex - Retractable Barrier (Belt Barrier) - Post to Post - YEL/BLK",
+      "borrowFromProductName": "Retractable Barrier (Belt Barrier - US)",
+      "comment": "Post-to-post variant of the same belt-barrier family. Catalog PRH-1009 page 35."
+    },
+    {
+      "dbProductName": "Retractable Barrier - Racking Maintenance Case - YEL/BLK",
+      "borrowFromProductName": "Retractable Barrier (Belt Barrier - US)",
+      "comment": "Same retractable-belt mechanism, packaged as a maintenance kit. Suitability envelope is the same."
+    },
+    {
+      "dbProductName": "Slider Plate",
+      "borrowFromProductName": "Slider Base Plates",
+      "comment": "Single SKU member of the Slider Base Plates family. Same Removable-Barrier suitability."
+    },
+    {
+      "dbProductName": "190-T2-P0",
+      "borrowFromProductName": "iFlex Double Traffic Barrier+",
+      "comment": "Top-tier 20kJ traffic barrier (T2 = highest impact, P0 = no pedestrian rail). Heaviest-class FLT suitability per the iFlex Double Traffic Barrier+ PRH-1009 entry."
+    },
+    {
+      "dbProductName": "190-T1-P0",
+      "borrowFromProductName": "iFlex Double Traffic Barrier",
+      "comment": "13.4kJ traffic barrier without pedestrian rail. Maps cleanly onto iFlex Double Traffic Barrier suitability per PRH-1009 page 13."
+    },
+    {
+      "dbProductName": "190-T2-P1",
+      "borrowFromProductName": "iFlex Single Traffic Barrier+",
+      "comment": "19.2kJ pedestrian + traffic combined (P1 = single ped rail). iFlex Single Traffic+ is the closest catalog cousin (same Traffic and pedestrian segregation use-case)."
+    },
+    {
+      "dbProductName": "190-T1-P2",
+      "borrowFromProductName": "iFlex Pedestrian Barrier 3 Rail",
+      "comment": "Pedestrian-rated 15kJ variant with full 3-rail (P2). iFlex Pedestrian Barrier 3 Rail is the catalog cousin."
+    },
+    {
+      "dbProductName": "130-T0-P3",
+      "borrowFromProductName": "iFlex Pedestrian Barrier 3 Rail",
+      "comment": "Lightweight 5.8kJ pedestrian barrier (130mm post). Pedestrian-segregation suitability."
+    },
+    {
+      "dbProductName": "Bollard Bumper",
+      "inline": {
+        "category": "Bollards",
+        "productName": "Bollard Bumper",
+        "environment": { "internal": true, "external": true },
+        "atexSuitability": {
+          "suitable": false,
+          "note": "Not suitable in an explosive atmosphere"
+        },
+        "vehicleSuitability": [
+          "Manual Pallet Truck",
+          "Electric Pedestrian Stacker",
+          "Electric Pedestrian Truck",
+          "Pedestrians"
+        ],
+        "fitForPurposeApplications": [
+          "Column protection",
+          "Building and equipment protection"
+        ],
+        "impactZone": null,
+        "impactZoneNote": "Cap-style impact softener — fitted over an existing bollard host; not an impact-rated barrier in its own right.",
+        "materialProperties": null,
+        "recyclingInformation": null
+      },
+      "comment": "Cap-style cushion accessory that fits over an existing bollard. Not an impact product on its own — minimal conservative envelope only."
+    },
+    {
+      "dbProductName": "Hydraulic Swing Gate",
+      "inline": {
+        "category": "Gates",
+        "productName": "Hydraulic Swing Gate",
+        "environment": { "internal": true, "external": true },
+        "atexSuitability": {
+          "suitable": false,
+          "note": "Not suitable in an explosive atmosphere"
+        },
+        "vehicleSuitability": ["Pedestrians"],
+        "fitForPurposeApplications": [
+          "Pedestrian segregation"
+        ],
+        "impactZone": null,
+        "impactZoneNote": "Self-closing hydraulic swing gate — pedestrian-rated, not an impact product.",
+        "materialProperties": null,
+        "recyclingInformation": null
+      },
+      "comment": "Mezzanine / stair-landing pedestrian gate. iFlex Swing Gate Long/Short PRH-1009 entry uses the same 'These gates are not impact products' note."
+    },
+    {
+      "dbProductName": "Tape Barrier Kit - Wall to Wall - YEL/BLK",
+      "inline": {
+        "category": "Retractable Barrier Tape and Signage",
+        "productName": "Tape Barrier Kit - Wall to Wall - YEL/BLK",
+        "environment": { "internal": true, "external": false },
+        "atexSuitability": {
+          "suitable": false,
+          "note": "Not suitable in an explosive atmosphere"
+        },
+        "vehicleSuitability": ["Pedestrians"],
+        "fitForPurposeApplications": [
+          "Pedestrian segregation",
+          "Removable Barrier"
+        ],
+        "impactZone": null,
+        "impactZoneNote": "Wall-to-wall retractable tape kit — temporary cordoning; not an impact product.",
+        "materialProperties": null,
+        "recyclingInformation": null
+      },
+      "comment": "Wall-mounted retractable tape — typically used internally for temporary cordoning. Not impact rated; pedestrian-only."
+    }
+  ]
+}
