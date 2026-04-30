@@ -2077,6 +2077,29 @@ export function OrderForm() {
                   <Mail className="h-4 w-4 mr-2" />
                   Email to customer
                 </Button>
+                {/* PAS 13 Alignment Report — server-rendered PDF that lists
+                    each cart item's PAS 13 verdict against the project's
+                    vehicle context. Auto-attached to the order-confirmation
+                    email; this button is the on-page re-download path so a
+                    customer who lost the email can grab a fresh copy. */}
+                <Button
+                  onClick={() => {
+                    if (!orderData?.id) return;
+                    const url = `/api/orders/${orderData.id}/pas13-report.pdf`;
+                    // Opening in a new tab lets the browser stream the PDF
+                    // straight into its viewer (Content-Disposition: inline).
+                    // Falls back to a download in clients without a viewer.
+                    window.open(url, "_blank", "noopener");
+                  }}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-download-pas13-report"
+                  className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800"
+                  title="Download PAS 13 Alignment Report - indicative engineering interpretation, verify with A-SAFE engineering for procurement."
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Download PAS 13 Alignment Report
+                </Button>
                 {/* Lifecycle v2: create/copy/revoke an anonymous share link. */}
                 <Button
                   onClick={createShareLink}

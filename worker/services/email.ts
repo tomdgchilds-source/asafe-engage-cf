@@ -69,14 +69,85 @@ interface OrderConfirmationParams {
   orderNumber: string;
   totalAmount: string;
   itemCount: number;
+  /**
+   * Optional PAS 13 Alignment Report PDF, attached when the order-create
+   * flow successfully renders one. If omitted (or if PDF generation fails
+   * upstream), the email still sends — we include a "see download link"
+   * fallback in the body so the customer can fetch the report from the
+   * order page.
+   */
+  pas13ReportPdf?: {
+    filename: string;
+    /** Base64-encoded PDF bytes (no data URI prefix). */
+    contentBase64: string;
+    /** "PAS 13 ALIGNED" / "BORDERLINE ALIGNMENT" / "NOT PAS 13 ALIGNED" — surfaced in the email body. */
+    aggregateLabel: string;
+  };
+  /**
+   * Always-present URL to the report (whether or not the attachment landed).
+   * The email body links to it so the customer can re-fetch.
+   */
+  pas13ReportUrl?: string;
 }
 
 /** Send order confirmation to the customer who placed the order. */
 export async function sendOrderConfirmationEmail(
   env: Env,
-  { to, orderNumber, totalAmount, itemCount }: OrderConfirmationParams,
+  {
+    to,
+    orderNumber,
+    totalAmount,
+    itemCount,
+    pas13ReportPdf,
+    pas13ReportUrl,
+  }: OrderConfirmationParams,
 ): Promise<boolean> {
+  // Guard: skip if email credentials aren't configured. Mirrors sendEmail()
+  // — we duplicate the guard here because we go around sendEmail() to attach
+  // the PDF directly via Resend's attachments API.
+  const apiKey = env.RESEND_API_KEY;
+  const from = env.EMAIL_FROM;
+  if (!apiKey || !from) {
+    console.warn("Email not configured (RESEND_API_KEY / EMAIL_FROM missing) — skipping email to", to);
+    return false;
+  }
+
   const subject = `Order Confirmed - ${orderNumber} | A-SAFE Engage`;
+  // Surface the PAS 13 verdict prominently in the body — same wording rule
+  // as the rule engine ("aligned" / "borderline" / "not aligned"; never
+  // "compliant"). When attachment failed but URL is available, the link
+  // takes its place; when both are absent, the block is dropped.
+  const pas13Block = pas13ReportPdf
+    ? `
+        <div style="margin-top: 16px; padding: 16px; background-color: #fff8e1; border-left: 4px solid #FFC72C; border-radius: 4px;">
+          <p style="margin: 0 0 4px 0; font-weight: bold;">PAS 13 Alignment Report attached</p>
+          <p style="margin: 0; color: #555; font-size: 13px;">
+            Aggregate verdict: <strong>${pas13ReportPdf.aggregateLabel}</strong>.
+            ${
+              pas13ReportUrl
+                ? `Re-download anytime: <a href="${pas13ReportUrl}" style="color: #1a1a2e;">${pas13ReportUrl}</a>`
+                : ""
+            }
+          </p>
+          <p style="margin: 8px 0 0 0; color: #666; font-size: 11px; font-style: italic;">
+            Indicative — verify with A-SAFE engineering for procurement.
+          </p>
+        </div>
+      `
+    : pas13ReportUrl
+      ? `
+        <div style="margin-top: 16px; padding: 16px; background-color: #fff8e1; border-left: 4px solid #FFC72C; border-radius: 4px;">
+          <p style="margin: 0 0 4px 0; font-weight: bold;">PAS 13 Alignment Report</p>
+          <p style="margin: 0; color: #555; font-size: 13px;">
+            Download from your order page: <a href="${pas13ReportUrl}" style="color: #1a1a2e;">${pas13ReportUrl}</a>
+          </p>
+          <p style="margin: 8px 0 0 0; color: #666; font-size: 11px; font-style: italic;">
+            Indicative — verify with A-SAFE engineering for procurement.
+          </p>
+        </div>
+      `
+      : "";
+
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background-color: #FFC72C; padding: 24px; text-align: center;">
@@ -99,6 +170,7 @@ export async function sendOrderConfirmationEmail(
           </tr>
         </table>
         <p>Your order has been submitted for review. Our team will review it and get back to you shortly.</p>
+        ${pas13Block}
         <p style="margin-top: 24px;">
           <a href="${env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/orders"
              style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
@@ -113,7 +185,47 @@ export async function sendOrderConfirmationEmail(
       </div>
     </div>
   `;
-  return sendEmail(env, to, subject, html);
+
+  // When we have no attachment, fall back to the simple sendEmail() helper.
+  if (!pas13ReportPdf) {
+    return sendEmail(env, to, subject, html);
+  }
+
+  // Attachment path — call Resend directly so we can pass `attachments`.
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({
+        from: `A-SAFE Engage <${from}>`,
+        to: [to],
+        subject,
+        html,
+        attachments: [
+          {
+            filename: pas13ReportPdf.filename,
+            content: pas13ReportPdf.contentBase64,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`Resend API error (order confirmation w/ PAS 13 attachment): ${res.status} ${errText}`);
+      // Best-effort fallback: retry without the attachment so the customer
+      // at least gets the confirmation email + download link.
+      return sendEmail(env, to, subject, html);
+    }
+    return true;
+  } catch (err) {
+    console.error("Order confirmation email send error (with attachment):", err);
+    // Same fall-through — never let the attachment failure swallow the email.
+    return sendEmail(env, to, subject, html);
+  }
 }
 
 interface OrderSubmittedNotificationParams {

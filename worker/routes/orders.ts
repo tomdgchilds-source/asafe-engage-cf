@@ -13,6 +13,12 @@ import {
 import { ensureInstallationForOrder } from "./installations";
 import { pas13Verdict, type Pas13Verdict } from "../../shared/pas13Rules";
 import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
+import {
+  buildPas13AlignmentReport,
+  filenameFor as pas13ReportFilename,
+  type ReportLineItem as Pas13ReportLineItem,
+  type VehicleContextForReport,
+} from "../lib/pas13AlignmentReportPdf";
 
 // Order statuses that represent "this order is won and moving towards
 // delivery/install". When an order enters any of these, we try to
@@ -570,6 +576,54 @@ orders.post("/orders", authMiddleware, async (c) => {
         const itemCount = enrichedCartItems?.length ?? 0;
         const formattedTotal = `${currency || "AED"} ${Number(totalAmount).toLocaleString("en", { minimumFractionDigits: 2 })}`;
 
+        // ────────────────────────────────────────────────────────────
+        // PAS 13 Alignment Report — attach the customer-facing PDF to
+        // the confirmation email, AND include a "see download link"
+        // fallback in the body so the email still ships if PDF
+        // generation or the Resend attachment upload fails.
+        //
+        // Fire-and-forget pattern: any failure here logs and continues
+        // — the confirmation email always sends, with or without the
+        // attachment. Spec hard rule: don't break existing email flow.
+        // ────────────────────────────────────────────────────────────
+        let pas13ReportPdf:
+          | {
+              filename: string;
+              contentBase64: string;
+              aggregateLabel: string;
+            }
+          | undefined;
+        let pas13ReportUrl: string | undefined;
+        try {
+          const appOrigin =
+            c.env.APP_URL ||
+            `${new URL(c.req.url).origin}`;
+          pas13ReportUrl = `${appOrigin}/api/orders/${order.id}/pas13-report.pdf`;
+          const reportInput = await _buildAlignmentReportForOrder(
+            c.env,
+            storage,
+            order as any,
+          );
+          const built = buildPas13AlignmentReport({
+            ...reportInput,
+            appOrigin,
+          });
+          const aggregateLabel =
+            built.aggregateVerdict === "aligned"
+              ? "PAS 13 ALIGNED"
+              : built.aggregateVerdict === "borderline"
+                ? "BORDERLINE ALIGNMENT"
+                : "NOT PAS 13 ALIGNED";
+          pas13ReportPdf = {
+            filename: built.filename ?? pas13ReportFilename(orderNumber),
+            contentBase64: bytesToBase64(built.pdf),
+            aggregateLabel,
+          };
+        } catch (pdfErr) {
+          // Don't block the email — the body falls back to the download link.
+          console.error("[pas13] alignment-report PDF generation failed:", pdfErr);
+        }
+
         // Send order confirmation to customer
         if (emailAddress) {
           await sendOrderConfirmationEmail(c.env, {
@@ -577,6 +631,8 @@ orders.post("/orders", authMiddleware, async (c) => {
             orderNumber,
             totalAmount: formattedTotal,
             itemCount,
+            pas13ReportPdf,
+            pas13ReportUrl,
           });
         }
 
@@ -623,6 +679,264 @@ orders.get("/orders/:id", authMiddleware, async (c) => {
     return c.json({ message: "Failed to fetch order" }, 500);
   }
 });
+
+// ──────────────────────────────────────────────
+// GET /api/orders/:id/pas13-report.pdf
+//
+// Customer-facing PAS 13 Alignment Report PDF. Re-runs each cart line item
+// through pas13Verdict() against the project's vehicle context (heaviest
+// vehicle wins if multiple), assembles the PDF server-side, returns
+// application/pdf. Auth: order owner OR any admin.
+//
+// Cache: private, max-age=86400. Underlying data is stable once an order
+// is submitted, so a 24h TTL keeps repeat downloads cheap without staling.
+// ──────────────────────────────────────────────
+orders.get("/orders/:id/pas13-report.pdf", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const orderId = c.req.param("id");
+
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return c.json({ message: "Order not found" }, 404);
+    }
+
+    // Auth: owner OR admin can download. Mirrors the audit-log endpoint.
+    const user = await storage.getUser(userId);
+    const isOwner = order.userId === userId;
+    const isAdmin = user?.role === "admin";
+    if (!isOwner && !isAdmin) {
+      return c.json({ message: "Not authorized" }, 403);
+    }
+
+    // Re-run the PAS 13 verdict for each line item. We DO NOT recompute
+    // the rule logic here — we delegate to shared/pas13Rules's
+    // pas13Verdict(). The PDF builder accepts the verdict objects verbatim.
+    await ensurePas13ClassesLoaded(c.env);
+    const report = await buildAlignmentReportForOrder(c.env, storage, order);
+
+    // Construct a sensible app-origin so the PDF's deep-links open in a
+    // standalone viewer.
+    const appOrigin =
+      c.env.APP_URL ||
+      `${new URL(c.req.url).origin}`;
+
+    const out = buildPas13AlignmentReport({
+      ...report,
+      appOrigin,
+    });
+
+    const filename = pas13ReportFilename(order.orderNumber);
+
+    return new Response(out.pdf, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${filename}"`,
+        "Content-Length": String(out.pdf.byteLength),
+        // Stable per-order data → safe to cache in private caches.
+        "Cache-Control": "private, max-age=86400",
+        "X-PAS13-Aggregate-Verdict": out.aggregateVerdict,
+        "X-PAS13-Worst-Margin-Pct": String(out.worstCaseSafetyMarginPct),
+      },
+    });
+  } catch (error) {
+    console.error("Error rendering PAS 13 alignment report:", error);
+    return c.json({ message: "Failed to render PAS 13 alignment report" }, 500);
+  }
+});
+
+// ──────────────────────────────────────────────
+// buildAlignmentReportForOrder
+//
+// Resolves an order + its products into the input shape expected by
+// buildPas13AlignmentReport(). Used by both the GET endpoint above and
+// the email-attachment hook in the order-create flow so the same verdict
+// data lands in the PDF and the email attachment.
+//
+// Heaviest-vehicle-wins selection mirrors the POST /api/orders pre-flight:
+// when no per-line calculationContext is set, fall back to the user's
+// heaviest impact calculation, then the order's own application-area
+// calculations as a last resort. Each line item is rated against the
+// SAME vehicle context as the pre-flight that gated the order — so the
+// report won't disagree with the gate that let the order through.
+// ──────────────────────────────────────────────
+async function buildAlignmentReportForOrder(
+  env: Env,
+  storage: ReturnType<typeof createStorage>,
+  order: Awaited<ReturnType<ReturnType<typeof createStorage>["getOrder"]>> & object,
+): Promise<{
+  orderNumber: string;
+  customOrderNumber?: string | null;
+  generatedAt: Date;
+  customerName?: string | null;
+  customerCompany?: string | null;
+  projectName?: string | null;
+  projectLocation?: string | null;
+  vehicleContext: VehicleContextForReport | null;
+  lineItems: Pas13ReportLineItem[];
+}> {
+  // Resolve a fallback vehicle context. Prefer the order's
+  // applicationAreas (a project-time impact scenario list); fall back to
+  // the placing user's heaviest impact calculation. Either way we pick the
+  // heaviest (mass + load) vehicle — same heuristic as POST /api/orders.
+  let fallback: VehicleContextForReport | null = null;
+  try {
+    const areas = (order as any).applicationAreas as any[] | null | undefined;
+    const heaviestFromAreas = pickHeaviestImpactScenario(areas);
+    if (heaviestFromAreas) fallback = heaviestFromAreas;
+  } catch {}
+  if (!fallback) {
+    try {
+      const userCalcs = await storage.getUserCalculations(order.userId);
+      const heaviestFromUser = pickHeaviestImpactScenario(userCalcs as any[]);
+      if (heaviestFromUser) fallback = heaviestFromUser;
+    } catch {}
+  }
+
+  const items = Array.isArray(order.items) ? (order.items as any[]) : [];
+  const lineItems: Pas13ReportLineItem[] = [];
+
+  for (const item of items) {
+    // Pull the product so we can read impactRating / impactZone — same
+    // shape POST /api/orders consumed.
+    const product = await storage.getProductByName(item.productName).catch(() => null);
+
+    // Per-line context wins over the fallback.
+    const ctx = item.calculationContext as any;
+    let vehicleMassKg = 0;
+    let loadMassKg = 0;
+    let speedKmh = 0;
+    let approachAngleDeg = 90;
+    if (
+      ctx &&
+      Number(ctx.vehicleMass || 0) + Number(ctx.loadMass || 0) > 0 &&
+      Number(ctx.speed || 0) > 0
+    ) {
+      vehicleMassKg = Number(ctx.vehicleMass || 0);
+      loadMassKg = Number(ctx.loadMass || 0);
+      const sNum = Number(ctx.speed || 0);
+      const sUnit = String(ctx.speedUnit || "kmh");
+      speedKmh =
+        sUnit === "mph" ? sNum * 1.60934 : sUnit === "ms" ? sNum * 3.6 : sNum;
+      approachAngleDeg = Number(ctx.impactAngle || 0) || 90;
+    } else if (fallback) {
+      vehicleMassKg = fallback.vehicleMassKg;
+      loadMassKg = fallback.loadMassKg;
+      speedKmh = fallback.speedKmh;
+      approachAngleDeg = fallback.approachAngleDeg;
+    }
+
+    const ratedJoules =
+      Number(product?.impactRating || 0) ||
+      Number((product as any)?.pas13TestJoules || 0) ||
+      Number(item.impactRating || 0) ||
+      0;
+
+    const impactZoneRaw = (product as any)?.impactTestingData?.impactZone || null;
+    let impactZoneMm = 200;
+    if (typeof impactZoneRaw === "string") {
+      const m = impactZoneRaw.match(/(\d{1,5})/g);
+      if (m && m.length > 0) {
+        const max = Math.max(...m.map((x: string) => parseInt(x, 10)));
+        if (Number.isFinite(max) && max > 0) impactZoneMm = max;
+      }
+    }
+    if (Number((product as any)?.deflectionZone || 0) > 0) {
+      impactZoneMm = Number((product as any).deflectionZone);
+    }
+
+    const verdict = pas13Verdict({
+      vehicleMassKg,
+      loadMassKg,
+      speedKmh,
+      approachAngleDeg,
+      productRatedJoulesAt45deg: ratedJoules,
+      productImpactZoneMaxMm: impactZoneMm,
+    });
+
+    lineItems.push({
+      productName: item.productName,
+      quantity: typeof item.quantity === "number" ? item.quantity : undefined,
+      verdict,
+    });
+  }
+
+  return {
+    orderNumber: order.orderNumber,
+    customOrderNumber: order.customOrderNumber ?? null,
+    generatedAt: new Date(),
+    customerName: order.customerName ?? null,
+    customerCompany: order.customerCompany ?? null,
+    projectName: order.projectName ?? null,
+    projectLocation: order.projectLocation ?? null,
+    vehicleContext: fallback,
+    lineItems,
+  };
+}
+
+function pickHeaviestImpactScenario(rows: any[] | null | undefined): VehicleContextForReport | null {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const scored = rows
+    .map((r) => ({
+      row: r,
+      mass: Number(r?.vehicleMass || 0) + Number(r?.loadMass || 0),
+    }))
+    .filter((s) => s.mass > 0)
+    .sort((a, b) => b.mass - a.mass);
+  if (scored.length === 0) return null;
+  const heaviest = scored[0].row;
+  const speedNum = Number(heaviest.speed || 0);
+  const unit = String(heaviest.speedUnit || "kmh");
+  const speedKmh =
+    unit === "mph" ? speedNum * 1.60934 : unit === "ms" ? speedNum * 3.6 : speedNum;
+  const vehicleMassKg = Number(heaviest.vehicleMass || 0);
+  const loadMassKg = Number(heaviest.loadMass || 0);
+  const approachAngleDeg = Number(heaviest.impactAngle || 0) || 90;
+  const labelParts: string[] = [];
+  if (heaviest.vehicleType || heaviest.vehicleName) {
+    labelParts.push(String(heaviest.vehicleType || heaviest.vehicleName));
+  } else {
+    labelParts.push("Vehicle scenario");
+  }
+  labelParts.push(`${(vehicleMassKg + loadMassKg).toLocaleString()} kg total`);
+  labelParts.push(`${speedKmh.toFixed(1)} km/h`);
+  labelParts.push(`${approachAngleDeg}° approach`);
+  return {
+    label: labelParts.join(" - "),
+    vehicleMassKg,
+    loadMassKg,
+    speedKmh,
+    approachAngleDeg,
+  };
+}
+
+/** Internal helper — exported only for the order-create email hook. */
+export async function _buildAlignmentReportForOrder(
+  env: Env,
+  storage: ReturnType<typeof createStorage>,
+  order: Awaited<ReturnType<ReturnType<typeof createStorage>["getOrder"]>> & object,
+) {
+  return buildAlignmentReportForOrder(env, storage, order);
+}
+
+// Workers runtime exposes btoa() but not Buffer; this helper bridges
+// Uint8Array → base64 without pulling Node's Buffer in. Resend wants
+// the attachment as raw base64 (no data URI prefix).
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + chunk) as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
 
 // POST /api/orders/:id/sign - sign order (technical or commercial)
 orders.post("/orders/:id/sign", authMiddleware, async (c) => {
