@@ -39,6 +39,13 @@ export interface UseOfflineSurveyResult<T> {
   pendingPushCount: number;
   online: boolean;
   forceSync: () => Promise<void>;
+  /**
+   * Wall-clock ms timestamp of the most recent local persist. Used by
+   * SavedAgoIndicator to render "Saved 3s ago". Falls back to the
+   * meta-file value on first mount so a returning surveyor sees their
+   * last save time and not "just now".
+   */
+  lastSavedAt: number | null;
 }
 
 interface DraftMeta {
@@ -125,6 +132,10 @@ export function useOfflineSurvey<T>(
   const [pendingPushCount, setPendingPushCount] = useState<number>(() =>
     pendingCountFromMeta(readMeta(surveyId))
   );
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(() => {
+    const m = readMeta(surveyId);
+    return m.updatedAt > 0 ? m.updatedAt : null;
+  });
 
   // Keep the latest draft + callback in refs so timers and listeners don't go
   // stale without us re-attaching them on every render.
@@ -156,7 +167,9 @@ export function useOfflineSurvey<T>(
       setDraftState(null);
       draftRef.current = null;
     }
-    setPendingPushCount(pendingCountFromMeta(readMeta(surveyId)));
+    const initMeta = readMeta(surveyId);
+    setPendingPushCount(pendingCountFromMeta(initMeta));
+    setLastSavedAt(initMeta.updatedAt > 0 ? initMeta.updatedAt : null);
     setStatus('idle');
   }, [surveyId]);
 
@@ -169,6 +182,7 @@ export function useOfflineSurvey<T>(
       };
       writeMeta(surveyId, meta);
       setPendingPushCount(pendingCountFromMeta(meta));
+      setLastSavedAt(meta.updatedAt);
       setStatus(navigator.onLine ? 'queued' : 'queued');
     },
     [surveyId]
@@ -283,6 +297,7 @@ export function useOfflineSurvey<T>(
     pendingPushCount,
     online,
     forceSync,
+    lastSavedAt,
   };
 }
 

@@ -83,11 +83,42 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
   }
-  
+
   /* Smooth scrolling on iOS */
   html {
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* Site Survey: tablet/mobile tap-target enforcement.
+ *
+ * iOS HIG and WCAG 2.5.5 both call for ≥44×44 px hit targets. This block
+ * enforces the floor on all interactive controls inside the Site Survey
+ * page wrapper, without us having to rewrite every Button/Input/Select
+ * call site. Phones use 16 px font on inputs to defeat iOS Safari's
+ * auto-zoom behaviour on focus. */
+.site-survey-page input,
+.site-survey-page select,
+.site-survey-page textarea,
+.site-survey-page button,
+.site-survey-page [role="combobox"],
+.site-survey-page [role="button"] {
+  min-height: 44px;
+}
+.site-survey-page input,
+.site-survey-page select,
+.site-survey-page textarea {
+  font-size: 16px; /* prevents iOS auto-zoom-to-100% on focus */
+}
+@media (min-width: 640px) {
+  .site-survey-page input,
+  .site-survey-page select,
+  .site-survey-page textarea {
+    font-size: 0.875rem; /* sm:text-sm */
+  }
+}
+.site-survey-page textarea {
+  min-height: 96px;
 }
 
 /* Prevent horizontal scrolling on mobile */

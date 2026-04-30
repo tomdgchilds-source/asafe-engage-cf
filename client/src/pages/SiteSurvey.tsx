@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
@@ -37,11 +37,16 @@ import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { ObjectUploader } from '@/components/ObjectUploader';
 import { AddToCartModal } from '@/components/AddToCartModal';
+import { BarrierRecommendationsBlock } from '@/components/BarrierRecommendationsBlock';
 import { LogoSuggestions } from '@/components/LogoSuggestions';
 import { MatterportViewer, parseMatterportUrl } from '@/components/MatterportViewer';
 import { useOfflineSurvey } from '@/hooks/useOfflineSurvey';
 import { useActiveProject } from '@/hooks/useActiveProject';
 import type { UploadResult } from '@uppy/core';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { SavedAgoIndicator } from '@/components/SavedAgoIndicator';
+import { CameraPhotoCapture } from '@/components/CameraPhotoCapture';
+import { VoiceNoteButton } from '@/components/VoiceNoteButton';
 
 // Shape of the draft carried by useOfflineSurvey — mirrors the in-dialog
 // `newSurvey` form state so an offline user can resume creation on reconnect.
@@ -85,57 +90,91 @@ const APPLICATION_AREAS = [
   'Electrical DBs'
 ];
 
-// Risk & Benefit data for each application area
+// Risk & Benefit data for each application area.
+//
+// `defaultRiskLevel` and `suggestedVehicles` are surveyor-on-tablet
+// quality-of-life additions: when the user picks an area type, we pre-fill
+// these fields per PAS 13 risk-zone norms so they don't have to re-enter
+// the same conservative defaults on every area card. Surveyors can still
+// override either value (the dropdown isn't locked).
+//
+// Risk-level defaults follow PAS 13 §6 risk-zone categorisation: anywhere
+// people share floor space with MHE is high; pure asset-protection (cold
+// store, racking) defaults to medium; structural assets default to high.
 const applicationAreaData = {
   "WorkStation(s)": {
     risk: "Employees seated close to vehicle routes remain exposed while distracted. Basic, non-tested barriers are easily damaged and ineffective against real impacts.",
-    benefit: "Impact-rated barriers shield staff, reduce repeat maintenance, and prevent costly downtime from accidents."
+    benefit: "Impact-rated barriers shield staff, reduce repeat maintenance, and prevent costly downtime from accidents.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Pallet Truck", "Tugger / Tow Tractor"],
   },
   "Pedestrian Walkways": {
     risk: "Painted lines alone offer no protection. Pedestrians are exposed to vehicles, blocked routes, and poor driver visibility.",
-    benefit: "Physical barriers safely segregate pedestrians, maintain evacuation routes, and improve MHE efficiency with fewer obstacles."
+    benefit: "Physical barriers safely segregate pedestrians, maintain evacuation routes, and improve MHE efficiency with fewer obstacles.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Reach Truck", "Pallet Truck"],
   },
   "Crossing Points / Entry & Exits": {
     risk: "Staff crossing high-traffic or blind spots are vulnerable. Painted markings fail to stop vehicles or distracted pedestrians.",
-    benefit: "Guided crossings and barriers provide safe, visible, and controlled movement across vehicle zones."
+    benefit: "Guided crossings and barriers provide safe, visible, and controlled movement across vehicle zones.",
+    defaultRiskLevel: "critical",
+    suggestedVehicles: ["Counterbalance Forklift (5T+)", "Reach Truck", "Tugger / Tow Tractor"],
   },
   "Racking": {
     risk: "Vehicle impacts compromise racking integrity, risking collapse, product loss, and costly replacement.",
-    benefit: "Barriers preserve racking stability, prevent collapse, and protect both staff and stored goods."
+    benefit: "Barriers preserve racking stability, prevent collapse, and protect both staff and stored goods.",
+    defaultRiskLevel: "medium",
+    suggestedVehicles: ["Reach Truck", "VNA Truck", "Counterbalance Forklift (3-5T)"],
   },
   "Shutter Doors": {
     risk: "Vehicle damage disrupts workflows, reduces loading capacity, and compromises environmental control.",
-    benefit: "Robust barriers protect doors, maintain security, efficiency, and climate control, while avoiding repair downtime."
+    benefit: "Robust barriers protect doors, maintain security, efficiency, and climate control, while avoiding repair downtime.",
+    defaultRiskLevel: "medium",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Pallet Truck"],
   },
   "Cold Store Walls": {
     risk: "Insulated panels are easily damaged, causing temperature loss, product spoilage, and high repair costs.",
-    benefit: "Barriers prevent panel damage, preserve goods, reduce energy waste, and avoid operational disruption."
+    benefit: "Barriers prevent panel damage, preserve goods, reduce energy waste, and avoid operational disruption.",
+    defaultRiskLevel: "medium",
+    suggestedVehicles: ["Reach Truck", "Pallet Truck", "Pump Truck"],
   },
   "Fire Hose Cabinets": {
     risk: "Impact damage can render firefighting equipment unusable, delaying emergency response.",
-    benefit: "Barriers ensure cabinets remain accessible and operational, protecting staff, assets, and compliance."
+    benefit: "Barriers ensure cabinets remain accessible and operational, protecting staff, assets, and compliance.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Pallet Truck"],
   },
   "Columns (Structural / Mezzanine)": {
     risk: "Impacts from vehicles can damage structural or mezzanine columns, threatening building integrity.",
-    benefit: "Impact-rated barriers absorb collisions, protect structures, and prevent costly facility repairs."
+    benefit: "Impact-rated barriers absorb collisions, protect structures, and prevent costly facility repairs.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (5T+)", "Reach Truck", "VNA Truck"],
   },
   "Overhead Pipework / Cables": {
     risk: "Overhead utilities are often overlooked. Impacts can disrupt power, processing, or CCTV, causing downtime.",
-    benefit: "Barriers protect critical infrastructure, ensuring uninterrupted power and operations."
+    benefit: "Barriers protect critical infrastructure, ensuring uninterrupted power and operations.",
+    defaultRiskLevel: "medium",
+    suggestedVehicles: ["Reach Truck (mast extended)", "VNA Truck"],
   },
   "Loading Docks": {
     risk: "Forklifts risk falling 1–2m from raised docks, endangering operators and damaging equipment.",
-    benefit: "Barriers eliminate fall hazards, safeguard operators, and maintain safe, continuous loading operations."
+    benefit: "Barriers eliminate fall hazards, safeguard operators, and maintain safe, continuous loading operations.",
+    defaultRiskLevel: "critical",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Pallet Truck"],
   },
   "Processing Machines": {
     risk: "Vehicle collisions can cause severe equipment damage, downtime, and injury or fatalities.",
-    benefit: "Barriers protect machinery, prevent production halts, and safeguard employees from life-threatening risks."
+    benefit: "Barriers protect machinery, prevent production halts, and safeguard employees from life-threatening risks.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Tugger / Tow Tractor"],
   },
   "Electrical DBs": {
     risk: "Impact damage risks short circuits, outages, fires, and prolonged downtime from complex repairs.",
-    benefit: "Barriers maintain power continuity, reduce outage risks, and mitigate fire hazards."
-  }
-};
+    benefit: "Barriers maintain power continuity, reduce outage risks, and mitigate fire hazards.",
+    defaultRiskLevel: "high",
+    suggestedVehicles: ["Counterbalance Forklift (3-5T)", "Pallet Truck"],
+  },
+} as const;
 
 const RISK_LEVELS = [
   { value: 'low', label: 'Low Risk', color: 'bg-green-100 text-green-800' },
@@ -225,6 +264,110 @@ function SurveyProductCartButton({ product, area }: { product: any; area: any })
   );
 }
 
+// Inline PAS-13-aligned barrier recommendations for a survey area. Auto-fires
+// the deterministic engine via POST /api/recommend-barriers when the area
+// carries vehicle metadata + an area type — typically right after the rep
+// has filled in those fields.
+function AreaBarrierRecommendations({
+  area,
+}: {
+  area: any;
+  surveyId?: string | undefined;
+}) {
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Stable inputs — ensures we only refetch when something material changed.
+  const fingerprint = useMemo(() => {
+    return JSON.stringify({
+      a: area.areaType,
+      r: area.riskLevel,
+      vw: area.vehicleWeight,
+      vs: area.vehicleSpeed,
+      ang: area.impactAngle,
+    });
+  }, [area.areaType, area.riskLevel, area.vehicleWeight, area.vehicleSpeed, area.impactAngle]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!area.areaType || !area.vehicleWeight || !area.vehicleSpeed) {
+      setData(null);
+      return;
+    }
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const massKg = parseFloat(String(area.vehicleWeight));
+        const speedKmh = parseFloat(String(area.vehicleSpeed));
+        if (!Number.isFinite(massKg) || !Number.isFinite(speedKmh)) return;
+        const body = {
+          vehicleTypes: [
+            {
+              id: area.zoneName || 'site-survey-vehicle',
+              massKg,
+              speedKmh,
+              dbVehicleTypeName: area.suggestedVehicle || undefined,
+            },
+          ],
+          zones: [
+            {
+              name: area.areaName || area.zoneName || 'Survey Area',
+              areaApplicationType: area.areaType,
+              riskLevel: (area.riskLevel || 'medium') as
+                | 'low'
+                | 'medium'
+                | 'high'
+                | 'critical',
+              approachAngleDeg: area.impactAngle
+                ? parseFloat(String(area.impactAngle))
+                : 90,
+            },
+          ],
+          environment: {
+            internal: true,
+            external: false,
+            coldStorage: /cold/i.test(area.areaType || ''),
+            atex: false,
+          },
+        };
+        const response = await fetch('/api/recommend-barriers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        if (response.ok && !cancelled) {
+          setData(await response.json());
+        }
+      } catch (e) {
+        console.error('Site Survey barrier recommender error:', e);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fingerprint]);
+
+  if (!data && !isLoading) return null;
+  return (
+    <div className="mt-4">
+      <BarrierRecommendationsBlock
+        data={data}
+        isLoading={isLoading}
+        cartContext={{
+          source: 'site-survey',
+          sourceTitle:
+            area.areaName || area.zoneName || 'Survey Area',
+        }}
+      />
+    </div>
+  );
+}
+
 export default function SiteSurvey() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
@@ -236,6 +379,21 @@ export default function SiteSurvey() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showLoadSurveyDropdown, setShowLoadSurveyDropdown] = useState(false);
   const [newSurvey, setNewSurvey] = useState<NewSurveyDraft>({ ...EMPTY_SURVEY_DRAFT });
+
+  // PWA shortcut handler — the manifest's "New Site Survey" shortcut deep
+  // links to /site-survey?new=1. When the surveyor taps it from the iOS
+  // home screen, jump straight into the create-dialog flow.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === '1') {
+        setShowCreateDialog(true);
+      }
+    } catch {
+      /* ignore parse errors — non-blocking */
+    }
+  }, []);
 
   // Offline-first draft store — buffers the in-progress "new survey" form in
   // localStorage so edits survive network drops / refreshes. Autosaves every
@@ -330,7 +488,8 @@ export default function SiteSurvey() {
     vehicleWeight: '',
     vehicleSpeed: '',
     impactAngle: '90',
-    matterportUrl: ''
+    matterportUrl: '',
+    suggestedVehicles: [] as string[],
   });
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [editingArea, setEditingArea] = useState<any>(null);
@@ -577,7 +736,8 @@ export default function SiteSurvey() {
         vehicleWeight: '',
         vehicleSpeed: '',
         impactAngle: '90',
-        matterportUrl: ''
+        matterportUrl: '',
+        suggestedVehicles: [],
       });
       setUploadedImages([]);
       setEditingArea(null);
@@ -619,7 +779,8 @@ export default function SiteSurvey() {
         vehicleWeight: '',
         vehicleSpeed: '',
         impactAngle: '90',
-        matterportUrl: ''
+        matterportUrl: '',
+        suggestedVehicles: [],
       });
       setUploadedImages([]);
       setEditingArea(null);
@@ -682,7 +843,8 @@ export default function SiteSurvey() {
       vehicleWeight: area.vehicleWeight?.toString() || '',
       vehicleSpeed: area.vehicleSpeed?.toString() || '',
       impactAngle: area.impactAngle?.toString() || '90',
-      matterportUrl: area.matterportUrl || ''
+      matterportUrl: area.matterportUrl || '',
+      suggestedVehicles: Array.isArray(area.suggestedVehicles) ? area.suggestedVehicles : [],
     });
     setUploadedImages(area.photosUrls || []);
     setSelectedCalculation(''); // Reset calculation selection when editing
@@ -709,13 +871,28 @@ export default function SiteSurvey() {
 
     haptic.formSubmit();
 
+    // suggestedVehicles is a client-side scratchpad — surveyor adjusts the
+    // PAS-13-derived defaults inline, then we fold them into the issue
+    // description so the existing schema remains untouched. (Hard rule:
+    // don't change the backend shape.)
+    const { suggestedVehicles, ...rest } = newArea;
+    const baseDescription = (rest.issueDescription || '').replace(
+      /\s*Suggested vehicles?:\s.*$/m,
+      ''
+    );
+    const issueDescriptionWithVehicles =
+      suggestedVehicles && suggestedVehicles.length > 0
+        ? `${baseDescription.trim()}\n\nSuggested vehicles: ${suggestedVehicles.join(', ')}`
+        : baseDescription;
+
     const areaData = {
-      ...newArea,
-      vehicleWeight: newArea.vehicleWeight ? parseFloat(newArea.vehicleWeight) : null,
-      vehicleSpeed: newArea.vehicleSpeed ? parseFloat(newArea.vehicleSpeed) : null,
-      impactAngle: newArea.impactAngle ? parseFloat(newArea.impactAngle) : 90,
-      matterportUrl: newArea.matterportUrl || null,
-      matterportModelId: parseMatterportUrl(newArea.matterportUrl || "") || null,
+      ...rest,
+      issueDescription: issueDescriptionWithVehicles,
+      vehicleWeight: rest.vehicleWeight ? parseFloat(rest.vehicleWeight) : null,
+      vehicleSpeed: rest.vehicleSpeed ? parseFloat(rest.vehicleSpeed) : null,
+      impactAngle: rest.impactAngle ? parseFloat(rest.impactAngle) : 90,
+      matterportUrl: rest.matterportUrl || null,
+      matterportModelId: parseMatterportUrl(rest.matterportUrl || "") || null,
       // Include current photos so edits don't wipe the gallery
       photosUrls: uploadedImages,
     };
@@ -783,13 +960,31 @@ export default function SiteSurvey() {
         : 'bg-green-50 text-green-700 border-green-200';
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+    <div className="site-survey-page container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+      {/* Yellow offline / blue syncing / green reconnected banner — pinned
+          to the top so a surveyor in a steel-clad warehouse always sees
+          their connection state without having to look at the address bar. */}
+      <OfflineBanner
+        online={offlineSurvey.online}
+        syncing={offlineSurvey.status === 'syncing'}
+        pendingPushCount={offlineSurvey.pendingPushCount}
+        onSyncNow={() => offlineSurvey.forceSync()}
+      />
+
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Site Survey</h1>
-            {syncPillLabel && (
+            {/* Compact "Saved 3s ago" pill — the surveyor sees their work
+                is safe before they navigate away. Replaces the older
+                multi-state syncPillLabel — same data, calmer UI. */}
+            <SavedAgoIndicator
+              status={offlineSurvey.status}
+              online={offlineSurvey.online}
+              lastSavedAt={offlineSurvey.lastSavedAt}
+            />
+            {syncPillLabel && offlineSurvey.pendingPushCount > 0 && (
               <span
                 className={`inline-flex items-center text-xs px-2 py-1 rounded-full border ${syncPillTone}`}
                 data-testid="pill-offline-status"
@@ -799,7 +994,7 @@ export default function SiteSurvey() {
               </span>
             )}
           </div>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 dark:text-gray-300 mt-2 text-sm sm:text-base">
             Conduct facility walkthroughs and identify areas requiring safety protection
           </p>
         </div>
@@ -850,7 +1045,7 @@ export default function SiteSurvey() {
                 New Survey
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
+          <DialogContent className="site-survey-page sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Site Survey</DialogTitle>
               <DialogDescription>
@@ -982,24 +1177,43 @@ export default function SiteSurvey() {
       </div>
 
       {/* Search Bar */}
-      <div className="flex items-center gap-2 max-w-md">
+      <div className="flex items-center gap-2 max-w-2xl">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search surveys by title, facility, or location..."
+            placeholder="Search surveys..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 min-h-[44px] text-base sm:text-sm"
             data-testid="input-search-surveys"
           />
         </div>
+        {/* Refresh — vaul-style pull-to-refresh would be ideal, but a
+            tap target is the lowest-friction option that works on every
+            tablet. Re-fetches the surveys list and triggers a forceSync
+            for any pending offline draft. */}
+        <Button
+          variant="outline"
+          className="min-h-[44px] min-w-[44px]"
+          onClick={() => {
+            haptic.select();
+            queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
+            void offlineSurvey.forceSync();
+          }}
+          aria-label="Refresh surveys"
+          data-testid="button-refresh-surveys"
+        >
+          <Clock className="h-4 w-4" />
+          <span className="sr-only sm:not-sr-only sm:ml-2">Refresh</span>
+        </Button>
       </div>
 
-      {/* Surveys List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Surveys List — 1 column on phones, 2 on tablets (md ≥768),
+          3 on iPad Pro / desktop (lg ≥1024). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {filteredSurveys?.map((survey: any) => (
-          <Card key={survey.id} className="cursor-pointer hover:shadow-lg transition-shadow" data-testid={`card-survey-${survey.id}`}>
+          <Card key={survey.id} className="cursor-pointer hover:shadow-lg active:shadow-md transition-shadow touch-manipulation" data-testid={`card-survey-${survey.id}`}>
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -1079,9 +1293,9 @@ export default function SiteSurvey() {
                 )}
               </div>
               <div className="mt-4 flex space-x-2">
-                <Button 
-                  size="sm" 
+                <Button
                   onClick={() => handleSelectSurvey(survey)}
+                  className="min-h-[44px] w-full sm:w-auto"
                   data-testid={`button-view-survey-${survey.id}`}
                 >
                   <Edit className="h-4 w-4 mr-1" />
@@ -1114,7 +1328,7 @@ export default function SiteSurvey() {
 
       {/* Survey Details Modal */}
       <Dialog open={!!selectedSurvey} onOpenChange={() => setSelectedSurvey(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="site-survey-page max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedSurvey?.title}</DialogTitle>
             <DialogDescription>
@@ -1270,7 +1484,7 @@ export default function SiteSurvey() {
                   setShowAreaDialog(open);
                 }}>
                   <DialogTrigger asChild>
-                    <Button size="sm" data-testid="button-add-area">
+                    <Button className="min-h-[44px] w-full sm:w-auto" data-testid="button-add-area">
                       <Plus className="h-4 w-4 mr-1" />
                       Add Area of Concern
                     </Button>
@@ -1287,16 +1501,29 @@ export default function SiteSurvey() {
               <h3 className="text-lg font-semibold mb-4">Areas of Concern</h3>
               <div className="space-y-4">
                 {(surveyAreas as any[])?.map((area: any) => (
-                  <Card key={area.id} data-testid={`card-area-${area.id}`}>
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h4 className="font-medium">{area.areaName}</h4>
-                          <p className="text-sm text-muted-foreground">
+                  <Card
+                    key={area.id}
+                    data-testid={`card-area-${area.id}`}
+                    className="border-l-4"
+                    style={{
+                      borderLeftColor: area.riskLevel === 'critical'
+                        ? '#dc2626'
+                        : area.riskLevel === 'high'
+                          ? '#ea580c'
+                          : area.riskLevel === 'medium'
+                            ? '#ca8a04'
+                            : '#16a34a',
+                    }}
+                  >
+                    <CardContent className="pt-4 sm:pt-6">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium break-words">{area.areaName}</h4>
+                          <p className="text-sm text-muted-foreground break-words">
                             Zone: {area.zoneName} | Type: {area.areaType}
                           </p>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center flex-wrap gap-2">
                           <Badge className={getRiskBadgeClass(area.riskLevel)}>
                             {area.riskLevel}
                           </Badge>
@@ -1306,17 +1533,21 @@ export default function SiteSurvey() {
                           {selectedSurvey?.status !== 'completed' && (
                             <>
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="ghost"
                                 onClick={() => handleEditArea(area)}
+                                aria-label="Edit area"
+                                className="min-h-[44px] min-w-[44px]"
                                 data-testid={`button-edit-area-${area.id}`}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="ghost"
                                 onClick={() => handleDeleteArea(area.id)}
+                                aria-label="Delete area"
+                                className="min-h-[44px] min-w-[44px]"
                                 data-testid={`button-delete-area-${area.id}`}
                               >
                                 <Trash2 className="h-4 w-4 text-red-500" />
@@ -1559,7 +1790,7 @@ export default function SiteSurvey() {
 
                       {(!area.calculatedJoules && (area.vehicleWeight || area.vehicleSpeed)) && (
                         <Button
-                          size="sm"
+                          className="min-h-[44px] w-full sm:w-auto"
                           onClick={() => calculateImpactMutation.mutate({
                             areaId: area.id,
                             vehicleWeight: area.vehicleWeight,
@@ -1571,6 +1802,16 @@ export default function SiteSurvey() {
                         >
                           {calculateImpactMutation.isPending ? 'Calculating...' : 'Calculate Impact & Get Recommendations'}
                         </Button>
+                      )}
+
+                      {/* PAS-13-aligned barrier recommendations — auto-fetches
+                          from the new deterministic engine when the area
+                          carries vehicle metadata. */}
+                      {area.vehicleWeight && area.vehicleSpeed && (
+                        <AreaBarrierRecommendations
+                          area={area}
+                          surveyId={selectedSurvey?.id}
+                        />
                       )}
                     </CardContent>
                   </Card>
@@ -1608,13 +1849,14 @@ export default function SiteSurvey() {
             vehicleWeight: '',
             vehicleSpeed: '',
             impactAngle: '90',
-            matterportUrl: ''
+            matterportUrl: '',
+            suggestedVehicles: [],
           });
           setUploadedImages([]);
           setSelectedCalculation('');
         }
       }}>
-        <DialogContent className="sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
+        <DialogContent className="site-survey-page sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingArea ? 'Edit' : 'Add'} Area of Concern</DialogTitle>
             <DialogDescription>
@@ -1623,7 +1865,7 @@ export default function SiteSurvey() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="zoneName">Zone Name</Label>
                 <Input
@@ -1631,6 +1873,7 @@ export default function SiteSurvey() {
                   value={newArea.zoneName}
                   onChange={(e) => setNewArea({ ...newArea, zoneName: e.target.value })}
                   placeholder="e.g., Loading Dock A"
+                  className="min-h-[44px] text-base sm:text-sm"
                   data-testid="input-zone-name"
                 />
               </div>
@@ -1641,6 +1884,7 @@ export default function SiteSurvey() {
                   value={newArea.areaName}
                   onChange={(e) => setNewArea({ ...newArea, areaName: e.target.value })}
                   placeholder="e.g., East Column Section"
+                  className="min-h-[44px] text-base sm:text-sm"
                   data-testid="input-area-name"
                 />
               </div>
@@ -1648,15 +1892,36 @@ export default function SiteSurvey() {
 
             <div>
               <Label htmlFor="areaType">Application Area Type</Label>
-              <Select value={newArea.areaType} onValueChange={(value) => setNewArea({ ...newArea, areaType: value })}>
-                <SelectTrigger data-testid="select-area-type">
+              <Select
+                value={newArea.areaType}
+                onValueChange={(value) => {
+                  // PAS-13 auto-fill: when surveyor picks an area type, prefill
+                  // riskLevel + suggestedVehicles from applicationAreaData so
+                  // they don't have to retype on every card. Only fills empty
+                  // values — never clobbers a user-entered risk level.
+                  const cfg =
+                    (applicationAreaData as Record<string, any>)[value] || null;
+                  setNewArea((prev) => ({
+                    ...prev,
+                    areaType: value,
+                    riskLevel:
+                      prev.riskLevel || (cfg?.defaultRiskLevel ?? prev.riskLevel),
+                    suggestedVehicles:
+                      prev.suggestedVehicles && prev.suggestedVehicles.length > 0
+                        ? prev.suggestedVehicles
+                        : (cfg?.suggestedVehicles ?? []),
+                  }));
+                  haptic.select();
+                }}
+              >
+                <SelectTrigger className="min-h-[44px]" data-testid="select-area-type">
                   <SelectValue placeholder="Select application area type" />
                 </SelectTrigger>
                 <SelectContent>
                   {APPLICATION_AREAS.map((area) => (
-                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                    <SelectItem key={area} value={area} className="py-3">{area}</SelectItem>
                   ))}
-                  <SelectItem value="Other">Other (Custom)</SelectItem>
+                  <SelectItem value="Other" className="py-3">Other (Custom)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1669,6 +1934,7 @@ export default function SiteSurvey() {
                   value={newArea.customApplicationArea}
                   onChange={(e) => setNewArea({ ...newArea, customApplicationArea: e.target.value })}
                   placeholder="Describe the custom application area"
+                  className="min-h-[44px] text-base sm:text-sm"
                   data-testid="input-custom-area"
                 />
               </div>
@@ -1676,12 +1942,12 @@ export default function SiteSurvey() {
 
             {/* Risk & Benefit Details */}
             {newArea.areaType && newArea.areaType !== 'Other' && applicationAreaData[newArea.areaType as keyof typeof applicationAreaData] && (
-              <div className="space-y-3 p-4 bg-gray-50 rounded-lg border">
+              <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border">
                 <div className="flex items-start space-x-2">
                   <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-sm text-gray-900 dark:text-white">Risk Assessment</p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                       {applicationAreaData[newArea.areaType as keyof typeof applicationAreaData].risk}
                     </p>
                   </div>
@@ -1690,24 +1956,74 @@ export default function SiteSurvey() {
                   <Shield className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-sm text-gray-900 dark:text-white">Safety Benefits</p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                       {applicationAreaData[newArea.areaType as keyof typeof applicationAreaData].benefit}
                     </p>
                   </div>
                 </div>
+
+                {/* Suggested vehicles — pre-filled from PAS 13 norms; surveyor
+                    can toggle chips to edit before save. Folded into the
+                    issueDescription on submit (no schema change). */}
+                {(() => {
+                  const cfg = applicationAreaData[newArea.areaType as keyof typeof applicationAreaData] as any;
+                  const baseSuggestions: string[] = cfg?.suggestedVehicles || [];
+                  const allChips = Array.from(
+                    new Set([...baseSuggestions, ...newArea.suggestedVehicles])
+                  );
+                  if (allChips.length === 0) return null;
+                  return (
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <p className="font-medium text-sm text-gray-900 dark:text-white mb-2">
+                        Suggested vehicle types{' '}
+                        <span className="font-normal text-xs text-gray-500">
+                          (PAS 13 default — tap to toggle)
+                        </span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {allChips.map((veh) => {
+                          const active = newArea.suggestedVehicles.includes(veh);
+                          return (
+                            <button
+                              key={veh}
+                              type="button"
+                              onClick={() => {
+                                haptic.select();
+                                setNewArea((prev) => ({
+                                  ...prev,
+                                  suggestedVehicles: active
+                                    ? prev.suggestedVehicles.filter((v) => v !== veh)
+                                    : [...prev.suggestedVehicles, veh],
+                                }));
+                              }}
+                              className={`min-h-[44px] px-3 py-1.5 text-xs sm:text-sm rounded-full border transition-colors ${
+                                active
+                                  ? 'bg-[#FFC72C] border-[#FFC72C] text-black font-medium'
+                                  : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50'
+                              }`}
+                              data-testid={`chip-vehicle-${veh.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}
+                            >
+                              {active ? '\u2713 ' : ''}{veh}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="currentCondition">Current Condition</Label>
                 <Select value={newArea.currentCondition} onValueChange={(value) => setNewArea({ ...newArea, currentCondition: value })}>
-                  <SelectTrigger data-testid="select-condition">
+                  <SelectTrigger className="min-h-[44px]" data-testid="select-condition">
                     <SelectValue placeholder="Select condition" />
                   </SelectTrigger>
                   <SelectContent>
                     {CONDITION_OPTIONS.map((condition) => (
-                      <SelectItem key={condition.value} value={condition.value}>
+                      <SelectItem key={condition.value} value={condition.value} className="py-3">
                         {condition.label}
                       </SelectItem>
                     ))}
@@ -1717,12 +2033,12 @@ export default function SiteSurvey() {
               <div>
                 <Label htmlFor="riskLevel">Risk Level</Label>
                 <Select value={newArea.riskLevel} onValueChange={(value) => setNewArea({ ...newArea, riskLevel: value })}>
-                  <SelectTrigger data-testid="select-risk-level">
+                  <SelectTrigger className="min-h-[44px]" data-testid="select-risk-level">
                     <SelectValue placeholder="Select risk level" />
                   </SelectTrigger>
                   <SelectContent>
                     {RISK_LEVELS.map((risk) => (
-                      <SelectItem key={risk.value} value={risk.value}>
+                      <SelectItem key={risk.value} value={risk.value} className="py-3">
                         {risk.label}
                       </SelectItem>
                     ))}
@@ -1732,13 +2048,23 @@ export default function SiteSurvey() {
             </div>
 
             <div>
-              <Label htmlFor="issueDescription">Issue Description</Label>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label htmlFor="issueDescription">Issue Description</Label>
+                <VoiceNoteButton
+                  value={newArea.issueDescription}
+                  onChange={(next) =>
+                    setNewArea((prev) => ({ ...prev, issueDescription: next }))
+                  }
+                  testId="button-voice-issue-description"
+                />
+              </div>
               <Textarea
                 id="issueDescription"
                 value={newArea.issueDescription}
                 onChange={(e) => setNewArea({ ...newArea, issueDescription: e.target.value })}
-                placeholder="Describe the safety concern or issue in detail..."
-                rows={3}
+                placeholder="Describe the safety concern or issue in detail. Tap the mic to dictate..."
+                rows={4}
+                className="min-h-[96px] text-base sm:text-sm"
                 data-testid="textarea-issue-description"
               />
             </div>
@@ -1804,15 +2130,17 @@ export default function SiteSurvey() {
                 </div>
               ) : null}
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="vehicleWeight">Vehicle Weight (kg)</Label>
                   <Input
                     id="vehicleWeight"
                     type="number"
+                    inputMode="numeric"
                     value={newArea.vehicleWeight}
                     onChange={(e) => setNewArea({ ...newArea, vehicleWeight: e.target.value })}
                     placeholder="e.g., 4000"
+                    className="min-h-[44px] text-base sm:text-sm"
                     data-testid="input-vehicle-weight"
                   />
                 </div>
@@ -1821,22 +2149,26 @@ export default function SiteSurvey() {
                   <Input
                     id="vehicleSpeed"
                     type="number"
+                    inputMode="decimal"
                     value={newArea.vehicleSpeed}
                     onChange={(e) => setNewArea({ ...newArea, vehicleSpeed: e.target.value })}
                     placeholder="e.g., 8"
+                    className="min-h-[44px] text-base sm:text-sm"
                     data-testid="input-vehicle-speed"
                   />
                 </div>
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <Label htmlFor="impactAngle">Impact Angle (°)</Label>
                   <Input
                     id="impactAngle"
                     type="number"
+                    inputMode="numeric"
                     value={newArea.impactAngle}
                     onChange={(e) => setNewArea({ ...newArea, impactAngle: e.target.value })}
                     placeholder="90"
                     min="0"
                     max="90"
+                    className="min-h-[44px] text-base sm:text-sm"
                     data-testid="input-impact-angle"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
@@ -1858,60 +2190,45 @@ export default function SiteSurvey() {
               <p className="text-xs text-muted-foreground">Paste a Matterport URL to embed a 3D scan for this area</p>
             </div>
 
-            {/* Reference Images Upload Section */}
-            <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+            {/* Reference Images — camera-first for tablet surveyors. The
+                CameraPhotoCapture component opens the rear camera directly
+                via <input capture="environment">, resizes to 1280px JPEG to
+                stay under localStorage limits when offline, and shows a
+                thumbnail strip with retake/delete. ObjectUploader is kept
+                below as a fallback for desktop / large-batch ingest. */}
+            <div className="bg-gray-50 dark:bg-gray-900/30 p-4 rounded-lg space-y-4">
               <div className="flex items-center">
                 <Camera className="h-5 w-5 text-gray-600 mr-2" />
                 <Label className="font-medium text-gray-900 dark:text-white">Reference Images</Label>
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                Upload photos of the area to provide visual context for assessment
+                Snap photos of the area on-site. Camera opens directly on tablet/phone.
               </p>
-              
-              <div className="flex flex-wrap gap-2">
-                <ObjectUploader
-                  maxNumberOfFiles={5}
-                  maxFileSize={10485760} // 10MB
-                  allowedFileTypes={['image/jpeg', 'image/png', 'image/webp']}
-                  onGetUploadParameters={handleImageUpload}
-                  onComplete={handleImageUploadComplete}
-                  buttonClassName="text-sm"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Add Reference Images
-                </ObjectUploader>
-                
-                {uploadedImages.length > 0 && (
-                  <span className="text-sm text-green-600 font-medium">
-                    {uploadedImages.length} image(s) added
-                  </span>
-                )}
-              </div>
-              
-              {uploadedImages.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {uploadedImages.map((imageUrl, index) => {
-                    // Ensure the URL is properly formatted for display
-                    const displayUrl = imageUrl.startsWith('/objects/') ? imageUrl : imageUrl;
-                    return (
-                      <div key={index} className="relative group">
-                        <img 
-                          src={displayUrl} 
-                          alt={`Reference ${index + 1}`}
-                          className="w-full h-20 object-cover rounded border"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
+
+              <CameraPhotoCapture
+                photos={uploadedImages}
+                onChange={setUploadedImages}
+                maxPhotos={8}
+              />
+
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  Or upload from desktop / batch
+                </summary>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <ObjectUploader
+                    maxNumberOfFiles={5}
+                    maxFileSize={10485760} // 10MB
+                    allowedFileTypes={['image/jpeg', 'image/png', 'image/webp']}
+                    onGetUploadParameters={handleImageUpload}
+                    onComplete={handleImageUploadComplete}
+                    buttonClassName="text-sm"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload via R2
+                  </ObjectUploader>
                 </div>
-              )}
+              </details>
             </div>
 
             <div className="flex justify-end space-x-2 sticky bottom-0 bg-background border-t pt-3 -mx-6 px-6 pb-2 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:border-0">
@@ -1929,7 +2246,8 @@ export default function SiteSurvey() {
                   vehicleWeight: '',
                   vehicleSpeed: '',
                   impactAngle: '90',
-                  matterportUrl: ''
+                  matterportUrl: '',
+                  suggestedVehicles: [],
                 });
                 setUploadedImages([]);
               }}>
@@ -1982,7 +2300,7 @@ export default function SiteSurvey() {
 
       {/* Build Project Modal */}
       <Dialog open={showBuildProjectModal} onOpenChange={setShowBuildProjectModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="site-survey-page max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Build Project from Site Survey</DialogTitle>
             <DialogDescription>
