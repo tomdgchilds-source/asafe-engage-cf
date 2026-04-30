@@ -438,11 +438,48 @@ export function SolutionFinder() {
       if (response.ok) {
         const json = await response.json();
         setBarrierRecommendations(json);
+        // Stash the recommender input so the Quoting AI assistant can
+        // re-use it verbatim as `inline` payload for POST /api/quote/draft.
+        setLatestRecommenderInput(body);
       } else {
         setBarrierRecommendations(null);
       }
     } finally {
       setIsLoadingBarrierRecommendations(false);
+    }
+  };
+
+  // Quoting AI assistant — composes a quote draft from the most recent
+  // recommender input. Available only after the rep has run a search.
+  const handleGenerateQuote = async () => {
+    if (!latestRecommenderInput) return;
+    setQuoteGenerating(true);
+    setQuoteDraft(null);
+    setQuoteDrawerOpen(true);
+    try {
+      const res = await fetch("/api/quote/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          inline: latestRecommenderInput,
+          preferences: { preferAlignment: "balanced" },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || `quote ${res.status}`);
+      }
+      setQuoteDraft((await res.json()) as QuoteDraftPayload);
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Quote draft failed",
+        description: e?.message || "Could not compose quote draft.",
+      });
+      setQuoteDrawerOpen(false);
+    } finally {
+      setQuoteGenerating(false);
     }
   };
 
@@ -848,6 +885,24 @@ export function SolutionFinder() {
                   form.getValues("problemTitle"),
               }}
             />
+            {/* Quoting AI assistant — promote these recommendations to a
+                quote draft (PDF + line items). */}
+            {barrierRecommendations && latestRecommenderInput && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <Button
+                  className="bg-[#FFC72C] text-black hover:bg-[#F0B800]"
+                  onClick={handleGenerateQuote}
+                  disabled={quoteGenerating}
+                  data-testid="button-generate-quote-draft-solution"
+                >
+                  {quoteGenerating ? "Generating…" : "Promote these recommendations to a quote draft"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Composes a complete A-SAFE quote PDF — line items, AED totals,
+                  PAS 13 alignment per zone.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1993,6 +2048,14 @@ export function SolutionFinder() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Quoting AI assistant drawer — slides in with the AI-composed
+          quote draft, PDF preview, and promote-to-cart action. */}
+      <QuoteDraftDrawer
+        open={quoteDrawerOpen}
+        onOpenChange={setQuoteDrawerOpen}
+        draft={quoteDraft}
+        isGenerating={quoteGenerating}
+      />
     </div>
   );
 }

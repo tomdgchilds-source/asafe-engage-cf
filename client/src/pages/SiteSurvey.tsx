@@ -47,6 +47,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { SavedAgoIndicator } from '@/components/SavedAgoIndicator';
 import { CameraPhotoCapture } from '@/components/CameraPhotoCapture';
 import { VoiceNoteButton } from '@/components/VoiceNoteButton';
+import { QuoteDraftDrawer, type QuoteDraftPayload } from '@/components/QuoteDraftDrawer';
 
 // Shape of the draft carried by useOfflineSurvey — mirrors the in-dialog
 // `newSurvey` form state so an offline user can resume creation on reconnect.
@@ -499,6 +500,42 @@ export default function SiteSurvey() {
   const [selectedCalculation, setSelectedCalculation] = useState<string>('');
   const [showBuildProjectModal, setShowBuildProjectModal] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+
+  // Quote-draft drawer state — wired to POST /api/quote/draft.
+  const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
+  const [quoteGenerating, setQuoteGenerating] = useState(false);
+  const handleGenerateQuote = async (surveyId: string | undefined) => {
+    if (!surveyId) {
+      toast({ variant: 'destructive', title: 'Save the survey first' });
+      return;
+    }
+    setQuoteGenerating(true);
+    setQuoteDraft(null);
+    setQuoteDrawerOpen(true);
+    try {
+      const res = await fetch('/api/quote/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ surveyId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || `quote ${res.status}`);
+      }
+      setQuoteDraft((await res.json()) as QuoteDraftPayload);
+    } catch (e: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Quote draft failed',
+        description: e?.message || 'Could not compose quote draft.',
+      });
+      setQuoteDrawerOpen(false);
+    } finally {
+      setQuoteGenerating(false);
+    }
+  };
 
   // Mutation to complete a survey
   const completeSurveyMutation = useMutation({
@@ -1380,6 +1417,24 @@ export default function SiteSurvey() {
                       >
                         <ShoppingCart className="h-4 w-4 mr-1" />
                         Build Project
+                      </Button>
+                    )}
+                    {/* Quoting AI assistant — composes a complete quote PDF
+                        from this survey via POST /api/quote/draft. */}
+                    {selectedSurvey?.id && surveyAreas && Array.isArray(surveyAreas) && surveyAreas.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full sm:w-auto border-[#FFC72C] text-black hover:bg-[#FFF7DC]"
+                        onClick={() => {
+                          haptic.modalOpen();
+                          handleGenerateQuote(selectedSurvey.id);
+                        }}
+                        disabled={quoteGenerating}
+                        data-testid="button-generate-quote-draft-survey"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        {quoteGenerating ? 'Generating…' : 'Generate Quote Draft'}
                       </Button>
                     )}
                     {selectedSurvey?.status === 'draft' && surveyAreas && Array.isArray(surveyAreas) && surveyAreas.length > 0 && (
@@ -2484,6 +2539,14 @@ export default function SiteSurvey() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Quote Draft drawer — slides in from the right with the AI-composed
+          quote, PDF preview, and promote-to-cart action. */}
+      <QuoteDraftDrawer
+        open={quoteDrawerOpen}
+        onOpenChange={setQuoteDrawerOpen}
+        draft={quoteDraft}
+        isGenerating={quoteGenerating}
+      />
     </div>
   );
 }

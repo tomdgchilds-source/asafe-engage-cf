@@ -60,8 +60,10 @@ import {
   Share2,
   Copy,
   Eye,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuoteDraftDrawer, type QuoteDraftPayload } from "@/components/QuoteDraftDrawer";
 import type {
   Project,
   CustomerCompany,
@@ -455,6 +457,10 @@ function ProjectDetailPane({
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [editingDelivery, setEditingDelivery] = useState(false);
   const [deliveryDraft, setDeliveryDraft] = useState("");
+  // Quote draft drawer (Quoting AI assistant).
+  const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
+  const [quoteGenerating, setQuoteGenerating] = useState(false);
 
   useEffect(() => {
     if (project) {
@@ -716,9 +722,58 @@ function ProjectDetailPane({
               )}
               Share with customer
             </Button>
+            {/* Quoting AI assistant — opens the drawer + composes a draft
+                from the project context (best-effort; the rep is prompted
+                to use a Site Survey or inline scenario when project alone
+                doesn't carry zone data). */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#FFC72C] text-black hover:bg-[#FFF7DC]"
+              onClick={async () => {
+                setQuoteGenerating(true);
+                setQuoteDraft(null);
+                setQuoteDrawerOpen(true);
+                try {
+                  const res = await fetch("/api/quote/draft", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ projectId }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.message || `quote ${res.status}`);
+                  }
+                  setQuoteDraft((await res.json()) as QuoteDraftPayload);
+                } catch (e: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Quote draft failed",
+                    description:
+                      e?.message ||
+                      "Could not compose quote draft — try generating from a Site Survey.",
+                  });
+                  setQuoteDrawerOpen(false);
+                } finally {
+                  setQuoteGenerating(false);
+                }
+              }}
+              disabled={quoteGenerating}
+              data-testid="button-new-quote-draft-project"
+            >
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              {quoteGenerating ? "Generating…" : "New quote draft"}
+            </Button>
           </div>
         </div>
       </div>
+      <QuoteDraftDrawer
+        open={quoteDrawerOpen}
+        onOpenChange={setQuoteDrawerOpen}
+        draft={quoteDraft}
+        isGenerating={quoteGenerating}
+      />
 
       {/* Active share-link panel — shows view count + revoke control
           once the rep has minted at least one link for this project. */}
