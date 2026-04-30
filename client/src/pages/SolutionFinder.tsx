@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { ConsolidatedProductCard } from "@/components/ConsolidatedProductCard";
+import { BarrierRecommendationsBlock } from "@/components/BarrierRecommendationsBlock";
 import {
   Dialog,
   DialogContent,
@@ -292,6 +293,11 @@ export function SolutionFinder() {
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [showIndustrySelector, setShowIndustrySelector] = useState(false);
   const [showWorkplaceSelector, setShowWorkplaceSelector] = useState(false);
+  // Output of the new deterministic PAS-13-aligned barrier recommender. Augments
+  // (does not replace) the existing rule-based matches; both render side-by-side.
+  const [barrierRecommendations, setBarrierRecommendations] = useState<any>(null);
+  const [isLoadingBarrierRecommendations, setIsLoadingBarrierRecommendations] =
+    useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -358,6 +364,88 @@ export function SolutionFinder() {
     }
   });
 
+  // Compose the deterministic PAS-13-aligned barrier engine result. This
+  // does NOT replace the legacy rule-based matches — both are surfaced. The
+  // mapping below adapts SolutionFinder's free-form vehicle inputs into the
+  // engine's RecommendationInput shape. Workplace type maps loosely to a
+  // single zone with risk = urgency.
+  const runBarrierRecommender = async (
+    data: SolutionRequestForm,
+    vehicles: VehicleType[],
+  ): Promise<void> => {
+    setIsLoadingBarrierRecommendations(true);
+    try {
+      // Resolve selected vehicle ids into mass + speed. Fall back to any
+      // user-supplied vehicleWeight/Speed if no specific vehicles selected.
+      const selected = (data.vehicleTypes ?? [])
+        .map((idOrLabel) =>
+          vehicles.find((v) => v.id === idOrLabel || v.name === idOrLabel),
+        )
+        .filter((v): v is VehicleType => !!v);
+      const vehiclePayload = selected.length
+        ? selected.map((v) => ({
+            id: v.name,
+            massKg: Number((v as any).averageWeight ?? data.vehicleWeight ?? 2000),
+            speedKmh: Number((v as any).averageSpeed ?? data.vehicleSpeed ?? 8),
+            dbVehicleTypeName: v.name,
+          }))
+        : data.vehicleWeight && data.vehicleSpeed
+          ? [
+              {
+                id: data.otherVehicleType || "custom",
+                massKg: Number(data.vehicleWeight),
+                speedKmh: Number(data.vehicleSpeed),
+                dbVehicleTypeName: data.otherVehicleType || undefined,
+              },
+            ]
+          : [];
+      if (vehiclePayload.length === 0) {
+        setBarrierRecommendations(null);
+        return;
+      }
+      const riskLevel: "low" | "medium" | "high" | "critical" =
+        data.urgency === "high"
+          ? "critical"
+          : data.urgency === "medium"
+            ? "high"
+            : "medium";
+      const zoneApplication =
+        data.workplaceType
+          ? data.workplaceType.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+          : "General Workplace";
+      const body = {
+        vehicleTypes: vehiclePayload,
+        zones: [
+          {
+            name: data.problemTitle?.slice(0, 60) || "Primary Zone",
+            areaApplicationType: zoneApplication,
+            riskLevel,
+          },
+        ],
+        environment: {
+          internal: data.workplaceType !== "outdoor",
+          external: data.workplaceType === "outdoor",
+          coldStorage: false,
+          atex: false,
+        },
+      };
+      const response = await fetch("/api/recommend-barriers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        const json = await response.json();
+        setBarrierRecommendations(json);
+      } else {
+        setBarrierRecommendations(null);
+      }
+    } finally {
+      setIsLoadingBarrierRecommendations(false);
+    }
+  };
+
   const submitProblem = useMutation({
     mutationFn: async (data: SolutionRequestForm) => {
       const response = await fetch("/api/solution-requests", {
@@ -383,6 +471,14 @@ export function SolutionFinder() {
         title: "Analysis Complete!",
         description: `Found ${data.recommendedProducts?.length || 0} product matches and ${data.recommendedCaseStudies?.length || 0} relevant case studies.`
       });
+      // Trigger the deterministic barrier recommender alongside the legacy
+      // rule-based matches. Form values still in scope at this point.
+      try {
+        const formValues = form.getValues();
+        void runBarrierRecommender(formValues, vehicleTypesData ?? []);
+      } catch (e) {
+        console.error("Barrier recommender failed (non-blocking):", e);
+      }
       form.reset();
       setShowOtherVehicleInput(false);
       // Show request history section after successful submission
@@ -737,6 +833,23 @@ export function SolutionFinder() {
                 </Form>
               </CardContent>
             </Card>
+
+        {/* PAS-13-aligned Barrier Recommendations — augments (does not
+            replace) the legacy rule-based matches below. */}
+        {(barrierRecommendations || isLoadingBarrierRecommendations) && (
+          <div className="mt-10">
+            <BarrierRecommendationsBlock
+              data={barrierRecommendations}
+              isLoading={isLoadingBarrierRecommendations}
+              cartContext={{
+                source: "solution-finder",
+                sourceTitle:
+                  selectedRequest?.problemTitle ||
+                  form.getValues("problemTitle"),
+              }}
+            />
+          </div>
+        )}
 
         {/* Recommendations Results - Before History */}
         {recommendations && (
