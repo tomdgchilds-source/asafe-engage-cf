@@ -14,9 +14,15 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100020] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      // pointer-events-none on the viewport so its empty padding strip
+      // doesn't capture clicks intended for elements underneath (e.g.
+      // Impact Calculator vehicle cards inside a Dialog, or product cards
+      // on /products). Each Toast Root re-enables pointer-events-auto via
+      // the variants below, so dismiss/swipe still works.
+      "pointer-events-none fixed top-0 z-[100020] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
       className
     )}
+    data-testid="toast-viewport"
     {...props}
   />
 ))
