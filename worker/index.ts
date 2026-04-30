@@ -48,6 +48,7 @@ import basePlates from "./routes/basePlates";
 import pas13Chat from "./routes/pas13Chat";
 import installVideos from "./routes/installVideos";
 import recommendBarriers from "./routes/recommendBarriers";
+import quote from "./routes/quote";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -125,6 +126,7 @@ app.route("/api", basePlates);
 app.route("/api", pas13Chat);
 app.route("/api", installVideos);
 app.route("/api", recommendBarriers);
+app.route("/api", quote);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -1541,6 +1543,75 @@ app.post("/api/admin/sync-catalog-to-db", async (c) => {
     });
   } catch (e: any) {
     console.error("sync-catalog-to-db failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Quote drafts table: idempotent CREATE TABLE IF NOT EXISTS for the
+// quoting AI's persistence. The route layer also runs this defensively
+// on first POST, but exposing an explicit admin one-off makes the
+// migration auditable and lets us pre-create the table before traffic.
+//
+// Gated by MIGRATION_TOKEN, same pattern as the other admin one-offs.
+app.post("/api/admin/apply-quote-drafts-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const preCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'quote_drafts'
+    `) as any[];
+    const existedBefore = preCols.length > 0;
+
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS quote_drafts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR,
+        survey_id VARCHAR,
+        rep_user_id VARCHAR NOT NULL,
+        draft_json JSONB NOT NULL,
+        pdf_r2_key VARCHAR,
+        total_aed NUMERIC(12,2),
+        aggregate_pas13_verdict VARCHAR,
+        status VARCHAR NOT NULL DEFAULT 'draft',
+        share_token VARCHAR,
+        share_token_expires_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT now(),
+        updated_at TIMESTAMP NOT NULL DEFAULT now()
+      )
+    `;
+    await sqlClient`CREATE INDEX IF NOT EXISTS quote_drafts_rep_idx ON quote_drafts(rep_user_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS quote_drafts_project_idx ON quote_drafts(project_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS quote_drafts_survey_idx ON quote_drafts(survey_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS quote_drafts_token_idx ON quote_drafts(share_token)`;
+
+    const postCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'quote_drafts' ORDER BY column_name
+    `) as any[];
+
+    return c.json({
+      ok: true,
+      created: !existedBefore,
+      columns: postCols.map((r: any) => r.column_name),
+    });
+  } catch (e: any) {
+    console.error("apply-quote-drafts-schema failed:", e);
     return c.json({ ok: false, message: e?.message || String(e) }, 500);
   }
 });
@@ -5073,6 +5144,224 @@ app.post("/api/admin/pas13-vehicle-classes", authMiddleware, async (c) => {
     return c.json({ ok: true, accepted, rejected });
   } catch (e: any) {
     console.error("pas13-vehicle-classes POST failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// ─── Email-log diagnostics ──────────────────────────────────────
+// Schema migration + admin GET + admin replay endpoints for the
+// email_log table. Powers /admin/email-log so an operator can answer
+// "why didn't my password reset arrive?" without grepping Worker logs.
+//
+// The DDL endpoint is gated by MIGRATION_TOKEN like every other one-off
+// in this file; the GET + replay endpoints are admin-session-gated via
+// requireAdmin(). Replay is idempotent — it issues a fresh sendEmail
+// with the original to/subject and a placeholder body explaining this
+// is a re-send (we don't store HTML body in the log on purpose, so the
+// replay can't reproduce the exact original payload — that's by design).
+
+// Schema migration — creates email_log + supporting index. Idempotent.
+app.post("/api/admin/apply-email-log-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Probe whether the table already existed BEFORE the DDL — lets us
+    // report altered=N (N = 1 on first run, 0 on subsequent re-runs).
+    const preTable = (await sqlClient`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'email_log'
+      ) AS exists
+    `) as Array<{ exists: boolean }>;
+    const tableExisted = !!preTable[0]?.exists;
+
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS email_log (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "to" varchar NOT NULL,
+        subject varchar NOT NULL,
+        from_address varchar,
+        status varchar NOT NULL,
+        resend_id varchar,
+        error_code varchar,
+        error_message text,
+        response_status integer,
+        response_body text,
+        caller_route varchar,
+        created_at timestamp DEFAULT now()
+      )
+    `;
+
+    // Supporting index — most reads are "give me the latest 200" so a
+    // simple DESC index on created_at is what the admin GET will hit.
+    const preIdx = (await sqlClient`
+      SELECT indexname FROM pg_indexes
+      WHERE tablename = 'email_log' AND indexname = 'email_log_created_at_idx'
+    `) as Array<{ indexname: string }>;
+    const indexExisted = preIdx.length > 0;
+
+    await sqlClient`
+      CREATE INDEX IF NOT EXISTS email_log_created_at_idx
+      ON email_log (created_at DESC)
+    `;
+
+    return c.json({
+      ok: true,
+      altered: tableExisted ? 0 : 1,
+      indexed: indexExisted ? 0 : 1,
+    });
+  } catch (e: any) {
+    console.error("apply-email-log-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Admin GET — last N email_log rows, optionally filtered by status.
+// Defaults to limit=200; clamped at 500 to keep the admin page snappy.
+// Auth: existing requireAdmin() pattern (admin role on session user).
+app.get("/api/admin/email-log", authMiddleware, async (c) => {
+  if (!(await requireAdmin(c))) {
+    return c.json({ message: "Admin access required" }, 403);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Defensive: if migration hasn't run yet, return an empty list
+    // alongside `bootstrapNeeded: true` so the admin UI can render a
+    // "Apply schema first" hint instead of a 500.
+    const tableExists = (await sqlClient`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'email_log'
+      ) AS exists
+    `) as Array<{ exists: boolean }>;
+    if (!tableExists[0]?.exists) {
+      return c.json({
+        rows: [],
+        bootstrapNeeded: true,
+        message:
+          "email_log table not yet created — run /api/admin/apply-email-log-schema first.",
+      });
+    }
+
+    // Parse + clamp query params. status is one of the known values or
+    // null for "any". limit is bounded so a curious admin can't OOM the
+    // worker by passing limit=10000000.
+    const statusRaw = c.req.query("status");
+    const status =
+      statusRaw && ["sent", "failed", "skipped_no_config", "queued"].includes(statusRaw)
+        ? statusRaw
+        : null;
+    const limitRaw = parseInt(c.req.query("limit") || "200", 10);
+    const limit = Number.isFinite(limitRaw)
+      ? Math.min(500, Math.max(1, limitRaw))
+      : 200;
+
+    // Simple branched query — neon-tagged-template doesn't support
+    // conditional WHERE clauses without the sql.fragment helper, so we
+    // duplicate the SELECT to keep this file dependency-free.
+    const rows = status
+      ? ((await sqlClient`
+          SELECT id, "to", subject, from_address, status, resend_id,
+                 error_code, error_message, response_status, response_body,
+                 caller_route, created_at
+          FROM email_log
+          WHERE status = ${status}
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `) as any[])
+      : ((await sqlClient`
+          SELECT id, "to", subject, from_address, status, resend_id,
+                 error_code, error_message, response_status, response_body,
+                 caller_route, created_at
+          FROM email_log
+          ORDER BY created_at DESC
+          LIMIT ${limit}
+        `) as any[]);
+
+    return c.json({
+      rows: rows.map((r) => ({
+        id: r.id,
+        to: r.to,
+        subject: r.subject,
+        fromAddress: r.from_address,
+        status: r.status,
+        resendId: r.resend_id,
+        errorCode: r.error_code,
+        errorMessage: r.error_message,
+        responseStatus: r.response_status,
+        responseBody: r.response_body,
+        callerRoute: r.caller_route,
+        createdAt: r.created_at,
+      })),
+      total: rows.length,
+    });
+  } catch (e: any) {
+    console.error("GET /api/admin/email-log failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Admin replay — re-issue a previously-attempted email by id. Useful
+// after the underlying Resend cause has been fixed (e.g. domain
+// verified). Idempotent in the sense that each click logs a fresh
+// row; we don't update the original. Body is intentionally a short
+// "this is a manual re-send" notice — the original HTML payload isn't
+// stored in the log on purpose (privacy + log size).
+app.post("/api/admin/email-log/:id/replay", authMiddleware, async (c) => {
+  if (!(await requireAdmin(c))) {
+    return c.json({ message: "Admin access required" }, 403);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  const id = c.req.param("id");
+  if (!id) return c.json({ ok: false, message: "id required" }, 400);
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    const rows = (await sqlClient`
+      SELECT "to", subject, caller_route
+      FROM email_log
+      WHERE id = ${id}
+      LIMIT 1
+    `) as Array<{ to: string; subject: string; caller_route: string | null }>;
+    if (rows.length === 0) {
+      return c.json({ ok: false, message: "Not found" }, 404);
+    }
+    const row = rows[0];
+    // Lazy import to avoid a circular dep with services/email at module load.
+    const { sendEmail: sendEmailFn } = await import("./services/email");
+    const html = `
+      <p>This is a manual re-send of a previously-failed email.</p>
+      <p>Original subject: <strong>${row.subject}</strong>.</p>
+      <p>If you received this in error, you can safely ignore it.</p>
+    `;
+    const ok = await sendEmailFn(c.env, row.to, row.subject, html, {
+      callerRoute: row.caller_route || "/api/admin/email-log/replay",
+    });
+    return c.json({ ok, replayed: true, originalId: id });
+  } catch (e: any) {
+    console.error("POST /api/admin/email-log/:id/replay failed:", e);
     return c.json({ ok: false, message: e?.message || String(e) }, 500);
   }
 });

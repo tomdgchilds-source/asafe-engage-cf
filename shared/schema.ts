@@ -2378,3 +2378,49 @@ export const insertPas13VehicleClassSchema = createInsertSchema(pas13VehicleClas
 export type Pas13VehicleClass = typeof pas13VehicleClasses.$inferSelect;
 export type InsertPas13VehicleClass = z.infer<typeof insertPas13VehicleClassSchema>;
 
+// ──────────────────────────────────────────────
+// Email log — every Resend send attempt (success, failure, skip) gets a
+// row here so admins can diagnose "why didn't my password reset arrive?"
+// without grepping Worker logs. Captures the Resend HTTP response code,
+// the parsed error name, and a truncated body so domain-unverified /
+// rate-limit / API-key-revoked all surface visibly in /admin/email-log.
+//
+// `status` is a free-form varchar with a known set of values:
+//   - 'queued'             reserved for future async paths (currently unused)
+//   - 'sent'               Resend 200, message ID returned
+//   - 'failed'             Resend non-2xx OR fetch threw
+//   - 'skipped_no_config'  RESEND_API_KEY / EMAIL_FROM missing
+//
+// `callerRoute` is passed by the email caller (e.g.
+// "/api/auth/forgot-password") so the admin UI can filter by flow when
+// triaging a specific user complaint.
+//
+// Indexed on createdAt DESC so the "last 200 attempts" admin query is a
+// trivial index scan even as the log grows. No retention policy yet —
+// table is intentionally append-only; admins prune via SQL when needed.
+// ──────────────────────────────────────────────
+export const emailLog = pgTable("email_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  to: varchar("to").notNull(),
+  subject: varchar("subject").notNull(),
+  fromAddress: varchar("from_address"),
+  status: varchar("status").notNull(),
+  resendId: varchar("resend_id"),
+  errorCode: varchar("error_code"),
+  errorMessage: text("error_message"),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  callerRoute: varchar("caller_route"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  createdAtIdx: index("email_log_created_at_idx").on(t.createdAt),
+}));
+
+export const insertEmailLogSchema = createInsertSchema(emailLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type EmailLog = typeof emailLog.$inferSelect;
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+

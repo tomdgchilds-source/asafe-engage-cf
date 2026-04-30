@@ -64,6 +64,11 @@ const SharedOrderView = lazy(() => import("@/pages/SharedOrderView"));
 const SharedProjectView = lazy(() => import("@/pages/SharedProjectView"));
 const OrderKanban = lazy(() => import("@/pages/admin/OrderKanban"));
 const Pas13Rules = lazy(() => import("@/pages/admin/Pas13Rules"));
+// Email-log diagnostic — admin-only surface for Resend send attempts.
+// Lets the operator answer "why didn't my password reset email arrive?"
+// without grepping Worker logs. See worker/services/email.ts for the
+// instrumentation that backfills email_log on every send.
+const EmailLog = lazy(() => import("@/pages/admin/EmailLog"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading fallback component - use mobile optimized version
@@ -112,6 +117,12 @@ function Router() {
             the BITA-style T1..T4 mass/speed bands. */}
         <Route path="/admin/pas13-rules">
           <AdminRoute><Pas13Rules /></AdminRoute>
+        </Route>
+        {/* Resend send-attempt diagnostic page. First stop when a user
+            reports a missing password-reset email — filter by status=failed
+            + callerRoute=/api/auth/forgot-password. */}
+        <Route path="/admin/email-log">
+          <AdminRoute><EmailLog /></AdminRoute>
         </Route>
         {/* Haptic test is a dev tool — only registered in development builds */}
         {import.meta.env.DEV && (

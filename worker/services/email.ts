@@ -16,12 +16,86 @@ import type { Env } from "../types";
 //   5. npx wrangler secret put EMAIL_FROM
 // ──────────────────────────────────────────────
 
+// ──────────────────────────────────────────────
+// Email log — every Resend send attempt is recorded in `email_log` so
+// admins can diagnose silent failures (domain unverified, API key
+// revoked, rate limit hit, etc.) via /admin/email-log without grepping
+// Worker logs. Logging is best-effort: if the log insert itself fails
+// we swallow the error so we never break the email path.
+// ──────────────────────────────────────────────
+export interface EmailLogAttempt {
+  to: string;
+  subject: string;
+  fromAddress?: string | null;
+  status: "queued" | "sent" | "failed" | "skipped_no_config";
+  resendId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  responseStatus?: number | null;
+  responseBody?: string | null;
+  callerRoute?: string | null;
+}
+
+/**
+ * Insert one row into email_log. Uses the raw neon driver so we don't
+ * have to wire drizzle-orm through every email helper, and so a missing
+ * email_log table (pre-migration) merely logs a warning instead of
+ * exploding the email path. Defensive on every axis — never throws.
+ */
+export async function logEmailAttempt(
+  env: Env,
+  attempt: EmailLogAttempt,
+): Promise<string | null> {
+  if (!env.DATABASE_URL) {
+    // Worker isolate without DB access — nothing we can do, but never
+    // break the email send because of telemetry.
+    return null;
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(env.DATABASE_URL);
+    // Truncate the freeform text fields defensively even though callers
+    // already slice — belt + braces against an enormous Resend response
+    // body bloating the table.
+    const errorMessage = attempt.errorMessage
+      ? attempt.errorMessage.slice(0, 1000)
+      : null;
+    const responseBody = attempt.responseBody
+      ? attempt.responseBody.slice(0, 4000)
+      : null;
+    const result = (await sqlClient`
+      INSERT INTO email_log (
+        "to", subject, from_address, status, resend_id, error_code,
+        error_message, response_status, response_body, caller_route
+      )
+      VALUES (
+        ${attempt.to}, ${attempt.subject}, ${attempt.fromAddress ?? null},
+        ${attempt.status}, ${attempt.resendId ?? null}, ${attempt.errorCode ?? null},
+        ${errorMessage}, ${attempt.responseStatus ?? null}, ${responseBody},
+        ${attempt.callerRoute ?? null}
+      )
+      RETURNING id
+    `) as Array<{ id: string }>;
+    return result[0]?.id ?? null;
+  } catch (e) {
+    // Soft fail — never break the email path because logging itself
+    // broke. Most likely cause: email_log table not yet migrated. The
+    // admin migration endpoint creates it idempotently.
+    console.warn(
+      "[email-log] insert failed (non-fatal):",
+      (e as any)?.message || e,
+    );
+    return null;
+  }
+}
+
 /** Send an email via the Resend API. */
 export async function sendEmail(
   env: Env,
   to: string,
   subject: string,
   html: string,
+  opts?: { callerRoute?: string },
 ): Promise<boolean> {
   // Guard: skip if email credentials aren't configured
   const apiKey = env.RESEND_API_KEY;
@@ -29,6 +103,14 @@ export async function sendEmail(
 
   if (!apiKey || !from) {
     console.warn("Email not configured (RESEND_API_KEY / EMAIL_FROM missing) — skipping email to", to);
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from || null,
+      status: "skipped_no_config",
+      errorMessage: "RESEND_API_KEY or EMAIL_FROM missing",
+      callerRoute: opts?.callerRoute ?? null,
+    });
     return false;
   }
 
@@ -47,15 +129,62 @@ export async function sendEmail(
       }),
     });
 
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
+      // Try to surface the structured Resend error name (e.g.
+      // "validation_error", "missing_api_key") so the admin UI can
+      // chip-render it in one place. Falls back to null on parse failure.
+      let errorCode: string | null = null;
+      try {
+        const parsed = JSON.parse(text);
+        errorCode = parsed?.name || parsed?.statusCode || null;
+      } catch {
+        /* non-JSON body — leave errorCode null */
+      }
       console.error(`Resend API error: ${res.status} ${text}`);
+      await logEmailAttempt(env, {
+        to,
+        subject,
+        fromAddress: from,
+        status: "failed",
+        errorCode,
+        errorMessage: text,
+        responseStatus: res.status,
+        responseBody: text,
+        callerRoute: opts?.callerRoute ?? null,
+      });
       return false;
     }
 
+    // 2xx — try to extract the message ID for downstream debugging
+    // (correlate the local row to a Resend dashboard record).
+    let resendId: string | null = null;
+    try {
+      const parsed = JSON.parse(text);
+      resendId = parsed?.id || null;
+    } catch {
+      /* non-JSON — leave resendId null */
+    }
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "sent",
+      resendId,
+      responseStatus: res.status,
+      callerRoute: opts?.callerRoute ?? null,
+    });
     return true;
   } catch (error) {
     console.error("Email send error:", error);
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "failed",
+      errorMessage: String(error),
+      callerRoute: opts?.callerRoute ?? null,
+    });
     return false;
   }
 }
@@ -101,14 +230,26 @@ export async function sendOrderConfirmationEmail(
     pas13ReportPdf,
     pas13ReportUrl,
   }: OrderConfirmationParams,
+  opts?: { callerRoute?: string },
 ): Promise<boolean> {
   // Guard: skip if email credentials aren't configured. Mirrors sendEmail()
   // — we duplicate the guard here because we go around sendEmail() to attach
   // the PDF directly via Resend's attachments API.
   const apiKey = env.RESEND_API_KEY;
   const from = env.EMAIL_FROM;
+  // Caller route default — orders flow always passes this, but keep a
+  // fallback so the email_log row is always tagged.
+  const callerRoute = opts?.callerRoute ?? "/api/orders/confirmation";
   if (!apiKey || !from) {
     console.warn("Email not configured (RESEND_API_KEY / EMAIL_FROM missing) — skipping email to", to);
+    await logEmailAttempt(env, {
+      to,
+      subject: `Order Confirmed - ${orderNumber} | A-SAFE Engage`,
+      fromAddress: from || null,
+      status: "skipped_no_config",
+      errorMessage: "RESEND_API_KEY or EMAIL_FROM missing",
+      callerRoute,
+    });
     return false;
   }
 
@@ -188,7 +329,7 @@ export async function sendOrderConfirmationEmail(
 
   // When we have no attachment, fall back to the simple sendEmail() helper.
   if (!pas13ReportPdf) {
-    return sendEmail(env, to, subject, html);
+    return sendEmail(env, to, subject, html, { callerRoute });
   }
 
   // Attachment path — call Resend directly so we can pass `attachments`.
@@ -213,18 +354,57 @@ export async function sendOrderConfirmationEmail(
         ],
       }),
     });
+    const text = await res.text();
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`Resend API error (order confirmation w/ PAS 13 attachment): ${res.status} ${errText}`);
+      let errorCode: string | null = null;
+      try {
+        const parsed = JSON.parse(text);
+        errorCode = parsed?.name || parsed?.statusCode || null;
+      } catch { /* non-JSON */ }
+      console.error(`Resend API error (order confirmation w/ PAS 13 attachment): ${res.status} ${text}`);
+      await logEmailAttempt(env, {
+        to,
+        subject,
+        fromAddress: from,
+        status: "failed",
+        errorCode,
+        errorMessage: text,
+        responseStatus: res.status,
+        responseBody: text,
+        callerRoute,
+      });
       // Best-effort fallback: retry without the attachment so the customer
-      // at least gets the confirmation email + download link.
-      return sendEmail(env, to, subject, html);
+      // at least gets the confirmation email + download link. The retry is
+      // logged separately by sendEmail() so the admin sees both attempts.
+      return sendEmail(env, to, subject, html, { callerRoute });
     }
+    let resendId: string | null = null;
+    try {
+      const parsed = JSON.parse(text);
+      resendId = parsed?.id || null;
+    } catch { /* non-JSON */ }
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "sent",
+      resendId,
+      responseStatus: res.status,
+      callerRoute,
+    });
     return true;
   } catch (err) {
     console.error("Order confirmation email send error (with attachment):", err);
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "failed",
+      errorMessage: String(err),
+      callerRoute,
+    });
     // Same fall-through — never let the attachment failure swallow the email.
-    return sendEmail(env, to, subject, html);
+    return sendEmail(env, to, subject, html, { callerRoute });
   }
 }
 
@@ -338,13 +518,23 @@ interface ApprovalRequestParams {
 export async function sendApprovalRequestEmail(
   env: Env,
   params: ApprovalRequestParams,
+  opts?: { callerRoute?: string },
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const apiKey = env.RESEND_API_KEY;
   const from = env.EMAIL_FROM;
+  const callerRoute = opts?.callerRoute ?? "/api/orders/approval-request";
 
   if (!apiKey || !from) {
     const msg = "RESEND_API_KEY / EMAIL_FROM not configured";
     console.warn(`Approval email skipped (${msg}) — would have emailed ${params.to}`);
+    await logEmailAttempt(env, {
+      to: params.to,
+      subject: `Approval request — order ${params.customOrderNumber || params.orderNumber}`,
+      fromAddress: from || null,
+      status: "skipped_no_config",
+      errorMessage: msg,
+      callerRoute,
+    });
     return { ok: false, error: msg };
   }
 
@@ -533,16 +723,53 @@ export async function sendApprovalRequestEmail(
       }),
     });
 
+    const bodyText = await res.text();
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`Resend API error (approval email): ${res.status} ${errText}`);
+      let errorCode: string | null = null;
+      try {
+        const parsed = JSON.parse(bodyText);
+        errorCode = parsed?.name || parsed?.statusCode || null;
+      } catch { /* non-JSON */ }
+      console.error(`Resend API error (approval email): ${res.status} ${bodyText}`);
+      await logEmailAttempt(env, {
+        to,
+        subject,
+        fromAddress: from,
+        status: "failed",
+        errorCode,
+        errorMessage: bodyText,
+        responseStatus: res.status,
+        responseBody: bodyText,
+        callerRoute,
+      });
       return { ok: false, error: `resend_${res.status}` };
     }
 
-    const payload = (await res.json().catch(() => ({}))) as { id?: string };
-    return { ok: true, messageId: payload.id };
+    let resendId: string | null = null;
+    try {
+      const parsed = JSON.parse(bodyText);
+      resendId = parsed?.id || null;
+    } catch { /* non-JSON */ }
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "sent",
+      resendId,
+      responseStatus: res.status,
+      callerRoute,
+    });
+    return { ok: true, messageId: resendId || undefined };
   } catch (err) {
     console.error("Approval email send error:", err);
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : String(err),
+      callerRoute,
+    });
     return { ok: false, error: err instanceof Error ? err.message : "unknown" };
   }
 }
@@ -867,6 +1094,7 @@ export interface InstallTeamDigestResult {
 export async function sendInstallTeamVideoDigest(
   env: Env,
   params: InstallTeamDigestParams,
+  opts?: { callerRoute?: string },
 ): Promise<InstallTeamDigestResult> {
   const {
     to,
@@ -878,6 +1106,7 @@ export async function sendInstallTeamVideoDigest(
     installationUrl,
     productGroups,
   } = params;
+  const callerRoute = opts?.callerRoute ?? "/api/installations/team-digest";
 
   // Filter out products with no videos — they bloat the email and offer
   // nothing to "watch before".
@@ -917,6 +1146,14 @@ export async function sendInstallTeamVideoDigest(
   if (!apiKey || !from) {
     const msg = "RESEND_API_KEY / EMAIL_FROM not configured";
     console.warn(`[install-team-digest] Skipped (${msg}) — would have emailed ${to}`);
+    await logEmailAttempt(env, {
+      to,
+      subject: `Install pack: ${installationTitle}`,
+      fromAddress: from || null,
+      status: "skipped_no_config",
+      errorMessage: msg,
+      callerRoute,
+    });
     return {
       ok: false,
       sent: false,
@@ -1131,9 +1368,25 @@ export async function sendInstallTeamVideoDigest(
       }),
     });
 
+    const bodyText = await res.text();
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[install-team-digest] Resend API error: ${res.status} ${errText}`);
+      let errorCode: string | null = null;
+      try {
+        const parsed = JSON.parse(bodyText);
+        errorCode = parsed?.name || parsed?.statusCode || null;
+      } catch { /* non-JSON */ }
+      console.error(`[install-team-digest] Resend API error: ${res.status} ${bodyText}`);
+      await logEmailAttempt(env, {
+        to,
+        subject,
+        fromAddress: from,
+        status: "failed",
+        errorCode,
+        errorMessage: bodyText,
+        responseStatus: res.status,
+        responseBody: bodyText,
+        callerRoute,
+      });
       return {
         ok: false,
         sent: false,
@@ -1144,17 +1397,38 @@ export async function sendInstallTeamVideoDigest(
       };
     }
 
-    const payload = (await res.json().catch(() => ({}))) as { id?: string };
+    let resendId: string | null = null;
+    try {
+      const parsed = JSON.parse(bodyText);
+      resendId = parsed?.id || null;
+    } catch { /* non-JSON */ }
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "sent",
+      resendId,
+      responseStatus: res.status,
+      callerRoute,
+    });
     return {
       ok: true,
       sent: true,
       recipient: to,
       videoCount,
       productCount: groupsWithVideos.length,
-      messageId: payload.id,
+      messageId: resendId || undefined,
     };
   } catch (err) {
     console.error("[install-team-digest] send error:", err);
+    await logEmailAttempt(env, {
+      to,
+      subject,
+      fromAddress: from,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : String(err),
+      callerRoute,
+    });
     return {
       ok: false,
       sent: false,

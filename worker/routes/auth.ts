@@ -163,13 +163,32 @@ auth.post("/auth/forgot-password", forgotPasswordRateLimit, async (c) => {
 
   if (result) {
     const resetUrl = `${c.req.header("origin") || "https://asafe-engage.tom-d-g-childs.workers.dev"}/reset-password?token=${result.token}`;
-    await sendEmail(c.env, email, "Reset Your Password - A-SAFE Engage", `
+    // Pass callerRoute so the email_log row is filterable by flow when an
+    // admin is triaging a "my reset link never arrived" complaint.
+    const ok = await sendEmail(
+      c.env,
+      email,
+      "Reset Your Password - A-SAFE Engage",
+      `
       <h2>Password Reset</h2>
       <p>You requested a password reset. Click the link below to set a new password:</p>
       <p><a href="${resetUrl}" style="background-color: #FFC72C; color: black; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Reset Password</a></p>
       <p>This link expires in 1 hour.</p>
       <p>If you didn't request this, ignore this email.</p>
-    `);
+    `,
+      { callerRoute: "/api/auth/forgot-password" },
+    );
+    // Direct diagnostic: when sendEmail returns false the user response
+    // STILL claims success (anti-enumeration), but we surface a structured
+    // error log here so an admin grepping Worker logs sees exactly which
+    // address failed. Pair with /admin/email-log filtered by
+    // status=failed + callerRoute=/api/auth/forgot-password for the full
+    // Resend response.
+    if (!ok) {
+      console.error(
+        `[forgot-password] email send failed for ${email} — see /admin/email-log for Resend response`,
+      );
+    }
   }
 
   // Always return success to prevent email enumeration

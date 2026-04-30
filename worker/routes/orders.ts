@@ -626,14 +626,18 @@ orders.post("/orders", authMiddleware, async (c) => {
 
         // Send order confirmation to customer
         if (emailAddress) {
-          await sendOrderConfirmationEmail(c.env, {
-            to: emailAddress,
-            orderNumber,
-            totalAmount: formattedTotal,
-            itemCount,
-            pas13ReportPdf,
-            pas13ReportUrl,
-          });
+          await sendOrderConfirmationEmail(
+            c.env,
+            {
+              to: emailAddress,
+              orderNumber,
+              totalAmount: formattedTotal,
+              itemCount,
+              pas13ReportPdf,
+              pas13ReportUrl,
+            },
+            { callerRoute: "/api/orders" },
+          );
         }
 
         // Notify admin team via email (routed by currency)
@@ -1642,21 +1646,25 @@ async function dispatchApprovalRequest(
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        const result = await sendApprovalRequestEmail(c.env, {
-          to: approverEmail.trim(),
-          approverName,
-          section,
-          orderNumber: order.orderNumber,
-          customOrderNumber: order.customOrderNumber || undefined,
-          clientCompany: order.customerCompany || order.projectName || "your company",
-          clientCompanyLogoUrl: order.companyLogoUrl || undefined,
-          salesContact,
-          grandTotal: formattedTotal,
-          currency: order.currency || "AED",
-          approvalUrl,
-          pdfDownloadUrl,
-          expiresAt,
-        });
+        const result = await sendApprovalRequestEmail(
+          c.env,
+          {
+            to: approverEmail.trim(),
+            approverName,
+            section,
+            orderNumber: order.orderNumber,
+            customOrderNumber: order.customOrderNumber || undefined,
+            clientCompany: order.customerCompany || order.projectName || "your company",
+            clientCompanyLogoUrl: order.companyLogoUrl || undefined,
+            salesContact,
+            grandTotal: formattedTotal,
+            currency: order.currency || "AED",
+            approvalUrl,
+            pdfDownloadUrl,
+            expiresAt,
+          },
+          { callerRoute: "/api/orders/approval-request" },
+        );
 
         await storage.appendOrderAuditLog({
           orderId: order.id,

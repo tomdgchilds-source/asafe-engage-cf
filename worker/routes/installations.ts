@@ -886,16 +886,20 @@ export async function fireInstallTeamDigest(
     const baseUrl = env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev";
     const installationUrl = `${baseUrl.replace(/\/$/, "")}/installation-timeline?installationId=${encodeURIComponent(installationId)}`;
 
-    return await sendInstallTeamVideoDigest(env, {
-      to: team.contactEmail,
-      teamName: team.name || null,
-      leadContactName: team.leadContactName || null,
-      installationTitle: installation.title,
-      installationLocation: installation.location || null,
-      installationPlannedStart: installation.planned_start || null,
-      installationUrl,
-      productGroups,
-    });
+    return await sendInstallTeamVideoDigest(
+      env,
+      {
+        to: team.contactEmail,
+        teamName: team.name || null,
+        leadContactName: team.leadContactName || null,
+        installationTitle: installation.title,
+        installationLocation: installation.location || null,
+        installationPlannedStart: installation.planned_start || null,
+        installationUrl,
+        productGroups,
+      },
+      { callerRoute: "/api/installations/team-digest" },
+    );
   } catch (err) {
     console.error(
       `[install-team-digest] fireInstallTeamDigest failed for installation=${installationId} team=${team.id}:`,
