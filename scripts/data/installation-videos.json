@@ -5,7 +5,10 @@
     "scrapedAt": "2026-04-22T09:05:28.288Z",
     "totalVideos": 61,
     "productsScanned": 61,
-    "unmatchedCount": 3
+    "unmatchedCount": 6,
+    "rematchedAt": "2026-04-30T18:15:02.557Z",
+    "notMatchedNoFamilyEdge": 6,
+    "familyOnlyCount": 16
   },
   "videos": [
     {
@@ -16,23 +19,7 @@
       "description": "Designed to defend dock loading bays, containing stray vehicles at dock entrances and protecting door infrastructure from impact damage. Creates a physical stop when loading doors are not in use, with enhanced strength barrier for high impact resistance in heavy vehicle environments. \n\nDouble bollard posts offer high levels of collision resistance even when the gate is open, protecting door infrastructure and shutter rails. \n\nSuitable for all docking areas between 2.6m and 3.0m wide, the simple manual operation, quick-slide collar lock and cantilever design give easy access and ample opening room.\n\nhttps://www.asafe.com/en-gb/products/iflex-dock-gate-xl/overview/\n\nFacebook: https://en-gb.facebook.com/ASAFEUK/\nTwitter: https://twitter.com/asafe_uk/\nLinkedIn: https://www.linkedin.com/company/asafeuk\nYouTube: https://www.youtube.com/channel/UC0_-YT-MA5bH1ftGd6GL8fg\n\nContact us: https://www.asafe.com/en-gb/contact/",
       "publishedAt": null,
       "chapters": [],
-      "matchedProducts": [
-        {
-          "productId": "2c4e489c-40c4-49bd-972c-081bae632d76",
-          "productName": "Traffic Gate",
-          "confidence": 0.6
-        },
-        {
-          "productId": "7be62140-8005-4591-b7e4-215b5866879a",
-          "productName": "Hydraulic Swing Gate (2R) - Post",
-          "confidence": 0.6
-        },
-        {
-          "productId": "5f28a065-59ae-45c1-aa08-138bc9a0b4ff",
-          "productName": "Hydraulic Swing Gate (2R) - Self-Close",
-          "confidence": 0.6
-        }
-      ]
+      "matchedProducts": []
     },
     {
       "videoId": "lhT8Jotkkfw",
@@ -58,23 +45,7 @@
       "description": "Designed to defend dock loading bays, containing stray vehicles at dock entrances and protecting door infrastructure from impact damage. Creates a physical stop when loading doors are not in use, with enhanced strength barrier for high impact resistance in heavy vehicle environments. \n\nDouble bollard posts offer high levels of collision resistance even when the gate is open, protecting door infrastructure and shutter rails. \n\nSuitable for all docking areas between 2.4m and 2.5m wide, the simple manual operation, quick-slide collar lock and cantilever design give easy access and ample opening room.\n\nhttps://www.asafe.com/en-gb/products/iflex-dock-gate/overview/\n\nFacebook: https://en-gb.facebook.com/ASAFEUK/\nTwitter: https://twitter.com/asafe_uk/\nLinkedIn: https://www.linkedin.com/company/asafeuk\nYouTube: https://www.youtube.com/channel/UC0_-YT-MA5bH1ftGd6GL8fg\n\nContact us: https://www.asafe.com/en-gb/contact/",
       "publishedAt": null,
       "chapters": [],
-      "matchedProducts": [
-        {
-          "productId": "2c4e489c-40c4-49bd-972c-081bae632d76",
-          "productName": "Traffic Gate",
-          "confidence": 0.6
-        },
-        {
-          "productId": "7be62140-8005-4591-b7e4-215b5866879a",
-          "productName": "Hydraulic Swing Gate (2R) - Post",
-          "confidence": 0.6
-        },
-        {
-          "productId": "5f28a065-59ae-45c1-aa08-138bc9a0b4ff",
-          "productName": "Hydraulic Swing Gate (2R) - Self-Close",
-          "confidence": 0.6
-        }
-      ]
+      "matchedProducts": []
     },
     {
       "videoId": "gyuUtrEoYDg",
@@ -84,23 +55,7 @@
       "description": "Designed to defend dock loading bays, containing stray vehicles at dock entrances and protecting door infrastructure from impact damage. Creates a physical stop when loading doors are not in use, with high strength barrier for impact resistance in hand-powered vehicle environments. \n\nDouble bollard posts offer high levels of collision resistance even when the gate is open, protecting door infrastructure and shutter rails. \n\nSuitable for all docking areas up to 2.4m wide, the simple manual operation, quick-slide collar lock and cantilever design give easy access and ample opening room.\n\nhttps://www.asafe.com/en-gb/products/eflex-dock-gate/overview/\n\nFacebook: https://en-gb.facebook.com/ASAFEUK/\nTwitter: https://twitter.com/asafe_uk/\nLinkedIn: https://www.linkedin.com/company/asafeuk\nYouTube: https://www.youtube.com/channel/UC0_-YT-MA5bH1ftGd6GL8fg\n\nContact us: https://www.asafe.com/en-gb/contact/",
       "publishedAt": null,
       "chapters": [],
-      "matchedProducts": [
-        {
-          "productId": "2c4e489c-40c4-49bd-972c-081bae632d76",
-          "productName": "Traffic Gate",
-          "confidence": 0.6
-        },
-        {
-          "productId": "7be62140-8005-4591-b7e4-215b5866879a",
-          "productName": "Hydraulic Swing Gate (2R) - Post",
-          "confidence": 0.6
-        },
-        {
-          "productId": "5f28a065-59ae-45c1-aa08-138bc9a0b4ff",
-          "productName": "Hydraulic Swing Gate (2R) - Self-Close",
-          "confidence": 0.6
-        }
-      ]
+      "matchedProducts": []
     },
     {
       "videoId": "f50qFr0naMY",
@@ -161,7 +116,7 @@
         {
           "productId": "9885c944-e37b-4c62-8863-c455c0efde15",
           "productName": "mFlex Single Traffic Barrier",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -193,7 +148,7 @@
         {
           "productId": "7d7955f7-24d8-46c4-84f0-3e05e6cefe49",
           "productName": "mFlex Double Traffic Barrier",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -282,7 +237,7 @@
         {
           "productId": "2c8be82d-a4b0-44a5-abab-6370aecff509",
           "productName": "iFlex Single Traffic",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -494,7 +449,7 @@
         {
           "productId": "65024ce1-6556-46e6-ac1a-76cc63e2dd0b",
           "productName": "iFlex Double Traffic",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -587,7 +542,7 @@
         {
           "productId": "770f5be3-4a81-4f11-920e-7145dd0beff3",
           "productName": "eFlex Single Traffic+",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -603,7 +558,7 @@
         {
           "productId": "61e62314-dc55-4070-bf71-dd5cb79a7f28",
           "productName": "eFlex Single Traffic Barrier",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -884,7 +839,7 @@
         {
           "productId": "3b15db15-16b5-400b-99b1-789ac1c3dddf",
           "productName": "Atlas Double Traffic Barrier",
-          "confidence": 1
+          "confidence": 0.8
         }
       ]
     },
@@ -1096,56 +1051,6 @@
       "chapters": [],
       "matchedProducts": [
         {
-          "productId": "42c8cef9-51e4-495f-a780-b2da640429da",
-          "productName": "iFlex Double Traffic+",
-          "confidence": 0.6
-        },
-        {
-          "productId": "2206a7b8-cb84-4c58-9046-c64fdedd471d",
-          "productName": "CS iFlex Single Traffic+",
-          "confidence": 0.6
-        },
-        {
-          "productId": "770f5be3-4a81-4f11-920e-7145dd0beff3",
-          "productName": "eFlex Single Traffic+",
-          "confidence": 0.6
-        },
-        {
-          "productId": "e764d9bf-a752-46a1-9f61-378923d80923",
-          "productName": "CS iFlex Pedestrian 3 Rail",
-          "confidence": 0.6
-        },
-        {
-          "productId": "e8c6a366-5e90-41c1-88b7-993c3cdcb4ad",
-          "productName": "iFlex Pedestrian 3 Rail",
-          "confidence": 0.6
-        },
-        {
-          "productId": "75d1beec-06da-4410-b373-55968bb3fe22",
-          "productName": "190-T2-P1",
-          "confidence": 0.6
-        },
-        {
-          "productId": "58673cb8-1a0d-4731-9df1-1b6b8446bc3c",
-          "productName": "iFlex Single Traffic+",
-          "confidence": 0.6
-        },
-        {
-          "productId": "0c58d427-0d0a-4cbd-a6a6-11215dc7eb86",
-          "productName": "190-T1-P2",
-          "confidence": 0.6
-        },
-        {
-          "productId": "2e7a01da-0881-4482-ba93-042fe6f4b0fd",
-          "productName": "130-T0-P3",
-          "confidence": 0.6
-        },
-        {
-          "productId": "b48ded4c-d13e-41df-97fb-303e30019587",
-          "productName": "eFlex Pedestrian Barrier",
-          "confidence": 0.6
-        },
-        {
           "productId": "0ef78231-92bc-4846-934d-541db37bdd1c",
           "productName": "Topple Barrier 3.6m with ForkGuard",
           "confidence": 0.6
@@ -1171,56 +1076,6 @@
       "publishedAt": null,
       "chapters": [],
       "matchedProducts": [
-        {
-          "productId": "65024ce1-6556-46e6-ac1a-76cc63e2dd0b",
-          "productName": "iFlex Double Traffic",
-          "confidence": 0.6
-        },
-        {
-          "productId": "a3b1596c-e2b8-424c-b4c9-d7be60f0f7fe",
-          "productName": "CS iFlex Single Traffic",
-          "confidence": 0.6
-        },
-        {
-          "productId": "61e62314-dc55-4070-bf71-dd5cb79a7f28",
-          "productName": "eFlex Single Traffic Barrier",
-          "confidence": 0.6
-        },
-        {
-          "productId": "3b15db15-16b5-400b-99b1-789ac1c3dddf",
-          "productName": "Atlas Double Traffic Barrier",
-          "confidence": 0.6
-        },
-        {
-          "productId": "0ef305a0-9803-40e4-85dc-80c9544c1a16",
-          "productName": "190-T2-P0",
-          "confidence": 0.6
-        },
-        {
-          "productId": "9b095b40-43e1-4ea4-93d1-1189800fdf54",
-          "productName": "Atlas Double Traffic Barrier+",
-          "confidence": 0.6
-        },
-        {
-          "productId": "2c8be82d-a4b0-44a5-abab-6370aecff509",
-          "productName": "iFlex Single Traffic",
-          "confidence": 0.6
-        },
-        {
-          "productId": "02e2862a-fca8-4316-a61c-ed476d7508f9",
-          "productName": "190-T1-P0",
-          "confidence": 0.6
-        },
-        {
-          "productId": "9885c944-e37b-4c62-8863-c455c0efde15",
-          "productName": "mFlex Single Traffic Barrier",
-          "confidence": 0.6
-        },
-        {
-          "productId": "7d7955f7-24d8-46c4-84f0-3e05e6cefe49",
-          "productName": "mFlex Double Traffic Barrier",
-          "confidence": 0.6
-        },
         {
           "productId": "0ef78231-92bc-4846-934d-541db37bdd1c",
           "productName": "Topple Barrier 3.6m with ForkGuard",
@@ -1458,6 +1313,21 @@
     }
   ],
   "unmatched": [
+    {
+      "videoId": "hBOhDNFeQIs",
+      "title": "A-SAFE | Installation of iFlex Dock Gate XL",
+      "reason": "No product or family keyword matched"
+    },
+    {
+      "videoId": "NbhPa_pYCdY",
+      "title": "A-SAFE | Installation of iFlex Dock Gate",
+      "reason": "No product or family keyword matched"
+    },
+    {
+      "videoId": "gyuUtrEoYDg",
+      "title": "A-SAFE | Installation of eFlex Dock Gate",
+      "reason": "No product or family keyword matched"
+    },
     {
       "videoId": "jn6MEpX6eIA",
       "title": "A-SAFE | Installation of Sign Cap",

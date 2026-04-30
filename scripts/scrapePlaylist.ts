@@ -414,26 +414,75 @@ function matchVideo(
   return { matches: Array.from(matchesById.values()), method };
 }
 
+/**
+ * Family-keyword fallback. Tightened per φ subagent's "over-attaching"
+ * flag (tech-debt fix C3, 2026-04-30):
+ *
+ *   1. EARLIEST-KEYWORD-WINS for multi-family titles. If the title
+ *      contains keywords for more than one family (e.g. "Topple Barrier
+ *      Pedestrian" hits both "topple" AND "pedestrian"), only the
+ *      family whose keyword appears EARLIER in the title — the primary
+ *      subject — is attached. The looser "all matching families"
+ *      behaviour over-attached Topple Pedestrian videos to every
+ *      pedestrian guardrail in the catalog.
+ *
+ *   2. DOCK GATE TITLES are intentionally left UNMATCHED. The "Installation
+ *      of iFlex Dock Gate XL" / "Installation of eFlex Dock Gate" videos
+ *      have no DB equivalent (the iFlex / eFlex Dock Gate isn't carried
+ *      as a discrete product row), and the loose "gate" keyword used to
+ *      family-attach them to all hydraulic / traffic gates — none of
+ *      which install the same way. Better unmatched (visible in the global
+ *      Resources list) than wrong-family-attached.
+ */
 function matchFamilyFallback(
   video: { title: string },
   products: ProductRow[],
 ): MatchedProduct[] {
   const lower = video.title.toLowerCase();
-  const hits: MatchedProduct[] = [];
+
+  // Rule 2: Dock Gate titles are intentionally unmatched — see docstring.
+  // The dock-gate phrase is what makes "gate" too loose to fall back on,
+  // so we strip these out before any keyword scan.
+  if (/\bdock\s+gate\b/.test(lower)) {
+    return [];
+  }
+
+  // Rule 1: collect every family whose keyword appears in the title,
+  // alongside the position of the FIRST occurrence. The primary subject
+  // (lowest indexOf) wins and we drop the rest. Ties (rare — would
+  // require two keywords starting at the same index, e.g. one being a
+  // prefix of the other) keep the FAMILY_KEYWORDS-table-order entry,
+  // which is the historical behaviour.
+  type FamHit = (typeof FAMILY_KEYWORDS)[number] & { firstIdx: number };
+  const presentFamilies: FamHit[] = [];
   for (const fam of FAMILY_KEYWORDS) {
-    if (!lower.includes(fam.keyword)) continue;
-    const inCat = products.filter(
-      (p) => (p.category || "").toLowerCase() === fam.category,
+    const idx = lower.indexOf(fam.keyword);
+    if (idx < 0) continue;
+    presentFamilies.push({ ...fam, firstIdx: idx });
+  }
+  if (presentFamilies.length === 0) return [];
+
+  // Earliest-keyword-wins. Stable sort on (firstIdx, original table order).
+  presentFamilies.sort((a, b) => {
+    if (a.firstIdx !== b.firstIdx) return a.firstIdx - b.firstIdx;
+    return (
+      FAMILY_KEYWORDS.indexOf(a as any) - FAMILY_KEYWORDS.indexOf(b as any)
     );
-    if (inCat.length === 0) continue;
-    for (const p of inCat) {
-      if (!hits.some((h) => h.productId === p.productId)) {
-        hits.push({
-          productId: p.productId,
-          productName: p.name,
-          confidence: 0.6,
-        });
-      }
+  });
+  const winner = presentFamilies[0];
+  const inCat = products.filter(
+    (p) => (p.category || "").toLowerCase() === winner.category,
+  );
+  if (inCat.length === 0) return [];
+
+  const hits: MatchedProduct[] = [];
+  for (const p of inCat) {
+    if (!hits.some((h) => h.productId === p.productId)) {
+      hits.push({
+        productId: p.productId,
+        productName: p.name,
+        confidence: 0.6,
+      });
     }
   }
   return hits;
