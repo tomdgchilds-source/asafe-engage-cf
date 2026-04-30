@@ -690,3 +690,371 @@ export async function sendOrderRejectionEmail(
   `;
   return sendEmail(env, to, subject, html);
 }
+
+// ──────────────────────────────────────────────
+// Install-team "watch-before-site-visit" digest
+//
+// Fires when a team is assigned to an installation. Bundles the per-product
+// Installation Video resources for that install into a thumbnail-grid email
+// so the team lead has the A-SAFE training queued up before site arrival.
+//
+// Recipient is install_teams.contact_email; no email ⇒ skip silently and
+// log a warning (don't block the assignment). YouTube hotlinks (no inline
+// video / no attachments) — keeps the email small and corporate-mail-safe.
+// ──────────────────────────────────────────────
+
+export interface InstallTeamDigestVideo {
+  id: string;
+  title: string;
+  description?: string | null;
+  videoId?: string | null;
+  thumbnailUrl?: string | null;
+  externalUrl?: string | null;
+  fileUrl?: string | null;
+}
+
+export interface InstallTeamDigestProductGroup {
+  productId: string;
+  productName: string;
+  videos: InstallTeamDigestVideo[];
+  /** Optional one-paragraph summary drawn from products.ground_works_data. */
+  groundWorksSummary?: string | null;
+}
+
+export interface InstallTeamDigestParams {
+  to: string;
+  teamName?: string | null;
+  leadContactName?: string | null;
+  installationTitle: string;
+  installationLocation?: string | null;
+  installationPlannedStart?: Date | string | null;
+  /** When set, included as an "Open in A-SAFE Engage" CTA. */
+  installationUrl?: string | null;
+  /** Per-product groups. Empty arrays will be filtered out by the helper. */
+  productGroups: InstallTeamDigestProductGroup[];
+}
+
+export interface InstallTeamDigestResult {
+  ok: boolean;
+  sent: boolean;
+  recipient: string;
+  videoCount: number;
+  productCount: number;
+  reason?: string;
+  messageId?: string;
+}
+
+/**
+ * Send the per-product Installation Video digest to the assigned team lead.
+ *
+ * Caller must pre-resolve the recipient email + product groups; this helper
+ * only handles HTML composition + Resend delivery. Returns ok:false with a
+ * `reason` when the email is skipped (no recipient, no videos, etc.) so the
+ * caller can decide whether to fail or shrug.
+ */
+export async function sendInstallTeamVideoDigest(
+  env: Env,
+  params: InstallTeamDigestParams,
+): Promise<InstallTeamDigestResult> {
+  const {
+    to,
+    teamName,
+    leadContactName,
+    installationTitle,
+    installationLocation,
+    installationPlannedStart,
+    installationUrl,
+    productGroups,
+  } = params;
+
+  // Filter out products with no videos — they bloat the email and offer
+  // nothing to "watch before".
+  const groupsWithVideos = productGroups.filter((g) => g.videos && g.videos.length > 0);
+  const videoCount = groupsWithVideos.reduce((s, g) => s + g.videos.length, 0);
+
+  if (!to || !to.trim()) {
+    console.warn(
+      `[install-team-digest] Skipped — no recipient email for installation "${installationTitle}".`,
+    );
+    return {
+      ok: false,
+      sent: false,
+      recipient: "",
+      videoCount,
+      productCount: groupsWithVideos.length,
+      reason: "no_recipient",
+    };
+  }
+
+  if (videoCount === 0) {
+    console.warn(
+      `[install-team-digest] Skipped — no install videos found for installation "${installationTitle}" (${groupsWithVideos.length} groups).`,
+    );
+    return {
+      ok: false,
+      sent: false,
+      recipient: to,
+      videoCount: 0,
+      productCount: 0,
+      reason: "no_videos",
+    };
+  }
+
+  const apiKey = env.RESEND_API_KEY;
+  const from = env.EMAIL_FROM;
+  if (!apiKey || !from) {
+    const msg = "RESEND_API_KEY / EMAIL_FROM not configured";
+    console.warn(`[install-team-digest] Skipped (${msg}) — would have emailed ${to}`);
+    return {
+      ok: false,
+      sent: false,
+      recipient: to,
+      videoCount,
+      productCount: groupsWithVideos.length,
+      reason: "email_not_configured",
+    };
+  }
+
+  const greeting = leadContactName ? `Hi ${escapeHtml(leadContactName)}` : "Hi team";
+  const teamLine = teamName
+    ? `Your team <strong>${escapeHtml(teamName)}</strong> has been assigned to this installation.`
+    : "Your team has been assigned to this installation.";
+  const subject = `Install pack: ${installationTitle} — ${groupsWithVideos.length} product${groupsWithVideos.length !== 1 ? "s" : ""}, ${videoCount} video${videoCount !== 1 ? "s" : ""}`;
+
+  // Schedule line — best-effort, omit if no usable date.
+  const scheduledAt = (() => {
+    if (!installationPlannedStart) return null;
+    try {
+      const d = installationPlannedStart instanceof Date
+        ? installationPlannedStart
+        : new Date(installationPlannedStart);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toUTCString();
+    } catch {
+      return null;
+    }
+  })();
+
+  // Per-product GroundWorks one-paragraph summary block — optional. Only
+  // surface the top-level cherry: a short bullet of slab/anchor specs we
+  // pulled from products.ground_works_data. If none of the groups carry
+  // a summary, the whole block is dropped.
+  const groundWorksLines = groupsWithVideos
+    .map((g) =>
+      g.groundWorksSummary
+        ? `<li><strong>${escapeHtml(g.productName)}:</strong> ${escapeHtml(g.groundWorksSummary)}</li>`
+        : null,
+    )
+    .filter(Boolean)
+    .join("");
+  const groundWorksBlock = groundWorksLines
+    ? `
+      <tr>
+        <td style="padding:0 24px 16px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff7e0;border-left:3px solid #FFC72C;border-radius:4px;">
+            <tr><td style="padding:14px 16px;font-size:13px;color:#1a1a2e;line-height:1.5;">
+              <div style="font-weight:bold;margin-bottom:6px;">Site prep at a glance</div>
+              <ul style="margin:0;padding-left:18px;">${groundWorksLines}</ul>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    `
+    : "";
+
+  // Per-product video grid. Each card is a 2-col table row (thumbnail + title)
+  // — corporate clients (Outlook 2016) hate flexbox/grid, but nested tables
+  // render reliably. YouTube hotlinks; no embeds (most clients block them).
+  const productSections = groupsWithVideos
+    .map((g) => {
+      const videoCards = g.videos
+        .map((v) => {
+          const link =
+            v.externalUrl ||
+            v.fileUrl ||
+            (v.videoId ? `https://youtu.be/${v.videoId}` : "#");
+          const thumb =
+            v.thumbnailUrl ||
+            (v.videoId ? `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg` : "");
+          const title = v.title || "Installation video";
+          const desc = v.description ? truncate(v.description.split("\n")[0] || "", 110) : "";
+          return `
+            <tr>
+              <td style="padding:8px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td width="160" valign="top" style="padding-right:14px;">
+                      <a href="${escapeAttr(link)}" style="text-decoration:none;display:block;">
+                        ${
+                          thumb
+                            ? `<img src="${escapeAttr(thumb)}" alt="${escapeAttr(title)}" width="160" style="display:block;width:160px;max-width:160px;height:auto;border-radius:4px;border:1px solid #e4e4e7;">`
+                            : `<div style="width:160px;height:90px;background-color:#1a1a2e;color:#FFC72C;border-radius:4px;text-align:center;line-height:90px;font-weight:bold;font-size:12px;">WATCH</div>`
+                        }
+                      </a>
+                    </td>
+                    <td valign="top" style="font-size:14px;color:#1a1a2e;line-height:1.4;">
+                      <a href="${escapeAttr(link)}" style="color:#1a1a2e;font-weight:bold;text-decoration:none;">${escapeHtml(title)}</a>
+                      ${desc ? `<div style="font-size:12px;color:#6b6b77;margin-top:4px;line-height:1.5;">${escapeHtml(desc)}</div>` : ""}
+                      <div style="margin-top:6px;">
+                        <a href="${escapeAttr(link)}" style="font-size:12px;color:#1a1a2e;text-decoration:underline;">Watch on YouTube &rarr;</a>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      return `
+        <tr>
+          <td style="padding:8px 24px 4px 24px;">
+            <div style="font-size:13px;font-weight:bold;color:#FFC72C;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e4e4e7;padding-bottom:6px;margin-bottom:4px;">
+              ${escapeHtml(g.productName)} <span style="color:#6b6b77;font-weight:normal;text-transform:none;letter-spacing:0;">· ${g.videos.length} video${g.videos.length !== 1 ? "s" : ""}</span>
+            </div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${videoCards}</table>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const ctaBlock = installationUrl
+    ? `
+      <tr>
+        <td align="center" style="padding:16px 24px 24px 24px;">
+          <a href="${escapeAttr(installationUrl)}"
+             style="display:inline-block;background-color:#FFC72C;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 24px;border-radius:6px;">
+            Open install in A-SAFE Engage &rarr;
+          </a>
+        </td>
+      </tr>
+    `
+    : "";
+
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background-color:#FFC72C;padding:20px 24px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:18px;font-weight:bold;color:#1a1a2e;letter-spacing:0.5px;">A-SAFE</td>
+                <td align="right" style="font-size:12px;font-weight:bold;color:#1a1a2e;letter-spacing:1px;">WATCH BEFORE SITE VISIT</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 24px 12px 24px;font-size:15px;line-height:1.55;color:#1a1a2e;">
+            <p style="margin:0 0 10px 0;">${greeting},</p>
+            <p style="margin:0 0 8px 0;">${teamLine}</p>
+            <p style="margin:0;">
+              Below are the per-product Installation Videos for
+              <strong>${escapeHtml(installationTitle)}</strong>${installationLocation ? ` (${escapeHtml(installationLocation)})` : ""}${
+                scheduledAt ? `, scheduled for <strong>${escapeHtml(scheduledAt)}</strong>` : ""
+              }. Spend ten minutes on these before you arrive on site — saves a "where do I start?" call.
+            </p>
+          </td>
+        </tr>
+        ${groundWorksBlock}
+        ${productSections}
+        ${ctaBlock}
+        <tr>
+          <td style="padding:16px 24px;background-color:#f9f9f9;border-top:3px solid #FFC72C;font-size:11px;color:#888;line-height:1.5;">
+            <div style="color:#FFC72C;font-weight:bold;">www.asafe.com</div>
+            <div>A-SAFE &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park &nbsp;|&nbsp; Tel: +971 (4) 8842 422</div>
+            <div style="margin-top:6px;">If you weren't expecting this, contact <a href="mailto:sales@asafe.ae" style="color:#888;">sales@asafe.ae</a>.</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  // Plain-text fallback — corporate spam filters downrank HTML-only mail.
+  const textLines: string[] = [];
+  textLines.push(leadContactName ? `Hi ${leadContactName},` : "Hi team,");
+  textLines.push("");
+  textLines.push(
+    `${teamName ? `Your team ${teamName} has` : "Your team has"} been assigned to ${installationTitle}${installationLocation ? ` (${installationLocation})` : ""}.`,
+  );
+  if (scheduledAt) textLines.push(`Scheduled: ${scheduledAt}`);
+  textLines.push("");
+  textLines.push("Watch before site visit:");
+  for (const g of groupsWithVideos) {
+    textLines.push("");
+    textLines.push(`— ${g.productName} (${g.videos.length} video${g.videos.length !== 1 ? "s" : ""})`);
+    if (g.groundWorksSummary) textLines.push(`  Site prep: ${g.groundWorksSummary}`);
+    for (const v of g.videos) {
+      const link =
+        v.externalUrl || v.fileUrl || (v.videoId ? `https://youtu.be/${v.videoId}` : "");
+      textLines.push(`  • ${v.title}${link ? ` — ${link}` : ""}`);
+    }
+  }
+  if (installationUrl) {
+    textLines.push("");
+    textLines.push(`Open in A-SAFE Engage: ${installationUrl}`);
+  }
+  const text = textLines.join("\n");
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({
+        from: `A-SAFE Engage <${from}>`,
+        to: [to],
+        subject,
+        html,
+        text,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[install-team-digest] Resend API error: ${res.status} ${errText}`);
+      return {
+        ok: false,
+        sent: false,
+        recipient: to,
+        videoCount,
+        productCount: groupsWithVideos.length,
+        reason: `resend_${res.status}`,
+      };
+    }
+
+    const payload = (await res.json().catch(() => ({}))) as { id?: string };
+    return {
+      ok: true,
+      sent: true,
+      recipient: to,
+      videoCount,
+      productCount: groupsWithVideos.length,
+      messageId: payload.id,
+    };
+  } catch (err) {
+    console.error("[install-team-digest] send error:", err);
+    return {
+      ok: false,
+      sent: false,
+      recipient: to,
+      videoCount,
+      productCount: groupsWithVideos.length,
+      reason: err instanceof Error ? err.message : "unknown",
+    };
+  }
+}
+
+function truncate(s: string, n: number): string {
+  if (s.length <= n) return s;
+  return s.slice(0, Math.max(0, n - 1)).trimEnd() + "…";
+}

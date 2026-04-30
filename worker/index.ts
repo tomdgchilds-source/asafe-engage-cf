@@ -4316,6 +4316,83 @@ app.post("/api/admin/ingest-installation-videos", async (c) => {
   }
 });
 
+// ─── Admin: replay the install-team digest for an existing assignment ───
+//
+// MIGRATION_TOKEN-gated. Lets ops reproduce the "watch-before-site-visit"
+// email for an existing installation_assignments row without re-creating
+// the assignment (which would also break idempotency on the timeline).
+// Returns { ok, sent, recipient, videoCount, productCount, reason? }.
+app.post("/api/admin/test-install-team-email/:installationAssignmentId", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  const assignmentId = c.req.param("installationAssignmentId");
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    const rows = (await sqlClient`
+      SELECT a.id           AS assignment_id,
+             a.installation_id,
+             a.team_id,
+             t.name         AS team_name,
+             t.lead_contact_name,
+             t.contact_email
+      FROM installation_assignments a
+      JOIN install_teams t ON t.id = a.team_id
+      WHERE a.id = ${assignmentId}
+      LIMIT 1
+    `) as Array<{
+      assignment_id: string;
+      installation_id: string;
+      team_id: string;
+      team_name: string | null;
+      lead_contact_name: string | null;
+      contact_email: string | null;
+    }>;
+    if (rows.length === 0) {
+      return c.json({ ok: false, message: "Assignment not found" }, 404);
+    }
+    const a = rows[0];
+
+    const { fireInstallTeamDigest } = await import("./routes/installations");
+    const result = await fireInstallTeamDigest(c.env, a.installation_id, {
+      id: a.team_id,
+      name: a.team_name,
+      leadContactName: a.lead_contact_name,
+      contactEmail: a.contact_email,
+    });
+
+    return c.json({
+      ok: result.ok,
+      sent: result.sent,
+      recipient: result.recipient,
+      videoCount: result.videoCount,
+      productCount: result.productCount,
+      reason: result.reason,
+      messageId: result.messageId,
+      assignmentId: a.assignment_id,
+      installationId: a.installation_id,
+      teamId: a.team_id,
+    });
+  } catch (err: any) {
+    console.error("test-install-team-email failed:", err);
+    return c.json({ ok: false, message: err?.message || String(err) }, 500);
+  }
+});
+
+
 // ─── SPA Catch-All ──────────────────────────────────────
 // For any non-API route (e.g. /products, /dashboard, /site-survey),
 // serve the SPA index.html via the ASSETS binding so client-side
