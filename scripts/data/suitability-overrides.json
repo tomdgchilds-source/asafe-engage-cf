@@ -11,6 +11,21 @@
       "comment": "Re-activated heavy-duty bollard SKU. Spec sheet for the iFlex HD Bollard is the authoritative cousin: same 190mm OD post, same vehicle suitability list. Catalog PDF page 36."
     },
     {
+      "dbProductName": "iFlex Heavy Duty Bollard",
+      "borrowFromProductName": "iFlex Heavy Duty Bollard",
+      "comment": "Re-activated DB row using its underlying real name. /api/products groups it under 'Heavy Duty Bollard' but writes flow through the underlying row."
+    },
+    {
+      "dbProductName": "Heavy Duty Bollard, Yellow, GALV",
+      "borrowFromProductName": "iFlex Heavy Duty Bollard",
+      "comment": "Yellow galvanised variant of the HD Bollard family. Same suitability envelope as the iFlex HD Bollard."
+    },
+    {
+      "dbProductName": "Heavy Duty Bollard, Grey, GALV",
+      "borrowFromProductName": "iFlex Heavy Duty Bollard",
+      "comment": "Grey galvanised variant of the HD Bollard family. Same suitability envelope."
+    },
+    {
       "dbProductName": "Bollard, Yellow",
       "borrowFromProductName": "Monoplex Bollard 190",
       "comment": "Standard 190mm polymer bollard in yellow. Mechanically identical to Monoplex 190 (price-list rev confirms 190mm OD)."
@@ -39,6 +54,11 @@
       "dbProductName": "Slider Plate",
       "borrowFromProductName": "Slider Base Plates",
       "comment": "Single SKU member of the Slider Base Plates family. Same Removable-Barrier suitability."
+    },
+    {
+      "dbProductName": "230 x 230mm - 190mm OD iFlex Post Slider Plate",
+      "borrowFromProductName": "Slider Base Plates",
+      "comment": "Larger 230mm slider plate variant. Same Removable-Barrier suitability as the family entry."
     },
     {
       "dbProductName": "190-T2-P0",
@@ -112,6 +132,48 @@
         "recyclingInformation": null
       },
       "comment": "Mezzanine / stair-landing pedestrian gate. iFlex Swing Gate Long/Short PRH-1009 entry uses the same 'These gates are not impact products' note."
+    },
+    {
+      "dbProductName": "Hydraulic Swing Gate (2R) - Self-Close",
+      "inline": {
+        "category": "Gates",
+        "productName": "Hydraulic Swing Gate (2R) - Self-Close",
+        "environment": { "internal": true, "external": true },
+        "atexSuitability": {
+          "suitable": false,
+          "note": "Not suitable in an explosive atmosphere"
+        },
+        "vehicleSuitability": ["Pedestrians"],
+        "fitForPurposeApplications": [
+          "Pedestrian segregation"
+        ],
+        "impactZone": null,
+        "impactZoneNote": "Self-closing hydraulic swing gate — pedestrian-rated, not an impact product.",
+        "materialProperties": null,
+        "recyclingInformation": null
+      },
+      "comment": "Self-close variant of the Hydraulic Swing Gate."
+    },
+    {
+      "dbProductName": "Hydraulic Swing Gate (2R) - Post",
+      "inline": {
+        "category": "Gates",
+        "productName": "Hydraulic Swing Gate (2R) - Post",
+        "environment": { "internal": true, "external": true },
+        "atexSuitability": {
+          "suitable": false,
+          "note": "Not suitable in an explosive atmosphere"
+        },
+        "vehicleSuitability": ["Pedestrians"],
+        "fitForPurposeApplications": [
+          "Pedestrian segregation"
+        ],
+        "impactZone": null,
+        "impactZoneNote": "Companion post for the hydraulic swing gate — pedestrian-rated, not an impact product.",
+        "materialProperties": null,
+        "recyclingInformation": null
+      },
+      "comment": "Post variant of the Hydraulic Swing Gate."
     },
     {
       "dbProductName": "Tape Barrier Kit - Wall to Wall - YEL/BLK",
