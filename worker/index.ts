@@ -4200,6 +4200,7 @@ app.post("/api/admin/ingest-installation-videos", async (c) => {
     let updated = 0;
     let productEdges = 0;
     let edgesSkippedDup = 0;
+    let edgesPruned = 0;
     const resourceIdByVideoId = new Map<string, string>();
 
     for (const v of videos) {
@@ -4282,6 +4283,36 @@ app.post("/api/admin/ingest-installation-videos", async (c) => {
       }
       resourceIdByVideoId.set(v.videoId, resourceId);
 
+      // PRUNE stale edges first. The matched set in `installation-videos.json`
+      // is the ground truth for *this* video; any edge currently on the
+      // resource whose productId is NOT in matchedProducts is left over
+      // from a previous (possibly over-broad) ingest run and should go.
+      // Without this prune, tightening the family-keyword matcher (the C3
+      // fix on 2026-04-30) would only ADD coverage — never narrow it —
+      // because INSERT … ON CONFLICT DO NOTHING is one-way.
+      let edgesPrunedThisVideo = 0;
+      const desiredIds = v.matchedProducts.map((m) => m.productId);
+      if (desiredIds.length === 0) {
+        // No matches at all — drop every edge that exists for this video
+        // resource. The video remains in the global Resources list but
+        // detaches from any product it was previously over-attached to.
+        const removed = (await sqlClient`
+          DELETE FROM product_resources
+          WHERE resource_id = ${resourceId}
+          RETURNING id
+        `) as Array<{ id: string }>;
+        edgesPrunedThisVideo = removed.length;
+      } else {
+        const removed = (await sqlClient`
+          DELETE FROM product_resources
+          WHERE resource_id = ${resourceId}
+            AND NOT (product_id = ANY(${desiredIds}))
+          RETURNING id
+        `) as Array<{ id: string }>;
+        edgesPrunedThisVideo = removed.length;
+      }
+      edgesPruned += edgesPrunedThisVideo;
+
       // product_resources edges — one row per (productId, resourceId).
       // Uses the existing unique constraint on the join table (see
       // shared/schema.ts) to make this idempotent on re-runs.
@@ -4303,6 +4334,7 @@ app.post("/api/admin/ingest-installation-videos", async (c) => {
       updated,
       productEdges,
       edgesSkippedDup,
+      edgesPruned,
       unmatched: unmatched.length,
       unmatchedDetails: unmatched,
       summary: {
