@@ -562,6 +562,104 @@ pas13Chat.post("/pas13/chat", authMiddleware, async (c) => {
   }
 });
 
+// POST /api/pas13/admin/whisper-transcribe — re-transcribes a video's audio
+// via OpenAI Whisper, returning a clean transcript + segments. Auto-captions
+// on the A-SAFE PAS 13 educational playlist had mild noise on GCC-accented
+// voiceovers; this gives us a cleaner source for L3 RAG chunks.
+//
+// Body: multipart/form-data with two fields:
+//   videoId  — string (used in the response for client-side correlation)
+//   audio    — file (mp3 / m4a / etc; passed through to Whisper)
+// Auth: Authorization: Bearer $MIGRATION_TOKEN.
+//
+// Why server-side: the OpenAI key lives only on the worker — keeps the
+// secret off the developer laptop and out of CI logs.
+pas13Chat.post("/pas13/admin/whisper-transcribe", async (c) => {
+  const expected = c.env.MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ message: "MIGRATION_TOKEN not configured" }, 503);
+  }
+  if ((c.req.header("authorization") || "") !== `Bearer ${expected}`) {
+    return c.json({ message: "Forbidden" }, 403);
+  }
+  if (!c.env.OPENAI_API_KEY) {
+    return c.json({ message: "OPENAI_API_KEY not configured" }, 503);
+  }
+
+  let form: FormData;
+  try {
+    form = await c.req.formData();
+  } catch (err: any) {
+    return c.json(
+      { message: "expected multipart/form-data", detail: err?.message ?? String(err) },
+      400,
+    );
+  }
+  const videoId = String(form.get("videoId") ?? "").trim();
+  const audio = form.get("audio");
+  if (!videoId) return c.json({ message: "videoId is required" }, 400);
+  if (!(audio instanceof File)) {
+    return c.json({ message: "audio file is required" }, 400);
+  }
+
+  // Forward to OpenAI Whisper. We use verbose_json so we get per-segment
+  // timestamps (start, end, text) for downstream chunking.
+  const upstream = new FormData();
+  upstream.set("file", audio, audio.name || `${videoId}.mp3`);
+  upstream.set("model", "whisper-1");
+  upstream.set("response_format", "verbose_json");
+  // Bias the model toward our domain vocab (helps with GCC-accented voiceovers
+  // saying "PAS 13", "bollard", "deflection zone", etc.).
+  upstream.set(
+    "prompt",
+    "PAS 13:2017, A-SAFE, polymer safety barrier, bollard, deflection zone, impact zone, line of vision, pedestrian segregation, rated kinetic energy, joules, forklift truck.",
+  );
+
+  const t0 = Date.now();
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${c.env.OPENAI_API_KEY}` },
+    body: upstream,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    return c.json(
+      {
+        message: "whisper transcription failed",
+        status: res.status,
+        detail: body.slice(0, 600),
+      },
+      502,
+    );
+  }
+  const data = (await res.json()) as {
+    text: string;
+    duration?: number;
+    language?: string;
+    segments?: Array<{
+      id?: number;
+      start: number;
+      end: number;
+      text: string;
+    }>;
+  };
+  const segments = (data.segments || []).map((s) => ({
+    start: s.start,
+    end: s.end,
+    text: (s.text || "").trim(),
+  }));
+  return c.json({
+    videoId,
+    transcript: data.text || "",
+    segments,
+    duration: data.duration ?? null,
+    language: data.language ?? null,
+    transcribedBy: "whisper",
+    model: "whisper-1",
+    latencyMs: Date.now() - t0,
+  });
+});
+
 // POST /api/pas13/admin/embed-from-chunks — one-off endpoint that accepts the
 // chunks-only JSON (output of SKIP_EMBED=1 npx tsx scripts/buildPas13Corpus.ts),
 // embeds every chunk server-side using the production OPENAI_API_KEY, and

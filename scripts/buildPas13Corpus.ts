@@ -76,6 +76,11 @@ interface VideoChunk {
   endSec: number;
   url: string;
   label: string;
+  // "whisper" when the chunk came from an OpenAI Whisper transcript file in
+  // /tmp/pas13-whisper/<videoId>.json; "auto" when we fell back to the
+  // yt-dlp auto-caption VTT. Tagged on every video chunk so the citation
+  // metadata is auditable on the L3 surface.
+  transcribedBy: "whisper" | "auto";
 }
 
 type CorpusChunk = (PdfChunk | VideoChunk) & {
@@ -212,6 +217,55 @@ function scrapePlaylist(): PlaylistEntry[] {
   return videos;
 }
 
+// ─── Whisper transcript loader ────────────────────────────────────────────
+//
+// Whisper outputs are produced out-of-band by the local-shell loop that
+// posts each downloaded mp3 to /api/pas13/admin/whisper-transcribe and saves
+// the JSON response to /tmp/pas13-whisper/<videoId>.json. Shape:
+//   { transcript: string, segments: [{ start, end, text }] }
+// We prefer Whisper over auto-captions when the file exists AND the result
+// looks reasonable (length > 100 chars + sane words-per-second ratio).
+const WHISPER_DIR =
+  process.env.PAS13_WHISPER_DIR || "/tmp/pas13-whisper";
+
+interface WhisperFile {
+  transcript: string;
+  segments: Array<{ start: number; end: number; text: string }>;
+  duration?: number | null;
+}
+
+function loadWhisper(videoId: string): WhisperFile | null {
+  const p = `${WHISPER_DIR}/${videoId}.json`;
+  if (!existsSync(p)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(p, "utf8")) as WhisperFile;
+    if (!raw || typeof raw.transcript !== "string") return null;
+    if (!Array.isArray(raw.segments) || raw.segments.length === 0) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+// Defensive sanity check: silent audio sometimes comes back as a single
+// "[Music]" segment or near-empty text. Reject anything obviously broken so
+// we fall back to the (noisier but real) auto-captions.
+function whisperLooksGood(w: WhisperFile): boolean {
+  const t = (w.transcript || "").trim();
+  if (t.length <= 100) return false;
+  const words = t.split(/\s+/).filter(Boolean).length;
+  const dur =
+    w.duration ??
+    (w.segments.length ? w.segments[w.segments.length - 1].end : 0);
+  if (dur > 0) {
+    const wps = words / dur;
+    // Real speech is ~1.5–3.5 words/sec; well-below 0.4 is likely silence
+    // or a music-only clip mis-recognised.
+    if (wps < 0.4) return false;
+  }
+  return true;
+}
+
 function fetchAutoCaptions(videoId: string): string | null {
   // Writes /tmp/yt/<id>.en.vtt (or nothing if captions missing)
   const tmpDir = "/tmp/yt";
@@ -304,6 +358,7 @@ function chunkVideo(
   videoId: string,
   videoTitle: string,
   cues: Array<{ startSec: number; endSec: number; text: string }>,
+  transcribedBy: "whisper" | "auto",
 ): VideoChunk[] {
   // ~60 second rolling chunks, capped at ~450 tokens.
   const WINDOW_SEC = 60;
@@ -328,6 +383,7 @@ function chunkVideo(
       endSec: Math.floor(lastEnd),
       url: `https://youtu.be/${videoId}?t=${startSecInt}`,
       label: `${videoTitle} @ ${formatTs(startSecInt)}`,
+      transcribedBy,
     });
   };
   for (const cue of cues) {
@@ -427,8 +483,39 @@ async function main() {
     cues: number;
     chunks: number;
     ok: boolean;
+    transcribedBy: "whisper" | "auto" | "none";
   }> = [];
   for (const v of videos) {
+    // Prefer Whisper transcripts over yt-dlp auto-captions when both exist.
+    // Auto-caption duplication on GCC-accented voiceovers (the τ flag) means
+    // Whisper is materially cleaner where we have it.
+    const whisper = loadWhisper(v.id);
+    if (whisper && whisperLooksGood(whisper)) {
+      const cues = whisper.segments.map((s) => ({
+        startSec: s.start,
+        endSec: s.end,
+        text: s.text,
+      }));
+      const chunks = chunkVideo(v.id, v.title, cues, "whisper");
+      videoChunks.push(...chunks);
+      captionsReport.push({
+        id: v.id,
+        title: v.title,
+        cues: cues.length,
+        chunks: chunks.length,
+        ok: true,
+        transcribedBy: "whisper",
+      });
+      console.log(
+        `  ${v.id} "${v.title}" → whisper: ${cues.length} segs → ${chunks.length} chunks`,
+      );
+      continue;
+    }
+    if (whisper && !whisperLooksGood(whisper)) {
+      console.warn(
+        `  [whisper-rejected] ${v.id} "${v.title}" — falling back to auto-captions`,
+      );
+    }
     const vtt = fetchAutoCaptions(v.id);
     if (!vtt) {
       captionsReport.push({
@@ -437,12 +524,13 @@ async function main() {
         cues: 0,
         chunks: 0,
         ok: false,
+        transcribedBy: "none",
       });
       console.warn(`  [no-caps] ${v.id} "${v.title}"`);
       continue;
     }
     const cues = parseVtt(vtt);
-    const chunks = chunkVideo(v.id, v.title, cues);
+    const chunks = chunkVideo(v.id, v.title, cues, "auto");
     videoChunks.push(...chunks);
     captionsReport.push({
       id: v.id,
@@ -450,9 +538,10 @@ async function main() {
       cues: cues.length,
       chunks: chunks.length,
       ok: true,
+      transcribedBy: "auto",
     });
     console.log(
-      `  ${v.id} "${v.title}" → ${cues.length} cues → ${chunks.length} chunks`,
+      `  ${v.id} "${v.title}" → auto: ${cues.length} cues → ${chunks.length} chunks`,
     );
   }
 
@@ -490,12 +579,21 @@ async function main() {
     console.log("→ SKIP_EMBED=1 — writing chunks without embeddings");
   }
 
+  const whisperVideoChunks = videoChunks.filter(
+    (c) => c.transcribedBy === "whisper",
+  ).length;
+  const autoVideoChunks = videoChunks.filter(
+    (c) => c.transcribedBy === "auto",
+  ).length;
+
   const out = {
     _meta: {
       builtAt: new Date().toISOString(),
       model: EMBED_MODEL,
       pdfChunks: pdfChunks.length,
       videoChunks: videoChunks.length,
+      whisperVideoChunks,
+      autoVideoChunks,
       totalChunks: allChunks.length,
       totalEmbeddingTokens: embedUsage.totalTokens,
       // text-embedding-3-small pricing: $0.02 per 1M tokens
