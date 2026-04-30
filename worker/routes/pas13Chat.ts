@@ -61,7 +61,61 @@ interface CorpusVideoChunk {
   embedding: number[];
 }
 
-type CorpusChunk = CorpusPdfChunk | CorpusVideoChunk;
+// Source-tagged chunks from the four A-SAFE technical PDFs added in the
+// expanded corpus. Each is one chunk per product / family / entry — shape
+// produced by scripts/buildPas13Corpus.ts.
+interface CorpusSuitabilityChunk {
+  id: string;
+  text: string;
+  source: "suitability_pdf";
+  productName: string;
+  category?: string;
+  page: number;
+  url: string;
+  label: string;
+  embedding: number[];
+}
+
+interface CorpusMaintenanceChunk {
+  id: string;
+  text: string;
+  source: "maintenance_pdf";
+  productFamily: string;
+  url: string;
+  label: string;
+  embedding: number[];
+}
+
+interface CorpusGroundworksChunk {
+  id: string;
+  text: string;
+  source: "groundworks_pdf";
+  productFamily: string;
+  basePlateType?: string;
+  page?: number;
+  url: string;
+  label: string;
+  embedding: number[];
+}
+
+interface CorpusImpactTestingChunk {
+  id: string;
+  text: string;
+  source: "impact_testing_pdf";
+  productName: string;
+  page?: number;
+  url: string;
+  label: string;
+  embedding: number[];
+}
+
+type CorpusChunk =
+  | CorpusPdfChunk
+  | CorpusVideoChunk
+  | CorpusSuitabilityChunk
+  | CorpusMaintenanceChunk
+  | CorpusGroundworksChunk
+  | CorpusImpactTestingChunk;
 
 interface Corpus {
   _meta: {
@@ -69,18 +123,35 @@ interface Corpus {
     model: string;
     pdfChunks: number;
     videoChunks: number;
+    suitabilityChunks?: number;
+    maintenanceChunks?: number;
+    groundworksChunks?: number;
+    impactTestingChunks?: number;
     totalChunks: number;
+    bySource?: Record<string, number>;
   };
   chunks: CorpusChunk[];
 }
 
+// Citation envelope sent to the chat client. The `type` field tells the UI
+// how to render the chip (PDF section deep-link vs video timestamp vs
+// product page). `section`, `page`, etc. are optional per-source fields.
 interface ChatCitation {
-  type: "pdf" | "video";
+  type:
+    | "pdf"
+    | "video"
+    | "suitability_pdf"
+    | "maintenance_pdf"
+    | "groundworks_pdf"
+    | "impact_testing_pdf";
   section?: string;
   page?: number;
   videoId?: string;
   videoTitle?: string;
   startSec?: number;
+  productName?: string;
+  productFamily?: string;
+  basePlateType?: string;
   url: string;
   label: string;
 }
@@ -303,23 +374,75 @@ function topKChunks(
 }
 
 function chunkToCitation(c: CorpusChunk): ChatCitation {
-  if (c.source === "pdf") {
-    return {
-      type: "pdf",
-      section: c.section || undefined,
-      page: c.page,
-      url: c.url,
-      label: c.label,
-    };
+  switch (c.source) {
+    case "pdf":
+      // PAS 13 standard — section deep-link in the PDF viewer.
+      return {
+        type: "pdf",
+        section: c.section || undefined,
+        page: c.page,
+        url: c.url,
+        label: c.label,
+      };
+    case "video":
+      // A-SAFE PAS 13 educational playlist — timestamped YouTube link.
+      return {
+        type: "video",
+        videoId: c.videoId,
+        videoTitle: c.videoTitle,
+        startSec: c.startSec,
+        url: c.url,
+        label: c.label,
+      };
+    case "suitability_pdf":
+      // Product Suitability (PRH-1009) — product page deep-link.
+      return {
+        type: "suitability_pdf",
+        productName: c.productName,
+        page: c.page,
+        url: c.url,
+        label: c.label,
+      };
+    case "maintenance_pdf":
+      // Product Maintenance (PRH-1001) — family-overlay scope, full PDF.
+      return {
+        type: "maintenance_pdf",
+        productFamily: c.productFamily,
+        url: c.url,
+        label: c.label,
+      };
+    case "groundworks_pdf":
+      // GroundWorks (PRH-1005) — family + base-plate, full PDF (page deep
+      // links not supported by the upstream extraction yet).
+      return {
+        type: "groundworks_pdf",
+        productFamily: c.productFamily,
+        basePlateType: c.basePlateType,
+        page: c.page,
+        url: c.url,
+        label: c.label,
+      };
+    case "impact_testing_pdf":
+      // Master Impact Testing (PRH-1012) — product, full PDF.
+      return {
+        type: "impact_testing_pdf",
+        productName: c.productName,
+        page: c.page,
+        url: c.url,
+        label: c.label,
+      };
+    default: {
+      // Defensive fallback. The exhaustive switch above should make this
+      // unreachable, but stale R2 objects could in principle contain
+      // unknown source types — render as a generic PDF citation.
+      const anyC = c as any;
+      return {
+        type: "pdf",
+        url: anyC.url ?? "",
+        label: anyC.label ?? "Unknown source",
+      };
+    }
   }
-  return {
-    type: "video",
-    videoId: c.videoId,
-    videoTitle: c.videoTitle,
-    startSec: c.startSec,
-    url: c.url,
-    label: c.label,
-  };
 }
 
 // ─── RAG answer synthesis ─────────────────────────────────────────────────
@@ -344,7 +467,7 @@ async function ragAnswer(
   if (retrieved.length === 0) {
     return {
       answer: [
-        "I can't find this in PAS 13:2017 — please consult A-SAFE engineering.",
+        "I can't find this in the PAS 13:2017 standard or A-SAFE technical PDFs — please consult A-SAFE engineering.",
         "",
         `_${PAS13_INDICATIVE_FOOTNOTE}_`,
       ].join("\n"),
@@ -354,27 +477,53 @@ async function ragAnswer(
     };
   }
 
+  // Friendly, source-tagged context blocks. The header tells the LLM which
+  // authoritative document each block came from so it can phrase its
+  // citation appropriately ("per PAS 13 §6.3.2…", "per the Maintenance
+  // guide…", etc.).
+  const sourceTag = (c: CorpusChunk): string => {
+    switch (c.source) {
+      case "pdf":
+        return "PAS 13:2017";
+      case "video":
+        return "A-SAFE PAS 13 video";
+      case "suitability_pdf":
+        return "Product Suitability (PRH-1009)";
+      case "maintenance_pdf":
+        return "Product Maintenance (PRH-1001)";
+      case "groundworks_pdf":
+        return "GroundWorks (PRH-1005)";
+      case "impact_testing_pdf":
+        return "Master Impact Testing (PRH-1012)";
+      default:
+        return "A-SAFE source";
+    }
+  };
   const contextBlocks = retrieved.map((r, i) => {
     const c = r.chunk;
-    const header =
-      c.source === "pdf"
-        ? `[${i + 1}] ${c.label} (pdf)`
-        : `[${i + 1}] ${c.label} (video)`;
-    return `${header}\n${c.text}`;
+    return `[${i + 1}] ${c.label} — source: ${sourceTag(c)}\n${c.text}`;
   });
 
   const systemPrompt = [
-    "You are a PAS 13:2017 assistant for A-SAFE sales representatives.",
+    "You are an A-SAFE knowledge assistant for A-SAFE sales representatives.",
+    "The corpus you draw from is: the PAS 13:2017 standard, A-SAFE technical PDFs",
+    "(Product Suitability PRH-1009, Product Maintenance PRH-1001, GroundWorks",
+    "PRH-1005, Master Impact Testing PRH-1012), and the A-SAFE PAS 13 educational",
+    "video library.",
     "Answer ONLY from the provided retrieved context. Never invent details.",
-    "Wording rule (hard): use 'PAS 13 aligned' / 'borderline' / 'not aligned' —",
-    "NEVER say 'compliant' or 'non-compliant'.",
+    "Wording rule (hard): when discussing PAS 13 alignment use 'PAS 13 aligned' /",
+    "'borderline' / 'not aligned' — NEVER say 'compliant' or 'non-compliant'.",
     "Every answer MUST cite the specific context blocks it draws on, using the",
-    "[N] numeric markers inline.",
-    "If the context is inadequate, say: 'I can't find this in PAS 13:2017 —",
-    "please consult A-SAFE engineering.'",
+    "[N] numeric markers inline. When citing, reference the source by its short",
+    "name (PAS 13 §X.Y, the Maintenance guide PRH-1001, the GroundWorks guide",
+    "PRH-1005, the Master Impact Testing document PRH-1012, Product Suitability",
+    "PRH-1009, or the A-SAFE PAS 13 video library).",
+    "If the context is inadequate, say: 'I can't find this in the PAS 13:2017",
+    "standard or A-SAFE technical PDFs — please consult A-SAFE engineering.'",
     `End every answer with: '${PAS13_INDICATIVE_FOOTNOTE}'`,
     "Keep answers under 200 words. Be precise — quote joule figures, mm dimensions,",
-    "section numbers, angles verbatim from the context when referring to them.",
+    "section numbers, angles, torque settings, concrete grades, inspection cadences",
+    "and product names verbatim from the context when referring to them.",
   ].join("\n");
 
   const messages: Array<{ role: string; content: string }> = [
@@ -476,6 +625,11 @@ pas13Chat.get("/pas13/health", authMiddleware, async (c) => {
       totalChunks: corpus.chunks.length,
       pdfChunks: corpus._meta.pdfChunks,
       videoChunks: corpus._meta.videoChunks,
+      suitabilityChunks: corpus._meta.suitabilityChunks ?? 0,
+      maintenanceChunks: corpus._meta.maintenanceChunks ?? 0,
+      groundworksChunks: corpus._meta.groundworksChunks ?? 0,
+      impactTestingChunks: corpus._meta.impactTestingChunks ?? 0,
+      bySource: corpus._meta.bySource ?? null,
       builtAt: corpus._meta.builtAt,
       corpusLoadMs,
     });
@@ -664,6 +818,52 @@ pas13Chat.post("/pas13/admin/whisper-transcribe", async (c) => {
     model: "whisper-1",
     latencyMs: Date.now() - t0,
   });
+});
+
+// POST /api/pas13/admin/spot-test — admin-gated wrapper around the same
+// L2/RAG pipeline as /pas13/chat, but bypassing rep auth so build agents
+// can verify the corpus end-to-end without a session. Body:
+//   { question: string, history?: [...] }
+// Auth: Authorization: Bearer $MIGRATION_TOKEN.
+pas13Chat.post("/pas13/admin/spot-test", async (c) => {
+  const expected = c.env.MIGRATION_TOKEN;
+  if (!expected) return c.json({ message: "MIGRATION_TOKEN not configured" }, 503);
+  if ((c.req.header("authorization") || "") !== `Bearer ${expected}`) {
+    return c.json({ message: "Forbidden" }, 403);
+  }
+  let body: { question?: string; history?: Array<{ role: "user" | "assistant"; content: string }> };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ message: "Invalid JSON body" }, 400);
+  }
+  const question = (body.question ?? "").trim();
+  if (!question) return c.json({ message: "question is required" }, 400);
+  const history = Array.isArray(body.history) ? body.history : [];
+  const t0 = Date.now();
+  // L2 first.
+  const parsed = parseCalcQuestion(question);
+  if (parsed) {
+    try {
+      const { answer, citations } = formatL2Answer(question, parsed);
+      return c.json({ mode: "l2", answer, citations, latencyMs: Date.now() - t0 });
+    } catch {
+      // fall through to RAG
+    }
+  }
+  try {
+    const corpus = await loadCorpus(c.env);
+    const result = await ragAnswer(c.env, question, history, corpus);
+    return c.json({
+      mode: "rag",
+      answer: result.answer,
+      citations: result.citations,
+      usage: result.usage,
+      latencyMs: Date.now() - t0,
+    });
+  } catch (err: any) {
+    return c.json({ message: "spot-test failed", detail: err?.message ?? String(err) }, 500);
+  }
 });
 
 // POST /api/pas13/admin/embed-from-chunks — one-off endpoint that accepts the
