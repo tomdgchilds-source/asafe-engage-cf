@@ -47,6 +47,7 @@ import installTeams from "./routes/installTeams";
 import basePlates from "./routes/basePlates";
 import pas13Chat from "./routes/pas13Chat";
 import installVideos from "./routes/installVideos";
+import recommendBarriers from "./routes/recommendBarriers";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -123,6 +124,7 @@ app.route("/api", installTeams);
 app.route("/api", basePlates);
 app.route("/api", pas13Chat);
 app.route("/api", installVideos);
+app.route("/api", recommendBarriers);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -4053,6 +4055,82 @@ app.post("/api/admin/apply-pas13-orders-schema", async (c) => {
     return c.json({ ok: true, message: "orders.pas_13_warnings ensured" });
   } catch (e: any) {
     console.error("apply-pas13-orders-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// ─── Public project share schema ─────────────────────────
+// Mirrors the orders.share_token* triple onto the projects table and adds
+// two new tables: project_approvals (customer Approve / Request-changes
+// captures) and project_view_audit (every customer page-load gets logged
+// so the rep can render "viewed N times, last seen at X" on the project
+// detail page).
+//
+// All ALTER TABLEs use ADD COLUMN IF NOT EXISTS and CREATE TABLE IF NOT
+// EXISTS — re-running this endpoint is a no-op once the schema is in
+// place. Gated by MIGRATION_TOKEN (bearer), same pattern as sibling
+// admin one-offs.
+app.post("/api/admin/apply-project-share-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    // 1. Share-link columns on projects — same names as orders.share_token*.
+    await sqlClient`ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token VARCHAR`;
+    await sqlClient`ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMP`;
+    await sqlClient`ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token_created_at TIMESTAMP`;
+    await sqlClient`ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token_created_by VARCHAR`;
+    // Index the token for O(1) lookups in /api/public/projects/:token.
+    await sqlClient`CREATE INDEX IF NOT EXISTS projects_share_token_idx ON projects(share_token)`;
+
+    // 2. project_approvals — customer-facing Approve / Request-changes log.
+    await sqlClient`CREATE TABLE IF NOT EXISTS project_approvals (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      share_token VARCHAR,
+      decision VARCHAR NOT NULL,
+      approver_name VARCHAR,
+      approver_email VARCHAR,
+      comments TEXT,
+      ip_address VARCHAR,
+      user_agent TEXT,
+      created_at TIMESTAMP DEFAULT now()
+    )`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS project_approvals_project_idx ON project_approvals(project_id)`;
+
+    // 3. project_view_audit — one row per public page-load.
+    await sqlClient`CREATE TABLE IF NOT EXISTS project_view_audit (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      share_token VARCHAR NOT NULL,
+      ip_address VARCHAR,
+      user_agent TEXT,
+      viewed_at TIMESTAMP DEFAULT now()
+    )`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS project_view_audit_project_idx ON project_view_audit(project_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS project_view_audit_token_idx ON project_view_audit(share_token)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS project_view_audit_viewed_at_idx ON project_view_audit(viewed_at)`;
+
+    return c.json({
+      ok: true,
+      message:
+        "projects.share_token* + project_approvals + project_view_audit ensured",
+    });
+  } catch (e: any) {
+    console.error("apply-project-share-schema failed:", e);
     return c.json({ ok: false, message: e?.message || String(e) }, 500);
   }
 });

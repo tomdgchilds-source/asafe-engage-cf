@@ -23,6 +23,8 @@ import {
   projects,
   projectContacts,
   projectCollaborators,
+  projectApprovals,
+  projectViewAudit,
   projectCaseStudies,
   layoutDrawings,
   layoutMarkups,
@@ -126,6 +128,10 @@ import {
   type InsertProjectContact,
   type ProjectCollaborator,
   type InsertProjectCollaborator,
+  type ProjectApproval,
+  type InsertProjectApproval,
+  type ProjectViewAudit,
+  type InsertProjectViewAudit,
   type ProjectCaseStudy,
   type InsertProjectCaseStudy,
   type LayoutDrawing,
@@ -352,6 +358,11 @@ export interface IStorage {
   createProjectContact(data: InsertProjectContact): Promise<ProjectContact>;
   updateProjectContact(id: string, data: Partial<InsertProjectContact>): Promise<ProjectContact>;
   deleteProjectContact(id: string): Promise<void>;
+  // Public share-link helpers (parallel to the orders share-link triple)
+  getProjectByShareToken(token: string): Promise<Project | undefined>;
+  recordProjectView(input: InsertProjectViewAudit): Promise<void>;
+  getProjectViewStats(projectId: string): Promise<{ views: number; lastViewedAt: Date | null }>;
+  recordProjectApproval(input: InsertProjectApproval): Promise<ProjectApproval>;
   // Project collaboration (shared access)
   canAccessProject(
     projectId: string,
@@ -2511,6 +2522,53 @@ export class DatabaseStorage implements IStorage {
 
   async createProject(data: InsertProject): Promise<Project> {
     const [row] = await this.db.insert(projects).values(data).returning();
+    return row;
+  }
+
+  // ─── Public share-link helpers ─────────────────────────────────────
+  // Mirrors the orders share-token triple (mint / lookup / revoke). The
+  // expiry check is left to the route layer so it can return a distinct
+  // 410 status for expired-but-recognised tokens.
+  async getProjectByShareToken(token: string): Promise<Project | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(projects)
+      .where(eq(projects.shareToken, token));
+    return row;
+  }
+
+  // Audit a public page-load. Fire-and-forget — failures shouldn't break
+  // the customer's view of the project.
+  async recordProjectView(input: InsertProjectViewAudit): Promise<void> {
+    try {
+      await this.db.insert(projectViewAudit).values(input);
+    } catch (err) {
+      console.error("[projectViewAudit] insert failed:", err);
+    }
+  }
+
+  // For the rep-facing UI: how many times has the customer opened this
+  // share link, and when most recently? Cheap two-aggregate query.
+  async getProjectViewStats(
+    projectId: string,
+  ): Promise<{ views: number; lastViewedAt: Date | null }> {
+    const rows = await this.db
+      .select({
+        viewedAt: projectViewAudit.viewedAt,
+      })
+      .from(projectViewAudit)
+      .where(eq(projectViewAudit.projectId, projectId))
+      .orderBy(desc(projectViewAudit.viewedAt));
+    return {
+      views: rows.length,
+      lastViewedAt: rows[0]?.viewedAt ?? null,
+    };
+  }
+
+  async recordProjectApproval(
+    input: InsertProjectApproval,
+  ): Promise<ProjectApproval> {
+    const [row] = await this.db.insert(projectApprovals).values(input).returning();
     return row;
   }
 

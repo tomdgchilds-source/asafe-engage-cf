@@ -1245,6 +1245,16 @@ export const projects = pgTable("projects", {
   // reciprocal commitments and service tier for one-click reapplication.
   preferredReciprocalCommitmentIds: jsonb("preferred_reciprocal_commitment_ids"), // string[]
   preferredServiceOptionId: varchar("preferred_service_option_id"),
+  // ──────────────────────────────────────────────
+  // Public, tokenised share link — customer views the project + barriers
+  // + PAS 13 verdict without auth. Mirrors the orders.share_token* triple
+  // exactly. Token is a high-entropy hex string. Revocable by clearing
+  // all four columns.
+  // ──────────────────────────────────────────────
+  shareToken: varchar("share_token"),
+  shareTokenExpiresAt: timestamp("share_token_expires_at"),
+  shareTokenCreatedAt: timestamp("share_token_created_at"),
+  shareTokenCreatedBy: varchar("share_token_created_by").references(() => users.id),
   lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1252,7 +1262,54 @@ export const projects = pgTable("projects", {
   userIdx: index("projects_user_idx").on(t.userId),
   customerIdx: index("projects_customer_idx").on(t.customerCompanyId),
   lastAccessedIdx: index("projects_last_accessed_idx").on(t.lastAccessedAt),
+  shareTokenIdx: index("projects_share_token_idx").on(t.shareToken),
 }));
+
+// ──────────────────────────────────────────────
+// Customer-facing approvals on a public share view. Written when the
+// anonymous customer clicks "Approve" on /share/project/:token. Captures
+// the IP + user agent + an optional name/email the customer typed in.
+// One row per approval action (a customer who approves twice writes two
+// rows — the latest is treated as authoritative).
+// ──────────────────────────────────────────────
+export const projectApprovals = pgTable("project_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  shareToken: varchar("share_token"), // The token this approval was written through
+  decision: varchar("decision").notNull(), // approved | changes_requested
+  approverName: varchar("approver_name"),
+  approverEmail: varchar("approver_email"),
+  comments: text("comments"),
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  projectIdx: index("project_approvals_project_idx").on(t.projectId),
+}));
+
+// ──────────────────────────────────────────────
+// Audit log of public page-loads against /share/project/:token. Lets the
+// rep know "customer viewed this 3 times" on the project detail page. Not
+// PII-sensitive (just IP + UA) but kept anonymised — we do NOT correlate
+// IPs across projects.
+// ──────────────────────────────────────────────
+export const projectViewAudit = pgTable("project_view_audit", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  shareToken: varchar("share_token").notNull(),
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  viewedAt: timestamp("viewed_at").defaultNow(),
+}, (t) => ({
+  projectIdx: index("project_view_audit_project_idx").on(t.projectId),
+  tokenIdx: index("project_view_audit_token_idx").on(t.shareToken),
+  viewedAtIdx: index("project_view_audit_viewed_at_idx").on(t.viewedAt),
+}));
+
+export type ProjectApproval = typeof projectApprovals.$inferSelect;
+export type InsertProjectApproval = typeof projectApprovals.$inferInsert;
+export type ProjectViewAudit = typeof projectViewAudit.$inferSelect;
+export type InsertProjectViewAudit = typeof projectViewAudit.$inferInsert;
 
 // Customer contacts, attached to projects (and, through the project, to
 // the customer company). Roles drive which contact is suggested when we

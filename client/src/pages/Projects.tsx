@@ -57,6 +57,9 @@ import {
   Loader2,
   Users,
   UserPlus,
+  Share2,
+  Copy,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -515,6 +518,94 @@ function ProjectDetailPane({
     },
   });
 
+  // ─── Share-with-customer flow ─────────────────────────────────────
+  // Loads the active token (if any) plus view stats so the rep can see
+  // "viewed N times, last seen X". Mint endpoint re-uses a live token by
+  // default — clicking "Share with customer" twice doesn't invalidate
+  // the URL the rep already pasted into an email.
+  type ShareLinkInfo = {
+    active: boolean;
+    token: string | null;
+    url: string | null;
+    expiresAt: string | null;
+    views: number;
+    lastViewedAt: string | null;
+  };
+  const { data: shareLink } = useQuery<ShareLinkInfo>({
+    queryKey: [`/api/projects/${projectId}/share-link`],
+  });
+  const invalidateShareLink = () =>
+    queryClient.invalidateQueries({
+      queryKey: [`/api/projects/${projectId}/share-link`],
+    });
+
+  const mintShareLink = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(
+        `/api/projects/${projectId}/share-link`,
+        "POST",
+        {},
+      );
+      return (await res.json()) as {
+        url: string;
+        token: string;
+        expiresAt: string;
+        reused: boolean;
+      };
+    },
+    onSuccess: async (payload) => {
+      try {
+        await navigator.clipboard.writeText(payload.url);
+        toast({
+          title: payload.reused ? "Share link copied" : "Share link created",
+          description: "Link copied to clipboard.",
+        });
+      } catch {
+        toast({
+          title: payload.reused ? "Share link active" : "Share link created",
+          description: payload.url,
+        });
+      }
+      invalidateShareLink();
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Could not create link",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const revokeShareLink = useMutation({
+    mutationFn: async () => {
+      await apiRequest(
+        `/api/projects/${projectId}/share-link`,
+        "DELETE",
+      );
+    },
+    onSuccess: () => {
+      toast({ title: "Share link revoked" });
+      invalidateShareLink();
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Could not revoke link",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyShareUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copied" });
+    } catch {
+      toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
   if (isLoading || !project) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -608,9 +699,81 @@ function ProjectDetailPane({
                 )}
               </Button>
             )}
+            {/* Share-with-customer button — mints (or re-uses) a token-
+                gated public viewer URL and copies it to the clipboard.
+                See worker/routes/projects.ts. */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => mintShareLink.mutate()}
+              disabled={mintShareLink.isPending}
+              data-testid="button-share-with-customer"
+            >
+              {mintShareLink.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Share2 className="h-3.5 w-3.5 mr-1" />
+              )}
+              Share with customer
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Active share-link panel — shows view count + revoke control
+          once the rep has minted at least one link for this project. */}
+      {shareLink?.active && shareLink.url && (
+        <div
+          className="p-3 rounded-lg border bg-green-50 border-green-200 text-green-900"
+          data-testid="panel-share-link"
+        >
+          <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+            <Label className="text-sm font-medium">Share link active</Label>
+            <div className="flex items-center gap-3 text-xs text-green-800">
+              <span className="inline-flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5" />
+                {shareLink.views} view{shareLink.views === 1 ? "" : "s"}
+              </span>
+              {shareLink.lastViewedAt && (
+                <span>
+                  last viewed{" "}
+                  {new Date(shareLink.lastViewedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              value={shareLink.url}
+              readOnly
+              className="text-sm bg-white"
+              data-testid="input-share-link-url"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => copyShareUrl(shareLink.url!)}
+              data-testid="button-copy-share-link"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => revokeShareLink.mutate()}
+              disabled={revokeShareLink.isPending}
+              data-testid="button-revoke-share-link"
+            >
+              Revoke
+            </Button>
+          </div>
+          {shareLink.expiresAt && (
+            <div className="text-xs text-green-800 mt-1">
+              Expires {new Date(shareLink.expiresAt).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="overview">

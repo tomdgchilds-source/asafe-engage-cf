@@ -5,8 +5,35 @@ import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { ensureInstallationsForProject } from "./installations";
+import { pas13Verdict, type Pas13Verdict, type Verdict } from "../../shared/pas13Rules";
+import { sendEmail } from "../services/email";
 
 const projectsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// 16-char hex. Same shape as the orders.share_token helper — uses the
+// runtime CSPRNG via crypto.getRandomValues, which is what the Workers
+// runtime exposes for bearer-token material.
+function hex16(): string {
+  const buf = new Uint8Array(8);
+  crypto.getRandomValues(buf);
+  return Array.from(buf)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Sanitise a customer-supplied free-text comment so it's safe to drop
+// into an email body. We HTML-escape and clamp length — Resend already
+// sandboxes the rendering, but defence in depth is cheap.
+function sanitiseComment(s: string | null | undefined, max = 2000): string {
+  if (!s) return "";
+  const trimmed = String(s).slice(0, max);
+  return trimmed
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Project / customer / contact CRUD.
@@ -340,6 +367,586 @@ projectsRoutes.post("/active-project", authMiddleware, mutationRateLimit, async 
   await storage.setActiveProject(userId, projectId);
   const fresh = await storage.getOrSeedActiveProject(userId);
   return c.json(fresh);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Public share-link flow — token-gated read-only project viewer.
+//
+// Mirrors the existing share-order pattern from worker/routes/orders.ts:
+//   POST   /api/projects/:id/share-link   — owner mints (or re-uses) a
+//                                           token, returns the URL
+//   DELETE /api/projects/:id/share-link   — owner revokes (nulls all 4 cols)
+//   GET    /api/public/projects/:token    — anonymous, read-only project
+//                                           + customer + barriers + PAS 13
+//                                           verdict + audit log row
+//   POST   /api/public/projects/:token/approval — anonymous Approve /
+//                                           Request changes submission
+//   GET    /api/projects/:id/share-link   — owner-only — view counts +
+//                                           last-viewed-at for the active
+//                                           token (rep dashboard)
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── Mint / re-use share link ──────────────────────────────────────
+// Default behaviour is RE-USE: if the project has a non-expired share
+// token, we return it verbatim. That way "Share with customer" is
+// idempotent — a rep clicking it twice doesn't invalidate a link they
+// already sent. Pass {forceRotate:true} to force a fresh token.
+projectsRoutes.post("/projects/:id/share-link", authMiddleware, mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const projectId = c.req.param("id");
+
+    const project = await storage.getProject(projectId);
+    if (!project) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+    if (project.userId !== userId) {
+      return c.json(
+        { message: "Only the project owner can create a share link" },
+        403,
+      );
+    }
+
+    const body = await c.req
+      .json<{ expiresInDays?: number; forceRotate?: boolean }>()
+      .catch(() => ({}) as { expiresInDays?: number; forceRotate?: boolean });
+
+    const appUrl = (
+      c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"
+    ).replace(/\/$/, "");
+
+    // Re-use path: existing token + still in date and caller didn't ask
+    // for a rotation. Returns the URL straight away without touching the
+    // DB — keeps repeat clicks cheap and the link stable.
+    const existingToken = (project as any).shareToken as string | null;
+    const existingExpiry = (project as any).shareTokenExpiresAt as Date | null;
+    const existingValid =
+      !!existingToken &&
+      (!existingExpiry || new Date(existingExpiry).getTime() > Date.now());
+    if (existingValid && !body.forceRotate) {
+      return c.json({
+        token: existingToken,
+        url: `${appUrl}/share/project/${existingToken}`,
+        expiresAt: existingExpiry ? new Date(existingExpiry).toISOString() : null,
+        reused: true,
+      });
+    }
+
+    // Clamp to 1..90 days. Default 30. Same coercion as the orders mint
+    // route so the two share flows behave identically.
+    const rawDays = Number(body.expiresInDays);
+    const days = Math.max(
+      1,
+      Math.min(90, Number.isFinite(rawDays) && rawDays > 0 ? Math.floor(rawDays) : 30),
+    );
+
+    // Token = uuid + "-" + 16 hex chars. ~160 bits of entropy.
+    const token = `${crypto.randomUUID()}-${hex16()}`;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    await storage.updateProject(projectId, {
+      shareToken: token,
+      shareTokenCreatedAt: now,
+      shareTokenCreatedBy: userId,
+      shareTokenExpiresAt: expiresAt,
+    } as any);
+
+    return c.json({
+      token,
+      url: `${appUrl}/share/project/${token}`,
+      expiresAt: expiresAt.toISOString(),
+      reused: false,
+    });
+  } catch (error) {
+    console.error("Error creating project share link:", error);
+    return c.json({ message: "Failed to create share link" }, 500);
+  }
+});
+
+// ─── Revoke share link ─────────────────────────────────────────────
+// Nulls out all 4 cols. After this, /api/public/projects/:token returns
+// 404 forever — even if the customer kept the URL bookmarked.
+projectsRoutes.delete("/projects/:id/share-link", authMiddleware, mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const projectId = c.req.param("id");
+
+    const project = await storage.getProject(projectId);
+    if (!project) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+    if (project.userId !== userId) {
+      return c.json(
+        { message: "Only the project owner can revoke a share link" },
+        403,
+      );
+    }
+
+    await storage.updateProject(projectId, {
+      shareToken: null,
+      shareTokenCreatedAt: null,
+      shareTokenCreatedBy: null,
+      shareTokenExpiresAt: null,
+    } as any);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error revoking project share link:", error);
+    return c.json({ message: "Failed to revoke share link" }, 500);
+  }
+});
+
+// ─── Rep-facing share-link status ──────────────────────────────────
+// Returns the active token (if any), expiry, view count, and last-viewed-
+// at so the project detail page can render "viewed N times, last seen X".
+projectsRoutes.get("/projects/:id/share-link", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const projectId = c.req.param("id");
+
+    const project = await storage.getProject(projectId);
+    if (!project) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+    if (project.userId !== userId) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+
+    const token = (project as any).shareToken as string | null;
+    const expiresAt = (project as any).shareTokenExpiresAt as Date | null;
+    const isActive =
+      !!token && (!expiresAt || new Date(expiresAt).getTime() > Date.now());
+
+    const stats = await storage.getProjectViewStats(projectId);
+
+    const appUrl = (
+      c.env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"
+    ).replace(/\/$/, "");
+
+    return c.json({
+      active: isActive,
+      token: isActive ? token : null,
+      url: isActive ? `${appUrl}/share/project/${token}` : null,
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      views: stats.views,
+      lastViewedAt: stats.lastViewedAt ? stats.lastViewedAt.toISOString() : null,
+    });
+  } catch (error) {
+    console.error("Error fetching project share-link status:", error);
+    return c.json({ message: "Failed to load share link status" }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// PAS 13 helpers — derive a verdict for each cart line item from the
+// product spec + the project's vehicle context. We pull the heaviest
+// vehicle from the project's stored impact_calculations (if any) — that
+// matches the worst-case "what's the biggest thing that could hit this
+// barrier" interpretation σ's verdict engine assumes.
+// ═══════════════════════════════════════════════════════════════════
+
+interface PublicVehicleContext {
+  label: string;
+  vehicleMassKg: number;
+  loadMassKg: number;
+  speedKmh: number;
+  approachAngleDeg: number;
+}
+
+// Convert speed to km/h regardless of the speedUnit field. impact_calculations
+// stores numbers as decimal strings, so this also coerces to Number.
+function toKmh(speed: number | string | null | undefined, unit: string | null | undefined): number {
+  const n = Number(speed);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  const u = (unit || "kmh").toLowerCase();
+  if (u === "mph") return n * 1.60934;
+  if (u === "ms" || u === "m/s") return n * 3.6;
+  return n; // already km/h
+}
+
+// Pull a single PublicVehicleContext from the project's most-recent /
+// heaviest impact_calculations row, if any exist. We grab the row with
+// the highest kineticEnergy on the assumption that's the worst case
+// the rep is sizing barriers against.
+async function loadProjectVehicleContext(
+  storage: ReturnType<typeof createStorage>,
+  projectId: string,
+  ownerUserId: string,
+): Promise<PublicVehicleContext | null> {
+  try {
+    // We use a thin helper rather than adding a dedicated storage method
+    // to avoid further coupling. The schema exposes an idx on
+    // impact_calculations.user_id, and most calc rows aren't project-
+    // scoped — the rep's own latest row is the best single proxy.
+    const rows = await (storage as any).db
+      .select()
+      .from((await import("../../shared/schema")).impactCalculations)
+      .where(
+        (await import("drizzle-orm")).eq(
+          (await import("../../shared/schema")).impactCalculations.userId,
+          ownerUserId,
+        ),
+      )
+      .orderBy(
+        (await import("drizzle-orm")).desc(
+          (await import("../../shared/schema")).impactCalculations.kineticEnergy,
+        ),
+      )
+      .limit(1);
+    const row = rows?.[0];
+    if (!row) return null;
+    const vMass = Number(row.vehicleMass) || 0;
+    const lMass = Number(row.loadMass) || 0;
+    const speedKmh = toKmh(row.speed, row.speedUnit);
+    const angle = Number(row.impactAngle) || 0;
+    if (vMass <= 0 || speedKmh <= 0) return null;
+    return {
+      label: `${(vMass + lMass).toLocaleString()} kg @ ${speedKmh.toFixed(1)} km/h, ${angle}°`,
+      vehicleMassKg: vMass,
+      loadMassKg: lMass,
+      speedKmh,
+      approachAngleDeg: angle,
+    };
+  } catch (err) {
+    console.warn("[loadProjectVehicleContext] fallback to null:", err);
+    return null;
+  }
+}
+
+interface PublicLineItem {
+  productName: string;
+  quantity: number;
+  applicationArea: string | null;
+  verdict: Pas13Verdict | null;
+}
+
+// Compute per-line-item PAS 13 verdicts. If the project has no vehicle
+// context or the product has no rated joules, we leave verdict=null and
+// the UI renders "verdict pending — vehicle context required".
+async function computeBarrierVerdicts(
+  storage: ReturnType<typeof createStorage>,
+  cartItems: any[],
+  vehicleContext: PublicVehicleContext | null,
+): Promise<PublicLineItem[]> {
+  if (cartItems.length === 0) return [];
+  // Fetch products by name (cart_items only carries productName, not productId).
+  // Cheap because cart_items typically holds <50 lines per project.
+  const names = Array.from(new Set(cartItems.map((i) => i.productName).filter(Boolean)));
+  const productsByName: Map<string, any> = new Map();
+  if (names.length > 0) {
+    try {
+      const productsTable = (await import("../../shared/schema")).products;
+      const drizzle = await import("drizzle-orm");
+      const rows = await (storage as any).db
+        .select()
+        .from(productsTable)
+        .where(drizzle.inArray(productsTable.name, names));
+      for (const row of rows) productsByName.set(row.name, row);
+    } catch (err) {
+      console.warn("[computeBarrierVerdicts] product lookup failed:", err);
+    }
+  }
+
+  const out: PublicLineItem[] = [];
+  for (const item of cartItems) {
+    const product = productsByName.get(item.productName);
+    const ratedJ =
+      Number(product?.pas13TestJoules) ||
+      Number(product?.impactRating) ||
+      0;
+    const impactZoneMm =
+      Number(product?.impactTestingData?.impactZone) ||
+      Number(product?.deflectionZone) ||
+      0;
+
+    let verdict: Pas13Verdict | null = null;
+    if (vehicleContext && ratedJ > 0 && impactZoneMm > 0) {
+      try {
+        verdict = pas13Verdict({
+          vehicleMassKg: vehicleContext.vehicleMassKg,
+          loadMassKg: vehicleContext.loadMassKg,
+          speedKmh: vehicleContext.speedKmh,
+          approachAngleDeg: vehicleContext.approachAngleDeg,
+          productRatedJoulesAt45deg: ratedJ,
+          productImpactZoneMaxMm: impactZoneMm,
+        });
+      } catch (err) {
+        console.warn(`[computeBarrierVerdicts] verdict failed for ${item.productName}:`, err);
+      }
+    }
+    out.push({
+      productName: item.productName,
+      quantity: Number(item.quantity) || 1,
+      applicationArea: item.applicationArea || null,
+      verdict,
+    });
+  }
+  return out;
+}
+
+// Aggregate verdict — worst-case wins. Mirrors D's PDF aggregate logic
+// so the public page and the PDF report tell the same story.
+function aggregateVerdict(items: PublicLineItem[]): {
+  verdict: Verdict | "unknown";
+  worstMarginPct: number | null;
+  alignedCount: number;
+  borderlineCount: number;
+  notAlignedCount: number;
+  unknownCount: number;
+} {
+  let aligned = 0,
+    borderline = 0,
+    notAligned = 0,
+    unknown = 0;
+  let worst = Number.POSITIVE_INFINITY;
+  for (const it of items) {
+    if (!it.verdict) {
+      unknown++;
+      continue;
+    }
+    const m = it.verdict.details.safetyMarginPct;
+    if (Number.isFinite(m) && m < worst) worst = m;
+    if (it.verdict.verdict === "not_aligned") notAligned++;
+    else if (it.verdict.verdict === "borderline") borderline++;
+    else aligned++;
+  }
+  let verdict: Verdict | "unknown";
+  if (notAligned > 0) verdict = "not_aligned";
+  else if (borderline > 0) verdict = "borderline";
+  else if (aligned > 0) verdict = "aligned";
+  else verdict = "unknown";
+  return {
+    verdict,
+    worstMarginPct: Number.isFinite(worst) ? worst : null,
+    alignedCount: aligned,
+    borderlineCount: borderline,
+    notAlignedCount: notAligned,
+    unknownCount: unknown,
+  };
+}
+
+// ─── Public read-only project view ─────────────────────────────────
+// NO auth. Everything we return is sanitised — no internal pricing
+// flags, no other rep's contacts, no admin fields. The customer sees:
+//   - project name / location / description / customer name
+//   - rep display name (so they know who shared it)
+//   - layout drawings linked to the project (file URL + thumbnail; the
+//     SharedProjectView page renders them as read-only embeds)
+//   - barrier list (cart items) with per-line PAS 13 verdict
+//   - aggregate verdict + worst-case safety margin
+//   - share token expiry
+projectsRoutes.get("/public/projects/:token", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const tokenStr = c.req.param("token");
+    if (!tokenStr) return c.json({ message: "Token required" }, 400);
+
+    const project = await storage.getProjectByShareToken(tokenStr);
+    if (!project) {
+      return c.json({ message: "Link expired or revoked" }, 404);
+    }
+    const expires = (project as any).shareTokenExpiresAt as Date | null;
+    if (expires && new Date(expires).getTime() < Date.now()) {
+      return c.json({ message: "Link expired or revoked" }, 410);
+    }
+
+    // Audit the page-load. Fire-and-forget — failures shouldn't break
+    // the customer's view.
+    const ip =
+      c.req.header("cf-connecting-ip") ||
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      null;
+    const userAgent = c.req.header("user-agent") || null;
+    void storage.recordProjectView({
+      projectId: project.id,
+      shareToken: tokenStr,
+      ipAddress: ip,
+      userAgent,
+    } as any);
+
+    // Load ancillary data in parallel — customer, rep, layout drawings,
+    // cart items, vehicle context.
+    const [customer, rep, layoutDrawings, cartItems, vehicleContext] =
+      await Promise.all([
+        project.customerCompanyId
+          ? storage.getCustomerCompany(project.customerCompanyId)
+          : Promise.resolve(undefined),
+        storage.getUser(project.userId),
+        // getLayoutDrawings is owner-scoped + project-scoped; we re-use
+        // it here with the project's owner as the "user" so the public
+        // endpoint can see the drawings the rep attached to this project.
+        storage.getLayoutDrawings(project.userId, project.id),
+        storage.getUserCart(project.userId, project.id),
+        loadProjectVehicleContext(storage, project.id, project.userId),
+      ]);
+
+    const lineItems = await computeBarrierVerdicts(
+      storage,
+      cartItems as any[],
+      vehicleContext,
+    );
+    const aggregate = aggregateVerdict(lineItems);
+
+    // Sanitise rep display: first name + last name OR just email's local
+    // part. We do NOT leak the rep's email or mobile.
+    const repDisplayName = rep
+      ? [rep.firstName, rep.lastName].filter(Boolean).join(" ") ||
+        (rep.email ? rep.email.split("@")[0] : "your A-SAFE contact")
+      : "your A-SAFE contact";
+
+    // Sanitise drawings — strip any *Token / *Secret-shaped field.
+    const sanitisedDrawings = (layoutDrawings as any[]).map((d) => ({
+      id: d.id,
+      fileName: d.fileName,
+      fileUrl: d.fileUrl,
+      fileType: d.fileType,
+      thumbnailUrl: d.thumbnailUrl,
+      projectName: d.projectName,
+      location: d.location,
+      company: d.company,
+    }));
+
+    return c.json({
+      isPublicView: true,
+      project: {
+        id: project.id,
+        name: project.name,
+        location: project.location,
+        description: project.description,
+        status: project.status,
+      },
+      customer: customer
+        ? {
+            id: customer.id,
+            name: customer.name,
+            logoUrl: (customer as any).logoUrl ?? null,
+            city: (customer as any).city ?? null,
+            country: (customer as any).country ?? null,
+          }
+        : null,
+      sharedBy: {
+        name: repDisplayName,
+        // Deliberately NOT exposing rep email/mobile/role.
+      },
+      vehicleContext,
+      layoutDrawings: sanitisedDrawings,
+      lineItems,
+      aggregate,
+      // Indicative footnote — wording mandated by σ's verdict engine.
+      footnote:
+        "Indicative — verify with A-SAFE engineering for procurement.",
+      shareTokenExpiresAt: expires ? new Date(expires).toISOString() : null,
+    });
+  } catch (error) {
+    console.error("Error loading public project view:", error);
+    return c.json({ message: "Failed to load project" }, 500);
+  }
+});
+
+// ─── Public approval submission ────────────────────────────────────
+// Customer clicks Approve or Request changes on the SharedProjectView
+// page. Decision="approved" → row in project_approvals + email-the-rep
+// notification. Decision="changes_requested" → same row + email the rep
+// the customer's comments.
+projectsRoutes.post("/public/projects/:token/approval", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const tokenStr = c.req.param("token");
+    if (!tokenStr) return c.json({ message: "Token required" }, 400);
+
+    const project = await storage.getProjectByShareToken(tokenStr);
+    if (!project) {
+      return c.json({ message: "Link expired or revoked" }, 404);
+    }
+    const expires = (project as any).shareTokenExpiresAt as Date | null;
+    if (expires && new Date(expires).getTime() < Date.now()) {
+      return c.json({ message: "Link expired or revoked" }, 410);
+    }
+
+    const body = await c.req.json<{
+      decision: "approved" | "changes_requested";
+      approverName?: string;
+      approverEmail?: string;
+      comments?: string;
+    }>().catch(() => ({} as any));
+
+    const decision = body.decision;
+    if (decision !== "approved" && decision !== "changes_requested") {
+      return c.json(
+        { message: "decision must be 'approved' or 'changes_requested'" },
+        400,
+      );
+    }
+    // Comments are required when requesting changes — that's the whole
+    // point of the alternate CTA.
+    if (decision === "changes_requested" && !body.comments?.trim()) {
+      return c.json(
+        { message: "Please describe the changes you need." },
+        400,
+      );
+    }
+
+    const ip =
+      c.req.header("cf-connecting-ip") ||
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      null;
+    const userAgent = c.req.header("user-agent") || null;
+
+    const row = await storage.recordProjectApproval({
+      projectId: project.id,
+      shareToken: tokenStr,
+      decision,
+      approverName: body.approverName?.trim() || null,
+      approverEmail: body.approverEmail?.trim() || null,
+      comments: body.comments?.trim() || null,
+      ipAddress: ip,
+      userAgent,
+    } as any);
+
+    // Email the rep so they know what just happened. Best-effort —
+    // failure here doesn't fail the API call (the row already landed).
+    try {
+      const rep = await storage.getUser(project.userId);
+      if (rep?.email) {
+        const isApprove = decision === "approved";
+        const subjectVerb = isApprove ? "approved" : "requested changes on";
+        const subject = `Customer ${subjectVerb} project: ${project.name}`;
+        const safeComments = sanitiseComment(body.comments);
+        const safeName = sanitiseComment(body.approverName);
+        const safeEmail = sanitiseComment(body.approverEmail, 320);
+        const html = `
+          <p>${isApprove ? "Good news — the customer has approved this project." : "The customer has requested changes."}</p>
+          <p><strong>Project:</strong> ${sanitiseComment(project.name)}</p>
+          ${project.location ? `<p><strong>Location:</strong> ${sanitiseComment(project.location)}</p>` : ""}
+          ${safeName ? `<p><strong>Approver name:</strong> ${safeName}</p>` : ""}
+          ${safeEmail ? `<p><strong>Approver email:</strong> ${safeEmail}</p>` : ""}
+          ${safeComments ? `<p><strong>Customer comments:</strong></p><blockquote>${safeComments.replace(/\n/g, "<br/>")}</blockquote>` : ""}
+          <hr/>
+          <p style="font-size:12px;color:#888">Sent from A-SAFE Engage. PAS 13 alignment summaries are indicative — verify with A-SAFE engineering for procurement.</p>
+        `;
+        await sendEmail(c.env, rep.email, subject, html);
+      }
+    } catch (err) {
+      console.warn("[project-approval] rep notification failed:", err);
+    }
+
+    return c.json({ id: row.id, decision: row.decision });
+  } catch (error) {
+    console.error("Error recording project approval:", error);
+    return c.json({ message: "Failed to record decision" }, 500);
+  }
 });
 
 export default projectsRoutes;

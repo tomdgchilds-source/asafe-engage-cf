@@ -58,6 +58,10 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 // outside the auth gate in AppContent below so external customers don't
 // hit the auth check.
 const SharedOrderView = lazy(() => import("@/pages/SharedOrderView"));
+// SharedProjectView mirrors SharedOrderView for the project-share flow:
+// rep mints a token-gated link, customer opens /share/project/:token in
+// an anonymous tab. Same auth-bypass treatment in AppContent below.
+const SharedProjectView = lazy(() => import("@/pages/SharedProjectView"));
 const OrderKanban = lazy(() => import("@/pages/admin/OrderKanban"));
 const Pas13Rules = lazy(() => import("@/pages/admin/Pas13Rules"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -129,6 +133,9 @@ function Router() {
             renders inside the authed Layout, but registered here too so
             wouter matches the path if someone lands here after sign-in. */}
         <Route path="/share/order/:token" component={SharedOrderView} />
+        {/* Public project-share route — same hoist treatment as
+            /share/order/:token. */}
+        <Route path="/share/project/:token" component={SharedProjectView} />
         <Route path="/start-new-project" component={StartNewProject} />
         <Route path="/projects" component={Projects} />
         <Route path="/site-survey" component={SiteSurvey} />
@@ -191,6 +198,19 @@ function AppContent() {
       <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/share/order/:token" component={SharedOrderView} />
+        </Switch>
+      </Suspense>
+    );
+  }
+
+  // Public share-project view. Same auth-bypass as /share/order/ above
+  // — the anonymous customer hits /api/public/projects/:token and the
+  // page must render outside the authed Layout.
+  if (location.startsWith("/share/project/")) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/share/project/:token" component={SharedProjectView} />
         </Switch>
       </Suspense>
     );
