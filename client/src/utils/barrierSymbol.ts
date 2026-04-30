@@ -164,7 +164,7 @@ const SPECS: Record<SpecKey, SpecEntry> = {
   "Atlas 190": {
     spec: {
       family: "Atlas 190",
-      postOdMm: 200,
+      postOdMm: 190,
       maxCentreSpacingMm: 2200,
       railWidthMm: 130,
       railColour: "#FFC72C",

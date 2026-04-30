@@ -69,10 +69,10 @@ describe("getBarrierSpec", () => {
     expect(spec.postOdMm).toBe(158);
   });
 
-  it("resolves Atlas family with post OD 200", () => {
+  it("resolves Atlas family with post OD 190 (Traffic family)", () => {
     const spec = getBarrierSpec("Atlas Traffic 2200");
     expect(spec.family).toBe("Atlas 190");
-    expect(spec.postOdMm).toBe(200);
+    expect(spec.postOdMm).toBe(190);
   });
 
   it("resolves 130-T0-P3 prefix", () => {
