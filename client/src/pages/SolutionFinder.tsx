@@ -73,6 +73,7 @@ import { Separator } from "@/components/ui/separator";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { VehicleType } from "@shared/schema";
+import { QuoteDraftDrawer, type QuoteDraftPayload } from "@/components/QuoteDraftDrawer";
 
 const solutionRequestSchema = z.object({
   problemTitle: z.string().min(5, "Title must be at least 5 characters"),
