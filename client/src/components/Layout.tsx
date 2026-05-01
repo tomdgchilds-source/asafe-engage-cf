@@ -128,7 +128,7 @@ export function Layout({ children }: LayoutProps) {
         { name: "Solution Finder", href: "/solution-finder", icon: Lightbulb, external: false },
         { name: "Site Survey", href: "/site-survey", icon: ClipboardCheck, external: false },
         { name: "Impact Calculator", href: "/calculator", icon: Calculator, external: false },
-        { name: "PAS 13 Compliance", href: "/pas13-compliance", icon: Shield, external: false },
+        { name: "PAS 13 Alignment", href: "/pas13-compliance", icon: Shield, external: false },
         { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false },
         { name: "Installation Timeline", href: "/installation-timeline", icon: TrendingUp, external: false },
         { name: "Install Teams", href: "/install-teams", icon: Users, external: false },

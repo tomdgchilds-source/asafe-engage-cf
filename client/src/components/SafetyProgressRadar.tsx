@@ -134,7 +134,7 @@ export function SafetyProgressRadar() {
               {progress.pas13Compliance && (
                 <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20">
                   <CheckCircle className="h-3 w-3 mr-1" />
-                  PAS 13:2017 Compliant
+                  PAS 13:2017 aligned
                 </Badge>
               )}
               <Badge variant="outline">

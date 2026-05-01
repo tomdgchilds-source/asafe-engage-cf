@@ -1197,13 +1197,15 @@ export function VehicleImpactCalculator() {
               </Select>
             </div>
 
-            {/* PAS 13:2017 Compliance Section */}
+            {/* PAS 13:2017 Alignment Section. Wording is "aligned"
+                throughout the UI — never "compliant" — per the
+                commercial-liability rule. */}
             <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   <Label className="text-blue-800 dark:text-blue-200 font-semibold">
-                    PAS 13:2017 Compliance Mode
+                    PAS 13:2017 Alignment Mode
                   </Label>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1242,7 +1244,7 @@ export function VehicleImpactCalculator() {
                   
                   <div className="bg-blue-100 dark:bg-blue-900/40 p-3 rounded">
                     <p className="text-sm text-blue-800 dark:text-blue-200">
-                      <strong>PAS 13:2017 Compliance:</strong> Calculations will follow British Standard PAS 13:2017 
+                      <strong>PAS 13:2017 alignment:</strong> calculations follow British Standard PAS 13:2017
                       including 45° maximum test angle, safety margins, and deflection zone requirements.
                     </p>
                   </div>
@@ -1307,12 +1309,12 @@ export function VehicleImpactCalculator() {
                   </div>
                 </div>
 
-                {/* PAS 13:2017 Compliance Results */}
+                {/* PAS 13:2017 Alignment Results */}
                 {inputs.usePAS13 && result.pas13AdjustedEnergy !== undefined && (
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-2 mb-3">
                       <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <p className="font-semibold text-blue-800 dark:text-blue-200">PAS 13:2017 Compliance</p>
+                      <p className="font-semibold text-blue-800 dark:text-blue-200">PAS 13:2017 alignment</p>
                       {result.pas13Compliant && (
                         <CheckCircle className="h-4 w-4 text-green-600" />
                       )}
@@ -1336,7 +1338,7 @@ export function VehicleImpactCalculator() {
                     {result.pas13Compliant ? (
                       <div className="mt-3 flex items-center gap-2 text-green-700 dark:text-green-400">
                         <CheckCircle className="h-4 w-4" />
-                        <p className="text-sm font-medium">Calculation meets PAS 13:2017 requirements</p>
+                        <p className="text-sm font-medium">Calculation aligns with PAS 13:2017 testable range</p>
                       </div>
                     ) : (
                       <div className="mt-3 flex items-center gap-2 text-yellow-700 dark:text-yellow-400">

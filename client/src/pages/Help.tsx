@@ -138,12 +138,12 @@ const HELP_TOPICS: HelpTopic[] = [
     ],
   },
 
-  // ─── PAS 13 Compliance ───────────────────────────────────────────
+  // ─── PAS 13 Alignment ────────────────────────────────────────────
   {
     id: "pas13-compliance",
-    title: "PAS 13 Compliance Checker",
+    title: "PAS 13 Alignment Checker",
     icon: ShieldCheck,
-    summary: "Quick-check tool for whether a barrier meets PAS 13:2017.",
+    summary: "Quick-check tool for whether a barrier aligns with PAS 13:2017.",
     route: "/pas13-compliance",
     sections: [
       {
