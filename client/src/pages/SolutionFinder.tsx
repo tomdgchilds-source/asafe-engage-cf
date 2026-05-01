@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { z } from "zod";
 import { Link } from "wouter";
 import { 
@@ -300,6 +301,7 @@ export function SolutionFinder() {
     useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   // Fetch vehicle types from API
   const { data: vehicleTypesData, isLoading: loadingVehicleTypes } = useQuery({
@@ -326,10 +328,13 @@ export function SolutionFinder() {
     }
   });
 
-  // Get user's previous solution requests
+  // Get user's previous solution requests — only fires for authed users.
+  // Without this gate the default queryFn throws 401 for anonymous
+  // visitors, which the global error handler turns into a redirect to
+  // "/" and the ErrorBoundary turns into "Something went wrong".
   const { data: previousRequests, refetch: refetchRequests } = useQuery({
     queryKey: ["/api/solution-requests"],
-    enabled: true
+    enabled: isAuthenticated,
   });
 
   // Delete solution request mutation
