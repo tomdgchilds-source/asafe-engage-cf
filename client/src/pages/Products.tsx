@@ -521,9 +521,21 @@ export default function Products() {
                         })()}
                       </p>
                     </div>
-                    {(individualProduct as any).specifications && typeof (individualProduct as any).specifications === 'object' && 
+                    {(individualProduct as any).specifications && typeof (individualProduct as any).specifications === 'object' &&
                       Object.entries((individualProduct as any).specifications as Record<string, any>)
-                        .filter(([key, value]) => value !== null && value !== undefined && String(value).trim() !== '')
+                        // Skip array-of-object spec keys that are rendered
+                        // by their own dedicated UI (the variant picker
+                        // and price-list breakdown). Without this filter
+                        // the generic key/value renderer below produced
+                        // "Variants: [object Object]" because it joined
+                        // an array of variant objects via toString.
+                        .filter(([key, value]) => {
+                          if (value === null || value === undefined) return false;
+                          if (key === 'variants' || key === 'priceVariants' || key === 'variations') return false;
+                          if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') return false;
+                          if (typeof value === 'object' && !Array.isArray(value)) return false;
+                          return String(value).trim() !== '';
+                        })
                         .map(([key, value]) => (
                           <div key={key}>
                             <p className="font-semibold">{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</p>

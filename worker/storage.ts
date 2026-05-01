@@ -1229,7 +1229,26 @@ export class DatabaseStorage implements IStorage {
     // Try exact name match first
     const exactMatch = await this.getProductByName(searchTerm);
     if (exactMatch) return exactMatch;
-    
+
+    // The /api/products listing builds family ids as
+    // `family-${name.replace(/\s+/g, "-").toLowerCase()}`. So names with
+    // internal hyphens like "130-T0-P3" become "family-130-t0-p3".
+    // Try a hyphen-preserving case-insensitive lookup first — this
+    // recovers PAS 13 spec-coded products (130-T0-P3, 190-T1-P0, etc.)
+    // before the space-conversion step below mangles them.
+    const stripped = searchTerm.replace(/^family-/i, "");
+    if (stripped !== searchTerm) {
+      const [hyphenMatch] = await this.db
+        .select()
+        .from(products)
+        .where(and(
+          ilike(products.name, stripped),
+          eq(products.isActive, true)
+        ))
+        .limit(1);
+      if (hyphenMatch) return hyphenMatch;
+    }
+
     // Try similar name matching - convert search term to likely product name
     const cleanedSearch = searchTerm
       .replace(/family-/gi, '')
@@ -1237,9 +1256,9 @@ export class DatabaseStorage implements IStorage {
       .replace(/-+/g, ' ') // Convert remaining hyphens to spaces
       .replace(/\b\w/g, l => l.toUpperCase()) // Title case
       .trim();
-    
+
     console.log(`Searching for product name similarity: "${cleanedSearch}"`);
-    
+
     const [similarProduct] = await this.db
       .select()
       .from(products)
@@ -1248,7 +1267,7 @@ export class DatabaseStorage implements IStorage {
         eq(products.isActive, true)
       ))
       .limit(1);
-    
+
     return similarProduct;
   }
 
