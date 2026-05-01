@@ -24,6 +24,7 @@ export default function Landing() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
   const [registerMode, setRegisterMode] = useState(false);
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
@@ -444,16 +445,31 @@ export default function Landing() {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setForgotLoading(true);
+                  setForgotError(null);
                   try {
-                    await fetch("/api/auth/forgot-password", {
+                    const res = await fetch("/api/auth/forgot-password", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ email: forgotEmail, turnstileToken: forgotTsToken }),
                     });
-                    setForgotSent(true);
+                    // Anti-enumeration: a 200 response always shows the
+                    // generic success message — server is silent about
+                    // whether the email actually exists. But surface
+                    // genuine infrastructure failures so users don't sit
+                    // forever waiting for an email that was never sent.
+                    if (res.ok) {
+                      setForgotSent(true);
+                    } else if (res.status === 429) {
+                      setForgotError("Too many attempts. Please wait a few minutes and try again.");
+                    } else if (res.status >= 500) {
+                      setForgotError("Reset service is temporarily unavailable. Please try again in a moment.");
+                    } else {
+                      // 4xx other than 429 — usually a validation problem.
+                      // Don't leak server detail; just ask user to retry.
+                      setForgotError("Couldn't send the reset email. Double-check your address and try again.");
+                    }
                   } catch {
-                    // still show success to prevent enumeration
-                    setForgotSent(true);
+                    setForgotError("Network error. Please check your connection and try again.");
                   } finally {
                     setForgotLoading(false);
                   }
@@ -474,6 +490,9 @@ export default function Landing() {
                 </div>
                 {turnstileRequired && (
                   <Turnstile siteKey={turnstileSiteKey} onToken={handleForgotTsToken} />
+                )}
+                {forgotError && (
+                  <p className="text-sm text-red-600" role="alert">{forgotError}</p>
                 )}
                 <Button
                   type="submit"

@@ -72,7 +72,10 @@ const registerSchema = z.object({
   company: z.string().max(200).optional(),
   phone: z.string().max(40).optional(),
   jobTitle: z.string().max(100).optional(),
-  turnstileToken: z.string().max(2048).optional(),
+  // nullish so the client can safely send `null` when the Turnstile
+  // widget isn't rendered (TURNSTILE_SITE_KEY unset). `.optional()` only
+  // accepts undefined and would 400 on the literal `null` the form ships.
+  turnstileToken: z.string().max(2048).nullish(),
 });
 
 // POST /api/register — create a new user account
@@ -140,7 +143,10 @@ auth.post("/register", signupRateLimit, async (c) => {
 
 const forgotPasswordSchema = z.object({
   email: z.string().email().max(254),
-  turnstileToken: z.string().max(2048).optional(),
+  // nullish so the client can safely send `null` when the Turnstile
+  // widget isn't rendered (TURNSTILE_SITE_KEY unset). `.optional()` only
+  // accepts undefined and would 400 on the literal `null` the form ships.
+  turnstileToken: z.string().max(2048).nullish(),
 });
 
 // POST /api/auth/forgot-password
@@ -198,7 +204,10 @@ auth.post("/auth/forgot-password", forgotPasswordRateLimit, async (c) => {
 const resetPasswordSchema = z.object({
   token: z.string().min(1).max(256),
   newPassword: z.string().min(6).max(200),
-  turnstileToken: z.string().max(2048).optional(),
+  // nullish so the client can safely send `null` when the Turnstile
+  // widget isn't rendered (TURNSTILE_SITE_KEY unset). `.optional()` only
+  // accepts undefined and would 400 on the literal `null` the form ships.
+  turnstileToken: z.string().max(2048).nullish(),
 });
 
 // POST /api/auth/reset-password
