@@ -14,7 +14,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import {
   Sheet,
   SheetContent,
@@ -82,9 +82,13 @@ export function Pas13ChatPanel({
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const scrollEnd = useRef<HTMLDivElement>(null);
 
-  // Rep gate — /api/pas13/me returns { isRep: boolean }.
-  const { data: gate } = useQuery<{ isRep: boolean }>({
+  // Rep gate — /api/pas13/me returns { isRep: boolean } when authed,
+  // 401 when anonymous. Use returnNull so the soft probe doesn't trip
+  // the queryClient global 401-handler (which would window.location="/"
+  // and redirect anonymous visitors off public pages like /calculator).
+  const { data: gate } = useQuery<{ isRep: boolean } | null>({
     queryKey: ["/api/pas13/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
