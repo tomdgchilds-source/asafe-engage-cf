@@ -300,6 +300,12 @@ export function SolutionFinder() {
   const [barrierRecommendations, setBarrierRecommendations] = useState<any>(null);
   const [isLoadingBarrierRecommendations, setIsLoadingBarrierRecommendations] =
     useState(false);
+  // Quoting AI assistant — drives the QuoteDraftDrawer slide-over.
+  // B's wave wired the drawer's JSX and the state setters but forgot
+  // to declare these `useState`s in this file (caught by /qa).
+  const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
+  const [quoteGenerating, setQuoteGenerating] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
