@@ -67,6 +67,12 @@ export const users = pgTable("users", {
   passwordResetExpiry: timestamp("password_reset_expiry"),
   oauthProvider: varchar("oauth_provider"),
   oauthId: varchar("oauth_id"),
+  // Engagement tracking — bumped by createSession() on every successful
+  // password / OAuth / passkey login. Powers the admin usage report:
+  // "who actually uses the app vs who only registered". Backfilled to 0
+  // and null for legacy rows by /api/admin/apply-login-tracking.
+  lastLoginAt: timestamp("last_login_at"),
+  loginCount: integer("login_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

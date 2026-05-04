@@ -27,7 +27,11 @@ async function getSession(c: Context<{ Bindings: Env }>): Promise<SessionData | 
   return data;
 }
 
-// Create a new session in KV and set the cookie
+// Create a new session in KV and set the cookie. Side-effect: increments
+// users.login_count and stamps users.last_login_at — that's how the
+// admin usage report distinguishes "registered but never used" from
+// "active rep". Failures here are swallowed so a transient DB blip
+// can't lock a user out of their own login.
 export async function createSession(
   c: Context<{ Bindings: Env }>,
   user: { id: string; email: string | null; firstName: string | null; lastName: string | null }
@@ -52,6 +56,24 @@ export async function createSession(
     maxAge: SESSION_TTL,
     path: "/",
   });
+  // Login engagement counter — fire and forget, can't block the login.
+  // Uses raw SQL to dodge schema-import cycles and to keep the bump
+  // atomic against concurrent logins on the same account.
+  try {
+    const databaseUrl = (c.env as any).DATABASE_URL as string | undefined;
+    if (databaseUrl) {
+      const { neon } = await import("@neondatabase/serverless");
+      const sql = neon(databaseUrl);
+      c.executionCtx.waitUntil(
+        sql`UPDATE users
+            SET login_count = COALESCE(login_count, 0) + 1,
+                last_login_at = now()
+            WHERE id = ${user.id}` as unknown as Promise<unknown>,
+      );
+    }
+  } catch (err) {
+    console.warn("[auth] login-count bump failed", err);
+  }
   return session;
 }
 

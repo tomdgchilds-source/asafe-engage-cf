@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PartnerCodesTab } from "@/pages/admin/PartnerCodesTab";
+import UsageReport from "@/pages/admin/UsageReport";
 import { 
   Users, 
   ShoppingCart, 
@@ -316,14 +317,22 @@ export default function AdminDashboard() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1">
+        <Tabs defaultValue="usage-report" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-6 gap-1">
+            {/* Usage Report is the default landing tab — gives the
+                operator the at-a-glance "who actually uses this app"
+                view that the per-user drill-down can't surface. */}
+            <TabsTrigger value="usage-report">Usage Report</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="activities">Activities</TabsTrigger>
             <TabsTrigger value="user-details">User Details</TabsTrigger>
             <TabsTrigger value="partner-codes">Partner Codes</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="usage-report" className="space-y-4">
+            <UsageReport />
+          </TabsContent>
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-4">

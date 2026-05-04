@@ -5231,6 +5231,128 @@ app.post("/api/admin/apply-email-log-schema", async (c) => {
   }
 });
 
+// Login tracking: adds users.last_login_at + users.login_count.
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN. Drives
+// the admin usage report ("active vs registered-but-dormant").
+app.post("/api/admin/apply-login-tracking", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    await sqlClient`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`;
+    await sqlClient`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0`;
+    // Defensive: existing rows should default to 0, not NULL.
+    await sqlClient`UPDATE users SET login_count = 0 WHERE login_count IS NULL`;
+    return c.json({ ok: true, columns: ["last_login_at", "login_count"] });
+  } catch (e: any) {
+    console.error("apply-login-tracking failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Admin usage report — one row per user with the engagement signals
+// we care about: orders, calculations, quote requests, quote drafts,
+// solution requests, site surveys, layout drawings, projects, login
+// count, last login, last activity. Aggregates done in SQL so the
+// admin dashboard can render 200 users in one query without N+1.
+app.get("/api/admin/users/usage-report", authMiddleware, async (c) => {
+  if (!(await requireAdmin(c))) {
+    return c.json({ message: "Admin access required" }, 403);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+    // LEFT JOIN aggregates so a user with zero of any artifact still
+    // shows up with zeros (rather than disappearing). Each subquery is
+    // a simple COUNT keyed on user_id, so the query plan stays cheap.
+    const rows = await sqlClient`
+      SELECT
+        u.id,
+        u.email,
+        u.first_name AS "firstName",
+        u.last_name AS "lastName",
+        u.company,
+        u.role,
+        u.job_role AS "jobRole",
+        u.email_verified AS "emailVerified",
+        u.created_at AS "createdAt",
+        u.last_login_at AS "lastLoginAt",
+        COALESCE(u.login_count, 0) AS "loginCount",
+        COALESCE(orders_c.n, 0) AS "ordersCount",
+        COALESCE(calcs_c.n, 0) AS "calculationsCount",
+        COALESCE(qr_c.n, 0) AS "quoteRequestsCount",
+        COALESCE(qd_c.n, 0) AS "quoteDraftsCount",
+        COALESCE(sr_c.n, 0) AS "solutionRequestsCount",
+        COALESCE(ss_c.n, 0) AS "siteSurveysCount",
+        COALESCE(ld_c.n, 0) AS "layoutDrawingsCount",
+        COALESCE(p_c.n, 0)  AS "projectsCount",
+        COALESCE(act_c.n, 0) AS "activityCount",
+        act_c.last_at AS "lastActivityAt"
+      FROM users u
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM orders GROUP BY user_id) orders_c ON orders_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM impact_calculations GROUP BY user_id) calcs_c ON calcs_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM quote_requests GROUP BY user_id) qr_c ON qr_c.user_id = u.id
+      LEFT JOIN (
+        -- quote_drafts uses rep_user_id, not user_id (rep is the
+        -- author; the recipient is the customer behind the share token)
+        SELECT rep_user_id AS user_id, COUNT(*)::int AS n
+        FROM quote_drafts WHERE rep_user_id IS NOT NULL GROUP BY rep_user_id
+      ) qd_c ON qd_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM solution_requests GROUP BY user_id) sr_c ON sr_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM site_surveys GROUP BY user_id) ss_c ON ss_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM layout_drawings GROUP BY user_id) ld_c ON ld_c.user_id = u.id
+      LEFT JOIN (SELECT user_id, COUNT(*)::int AS n FROM projects GROUP BY user_id) p_c ON p_c.user_id = u.id
+      LEFT JOIN (
+        SELECT user_id, COUNT(*)::int AS n, MAX(viewed_at) AS last_at
+        FROM user_activity GROUP BY user_id
+      ) act_c ON act_c.user_id = u.id
+      ORDER BY u.created_at DESC NULLS LAST
+    `;
+    // Hide a couple of admin-only rows (the seeded admin@asafe and any
+    // role=admin) so the report shows real customer/rep usage by default.
+    // Caller can pass ?include=admins=true if they want everyone.
+    const includeAdmins = c.req.query("includeAdmins") === "true";
+    const filtered = includeAdmins
+      ? rows
+      : (rows as any[]).filter((r) => r.role !== "admin");
+    return c.json({
+      ok: true,
+      total: filtered.length,
+      generatedAt: new Date().toISOString(),
+      rows: filtered,
+    });
+  } catch (e: any) {
+    console.error("usage-report failed:", e);
+    // If quote_drafts or another late-added table doesn't exist yet,
+    // fail loud-but-graceful so the operator sees which migration to
+    // run rather than a silent empty page.
+    return c.json(
+      {
+        ok: false,
+        message: e?.message || String(e),
+        hint: "If this is a missing-table error, run /api/admin/apply-quote-drafts-schema and /api/admin/apply-login-tracking first.",
+      },
+      500,
+    );
+  }
+});
+
 // Admin GET — last N email_log rows, optionally filtered by status.
 // Defaults to limit=200; clamped at 500 to keep the admin page snappy.
 // Auth: existing requireAdmin() pattern (admin role on session user).
