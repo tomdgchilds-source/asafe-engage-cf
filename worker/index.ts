@@ -2114,38 +2114,70 @@ app.get("/api/bootstrap-admin", async (c) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const email = "admin@asafe.com";
+    // /admin/login looks up admin_users by username — default it to
+    // the email so the operator only has to remember one identifier.
+    const username = email;
 
-    // Check if admin exists
+    // Resolve users-table state.
     const existing = await sqlClient`SELECT id FROM users WHERE email = ${email}`;
-
+    let usersAction: "created" | "updated";
     if (existing.length > 0) {
-      // Update password and ensure admin role
       await sqlClient`
         UPDATE users
         SET password_hash = ${passwordHash}, role = 'admin', updated_at = now()
         WHERE email = ${email}
       `;
-      return c.json({
-        success: true,
-        action: "updated",
-        email,
-        password: newPassword,
-        message: `Admin password reset. Login at /api/login with email ${email} and password ${newPassword}`,
-      });
+      usersAction = "updated";
     } else {
-      // Create new admin
       await sqlClient`
         INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at)
         VALUES (gen_random_uuid(), ${email}, ${passwordHash}, 'Admin', 'User', 'admin', now(), now())
       `;
-      return c.json({
-        success: true,
-        action: "created",
-        email,
-        password: newPassword,
-        message: `Admin user created. Login at /api/login with email ${email} and password ${newPassword}`,
-      });
+      usersAction = "created";
     }
+
+    // Mirror into admin_users so the dedicated /admin/login form
+    // works too. Username = email by default. Idempotent upsert via
+    // explicit existence check (avoids needing a UNIQUE INDEX-aware
+    // ON CONFLICT target list across both username+email).
+    let adminAction: "created" | "updated" | "skipped" = "skipped";
+    try {
+      const adminRow = await sqlClient`SELECT id FROM admin_users WHERE email = ${email} OR username = ${username} LIMIT 1`;
+      if ((adminRow as any[]).length > 0) {
+        await sqlClient`
+          UPDATE admin_users
+          SET password_hash = ${passwordHash},
+              username = ${username},
+              email = ${email},
+              full_name = 'Admin User',
+              role = 'admin',
+              is_active = true,
+              updated_at = now()
+          WHERE id = ${(adminRow as any[])[0].id}
+        `;
+        adminAction = "updated";
+      } else {
+        await sqlClient`
+          INSERT INTO admin_users (id, username, password_hash, email, full_name, role, is_active, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${username}, ${passwordHash}, ${email}, 'Admin User', 'admin', true, now(), now())
+        `;
+        adminAction = "created";
+      }
+    } catch (adminErr: any) {
+      // admin_users table may not exist on a fresh deploy. Don't fail
+      // the whole reset just because of that — surface it instead.
+      console.warn("[bootstrap-admin] admin_users sync skipped:", adminErr?.message);
+    }
+
+    return c.json({
+      success: true,
+      users: usersAction,
+      adminUsers: adminAction,
+      email,
+      username,
+      password: newPassword,
+      message: `Admin reset. Sign in via the homepage modal OR via /admin/login (username: ${username}, password: ${newPassword}).`,
+    });
   } catch (e: any) {
     console.error("Admin endpoint error:", e);
     return c.json({ success: false, message: "Internal server error" }, 500);
