@@ -37,7 +37,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { ArrowDown, ArrowUp, Download, RefreshCw, Search } from "lucide-react";
-import { getQueryFn } from "@/lib/queryClient";
 
 type UsageRow = {
   id: string;
@@ -197,14 +196,24 @@ export default function UsageReport() {
   const [search, setSearch] = useState("");
   const [includeAdmins, setIncludeAdmins] = useState(false);
 
+  // Custom queryFn so the URL is built explicitly. The default
+  // getQueryFn joins queryKey segments with "/", so a key of
+  // ["/api/admin/users/usage-report", ""] would produce
+  // "/api/admin/users/usage-report/" — that trailing slash misses the
+  // Hono route and lets the SPA fallback return index.html, which the
+  // JSON parser then chokes on.
   const { data, isLoading, error, refetch, isRefetching } = useQuery<Resp | null>({
-    queryKey: [
-      "/api/admin/users/usage-report",
-      includeAdmins ? "?includeAdmins=true" : "",
-    ],
-    // returnNull keeps the dashboard from being kicked to the landing
-    // page if the admin session expired mid-view.
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryKey: ["usage-report", includeAdmins],
+    queryFn: async () => {
+      const url = `/api/admin/users/usage-report${includeAdmins ? "?includeAdmins=true" : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`${res.status}: ${text || res.statusText}`);
+      }
+      return (await res.json()) as Resp;
+    },
     staleTime: 30 * 1000,
   });
 
