@@ -175,13 +175,19 @@ function AppContent() {
   const qc = useQueryClient();
   const [location, setLocation] = useLocation();
 
-  // After OAuth callback redirects to /?auth=success, invalidate auth cache
+  // After OAuth callback redirects to /?auth=success, invalidate every
+  // cached "you are not authenticated" probe so the rest of the app
+  // immediately sees the fresh session. This includes /api/admin/session
+  // — without it an admin who signs in with Google would hit the same
+  // stale-cache bug AdminLogin had: cookie set, guard still serving the
+  // pre-login null, dashboard bounces back to landing.
   useEffect(() => {
     if (window.location.search.includes("auth=success")) {
       // Remove the query param from URL
       window.history.replaceState({}, "", "/");
-      // Force refetch the auth user query so the app sees the new session
       qc.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/session"] });
+      qc.invalidateQueries({ queryKey: ["/api/pas13/me"] });
     }
   }, [qc]);
 

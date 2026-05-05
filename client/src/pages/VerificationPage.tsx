@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { Mail, Phone, Loader2 } from 'lucide-react';
 export function VerificationPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [verificationMethod, setVerificationMethod] = useState<'email' | 'whatsapp'>('email');
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(0);
@@ -56,7 +57,13 @@ export function VerificationPage() {
         title: 'Success',
         description: 'Verification successful!',
       });
-      
+
+      // Invalidate the cached user profile — verify-code flips
+      // emailVerified/phoneVerified server-side, and any UI reading
+      // those flags via useAuth would otherwise show the stale
+      // "unverified" state until the next manual refetch.
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+
       // Refetch status and redirect
       const status = await refetch();
       if (status.data?.mustCompleteProfile) {

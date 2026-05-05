@@ -68,8 +68,14 @@ export default function Landing() {
       });
       if (res.ok) {
         haptic.success();
-        // Invalidate the auth cache so useAuth refetches and picks up the new session
+        // Invalidate every cached "you are not authenticated" probe so
+        // the rest of the app picks up the new session immediately.
+        // Includes /api/admin/session (for admin users) and the rep
+        // /api/pas13/me probe — same fingerprint as the AdminLogin
+        // bug fix.
         await qc.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await qc.invalidateQueries({ queryKey: ["/api/admin/session"] });
+        await qc.invalidateQueries({ queryKey: ["/api/pas13/me"] });
         await qc.refetchQueries({ queryKey: ["/api/auth/user"] });
         setLocation("/");
       } else {
@@ -99,8 +105,13 @@ export default function Landing() {
       });
       if (res.ok) {
         haptic.success();
-        // Invalidate the auth cache so useAuth refetches and picks up the new session
+        // Invalidate every cached auth probe — same fingerprint as the
+        // AdminLogin bug fix. Without /api/admin/session here, an admin
+        // logging in via the customer modal could still hit "redirect
+        // back to landing" when navigating to /admin/dashboard.
         await qc.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await qc.invalidateQueries({ queryKey: ["/api/admin/session"] });
+        await qc.invalidateQueries({ queryKey: ["/api/pas13/me"] });
         await qc.refetchQueries({ queryKey: ["/api/auth/user"] });
         setLocation("/");
       } else {
