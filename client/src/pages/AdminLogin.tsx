@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { usePublicConfig } from "@/hooks/usePublicConfig";
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -34,6 +36,10 @@ export default function AdminLogin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, turnstileToken: tsToken }),
+        // Explicit credentials:include matches the regular Landing
+        // handler — without it Safari treats subsequent /api/admin/*
+        // requests as if the sid cookie was never set on this origin.
+        credentials: "include",
       });
 
       const data = await response.json();
@@ -47,6 +53,16 @@ export default function AdminLogin() {
         title: "Login successful",
         description: `Welcome back, ${data.fullName}`,
       });
+
+      // CRITICAL: invalidate the cached admin-session response. AdminRoute
+      // ran a /api/admin/session probe before login (returned null because
+      // we were anonymous) and react-query cached that result. Without an
+      // explicit invalidation the cache is served on the next mount, the
+      // guard sees null, and bounces straight back here — which looks
+      // exactly like "login successful but no redirect".
+      await qc.invalidateQueries({ queryKey: ["/api/admin/session"] });
+      await qc.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await qc.refetchQueries({ queryKey: ["/api/admin/session"] });
 
       // Redirect to admin dashboard
       setLocation("/admin/dashboard");
