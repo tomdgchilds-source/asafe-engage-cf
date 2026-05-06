@@ -253,13 +253,30 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
   }
 });
 
+// Accept either an object or a JSON-encoded string (some clients
+// stringify the JSONB columns before posting). Returns null if the
+// value cannot be parsed — the storage layer treats null as a clear.
+function coerceJsonField(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "object") return value;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return value;
+}
+
 // PATCH /api/cart/items - update cart item fields
 cart.patch("/cart/items", authMiddleware, mutationRateLimit, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
 
-    const { id, quantity, referenceImages, ...otherUpdates } =
+    const { id, quantity, referenceImages, accessories, ...otherUpdates } =
       await c.req.json();
 
     if (!id) {
@@ -269,6 +286,13 @@ cart.patch("/cart/items", authMiddleware, mutationRateLimit, async (c) => {
     const updates: any = {};
     if (quantity !== undefined) updates.quantity = quantity;
     if (referenceImages !== undefined) updates.referenceImages = referenceImages;
+    // accessories: structured per-line installation options (SS bolts,
+    // dock buffers, steel plates, etc.). Vocabulary in
+    // shared/cartAccessories.ts. Accept both the parsed object and a
+    // JSON-encoded string for clients that stringify before POST.
+    if (accessories !== undefined) {
+      updates.accessories = coerceJsonField(accessories);
+    }
     Object.assign(updates, otherUpdates);
 
     if (Object.keys(updates).length === 0) {
@@ -290,6 +314,11 @@ cart.put("/cart/:id", authMiddleware, mutationRateLimit, async (c) => {
     const storage = createStorage(db);
 
     const body = await c.req.json();
+    // Same accessories coercion as PATCH /cart/items so a stringified
+    // JSONB blob is accepted on both update routes.
+    if (body.accessories !== undefined) {
+      body.accessories = coerceJsonField(body.accessories);
+    }
     const updatedItem = await storage.updateCartItem(c.req.param("id"), body);
     return c.json(updatedItem);
   } catch (error) {

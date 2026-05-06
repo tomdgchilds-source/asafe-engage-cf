@@ -256,6 +256,47 @@ projectsRoutes.patch("/projects/:id", authMiddleware, mutationRateLimit, async (
   return c.json(row);
 });
 
+// Narrowly-scoped patch for the project-level "Installation notes for
+// the estimation team" textarea on the cart + project detail pages.
+// Updates only the `installationNotes` column so a debounced auto-save
+// can't accidentally clobber unrelated project fields. Auth-gated to
+// the project owner (or anyone the rep has granted editor access via
+// canAccessProject — same rule as PATCH /api/projects/:id).
+projectsRoutes.patch(
+  "/projects/:id/installation-notes",
+  authMiddleware,
+  mutationRateLimit,
+  async (c) => {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const id = c.req.param("id");
+    const existing = await storage.getProject(id);
+    if (!existing) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+    if (existing.userId !== userId) {
+      if (typeof storage.canAccessProject === "function") {
+        const check = await storage.canAccessProject(id, userId, "editor");
+        if (!check.allowed) return c.json({ message: "Forbidden" }, 403);
+      } else {
+        return c.json({ message: "Forbidden" }, 403);
+      }
+    }
+    const body = await c.req.json<{ notes?: string | null }>();
+    // Coerce to a clean string|null. Trim is intentional — a textarea
+    // submitted with only whitespace should clear the field, not save
+    // a row of spaces that the PDF would render as a blank panel.
+    const raw = typeof body.notes === "string" ? body.notes : "";
+    const trimmed = raw.trim();
+    const next = trimmed.length > 0 ? raw : null;
+    const row = await storage.updateProject(id, {
+      installationNotes: next as any,
+    });
+    return c.json(row);
+  }
+);
+
 // ─── Project contacts ───────────────────────────────────────────────
 
 projectsRoutes.get("/projects/:id/contacts", authMiddleware, async (c) => {
