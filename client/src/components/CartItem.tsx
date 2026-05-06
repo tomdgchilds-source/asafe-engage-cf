@@ -679,9 +679,16 @@ export function CartItem({
               </div>
             </div>
 
-            {/* Good / Better / Best Tier Switcher — visible only when
-                this line item's productName resolves to a known ladder. */}
-            {ladderMatch && (
+            {/* Good / Better / Best Tier Switcher — Tom's May 5
+                feedback decision: keep this only for projects with an
+                impact calculation attached, since the safety-factor %
+                in the switcher is meaningless without a calculated KE
+                to compare against. Reps were misreading the figure
+                as our internal margin. The switcher still renders for
+                products with no published impact rating, but
+                TierSwitcher itself surfaces an asterisk + "no impact
+                rating" footnote in that case. */}
+            {ladderMatch && item.impactCalculationId && (
               <div className="md:col-span-12">
                 <div className="border rounded-lg p-3 bg-yellow-50/40 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-900/40">
                   <div className="flex items-center justify-between mb-2">

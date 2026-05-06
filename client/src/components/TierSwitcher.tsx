@@ -97,6 +97,11 @@ export function TierSwitcher({
     });
   }, [ladder, currentTier, recommendedTier, pricesByTier, joulesByTier, currentPrice]);
 
+  // Tom's May 5 feedback: when ANY tier in the ladder lacks a published
+  // impact rating, surface that explicitly with an asterisk + footnote
+  // below the segmented control so reps don't read "—" as a system bug.
+  const hasMissingRating = TIER_ORDER.some((t) => joulesByTier[t] == null);
+
   return (
     <div
       className={cn(
@@ -166,10 +171,15 @@ export function TierSwitcher({
                   "text-[11px] font-mono",
                   c.isSelected ? "text-black/80" : "text-gray-600 dark:text-gray-300",
                 )}
+                title={
+                  c.joules == null
+                    ? "No published impact rating for this product. Engineering assessment available on request."
+                    : undefined
+                }
               >
                 {c.joules != null
                   ? `${c.joules.toLocaleString()}J`
-                  : "—"}
+                  : "—*"}
               </span>
               {c.isSelected ? (
                 <span className="text-[11px] font-semibold text-black/80">
@@ -197,6 +207,15 @@ export function TierSwitcher({
           </button>
         );
       })}
+      {hasMissingRating && (
+        <p
+          className="col-span-3 text-[10px] italic text-gray-500 dark:text-gray-400 mt-1"
+          data-testid="tier-no-rating-footnote"
+        >
+          * No published impact rating for this product. Engineering
+          assessment available on request.
+        </p>
+      )}
     </div>
   );
 }
