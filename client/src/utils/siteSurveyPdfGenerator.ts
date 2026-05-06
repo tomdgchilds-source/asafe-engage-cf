@@ -179,6 +179,10 @@ interface SurveyCatalogProduct {
   applications?: string[] | null;
   isNew?: boolean;
   isColdStorage?: boolean;
+  // Optional top-level price — present for products where the rate is
+  // per-metre and the variant table just describes length tiers.
+  // derivePerMetrePrice() falls back to this when variants are empty.
+  price?: number | string | null;
   specifications?: any;
 }
 
@@ -196,6 +200,53 @@ async function fetchSurveyCatalog(): Promise<SurveyCatalogProduct[]> {
     console.warn("[siteSurveyPdf] catalog fetch failed", err);
     return [];
   }
+}
+
+// Best-effort per-metre price extraction from the catalog row.
+// 1) If specifications.priceCalculation is "per_length" or
+//    "per_length_with_extension", and the cheapest variant has a known
+//    length, divide variant unit-price by length-in-metres.
+// 2) Else if the product itself stores a numeric `price` and is flagged
+//    as per-metre, use that.
+// 3) Else null — caller hides the line rather than print a guess.
+function derivePerMetrePrice(p: SurveyCatalogProduct | null): number | null {
+  if (!p) return null;
+  const specs = (p.specifications ?? {}) as any;
+  const mode = String(specs.priceCalculation ?? "").toLowerCase();
+  const isPerLength = mode.includes("per_length") || mode.includes("per_metre") || mode.includes("per_meter");
+  const variants: any[] = Array.isArray(specs.variations)
+    ? specs.variations
+    : Array.isArray(specs.variants)
+      ? specs.variants
+      : [];
+  // Try variants first — pick the smallest length with a price.
+  const priced = variants
+    .map((v) => {
+      const price = parseFloat(v?.price ?? "");
+      const lenMm = parseFloat(v?.length_mm ?? v?.length ?? "");
+      if (!isFinite(price) || !isFinite(lenMm) || price <= 0 || lenMm <= 0) return null;
+      return { price, lengthM: lenMm > 50 ? lenMm / 1000 : lenMm };
+    })
+    .filter(Boolean) as Array<{ price: number; lengthM: number }>;
+  if (priced.length > 0) {
+    const cheapest = priced.reduce((a, b) => (a.price / a.lengthM <= b.price / b.lengthM ? a : b));
+    return Math.round((cheapest.price / cheapest.lengthM) * 100) / 100;
+  }
+  if (isPerLength && p.price != null) {
+    const top = parseFloat(String(p.price));
+    if (isFinite(top) && top > 0) return top;
+  }
+  return null;
+}
+
+// Currency code for the survey output. Uses the survey's country/region
+// when available, defaults to AED to match the UAE-primary deployment.
+function currencyFor(survey: any): string {
+  const cc = (survey?.currencyCode || survey?.currency || "").toString().toUpperCase();
+  if (cc) return cc;
+  const country = (survey?.country || survey?.region || "").toString().toLowerCase();
+  if (country.includes("saudi") || country.includes("ksa") || country.includes("riyadh")) return "SAR";
+  return "AED";
 }
 
 function matchSurveyCatalog(
@@ -932,8 +983,10 @@ export async function generateSiteSurveyPdf(
       yPosition += 5;
 
       for (const p of area.recommendedProducts.slice(0, 4)) {
-        await needSpace(14);
-        // Small chip: [name] ···· [rating] [margin]
+        await needSpace(18);
+        // Two-line chip:
+        //   line 1: [name] ········ [J rating] [+margin %]
+        //   line 2: muted "AED XXX.XX / m" (per-metre price), if known
         setFont(9, "bold");
         setText(ink.black);
         const name = p.productName.length > 50 ? p.productName.substring(0, 48) + "…" : p.productName;
@@ -952,7 +1005,26 @@ export async function generateSiteSurveyPdf(
             pdf.text(`${sm >= 0 ? "+" : ""}${sm}% margin`, pageWidth - margin, yPosition, { align: "right" });
           }
         }
-        yPosition += 5;
+        yPosition += 4;
+
+        // Per-metre price line — Sagarika's feedback (May 5): "I would
+        // like to add the one meter price for each solution, so client
+        // can easily select which product they want for these areas".
+        // We pull the per-metre rate from the catalog match: prefer the
+        // product's smallest variant unit-price ÷ its length, fall back
+        // to product.price if it's already a per-metre rate.
+        const cat = matchSurveyCatalog(p.productName, surveyCatalog);
+        const perMetre = derivePerMetrePrice(cat);
+        if (perMetre != null) {
+          setFont(8, "italic");
+          setText(ink.subtle);
+          pdf.text(
+            `Approx. ${currencyFor(survey)} ${perMetre.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / m`,
+            margin + 3,
+            yPosition,
+          );
+          yPosition += 4;
+        }
         hr(yPosition, ink.softLine, 0.2);
         yPosition += 2;
       }

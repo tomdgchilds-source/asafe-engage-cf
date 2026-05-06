@@ -1813,6 +1813,16 @@ export default function SiteSurvey() {
                                       <p className="text-xs text-green-600">
                                         {product.impactRating ? `Rated: ${product.impactRating}J` : ''}
                                       </p>
+                                      {/* Per-metre price line — Sagarika's
+                                          May 5 feedback: "I would like to
+                                          add the one meter price for each
+                                          solution". Mirrors the same line
+                                          on the Site Survey PDF. */}
+                                      {(product.perMetrePriceAed || product.perMetrePrice) && (
+                                        <p className="text-xs text-gray-500 italic mt-0.5">
+                                          Approx. AED {Number(product.perMetrePriceAed || product.perMetrePrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / m
+                                        </p>
+                                      )}
                                       {product.reason && (
                                         <p className="text-xs text-gray-600 mt-1">{product.reason}</p>
                                       )}
