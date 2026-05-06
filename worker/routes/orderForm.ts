@@ -396,11 +396,45 @@ async function buildInputFromOrder(args: {
         : null,
     proposedSolutions,
     pricing,
+    // Installation notes — pulled from the order's project if linked
+    // (orders carry projectName but no projectId FK today, so we soft-
+    // join by owner + name). Falls back to whatever the rep typed
+    // directly on the order if/when that snapshot path lands. Empty
+    // strings get coerced to null so the renderer can skip the section.
+    installationNotes: await resolveInstallationNotes(storage, order),
     reciprocalCommitments: reciprocalCommitments.length > 0 ? reciprocalCommitments : null,
     approvals,
     siteSurveyAppendix,
     appOrigin,
   };
+}
+
+// Soft-join the order's project to surface installation_notes onto the
+// PDF. Orders today carry projectName as a string snapshot, not a
+// projectId FK, so we look up by (userId, name) — same pattern
+// ensureInstallationsForProject uses. If the rep renamed the project
+// after the order was placed the lookup misses and we fall back to a
+// direct order.installationNotes field if the schema later adds one.
+async function resolveInstallationNotes(
+  storage: any,
+  order: any,
+): Promise<string | null> {
+  const direct = order?.installationNotes;
+  if (typeof direct === "string" && direct.trim().length > 0) return direct;
+  const projectName = order?.projectName;
+  const userId = order?.userId;
+  if (!projectName || !userId) return null;
+  try {
+    const projects = (await storage.getUserProjects?.(userId)) ?? [];
+    const match = (Array.isArray(projects) ? projects : []).find(
+      (p: any) => p?.name === projectName,
+    );
+    const notes = match?.installationNotes ?? match?.installation_notes ?? null;
+    if (typeof notes === "string" && notes.trim().length > 0) return notes;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

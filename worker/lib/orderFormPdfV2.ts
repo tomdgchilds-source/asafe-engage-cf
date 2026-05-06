@@ -88,6 +88,12 @@ export interface OrderFormV2Input {
   /** Pricing tables — one block per zone (A / B / C / …). */
   pricing: PricingBlock;
 
+  /** Free-text "Installation notes for the estimation team" — comes
+   *  from `projects.installation_notes` (set in the cart). When present,
+   *  rendered as its own section between pricing and reciprocal
+   *  commitments. Sagarika's May 5 feedback ask. */
+  installationNotes?: string | null;
+
   /** When set, renders the Reciprocal Value Commitments section. */
   reciprocalCommitments?: ReciprocalCommitmentItem[] | null;
 
@@ -305,6 +311,9 @@ export function buildOrderFormPdfV2(input: OrderFormV2Input): OrderFormV2Output 
   renderBrandCollateral(builder, ctx, input);
   renderProposedSolutions(builder, ctx, input);
   renderPricing(builder, ctx, input);
+  if (input.installationNotes && input.installationNotes.trim().length > 0) {
+    renderInstallationNotes(builder, ctx, input, input.installationNotes);
+  }
   if (input.reciprocalCommitments && input.reciprocalCommitments.length > 0) {
     renderReciprocalCommitments(builder, ctx, input, input.reciprocalCommitments);
   }
@@ -1341,6 +1350,59 @@ function renderPricing(
   );
   y -= 32;
 
+  ctx.y = y;
+  renderFooter(pdf, ctx, input);
+}
+
+// ─── Section: installation notes ───────────────────────────────────────────
+// Free-text catch-all populated by the rep on the cart page (sourced
+// from projects.installation_notes via /api/projects/:id/installation-notes).
+// Rendered after the pricing block so the estimation team sees it
+// alongside the line items they're costing. Sagarika's May 5 feedback
+// — "the estimation team is doing the quotation … if we can add SS
+// boards / dock buffers / steel plates / weld plates / L-brackets /
+// floor type to the same app, the sales team is not forgetting them".
+function renderInstallationNotes(
+  pdf: PdfBuilder,
+  ctx: RenderCtx,
+  input: OrderFormV2Input,
+  notes: string,
+): void {
+  startSection(pdf, ctx, input, "Installation Notes");
+  let y = ctx.y;
+
+  pdf.text(
+    "Captured by the rep at quote time — the estimation and install teams should treat these as definitive.",
+    MARGIN_X,
+    y,
+    { size: 9, color: GREY },
+  );
+  y -= 16;
+
+  // Soft yellow info card with a thin yellow accent bar on the left.
+  // Word-wrap the notes; cap each line to ~110 chars to fit the card.
+  const wrapped = wrapLines(notes.trim(), 110);
+  const lineHeight = 11;
+  const innerPadY = 10;
+  const cardHeight = Math.max(28, innerPadY * 2 + wrapped.length * lineHeight);
+
+  // Page-break the note card if it doesn't fit in the remaining space.
+  if (y - cardHeight < MARGIN_BOTTOM + 30) {
+    newPage(pdf, ctx, input);
+    y = ctx.y;
+  }
+
+  pdf.fillRect(MARGIN_X, y - cardHeight, PAGE_W - 2 * MARGIN_X, cardHeight, ASAFE_YELLOW_TINT);
+  pdf.fillRect(MARGIN_X, y - cardHeight, 4, cardHeight, ASAFE_YELLOW);
+
+  let textY = y - innerPadY - 2;
+  for (const line of wrapped) {
+    pdf.text(line, MARGIN_X + 14, textY, { size: 9, color: BLACK });
+    textY -= lineHeight;
+    if (textY < y - cardHeight + innerPadY) break;
+  }
+
+  y -= cardHeight + 12;
   ctx.y = y;
   renderFooter(pdf, ctx, input);
 }

@@ -881,6 +881,65 @@ export function OrderForm() {
     });
   };
 
+  // V2 download path — fetches the server-rendered PDF built by
+  // worker/lib/orderFormPdfV2.ts (via GET /api/orders/:id/order-form.pdf).
+  // This is the customer-facing artefact: cover page, customer profile,
+  // vehicle movements, impact-calc summary with PAS-13-aligned bar plot,
+  // brand collateral, proposed solutions with safety-factor pills,
+  // pricing tables, reciprocal commitments, signatures block, T&Cs,
+  // site-survey appendix. Replaces the legacy client-side jsPDF build
+  // that reps complained about in the May 5 feedback session ("very
+  // simple", missing product images, etc.).
+  //
+  // The legacy `downloadPDF` is kept below for the email-attachment
+  // flow (`generatePdfBase64`) which intercepts the jsPDF save() and
+  // hasn't been ported yet. Once that's migrated this whole legacy
+  // path can be deleted.
+  const downloadPdfV2 = async () => {
+    if (!orderData) {
+      haptic.error();
+      toast({
+        title: "Error",
+        description: "Order data not available",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/orders/${orderData.id}/order-form.pdf`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const refNum = orderData.orderNumber || `ENG_${orderData.id.slice(0, 8)}`;
+      a.href = url;
+      a.download = `A-SAFE_Order_Form-${refNum}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      haptic.success();
+      toast({
+        title: "PDF downloaded",
+        description: `${refNum} saved to your downloads folder.`,
+      });
+    } catch (err: any) {
+      console.error("V2 PDF download failed:", err);
+      haptic.error();
+      toast({
+        title: "Download failed",
+        description:
+          err?.message ||
+          "Couldn't generate the order form PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const downloadPDF = async (
     opts: { includeBrandOverview?: boolean } = {},
   ) => {
@@ -2043,7 +2102,7 @@ export function OrderForm() {
                 </Button>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
-                    onClick={() => downloadPDF({ includeBrandOverview })}
+                    onClick={downloadPdfV2}
                     variant="outline"
                     size="sm"
                     data-testid="button-download-pdf"
@@ -2051,19 +2110,13 @@ export function OrderForm() {
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
                   </Button>
-                  <label
-                    className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
-                    title="Adds a 2-3 page About A-SAFE brand appendix after the cover"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={includeBrandOverview}
-                      onChange={(e) => setIncludeBrandOverview(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#FFC72C] focus:ring-[#FFC72C]"
-                      data-testid="checkbox-brand-overview"
-                    />
-                    Include brand overview
-                  </label>
+                  {/* "Include brand overview" toggle — the v2 server
+                      builder always inserts a distilled ~2-page brand
+                      collateral block, so the legacy checkbox is no
+                      longer wired. Kept here as a no-op control while
+                      the email-attachment path still references the
+                      legacy generator; will be removed once the
+                      generatePdfBase64 path is also cut over to v2. */}
                 </div>
                 {/* Lifecycle v2: email the PDF to the customer. Opens a
                     tiny dialog rather than navigating away so the user
