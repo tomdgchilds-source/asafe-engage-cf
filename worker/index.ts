@@ -50,6 +50,7 @@ import installVideos from "./routes/installVideos";
 import recommendBarriers from "./routes/recommendBarriers";
 import quote from "./routes/quote";
 import communication from "./routes/communication";
+import orderForm from "./routes/orderForm";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 import { scanCommSuggestions } from "./scheduled/commSuggestionsScanner";
 
@@ -130,6 +131,7 @@ app.route("/api", installVideos);
 app.route("/api", recommendBarriers);
 app.route("/api", quote);
 app.route("/api", communication);
+app.route("/api", orderForm);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

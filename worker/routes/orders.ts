@@ -155,11 +155,24 @@ orders.post("/orders", authMiddleware, async (c) => {
       companyLogoUrl,
     } = await c.req.json();
 
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.random()
-      .toString(36)
-      .substr(2, 5)
-      .toUpperCase()}`;
+    // Generate order number — `ENG_QUOAE` prefix per the rep-feedback spec.
+    // The customer-facing order-form PDF and the comm-suggestion scanner
+    // both render this verbatim, so the format is the visible "Order Ref"
+    // on every artefact. Scheme:
+    //
+    //   ENG_QUOAE  <YYMMDD>  <-XXXXX>
+    //   ↑ prefix   ↑ date     ↑ random tail (5 chars, base36)
+    //
+    // The date prefix keeps refs roughly chronological in lists, the
+    // random tail gives ~60M possibilities/day so concurrent submits
+    // don't collide. Uppercase throughout to match the legacy QUOAE
+    // format the reps recognise.
+    const dt = new Date();
+    const yy = String(dt.getUTCFullYear()).slice(-2);
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getUTCDate()).padStart(2, "0");
+    const tail = Math.random().toString(36).slice(2, 7).toUpperCase();
+    const orderNumber = `ENG_QUOAE${yy}${mm}${dd}${tail}`;
 
     // Calculate total amount
     const productTotal = cartItems.reduce(
