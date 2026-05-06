@@ -116,15 +116,24 @@ export default function Products() {
     }
   }, [individualProduct, productId]);
 
+  // Filter `value` strings MUST match the canonical product.category
+  // values returned by /api/products. Two slugs were mismatched —
+  // "pedestrian-barriers" vs DB "pedestrian-guardrails", and
+  // "vehicle-stops" vs DB "stops" — which made those filters return
+  // "no products found" even with a catalog full of matching items.
+  // Reported by Micah and Shahla in the May 5 feedback session.
+  // Also added "topple-barriers" and "retractable" which exist in the
+  // DB but were never exposed as filter options.
   const categories = [
     { value: "traffic-guardrails", label: "Traffic Barriers" },
-    { value: "pedestrian-barriers", label: "Pedestrian Barriers" },
+    { value: "pedestrian-guardrails", label: "Pedestrian Barriers" },
     { value: "rack-protection", label: "Rack Protection" },
     { value: "column-protection", label: "Column Protection" },
     { value: "bollards", label: "Bollards" },
-    { value: "vehicle-stops", label: "Vehicle Stops" },
+    { value: "stops", label: "Vehicle Stops" },
+    { value: "topple-barriers", label: "Topple Barriers" },
+    { value: "retractable", label: "Retractable Barriers" },
     { value: "gates", label: "Gates & Access Control" },
-    { value: "dock-protection", label: "Dock Protection" },
     { value: "height-restrictors", label: "Height Restrictors" },
     { value: "accessories", label: "Accessories" },
   ];
@@ -321,18 +330,23 @@ export default function Products() {
     }
 
     return grouped.sort((a, b) => {
-      // Sort by category first, then by name
+      // Sort order MUST use the canonical category slugs returned by
+      // /api/products (see categories[] above). Wrong slugs here mean
+      // every product falls into the "unknown" bucket and the sort
+      // collapses to alphabetical, which is fine but loses the
+      // intended ordering.
       const categoryOrder = [
-        'traffic-barriers',
-        'pedestrian-barriers', 
-        'car-park-barriers',
+        'traffic-guardrails',
+        'pedestrian-guardrails',
         'rack-protection',
         'column-protection',
         'bollards',
         'gates',
-        'wall-protection',
-        'vehicle-stops',
-        'signage'
+        'stops',
+        'topple-barriers',
+        'retractable',
+        'height-restrictors',
+        'accessories',
       ];
       
       const catA = categoryOrder.indexOf(a.product.category);
