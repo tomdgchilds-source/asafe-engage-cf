@@ -763,6 +763,25 @@ export const cartItems = pgTable("cart_items", {
   // Site reference images
   referenceImages: jsonb("reference_images"), // Array of {url: string, caption: string, uploadedAt: timestamp}
   installationLocation: text("installation_location"), // Where this product will be installed
+  // Structured per-line accessory selections for the estimation team.
+  // Vocabulary lives in shared/cartAccessories.ts so the UI dropdowns
+  // and the PDF builder share a single canonical key list. Free-text
+  // "other" + "notes" act as escape hatches when the dropdowns don't fit.
+  // Shape:
+  //   {
+  //     floorType?: 'concrete' | 'tiled' | 'asphalt' | 'food-grade-epoxy'
+  //                 | 'cold-storage' | 'steel-deck' | 'other',
+  //     fixings?:   'zinc-plated' | 'stainless-steel' | 'countersunk'
+  //                 | 'chemical' | 'weld-plate' | 'through-bolt' | 'other',
+  //     dockBuffers?:  { type: 'none'|'standard'|'heavy-duty'|'custom', qty?: number },
+  //     steelPlates?:  { qty: number },
+  //     lBrackets?:    { qty: number },
+  //     bollardCaps?:  boolean,
+  //     heightExtensionMm?: number | null,
+  //     other?: string,
+  //     notes?: string
+  //   }
+  accessories: jsonb("accessories"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1251,6 +1270,13 @@ export const projects = pgTable("projects", {
   // reciprocal commitments and service tier for one-click reapplication.
   preferredReciprocalCommitmentIds: jsonb("preferred_reciprocal_commitment_ids"), // string[]
   preferredServiceOptionId: varchar("preferred_service_option_id"),
+  // Free-text installation notes for the estimation team. Captured on the
+  // cart page (and project detail) and surfaced in the order form PDF as
+  // an "Installation Notes" panel below the cart total. Sagarika's May 5
+  // ask: reps need a single project-level box to flag floor type, fixings,
+  // accessories, special access etc. Per-line structured fields live on
+  // cart_items.accessories — this column is the catch-all narrative.
+  installationNotes: text("installation_notes"),
   // ──────────────────────────────────────────────
   // Public, tokenised share link — customer views the project + barriers
   // + PAS 13 verdict without auth. Mirrors the orders.share_token* triple
