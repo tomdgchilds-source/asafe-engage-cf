@@ -98,22 +98,21 @@
 }
 
 /*
- * Body scroll-lock when a real modal Dialog/Sheet is open.
+ * Body scroll-lock used to live here as a defensive guard, but it was
+ * causing a residual flicker on Radix Select first-open even with the
+ * popper-content-wrapper exclusion (the :has() rule matched briefly
+ * during a microtask when the dialog's data-state flipped to "open"
+ * before the popper-wrapper was attached to the DOM, which set body
+ * to position:fixed and snapped scroll to 0).
  *
- * IMPORTANT: Radix already body-locks via react-remove-scroll, which adds
- * body[data-scroll-locked] (handled lower in the cascade). The :has() rule
- * below is therefore mostly redundant for Dialog/Sheet — but we keep it as a
- * defensive guard in case a custom modal forgets to wrap with RemoveScroll.
- *
- * It MUST exclude Popover content (role="dialog" inside the popper wrapper),
- * otherwise opening any Popover (InfoPopover, ProjectSwitcher, etc.) would
- * snap the page to scroll-top — which was the flicker reported by reps.
+ * Removed entirely. Radix's own primitives (Dialog, Sheet, Drawer)
+ * apply react-remove-scroll which sets body { overflow: hidden;
+ * padding-right: <scrollbar-width> } via data-scroll-locked WITHOUT
+ * touching position — visual scroll position is preserved. We trust
+ * that. Custom modals that forget RemoveScroll just need to add it,
+ * not depend on this CSS fallback.
  */
-body:has([role="dialog"][data-state="open"]:not(:where([data-radix-popper-content-wrapper] *))) {
-  overflow: hidden !important;
-  position: fixed !important;
-  width: 100% !important;
-}
+/* (intentionally empty — see note above) */
 
 /* Ensure overlay covers full viewport on all devices */
 [data-radix-dialog-overlay] {
