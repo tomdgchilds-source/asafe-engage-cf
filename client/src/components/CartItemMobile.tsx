@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus, Edit, Package } from "lucide-react";
 import { useLocation } from "wouter";
+import { AccessoryPicker } from "@/components/AccessoryPicker";
 
 interface CartItemMobileProps {
   item: any;
@@ -168,6 +169,19 @@ export function CartItemMobile({
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Accessory & installation picker — mirrors the desktop layout
+          so reps using mobile (site visits, vehicle dashboards) can
+          capture the same SS bolts / dock buffer / steel plate
+          structured data as the office. Default collapsed. */}
+      <div className="px-3 pb-3 -mt-1">
+        <AccessoryPicker
+          itemId={item.id}
+          category={item.category}
+          productName={item.productName}
+          initialValue={item.accessories}
+        />
       </div>
     </div>
   );

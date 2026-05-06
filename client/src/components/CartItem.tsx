@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { TierSwitcher } from "@/components/TierSwitcher";
+import { AccessoryPicker } from "@/components/AccessoryPicker";
 import {
   findLadderForFamily,
   recommendTier,
@@ -789,8 +790,8 @@ export function CartItem({
                     {/* Add Image Placeholder Slots */}
                     {referenceImages.length < 5 && (
                       [...Array(Math.min(2, 5 - referenceImages.length))].map((_, index) => (
-                        <div 
-                          key={`placeholder-${index}`} 
+                        <div
+                          key={`placeholder-${index}`}
                           className="w-20 h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                           onClick={() => document.getElementById(`image-upload-${item.id}`)?.click()}
                           title="Click to add image"
@@ -803,6 +804,19 @@ export function CartItem({
                 </div>
               </div>
             )}
+
+            {/* Accessory & installation picker — Sagarika's May 5
+                feedback. Captures SS bolts, dock buffers, steel/weld
+                plates, L-brackets, height parameter, food-grade
+                boards etc. so estimation isn't chasing the rep for
+                each line. Default collapsed; reps expand when
+                needed. Vocabulary in shared/cartAccessories.ts. */}
+            <AccessoryPicker
+              itemId={item.id}
+              category={item.category}
+              productName={item.productName}
+              initialValue={item.accessories}
+            />
 
             {/* Quantity Controls - MD+: 3 columns */}
             <div className="md:col-span-3 flex flex-col justify-center">
