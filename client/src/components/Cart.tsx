@@ -139,6 +139,18 @@ export function Cart() {
   const [installationComplexity, setInstallationComplexity] = useState<'simple' | 'standard' | 'complex'>('standard');
   const [linkedInDiscountAmount, setLinkedInDiscountAmount] = useState(0);
   const [linkedInDiscountData, setLinkedInDiscountData] = useState<any>(null);
+  // Project-level installation notes textarea. Sagarika's May 5
+  // request — paired with the per-line AccessoryPicker, this is the
+  // free-text catch-all for the estimation team (floor type quirks,
+  // special access, anything not covered by the structured dropdowns).
+  // Persists to projects.installation_notes via PATCH
+  // /api/projects/:id/installation-notes, debounced 700ms while typing.
+  const [installationNotes, setInstallationNotes] = useState('');
+  const installationNotesTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Tracks the last value successfully synced to the server so we can
+  // suppress the auto-save when prefill from the active project comes
+  // in unchanged.
+  const installationNotesSyncedRef = useRef<string>('');
   
   // Ref to track auto-save timeout
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -206,6 +218,17 @@ export function Cart() {
     if (!companyLogoUrl?.trim() && activeProject.customerCompany?.logoUrl) {
       setCompanyLogoUrl(activeProject.customerCompany.logoUrl);
     }
+    // Installation notes prefill — same rule as the other fields.
+    // installationNotes is a project column so we always seed it from
+    // the active project on first switch, even if it's an empty string.
+    // The synced ref keeps the auto-save effect quiet on prefill.
+    const seededNotes = (activeProject as any).installationNotes ?? '';
+    if (!installationNotes?.trim() && seededNotes) {
+      setInstallationNotes(seededNotes);
+      installationNotesSyncedRef.current = seededNotes;
+    } else if (!installationNotes?.trim()) {
+      installationNotesSyncedRef.current = '';
+    }
     // Intentionally omit the form-state values from deps — we only want to
     // re-evaluate when the active project changes. Re-running on every
     // keystroke would risk fighting user input and is redundant anyway
@@ -259,6 +282,9 @@ export function Cart() {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
+      if (installationNotesTimerRef.current) {
+        clearTimeout(installationNotesTimerRef.current);
+      }
     };
   }, []);
 
@@ -271,6 +297,49 @@ export function Cart() {
       console.error("Failed to save project information:", error);
     }
   });
+
+  // Project-level installation notes auto-save. Hits the dedicated
+  // /api/projects/:id/installation-notes endpoint so it can never
+  // accidentally clobber unrelated project fields. We invalidate the
+  // /api/active-project query on success so any other consumer (the
+  // project detail page, the PDF preview) sees the new value.
+  const saveInstallationNotesMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      const projectId = activeProject?.id;
+      if (!projectId) {
+        throw new Error('No active project selected.');
+      }
+      return apiRequest(
+        `/api/projects/${projectId}/installation-notes`,
+        'PATCH',
+        { notes }
+      );
+    },
+    onSuccess: (_data, notes) => {
+      installationNotesSyncedRef.current = notes;
+      queryClient.invalidateQueries({ queryKey: ['/api/active-project'] });
+    },
+    onError: (error) => {
+      console.error('Failed to save installation notes:', error);
+    },
+  });
+
+  // Debounced trigger from the textarea onChange. 700ms is a touch
+  // longer than the 500ms used for the company/location fields because
+  // installation notes tend to be paragraphs (typing pauses are
+  // longer) — saves on background traffic without making the rep
+  // wait for an explicit save action.
+  const queueInstallationNotesSave = (next: string) => {
+    if (installationNotesTimerRef.current) {
+      clearTimeout(installationNotesTimerRef.current);
+    }
+    if (!activeProject?.id) return;
+    if (next === installationNotesSyncedRef.current) return;
+    installationNotesTimerRef.current = setTimeout(() => {
+      saveInstallationNotesMutation.mutate(next);
+      installationNotesTimerRef.current = null;
+    }, 700);
+  };
 
   // Auto-save functions with debouncing
   const autoSaveProjectInfo = (field: string, value: string) => {
@@ -1217,6 +1286,65 @@ export function Cart() {
               </div>
 
               {/* LinkedIn Social Reciprocity - Temporarily disabled to debug infinite loop */}
+
+              {/* Installation notes for the estimation team — Sagarika's
+                  May 5 ask. Free-text catch-all paired with the per-line
+                  AccessoryPicker. Persists to projects.installation_notes
+                  on blur (or 700ms after the last keystroke) and surfaces
+                  in the order-form PDF below the cart total. */}
+              <div className="bg-white dark:bg-[#121212] border border-gray-200 dark:border-[#2a2a2a] rounded-lg p-3 sm:p-4 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+                  <Label
+                    htmlFor="installation-notes"
+                    className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2"
+                  >
+                    <Wrench className="h-4 w-4 text-blue-600" />
+                    Installation notes for the estimation team
+                  </Label>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {!activeProject?.id ? (
+                      'Select a project to save notes'
+                    ) : saveInstallationNotesMutation.isPending ? (
+                      'Saving…'
+                    ) : installationNotes &&
+                      installationNotes === installationNotesSyncedRef.current ? (
+                      'Saved'
+                    ) : (
+                      'Auto-saves as you type.'
+                    )}
+                  </span>
+                </div>
+                <Textarea
+                  id="installation-notes"
+                  rows={4}
+                  className="text-sm"
+                  placeholder="Floor type, fixings, accessories, special access, any non-standard items the install team should know about."
+                  value={installationNotes}
+                  onChange={(e) => {
+                    setInstallationNotes(e.target.value);
+                    queueInstallationNotesSave(e.target.value);
+                  }}
+                  onBlur={() => {
+                    // Flush any pending debounced save on blur so a
+                    // navigation away never loses the notes.
+                    if (installationNotesTimerRef.current) {
+                      clearTimeout(installationNotesTimerRef.current);
+                      installationNotesTimerRef.current = null;
+                    }
+                    if (
+                      activeProject?.id &&
+                      installationNotes !== installationNotesSyncedRef.current
+                    ) {
+                      saveInstallationNotesMutation.mutate(installationNotes);
+                    }
+                  }}
+                  disabled={!activeProject?.id}
+                  data-testid="textarea-installation-notes"
+                />
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Visible to the estimation team and printed on the order form PDF.
+                </p>
+              </div>
 
               {/* Cart Summary */}
               <div className="bg-gray-50 dark:bg-[#0a0a0a] rounded-lg p-4 space-y-3">

@@ -457,6 +457,13 @@ function ProjectDetailPane({
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [editingDelivery, setEditingDelivery] = useState(false);
   const [deliveryDraft, setDeliveryDraft] = useState("");
+  // Installation notes — Sagarika's May 5 ask. Same InlineField pattern
+  // as the other free-text columns. Saves through PATCH
+  // /api/projects/:id (column write); the cart-page consumer uses the
+  // dedicated /api/projects/:id/installation-notes route — both write
+  // to the same column.
+  const [editingInstallationNotes, setEditingInstallationNotes] = useState(false);
+  const [installationNotesDraft, setInstallationNotesDraft] = useState("");
   // Quote draft drawer (Quoting AI assistant).
   const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
@@ -468,6 +475,7 @@ function ProjectDetailPane({
       setLocationDraft(project.location ?? "");
       setDescriptionDraft(project.description ?? "");
       setDeliveryDraft(project.defaultDeliveryAddress ?? "");
+      setInstallationNotesDraft((project as any).installationNotes ?? "");
     }
   }, [project?.id]);
 
@@ -886,6 +894,25 @@ function ProjectDetailPane({
                 setEditing={setEditingDelivery}
                 onSave={(v) =>
                   updateProject.mutate({ defaultDeliveryAddress: v || null })
+                }
+              />
+              {/* Installation notes — Sagarika's May 5 ask. Free-text
+                  catch-all for the estimation team (floor type, fixings,
+                  accessories, special access, anything not covered by
+                  the per-line AccessoryPicker on the cart). Mirrors the
+                  textarea on the cart page; both surfaces persist to
+                  projects.installation_notes. */}
+              <InlineField
+                label="Installation notes for the estimation team"
+                multiline
+                placeholder="Floor type, fixings, accessories, special access, any non-standard items the install team should know about."
+                value={(project as any).installationNotes ?? ""}
+                draft={installationNotesDraft}
+                setDraft={setInstallationNotesDraft}
+                editing={editingInstallationNotes}
+                setEditing={setEditingInstallationNotes}
+                onSave={(v) =>
+                  updateProject.mutate({ installationNotes: v || null })
                 }
               />
               <div className="space-y-1.5">
