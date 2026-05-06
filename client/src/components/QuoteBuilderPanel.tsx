@@ -57,7 +57,7 @@ type CatalogProduct = {
 
 export type BuilderMode =
   | "length"             // per_meter / per_length barrier — one cart line at linear_meter pricing
-  | "length-segmented"   // per_unit family whose variants are different LENGTHS (Rack End Barrier, Step Guard, ForkGuard). Rep enters total metres; we build a SKU mix and add one cart line per SKU.
+  | "length-segmented"   // per_unit family whose variants are different LENGTHS (Rack End Barrier, Step Guard, ForkGuard). Rep enters total metres; we pick the smallest variant whose nominal length covers the request, OR — if the request exceeds the longest variant — base price + per-metre extension at base_price/base_length. ONE cart line either way (no doubling at variant boundaries; see Mohammed Bassil's May 5 feedback).
   | "height-restrictor"
   | "swing-gate";
 
@@ -152,13 +152,83 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
     return Math.round((longest.price / (longest.len / 1000)) * 100) / 100;
   }, [product]);
 
-  // Optimal SKU-mix suggestion for the entered total length. Greedy: use the
-  // longest available variant until we can't, then step down. Keeps the UX
-  // transparent ("we'll supply 3× 2400mm + 1× 1600mm runs") without locking
-  // the rep in — they can always revise in-cart.
+  // ─────────────────────────────────────────────────────────────
+  // Length-segmented pricing plan (Rack End Barrier, Step Guard,
+  // ForkGuard, HD ForkGuard).
+  //
+  // These products ship as one barrier per nominal length (900mm, 1100mm,
+  // 2000mm, 2400mm, ...). The historical behaviour was to greedily fill
+  // the requested run with multiple barriers — for a 2.5m request with
+  // a 2400mm longest variant, it added 1× 2400 + 1× 900, doubling the
+  // price at the boundary. Reps don't actually buy two barriers to make
+  // up 100mm; they fit one barrier and pay an extension on the linear
+  // metre rate for the difference.
+  //
+  // The corrected plan picks ONE piece:
+  //   - L ≤ longest variant: pick the smallest variant whose nominal
+  //     length ≥ L (or the smallest variant if L is below it). The user
+  //     pays that variant's unit price.
+  //   - L > longest variant: pick the longest variant as the "base"
+  //     piece and add a per-metre extension charge for the overflow.
+  //     extension_rate = base_price / base_length_m  (so a 2.4m piece
+  //     at 2,341.32 AED yields ~975.55 AED/m for the overflow).
+  //
+  // This keeps the price curve smooth across the boundary and matches
+  // how the sales team actually quotes these jobs (see Mohammed
+  // Bassil's May 5 feedback: doubling at 2.5m, identical price at 2.6m).
+  // ─────────────────────────────────────────────────────────────
+  const segmentedPlan = useMemo(() => {
+    if (mode !== "length-segmented" || !totalLength) return null;
+    const totalMm = Math.round(Number(totalLength) * 1000);
+    if (!Number.isFinite(totalMm) || totalMm <= 0) return null;
+    const variants = (product.priceVariants ?? [])
+      .map((v) => ({
+        id: v.id,
+        sku: v.sku ?? null,
+        name: v.name,
+        length: Number(v.lengthMm ?? v.length_mm ?? v.length ?? 0),
+        price: Number(v.priceAed ?? v.price ?? 0),
+      }))
+      .filter((v) => v.length > 0 && v.price > 0)
+      .sort((a, b) => a.length - b.length);
+    if (!variants.length) return null;
+
+    const longest = variants[variants.length - 1];
+    let basePiece: typeof variants[number];
+    let extensionMm = 0;
+    if (totalMm <= longest.length) {
+      // Walk up the (ascending-sorted) variants and pick the first one
+      // whose nominal length is ≥ requested length. Falls back to the
+      // smallest if the request is below every variant (rare — e.g.
+      // someone types 0.5m for a barrier whose smallest piece is 900mm).
+      basePiece =
+        variants.find((v) => v.length >= totalMm) ?? variants[0];
+    } else {
+      basePiece = longest;
+      extensionMm = totalMm - longest.length;
+    }
+    const extensionRatePerM =
+      Math.round((longest.price / (longest.length / 1000)) * 100) / 100;
+    const extensionCharge =
+      Math.round(((extensionMm / 1000) * extensionRatePerM) * 100) / 100;
+    const totalPrice = Math.round((basePiece.price + extensionCharge) * 100) / 100;
+    return {
+      basePiece,
+      extensionMm,
+      extensionRatePerM,
+      extensionCharge,
+      totalPrice,
+      requestedMm: totalMm,
+    };
+  }, [mode, totalLength, product]);
+
+  // Greedy SKU-mix used by the per-linear-metre `length` mode (iFlex /
+  // eFlex / mFlex traffic barriers). These families ARE legitimately
+  // built up out of multiple SKUs (Atlas 2× 5m + 1× 1m to make 11m), so
+  // the "fill the longest first" heuristic still applies. Length-segmented
+  // products use `segmentedPlan` instead — see the comment above.
   const mix = useMemo(() => {
-    if ((mode !== "length" && mode !== "length-segmented") || !totalLength)
-      return null;
+    if (mode !== "length" || !totalLength) return null;
     const totalMm = Math.round(Number(totalLength) * 1000);
     if (!Number.isFinite(totalMm) || totalMm <= 0) return null;
     const variants = (product.priceVariants ?? [])
@@ -267,13 +337,14 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
   };
 
   // Per-unit families with length variants (Rack End Barrier, Step Guard,
-  // ForkGuard, HD ForkGuard): rep enters a total length in metres, we run
-  // the same SKU-mix algorithm as `mix`, and submit ONE cart line per SKU
-  // in the mix. Unlike the linear_meter path, every line is priced as a
-  // fixed unit count × per-piece price — so the cart shows the exact pieces
-  // being supplied rather than a meters-quantity the backend can't price.
+  // ForkGuard, HD ForkGuard): rep enters a total length in metres, we
+  // submit ONE cart line. Pricing follows `segmentedPlan` — the smallest
+  // variant whose nominal length covers the request, OR the longest
+  // variant + a per-metre extension charge for any overflow. This is
+  // PAS 13 aligned: the rep buys one barrier and pays the lm rate for
+  // the difference — no double-barrier doubling at variant boundaries.
   const addLengthSegmentedLines = async () => {
-    if (!mix || mix.chosen.length === 0) {
+    if (!segmentedPlan) {
       toast({
         title: "Enter a total length in metres",
         variant: "destructive",
@@ -281,35 +352,39 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
       return;
     }
     setSubmitting(true);
-    const addedLines: string[] = [];
     try {
-      // Resolve each mix row back to its variant so we send the actual
-      // variant name (e.g. "Rack End Barrier, Single Rail - 2000mm, Yellow,
-      // CSK") rather than the family name — the cart prices per-SKU.
-      for (const row of mix.chosen) {
-        const variant = (product.priceVariants ?? []).find(
-          (v) =>
-            Number(v.lengthMm ?? (v as any).length_mm ?? v.length ?? 0) ===
-            row.length,
+      const meters = Number(totalLength);
+      const { basePiece, extensionMm, extensionRatePerM, totalPrice } =
+        segmentedPlan;
+      const tier =
+        extensionMm > 0
+          ? `Custom ${meters.toFixed(2)}m (${(basePiece.length / 1000).toFixed(2)}m base + ${(extensionMm / 1000).toFixed(2)}m extension @ AED ${extensionRatePerM.toLocaleString()}/m)`
+          : `Nominal ${(basePiece.length / 1000).toFixed(2)}m piece`;
+      const noteLines = [
+        `Total run requested: ${meters.toFixed(2)} m`,
+        `Base piece: ${basePiece.name} (AED ${basePiece.price.toLocaleString()})`,
+      ];
+      if (extensionMm > 0) {
+        noteLines.push(
+          `Length extension: ${(extensionMm / 1000).toFixed(2)} m × AED ${extensionRatePerM.toLocaleString()}/m = AED ${segmentedPlan.extensionCharge.toLocaleString()}`,
         );
-        const productName = variant?.name ?? product.name;
-        const unitPrice = Number(variant?.priceAed ?? variant?.price ?? row.price);
-        const totalPrice = Math.round(unitPrice * row.qty * 100) / 100;
-        await apiRequest("/api/cart", "POST", {
-          productName,
-          quantity: row.qty,
-          pricingType: "single_item",
-          unitPrice,
-          totalPrice,
-          pricingTier: "Length-derived",
-          notes: `Part of ${Number(totalLength).toFixed(2)} m total run of ${product.name}`,
-        });
-        addedLines.push(`${row.qty}× ${row.length}mm`);
       }
+      await apiRequest("/api/cart", "POST", {
+        productName: basePiece.name,
+        quantity: 1,
+        pricingType: "single_item",
+        unitPrice: totalPrice,
+        totalPrice,
+        pricingTier: tier,
+        notes: noteLines.join("\n"),
+      });
       await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
       toast({
         title: "Added to cart",
-        description: `${addedLines.join(" + ")} · AED ${mix.skuTotal.toLocaleString()}`,
+        description:
+          extensionMm > 0
+            ? `${(basePiece.length / 1000).toFixed(2)}m base + ${(extensionMm / 1000).toFixed(2)}m extension · AED ${totalPrice.toLocaleString()}`
+            : `${(basePiece.length / 1000).toFixed(2)}m piece · AED ${totalPrice.toLocaleString()}`,
       });
       onComplete?.();
     } catch (err: any) {
@@ -507,14 +582,15 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
             )}
             {mode === "length-segmented" && (
               <div className="text-right text-xs text-gray-600 dark:text-gray-400">
-                <div>Supplied as pieces</div>
+                <div>Single piece + lm extension</div>
                 <div className="text-[11px] text-gray-500 dark:text-gray-500">
-                  Auto-picks the longest available variants first
+                  Picks the smallest piece that covers your length; over the
+                  longest variant we add a per-metre extension charge.
                 </div>
               </div>
             )}
           </div>
-          {mix && (
+          {mode === "length" && mix && (
             <div className="rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 text-xs space-y-1">
               <div className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                 <Zap className="h-3 w-3" />
@@ -539,6 +615,43 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
               </div>
             </div>
           )}
+          {mode === "length-segmented" && segmentedPlan && (
+            <div className="rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 text-xs space-y-1">
+              <div className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <Zap className="h-3 w-3" />
+                Pricing plan for {Number(totalLength).toFixed(2)} m
+              </div>
+              <ul className="space-y-0.5 mt-1">
+                <li className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+                  <span>
+                    1× {(segmentedPlan.basePiece.length / 1000).toFixed(2)}m
+                    base piece
+                  </span>
+                  <span>
+                    AED {segmentedPlan.basePiece.price.toLocaleString()}
+                  </span>
+                </li>
+                {segmentedPlan.extensionMm > 0 && (
+                  <li className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+                    <span>
+                      + {(segmentedPlan.extensionMm / 1000).toFixed(2)}m
+                      extension @ AED{" "}
+                      {segmentedPlan.extensionRatePerM.toLocaleString()}/m
+                    </span>
+                    <span>
+                      AED {segmentedPlan.extensionCharge.toLocaleString()}
+                    </span>
+                  </li>
+                )}
+              </ul>
+              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-gray-700 dark:text-gray-300">
+                <span>Line total</span>
+                <span className="font-bold">
+                  AED {segmentedPlan.totalPrice.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
           <Button
             onClick={
               mode === "length-segmented" ? addLengthSegmentedLines : addTotalLengthLine
@@ -547,15 +660,15 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
               submitting ||
               !totalLength ||
               (mode === "length" && perMeterRate <= 0) ||
-              (mode === "length-segmented" && (!mix || mix.chosen.length === 0))
+              (mode === "length-segmented" && !segmentedPlan)
             }
             className="w-full bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold"
             data-testid="button-qb-add-length"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : mode === "length-segmented" && mix ? (
-              `Add ${mix.chosen.reduce((s, c) => s + c.qty, 0)} pieces (${totalLength || "…"} m) to cart`
+            ) : mode === "length-segmented" && segmentedPlan ? (
+              `Add ${totalLength || "…"} m to cart (AED ${segmentedPlan.totalPrice.toLocaleString()})`
             ) : (
               `Add ${totalLength || "…"} m to cart`
             )}
