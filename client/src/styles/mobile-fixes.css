@@ -1,26 +1,35 @@
 /* Enhanced mobile touch handling and viewport fixes */
 
-/* Improve dropdown positioning on mobile devices */
-[role="listbox"], [role="combobox"], .select-content {
+/*
+ * Improve dropdown positioning on mobile devices.
+ *
+ * IMPORTANT: Radix Select trigger button has role="combobox", so listing
+ * [role="combobox"] here forced max-height: 60vh and overflow-scrolling
+ * onto the trigger BUTTON itself (a 40px tall control). The trigger is not
+ * a dropdown panel and shouldn't get scroll-container styling. Only the
+ * panel ([role="listbox"] for Select, plus .select-content) should be
+ * size-clamped here.
+ */
+[role="listbox"], .select-content {
   /* Better mobile viewport handling */
   max-width: calc(100vw - 2rem) !important;
   max-height: 60vh !important;
-  
+
   /* Enhanced touch scrolling */
   -webkit-overflow-scrolling: touch !important;
   overscroll-behavior: contain !important;
-  
+
   /* Prevent rubber band effect */
   overscroll-behavior-y: contain !important;
 }
 
 /* Mobile-specific dropdown positioning */
 @media (max-width: 640px) {
-  [role="listbox"], [role="combobox"], .select-content {
+  [role="listbox"], .select-content {
     max-height: 50vh !important;
     margin: 0.5rem !important;
   }
-  
+
   /* Ensure proper safe area handling on iOS */
   [data-radix-select-content] {
     max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 4rem) !important;
@@ -57,8 +66,10 @@ input, select, textarea {
   }
 }
 
-/* Enhanced dialog/modal positioning for mobile */
-[role="dialog"] {
+/* Enhanced dialog/modal positioning for mobile (Dialog/Sheet only —
+ * Popover content also reports role="dialog" so we explicitly exclude
+ * popper-wrapped content. See modal-fixes.css for the longer note on why. */
+[role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
   max-width: calc(100vw - 1rem) !important;
   max-height: calc(100vh - env(safe-area-inset-bottom, 0px) - 1rem) !important;
   margin: 0.5rem !important;
@@ -66,7 +77,7 @@ input, select, textarea {
 
 /* Mobile-specific dialog fixes */
 @media (max-width: 640px) {
-  [data-state="open"][role="dialog"] {
+  [data-state="open"][role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
     position: fixed !important;
     inset: 0.5rem !important;
     margin: 0 !important;

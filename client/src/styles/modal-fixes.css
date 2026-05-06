@@ -1,21 +1,35 @@
 /* Global modal and popup positioning fixes for mobile, tablet, and desktop */
 
+/*
+ * IMPORTANT: Radix Popover content has role="dialog" too. We must NOT apply
+ * Dialog-specific styling (fixed positioning, scroll lock, full-viewport
+ * sizing on mobile) to Popover content — that fights with Radix's
+ * transform-based popper positioning and causes the popover to flash to a
+ * weird location, plus locks the page scroll, producing the "flickering /
+ * flashing dropdown" bug Sagarika and Akshay reported. We exclude popper-
+ * wrapped content (Popover, Select, DropdownMenu, Tooltip, HoverCard) by
+ * scoping every Dialog rule with :not(:where([data-radix-popper-content-wrapper] *)).
+ * The :where() keeps the :not() at zero specificity so it doesn't bump the
+ * cascade order.
+ */
+
 /* Ensure Radix UI portals respect viewport bounds */
 [data-radix-popper-content-wrapper] {
   max-width: calc(100vw - 1rem) !important;
   max-height: calc(100vh - 1rem) !important;
 }
 
-/* Fix dialog positioning on all devices */
-[role="dialog"] {
+/* Fix dialog positioning on all devices (Dialog/Sheet only — not Popover) */
+[role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
   max-width: calc(100vw - 1rem) !important;
   max-height: calc(100vh - env(safe-area-inset-bottom, 0px) - 1rem) !important;
 }
 
 /* Ensure dialogs stay within mobile safe areas */
 @media (max-width: 640px) {
-  /* Dialog content should respect mobile viewport */
-  [data-state="open"][role="dialog"] {
+  /* Dialog content should respect mobile viewport (Dialog/Sheet only —
+   * applying fixed/inset to Popover here was the original flicker source) */
+  [data-state="open"][role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
     position: fixed !important;
     inset: 0.5rem !important;
     margin: 0 !important;
@@ -23,9 +37,9 @@
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
-  
+
   /* Prevent content from being cut off at bottom */
-  [role="dialog"] > * {
+  [role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) > * {
     max-height: 100%;
     overflow-y: auto;
   }
@@ -33,7 +47,7 @@
 
 /* iPad and tablet specific fixes */
 @media (min-width: 641px) and (max-width: 1024px) {
-  [role="dialog"] {
+  [role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
     max-width: min(90vw, 768px) !important;
     max-height: 85vh !important;
     margin: auto !important;
@@ -42,7 +56,7 @@
 
 /* Desktop modal constraints */
 @media (min-width: 1025px) {
-  [role="dialog"] {
+  [role="dialog"]:not(:where([data-radix-popper-content-wrapper] *)) {
     max-height: 90vh !important;
   }
 }
@@ -50,11 +64,6 @@
 /* Fix popover positioning */
 [data-radix-popper-content-wrapper] {
   z-index: 50;
-}
-
-/* Ensure popover content stays within bounds */
-[role="dialog"][data-radix-popper-content-wrapper] {
-  position: absolute !important;
 }
 
 /* Fix for select dropdown positioning */
@@ -88,8 +97,19 @@
   }
 }
 
-/* Prevent body scroll when modal is open */
-body:has([role="dialog"][data-state="open"]) {
+/*
+ * Body scroll-lock when a real modal Dialog/Sheet is open.
+ *
+ * IMPORTANT: Radix already body-locks via react-remove-scroll, which adds
+ * body[data-scroll-locked] (handled lower in the cascade). The :has() rule
+ * below is therefore mostly redundant for Dialog/Sheet — but we keep it as a
+ * defensive guard in case a custom modal forgets to wrap with RemoveScroll.
+ *
+ * It MUST exclude Popover content (role="dialog" inside the popper wrapper),
+ * otherwise opening any Popover (InfoPopover, ProjectSwitcher, etc.) would
+ * snap the page to scroll-top — which was the flicker reported by reps.
+ */
+body:has([role="dialog"][data-state="open"]:not(:where([data-radix-popper-content-wrapper] *))) {
   overflow: hidden !important;
   position: fixed !important;
   width: 100% !important;
@@ -162,8 +182,10 @@ body:has([role="dialog"][data-state="open"]) {
   }
 }
 
-/* Prevent horizontal scroll caused by modals */
-html:has([role="dialog"][data-state="open"]) {
+/* Prevent horizontal scroll caused by real modals (Dialog/Sheet only) —
+ * Popover content also has role="dialog" and must be excluded so the page
+ * doesn't snap to scroll-top when a popover opens. */
+html:has([role="dialog"][data-state="open"]:not(:where([data-radix-popper-content-wrapper] *))) {
   overflow-x: hidden !important;
   overflow-y: hidden !important;
 }
