@@ -47,7 +47,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { RecentsDropdown } from "@/components/RecentsDropdown";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
+import { useRecordRecents } from "@/hooks/useRecents";
 
 interface LayoutProps {
   children: ReactNode;
@@ -57,6 +59,10 @@ export function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated } = useAuth();
   const [location] = useLocation();
   const haptic = useHapticFeedback();
+  // Track route changes into the per-browser RECENTS list (last 10 pages,
+  // dedupe by path). The hook itself skips auth/share/onboarding paths so
+  // it's safe to mount unconditionally inside the authed Layout.
+  useRecordRecents();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -399,6 +405,11 @@ export function Layout({ children }: LayoutProps) {
                 <CurrencySelector />
               </div>
 
+              {/* Recents — Mobile */}
+              <div className="md:hidden">
+                <RecentsDropdown variant="mobile" />
+              </div>
+
               {/* Cart Icon with Badge - Mobile */}
               <Link href="/cart" className="md:hidden">
                 <Button variant="ghost" size="sm" className="relative hover:bg-muted hover:text-primary p-1.5 sm:p-2 touch-manipulation" data-testid="mobile-cart">
@@ -426,6 +437,9 @@ export function Layout({ children }: LayoutProps) {
                 <span className="text-sm text-foreground font-medium" data-testid="user-welcome">
                   Welcome, {(user as any)?.name || (user as any)?.email?.split('@')[0] || 'User'}
                 </span>
+
+                {/* Recents — last 10 visited pages, per-browser localStorage. */}
+                <RecentsDropdown variant="desktop" />
 
                 {/* Notification Center */}
                 <NotificationCenter />
