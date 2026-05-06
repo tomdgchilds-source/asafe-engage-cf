@@ -95,24 +95,11 @@ export default function StartNewProject() {
             </CardContent>
           </Card>
 
-          {/* Solution Finder */}
-          <Card className="border-gray-200 dark:border-gray-700 hover:border-[#FFC72C] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 cursor-pointer">
-            <CardContent className="p-0">
-              <Link href="/solution-finder" data-testid="link-solution-finder">
-                <div className="p-8 flex flex-col items-center text-center h-full">
-                  <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-full">
-                    <Lightbulb className="h-10 w-10 text-gray-700 dark:text-gray-300" />
-                  </div>
-                  <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
-                    Solution Finder
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Find the perfect safety solution for your needs
-                  </p>
-                </div>
-              </Link>
-            </CardContent>
-          </Card>
+          {/* Solution Finder tile hidden in the Wave-1 cleanup
+              (May 2026) — see Layout.tsx for the rationale. The
+              /solution-finder route still works for the rare rep that
+              has the URL bookmarked; just no front-door entry while
+              the recommender is rebuilt. */}
 
           {/* Browse Products */}
           <Card className="border-gray-200 dark:border-gray-700 hover:border-[#FFC72C] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 cursor-pointer">

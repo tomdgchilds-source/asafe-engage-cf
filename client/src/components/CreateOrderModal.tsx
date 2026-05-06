@@ -76,6 +76,28 @@ export function CreateOrderModal({
     }
   }, [isOpen]);
 
+  // Wave-1 cleanup (May 2026): the team feedback session showed the
+  // "For Me / For Customer" selection step + customer-information form
+  // was a confusing leftover from the partner-self-service plan.
+  // Reps always have an active project with the customer's data
+  // already attached, so auto-fire the order creation as soon as the
+  // modal opens with a clean state. The modal becomes a brief
+  // "Generating order form…" affordance, then redirects to /order-form/:id
+  // where the rep can edit the reference number and customer details
+  // inline if they need to.
+  useEffect(() => {
+    if (
+      isOpen &&
+      step === 'selection' &&
+      !createOrderMutation.isPending &&
+      !createOrderMutation.isSuccess &&
+      !revisionInfo
+    ) {
+      handleCreateOrder(true, {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, step, revisionInfo]);
+
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
       const response = await apiRequest("/api/orders", "POST", orderData);
@@ -198,17 +220,30 @@ export function CreateOrderModal({
             )}
           </DialogTitle>
           <DialogDescription>
-            {revisionInfo ? (
-              `Creating revision ${revisionInfo.revisionCount} of the original order`
-            ) : (
-              step === 'selection' 
-                ? "Who is this order for?"
-                : "Enter customer information for the order form"
-            )}
+            {revisionInfo
+              ? `Creating revision ${revisionInfo.revisionCount} of the original order`
+              : step === 'selection'
+                ? 'Generating your order form…'
+                : 'Enter customer information for the order form'}
           </DialogDescription>
         </DialogHeader>
 
+        {/* Wave-1 cleanup: the auto-fire effect at the top of the
+            component immediately calls handleCreateOrder(true, {})
+            when the modal opens, so the "selection" step is now just
+            a brief loading affordance — no clickable choice. The
+            'customer-details' step is preserved for the revision /
+            quote-request flows that still need it. */}
         {step === 'selection' && (
+          <div className="py-8 flex flex-col items-center gap-3 text-center">
+            <FileText className="h-10 w-10 text-yellow-500 animate-pulse" />
+            <p className="text-sm text-muted-foreground">
+              Generating order form for the active project…
+            </p>
+          </div>
+        )}
+
+        {step === 'selection-legacy-disabled' && (
           <div className="space-y-4">
             <Card 
               className="cursor-pointer hover:bg-gray-50 transition-colors border-2 hover:border-yellow-400"

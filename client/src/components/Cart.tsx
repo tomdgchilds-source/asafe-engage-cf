@@ -14,7 +14,6 @@ import { CartItem } from "@/components/CartItem";
 import { CartItemMobile } from "@/components/CartItemMobile";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { EnhancedQuoteRequestModal } from "@/components/EnhancedQuoteRequestModal";
 import { DiscountModal } from "@/components/DiscountModal";
 import { DiscountTermsModal } from "@/components/DiscountTermsModal";
 import { SpendMoreSaveMoreDiscount } from "@/components/SpendMoreSaveMoreDiscount";
@@ -111,7 +110,6 @@ export function Cart() {
   const [companyLogoUrl, setCompanyLogoUrl] = useState('');
   const [location, setLocation] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
-  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
   const [serviceCareModalOpen, setServiceCareModalOpen] = useState(false);
   const [createOrderModalOpen, setCreateOrderModalOpen] = useState(false);
@@ -1343,24 +1341,19 @@ export function Cart() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                  <Button
-                    onClick={() => setQuoteModalOpen(true)}
-                    className="flex-1 w-full sm:w-auto"
-                    data-testid="button-request-quote"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    <span className="text-sm">Request Quote</span>
-                  </Button>
-                  
+                {/* "Request Quote" (email-to-estimation) flow removed in
+                    the Wave-1 cleanup — the team feedback session made
+                    clear it was a leftover from the partner-self-service
+                    plan and confused reps. Single CTA now goes straight
+                    to the customer-facing order form. */}
+                <div className="flex pt-4">
                   <Button
                     onClick={() => setCreateOrderModalOpen(true)}
-                    variant="outline"
-                    className="flex-1 w-full sm:w-auto"
+                    className="w-full"
                     data-testid="button-create-order"
                   >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    <span className="text-sm">Create Order</span>
+                    <FileText className="h-4 w-4 mr-2" />
+                    <span className="text-sm">Create Order Form</span>
                   </Button>
                 </div>
               </div>
@@ -1369,13 +1362,9 @@ export function Cart() {
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      <EnhancedQuoteRequestModal
-        isOpen={quoteModalOpen}
-        onClose={() => setQuoteModalOpen(false)}
-        user={user as any}
-      />
-
+      {/* Modals — EnhancedQuoteRequestModal mount removed alongside the
+          Request Quote button. The component file is kept for now in
+          case it's used elsewhere; safe to delete in a follow-up. */}
       <DiscountModal
         isOpen={discountModalOpen}
         onClose={() => setDiscountModalOpen(false)}

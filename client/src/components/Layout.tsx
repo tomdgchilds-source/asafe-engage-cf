@@ -106,8 +106,20 @@ export function Layout({ children }: LayoutProps) {
     enabled: isAuthenticated,
   });
 
-  const cartItemCount = (cartData && Array.isArray(cartData)) 
-    ? cartData.length 
+  const cartItemCount = (cartData && Array.isArray(cartData))
+    ? cartData.length
+    : 0;
+
+  // Pending Communication Plan suggestions count — drives the red dot
+  // next to the "Communication Plan" sidebar item. 60s stale time so the
+  // sidebar feels live without hammering the API.
+  const { data: commSuggestions } = useQuery<any[]>({
+    queryKey: ["/api/communication/suggestions"],
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  });
+  const commSuggestionsCount = Array.isArray(commSuggestions)
+    ? commSuggestions.length
     : 0;
 
   const navigationCategories = useMemo(() => [
@@ -125,11 +137,16 @@ export function Layout({ children }: LayoutProps) {
       icon: Briefcase,
       items: [
         { name: "Start New Project", href: "/start-new-project", icon: Target, external: false },
-        { name: "Solution Finder", href: "/solution-finder", icon: Lightbulb, external: false },
+        // Solution Finder hidden in the Wave-1 cleanup (May 2026) until
+        // its recommender logic is properly built out — feedback session
+        // showed it surfaced wrong products and reps were ignoring it.
+        // Route + page kept alive so we can re-enable later without a
+        // redeploy of the lazy-load tree.
+        // { name: "Solution Finder", href: "/solution-finder", icon: Lightbulb, external: false },
         { name: "Site Survey", href: "/site-survey", icon: ClipboardCheck, external: false },
         { name: "Impact Calculator", href: "/calculator", icon: Calculator, external: false },
         { name: "PAS 13 Alignment", href: "/pas13-compliance", icon: Shield, external: false },
-        { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false },
+        { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false, badgeCount: commSuggestionsCount },
         { name: "Installation Timeline", href: "/installation-timeline", icon: TrendingUp, external: false },
         { name: "Install Teams", href: "/install-teams", icon: Users, external: false },
       ]
@@ -170,7 +187,7 @@ export function Layout({ children }: LayoutProps) {
         { name: "Admin", href: "/admin", icon: Shield, external: false },
       ]
     }
-  ], []);
+  ], [commSuggestionsCount]);
 
   const toggleCategory = (categoryName: string) => {
     haptic.toggle();
@@ -239,6 +256,11 @@ export function Layout({ children }: LayoutProps) {
                     );
                   }
 
+                  // Optional pending-count badge (used for Communication Plan
+                  // pending suggestions). Renders on the far right of the row
+                  // when the parent provides a non-zero badgeCount.
+                  const badgeCount = (item as any).badgeCount as number | undefined;
+
                   return (
                     <Link key={item.name} href={item.href}>
                       <Button
@@ -253,7 +275,16 @@ export function Layout({ children }: LayoutProps) {
                         onClick={handleNavClick}
                       >
                         <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
-                        <span className="text-sm">{item.name}</span>
+                        <span className="text-sm flex-1">{item.name}</span>
+                        {typeof badgeCount === "number" && badgeCount > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 bg-red-500 text-white border-0 min-w-[1.2rem] h-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
+                            data-testid={`nav-badge-${item.name.toLowerCase().replace(' ', '-')}`}
+                          >
+                            {badgeCount > 99 ? "99+" : badgeCount}
+                          </Badge>
+                        )}
                       </Button>
                     </Link>
                   );
