@@ -803,11 +803,16 @@ function renderImpactCalculations(
   }
 
   // Bar plot — relative position of each scenario against PAS 13 thresholds.
-  if (y < MARGIN_BOTTOM + 130) {
+  // Layout per scenario row:
+  //   [label] (left column)        [coloured bar] [value]   (right column)
+  // Label and bar sit on different x columns so they never overlap. Bar
+  // height is small (5pt) so labels sit comfortably to the left.
+  const rowsPerScenario = 22;
+  const plotH = 36 + Math.max(1, ic.scenarios.length) * rowsPerScenario;
+  if (y < MARGIN_BOTTOM + plotH + 30) {
     newPage(pdf, ctx, input);
     y = ctx.y;
   }
-  const plotH = 80;
   const plotW = PAGE_W - 2 * MARGIN_X;
   pdf.fillRect(MARGIN_X, y - plotH, plotW, plotH, FAINT_GREY);
   pdf.text("Where each scenario sits on the PAS 13 envelope", MARGIN_X + 8, y - 12, {
@@ -820,16 +825,22 @@ function renderImpactCalculations(
   const allThresholds = (ic.pas13Thresholds || []).map((t) => t.joules);
   let xMax = Math.max(0, ...allJoules, ...allThresholds) * 1.25;
   if (xMax <= 0) xMax = 30000;
-  const x0 = MARGIN_X + 12;
-  const x1 = MARGIN_X + plotW - 12;
-  // Threshold tick marks
+  // Reserve a left column for the scenario labels so they don't sit on top
+  // of the bars.
+  const labelColW = 170;
+  const valueColW = 60;
+  const x0 = MARGIN_X + 8 + labelColW;
+  const x1 = MARGIN_X + plotW - 8 - valueColW;
+  // Threshold tick marks across the bar plotting region.
   for (const t of ic.pas13Thresholds || []) {
+    if (t.joules <= 0) continue;
     const xx = x0 + ((x1 - x0) * t.joules) / xMax;
-    pdf.fillRect(xx, y - plotH + 14, 0.6, 30, GREY);
-    pdf.text(t.label, xx + 2, y - plotH + 8, { size: 7, color: GREY });
+    if (xx > x1) continue;
+    pdf.fillRect(xx, y - plotH + 12, 0.6, plotH - 28, GREY);
+    pdf.text(t.label, xx + 2, y - plotH + 6, { size: 7, color: GREY });
   }
-  // Scenario bars
-  let barY = y - 30;
+  // Scenario rows
+  let barY = y - 28;
   for (const s of ic.scenarios) {
     const w = ((x1 - x0) * s.joulesAt45) / xMax;
     const colour =
@@ -838,18 +849,19 @@ function renderImpactCalculations(
         : s.verdict === "borderline"
           ? AMBER_DARK
           : RED_DARK;
-    pdf.fillRect(x0, barY - 6, Math.max(2, w), 6, colour);
-    pdf.text(truncate(s.vehicleLabel, 40), x0, barY + 1, {
-      size: 7,
+    // Label on the left, bar in the middle, value on the right.
+    pdf.text(truncate(s.vehicleLabel, 36), MARGIN_X + 8, barY - 1, {
+      size: 8,
       color: BLACK,
     });
+    pdf.fillRect(x0, barY - 5, Math.max(2, w), 5, colour);
     pdf.text(
       `${Math.round(s.joulesAt45).toLocaleString()} J`,
-      x0 + Math.max(2, w) + 4,
-      barY - 4,
-      { size: 7, color: BLACK },
+      x1 + valueColW,
+      barY - 1,
+      { size: 8, color: BLACK, align: "right" },
     );
-    barY -= 14;
+    barY -= rowsPerScenario;
     if (barY < y - plotH + 14) break;
   }
   y -= plotH + 8;
@@ -931,30 +943,35 @@ function renderBrandCollateral(
     y -= h + 8;
   }
 
-  // Customer-list / certification strip (shorter than the legacy 6 pages).
-  if (y < MARGIN_BOTTOM + 60) {
+  // CO2 + Maintenance band — distilled value claim. Panel is tall enough
+  // to contain the heading + two body lines without bleeding into the
+  // following section. We split the heading column from the body column
+  // so the heading reads as a label and the body fills the rest.
+  if (y < MARGIN_BOTTOM + 80) {
     newPage(pdf, ctx, input);
     y = ctx.y;
   }
-  pdf.fillRect(MARGIN_X, y - 36, PAGE_W - 2 * MARGIN_X, 36, BLACK);
-  pdf.text("CO2 + Maintenance", MARGIN_X + 12, y - 14, {
+  const co2H = 50;
+  pdf.fillRect(MARGIN_X, y - co2H, PAGE_W - 2 * MARGIN_X, co2H, BLACK);
+  pdf.fillRect(MARGIN_X, y - co2H, 4, co2H, ASAFE_YELLOW);
+  pdf.text("CO2 + MAINTENANCE", MARGIN_X + 14, y - 18, {
     font: "Helvetica-Bold",
     size: 10,
     color: ASAFE_YELLOW,
   });
   pdf.text(
-    "A-SAFE polymer barriers reduce embodied CO2 by ~70% versus painted steel and",
-    MARGIN_X + 12,
-    y - 26,
+    "Polymer barriers cut embodied CO2 by ~70% versus painted steel and",
+    MARGIN_X + 14,
+    y - 32,
     { size: 9, color: WHITE },
   );
   pdf.text(
     "remove the repaint / re-weld lifecycle that drives steel maintenance budgets.",
-    MARGIN_X + 12,
-    y - 36,
+    MARGIN_X + 14,
+    y - 44,
     { size: 9, color: WHITE },
   );
-  y -= 44;
+  y -= co2H + 12;
 
   ctx.y = y;
   renderFooter(pdf, ctx, input);
@@ -970,13 +987,17 @@ function renderProposedSolutions(
   startSection(pdf, ctx, input, "Proposed Solutions");
   let y = ctx.y;
 
-  pdf.text(
-    "Each application area is matched to a barrier family. Where a project impact calculation is attached, the safety factor is shown as a coloured pill.",
-    MARGIN_X,
-    y,
-    { size: 9, color: GREY },
+  // Wrap the section intro so it sits comfortably inside the right margin
+  // even on a 4-line truncation budget.
+  const introWrapped = wrapLines(
+    "Each application area is matched to a barrier family. Where the project carries an impact calculation, the safety factor is shown as a coloured pill alongside the spec card.",
+    100,
   );
-  y -= 16;
+  for (const w of introWrapped) {
+    pdf.text(w, MARGIN_X, y, { size: 9, color: GREY });
+    y -= 11;
+  }
+  y -= 6;
 
   for (const line of input.proposedSolutions) {
     // Each line = one card. We need ~140pt of vertical space per card; if
@@ -1008,8 +1029,10 @@ function renderProposedSolutions(
       align: "right",
     });
 
-    // Photos — left = customer site, right = stock product.
-    const photoW = 140;
+    // Photos — left = customer site, right = stock product. Slightly
+    // narrower than first cut so the spec column (right) gets ~250pt of
+    // room and feature lines stop truncating.
+    const photoW = 120;
     const photoH = 80;
     // Left photo slot
     pdf.fillRect(MARGIN_X + 8, y - 22 - photoH - 8, photoW, photoH, WHITE);
@@ -1022,12 +1045,15 @@ function renderProposedSolutions(
         color: GREY,
       });
     } else {
-      pdf.text(
-        "Site photos will be added once site is built",
-        MARGIN_X + 14,
-        y - 22 - photoH / 2 + 4,
-        { size: 8, color: GREY },
-      );
+      // Two-line message — keeps each line inside the 140pt photo slot.
+      pdf.text("Site photos will be added", MARGIN_X + 14, y - 22 - photoH / 2 + 8, {
+        size: 8,
+        color: GREY,
+      });
+      pdf.text("once the site is built", MARGIN_X + 14, y - 22 - photoH / 2 - 2, {
+        size: 8,
+        color: GREY,
+      });
     }
     // Right photo slot — product hero
     const rightX = MARGIN_X + 8 + photoW + 8;
@@ -1038,56 +1064,52 @@ function renderProposedSolutions(
       color: GREY,
     });
 
-    // Spec card (right of the product photo)
+    // Spec card (right of the product photo). The safety pill is anchored
+    // to the bottom of the spec column, so we cap spec text just above
+    // the pill's footprint to prevent overlap.
     const specX = rightX + photoW + 14;
     const specW = PAGE_W - MARGIN_X - 8 - specX;
+    const pillW = 160;
+    const pillH = 18;
+    const pillY = y - cardH + 10;
+    const specBottomY = pillY + pillH + 4;
     let sy = y - 22 - 14;
-    pdf.text(line.productName, specX, sy, {
+    // 8pt Helvetica avg glyph width ≈ 4.2pt — divide the column width
+    // accordingly to fit the longest spec lines without truncation.
+    const specMaxChars = Math.max(24, Math.floor(specW / 4.2));
+    const writeSpecLine = (text: string, opts: TextOptions = {}) => {
+      if (sy < specBottomY) return; // out of room — drop the rest, pill takes priority
+      pdf.text(truncate(text, specMaxChars), specX, sy, {
+        size: 8,
+        color: BLACK,
+        ...opts,
+      });
+      sy -= 10;
+    };
+    pdf.text(truncate(line.productName, specMaxChars), specX, sy, {
       font: "Helvetica-Bold",
       size: 11,
       color: BLACK,
     });
     sy -= 12;
-    if (line.family) {
-      pdf.text(`Family: ${line.family}`, specX, sy, { size: 8, color: GREY });
-      sy -= 10;
-    }
-    if (line.sku) {
-      pdf.text(`SKU: ${line.sku}`, specX, sy, { size: 8, color: GREY });
-      sy -= 10;
-    }
+    if (line.family) writeSpecLine(`Family: ${line.family}`, { color: GREY });
+    if (line.sku) writeSpecLine(`SKU: ${line.sku}`, { color: GREY });
     if (line.productImpactJoules != null && line.productImpactJoules > 0) {
-      pdf.text(
-        `Impact rating: ${Math.round(line.productImpactJoules).toLocaleString()} J at 45°`,
-        specX,
-        sy,
-        { size: 8, color: BLACK },
+      writeSpecLine(
+        `Impact: ${Math.round(line.productImpactJoules).toLocaleString()} J at 45°`,
+        { color: BLACK, font: "Helvetica-Bold" },
       );
-      sy -= 10;
     } else {
-      pdf.text("Impact rating: not published*", specX, sy, {
-        size: 8,
-        color: AMBER_DARK,
-      });
-      sy -= 10;
+      writeSpecLine("Impact rating: not published*", { color: AMBER_DARK });
     }
     if (line.impactZoneLabel) {
-      pdf.text(`Impact zone: ${line.impactZoneLabel}`, specX, sy, {
-        size: 8,
-        color: GREY,
-      });
-      sy -= 10;
+      writeSpecLine(`Impact zone: ${line.impactZoneLabel}`, { color: GREY });
     }
-    for (const f of (line.features || []).slice(0, 3)) {
-      pdf.text(`- ${truncate(f, Math.max(20, Math.floor(specW / 4)))}`, specX, sy, {
-        size: 8,
-        color: BLACK,
-      });
-      sy -= 10;
+    for (const f of (line.features || []).slice(0, 2)) {
+      writeSpecLine(`- ${f}`, { color: BLACK });
     }
 
-    // Safety pill — bottom-right of the card.
-    const pillY = y - cardH + 10;
+    // Safety pill — bottom of the spec column, never overlapping spec text.
     if (line.requiredJoules != null && line.requiredJoules > 0) {
       const sf = computeSafetyFactor(line.productImpactJoules, line.requiredJoules);
       const isMissing = line.productImpactJoules == null || line.productImpactJoules <= 0;
@@ -1101,8 +1123,7 @@ function renderProposedSolutions(
       const label = isMissing
         ? "Engineering review*"
         : `Safety factor ${(sf * 100).toFixed(0)}%${sf < 1 ? " (review)" : ""}`;
-      const pillW = 160;
-      pdf.fillRect(PAGE_W - MARGIN_X - 8 - pillW, pillY, pillW, 18, colour);
+      pdf.fillRect(PAGE_W - MARGIN_X - 8 - pillW, pillY, pillW, pillH, colour);
       pdf.text(label, PAGE_W - MARGIN_X - 12, pillY + 5, {
         size: 9,
         font: "Helvetica-Bold",
@@ -1114,7 +1135,7 @@ function renderProposedSolutions(
     // Footnote on the card if the impact rating is missing.
     if (line.productImpactJoules == null || line.productImpactJoules <= 0) {
       pdf.text(
-        "* No impact rating published for this product. Engineering assessment available on request.",
+        "* No impact rating published. Engineering assessment available on request.",
         MARGIN_X + 12,
         y - cardH + 2,
         { size: 7, color: GREY },
@@ -1497,6 +1518,10 @@ function renderTermsAndConditions(
       "Where a site survey is included as an appendix, recommendations are based on observed conditions on the date of the survey. Material site changes may require a re-survey.",
     ],
   ];
+  // Body column is narrower than the page width, so 90 chars/line keeps us
+  // safely inside the right margin at size 9.
+  const labelW = 80;
+  const bodyMaxChars = 78;
   for (const [k, v] of tnc) {
     if (y < MARGIN_BOTTOM + 60) {
       newPage(pdf, ctx, input);
@@ -1507,12 +1532,16 @@ function renderTermsAndConditions(
       size: 8,
       color: ASAFE_YELLOW,
     });
-    const wrapped = wrapLines(v, 110);
-    let yy = y - 11;
+    const wrapped = wrapLines(v, bodyMaxChars);
+    // Indent every wrapped line to the body column so the rows line up
+    // visually under the label cluster.
     for (const w of wrapped) {
-      pdf.text(w, MARGIN_X + 80, y, { size: 9, color: BLACK });
+      if (y < MARGIN_BOTTOM + 60) {
+        newPage(pdf, ctx, input);
+        y = ctx.y;
+      }
+      pdf.text(w, MARGIN_X + labelW, y, { size: 9, color: BLACK });
       y -= 11;
-      if (yy === y) break; // shouldn't happen, defensive
     }
     y -= 6;
   }
@@ -1649,7 +1678,10 @@ function startSection(
     size: 12,
     color: ASAFE_YELLOW,
   });
-  pdf.text(input.referenceNumber, PAGE_W - MARGIN_X - 12, y0 - 16, {
+  // Right-aligned reference. Sit it well clear of the band edge — our
+  // approxStringWidth is an estimate, so 18pt of breathing room avoids
+  // the trailing characters getting clipped at the page margin.
+  pdf.text(input.referenceNumber, PAGE_W - MARGIN_X - 18, y0 - 16, {
     size: 8,
     color: WHITE,
     align: "right",
@@ -1687,26 +1719,31 @@ function renderFooter(
   _ctx: RenderCtx,
   input: OrderFormV2Input,
 ): void {
-  const stamp = input.generatedAt.toISOString();
+  const stamp = input.generatedAt.toISOString().slice(0, 16) + " UTC";
   const lineY = MARGIN_BOTTOM - 22;
   pdf.fillRect(MARGIN_X, lineY + 14, PAGE_W - 2 * MARGIN_X, 1.5, ASAFE_YELLOW);
+  // Top line: reference (left) + generation timestamp (right). Both are
+  // short enough to never collide.
   pdf.text(
     `A-SAFE Engage - ${input.referenceNumber}`,
     MARGIN_X,
     lineY,
     { font: "Helvetica-Bold", size: 8, color: BLACK },
   );
-  pdf.text(
-    "Indicative engineering interpretation - PAS 13:2017 aligned, not a compliance statement.",
-    MARGIN_X,
-    lineY - 10,
-    { size: 7, color: GREY },
-  );
   pdf.text(`Generated ${stamp}.`, PAGE_W - MARGIN_X, lineY, {
     size: 7,
     color: GREY,
     align: "right",
   });
+  // Bottom line: short disclaimer (left) + standards link (right). The
+  // disclaimer is intentionally trimmed so the right-aligned URL can sit
+  // on the same line without colliding.
+  pdf.text(
+    "Indicative engineering interpretation of PAS 13:2017.",
+    MARGIN_X,
+    lineY - 10,
+    { size: 7, color: GREY },
+  );
   pdf.text(
     `${input.appOrigin}${PAS13_PDF_URL}`,
     PAGE_W - MARGIN_X,
@@ -2037,22 +2074,34 @@ function pdfEscape(s: string): string {
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)")
     .replace(/[-￿]/g, (ch) => {
-      if (ch === "—") return "-";
-      if (ch === "–") return "-";
-      if (ch === "·") return "-";
-      if (ch === "…") return "...";
-      if (ch === "→") return "->";
-      if (ch === "°") return String.fromCharCode(0xb0);
-      if (ch === "²") return String.fromCharCode(0xb2);
-      if (ch === "§") return String.fromCharCode(0xa7);
-      if (ch === "×") return "x";
-      if (ch === "‘" || ch === "’") return "'";
-      if (ch === "“" || ch === "”") return '"';
+      // Map common typographic chars to ASCII first.
+      if (ch === "—") return "-";       // em dash
+      if (ch === "–") return "-";       // en dash
+      if (ch === "·") return "-";       // middle dot
+      if (ch === "…") return "...";     // ellipsis
+      if (ch === "→") return "->";      // arrow
+      if (ch === "×") return "x";       // multiplication sign
+      if (ch === "‘" || ch === "’") return "'";   // curly single
+      if (ch === "“" || ch === "”") return '"';   // curly double
+      // For chars we want rendered verbatim under WinAnsiEncoding, emit a
+      // PDF octal escape (\nnn). Our content stream is UTF-8 encoded
+      // (TextEncoder), so a literal Latin-1 byte 0xB0 would arrive at the
+      // PDF parser as the two UTF-8 bytes \xC2\xB0, rendering "Â°". Octal
+      // escapes are read by the PDF parser as a single-byte value, which
+      // the font's /Encoding /WinAnsiEncoding then maps to the right glyph.
+      if (ch === "°") return "\\260"; // 0xB0 = degree sign
+      if (ch === "²") return "\\262"; // 0xB2 = superscript two
+      if (ch === "§") return "\\247"; // 0xA7 = section sign
       return "?";
     });
 }
 
 function approxStringWidth(s: string, size: number, bold: boolean): number {
-  const factor = bold ? 0.54 : 0.5;
+  // Helvetica avg glyph width is ~0.50 em for regular and ~0.54 em for
+  // bold across the full character set. We bias up by ~5% so right-
+  // aligned text never overruns the right edge of its container — an
+  // extra pixel of breathing room is harmless and the alternative
+  // (clipping) is a real visual bug.
+  const factor = bold ? 0.56 : 0.52;
   return s.length * size * factor;
 }

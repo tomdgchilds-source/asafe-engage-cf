@@ -1193,6 +1193,114 @@ app.post("/api/admin/apply-cart-project-link", async (c) => {
   }
 });
 
+// Project installation_notes column: free-text "what should the
+// estimation team know about installing this?" box, surfaced on the
+// cart page + project detail and rendered into the order-form PDF.
+// Sagarika's May 5 ask — pairs with the per-line cart_items.accessories
+// JSONB column for structured options.
+//
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN, same
+// pattern as /admin/apply-cart-project-link.
+app.post("/api/admin/apply-installation-notes-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Probe whether the column already exists so the response is
+    // explicit about what changed.
+    const preCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'projects' AND column_name = 'installation_notes'
+    `) as any[];
+    const existedBefore = preCols.length > 0;
+
+    await sqlClient`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS installation_notes TEXT
+    `;
+
+    const postCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'projects' AND column_name = 'installation_notes'
+    `) as any[];
+
+    return c.json({
+      ok: true,
+      altered: existedBefore ? 0 : 1,
+      column: postCols[0]?.column_name || null,
+    });
+  } catch (e: any) {
+    console.error("apply-installation-notes-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// Cart accessories column: structured per-line JSONB capture for SS
+// bolts, dock buffers, steel/weld plates, L-brackets, height parameter,
+// etc. Vocabulary canonical in shared/cartAccessories.ts. Pairs with
+// projects.installation_notes for the catch-all narrative.
+//
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN, same
+// pattern as /admin/apply-installation-notes-schema.
+app.post("/api/admin/apply-cart-accessories-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const preCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'cart_items' AND column_name = 'accessories'
+    `) as any[];
+    const existedBefore = preCols.length > 0;
+
+    await sqlClient`
+      ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS accessories JSONB
+    `;
+
+    const postCols = (await sqlClient`
+      SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'cart_items' AND column_name = 'accessories'
+    `) as any[];
+
+    return c.json({
+      ok: true,
+      altered: existedBefore ? 0 : 1,
+      column: postCols[0]?.column_name || null,
+      dataType: postCols[0]?.data_type || null,
+    });
+  } catch (e: any) {
+    console.error("apply-cart-accessories-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Layout Drawings → Project link: adds layout_drawings.project_id
 // (nullable FK to projects.id with ON DELETE SET NULL so deleting a
 // project doesn't cascade-wipe its drawing history), creates a
@@ -2719,10 +2827,18 @@ app.post("/api/admin/apply-suitability-overrides", async (c) => {
       const additions: string[] = Array.isArray(add.addApplications)
         ? add.addApplications
         : [];
-      if (!productName || additions.length === 0) {
+      // Optional removeApplications array — added May 6 to let us
+      // CORRECT a previously-shipped over-tag without manually editing
+      // every affected row. Used when reps tell us a product was
+      // wrongly labelled (e.g. iFlex Double Traffic was tagged
+      // "Loading Docks" but should only be "Service yard").
+      const removals: string[] = Array.isArray(add.removeApplications)
+        ? add.removeApplications
+        : [];
+      if (!productName || (additions.length === 0 && removals.length === 0)) {
         dockSkipped.push({
           name: productName ?? "(unknown)",
-          reason: "missing productName or addApplications",
+          reason: "missing productName or addApplications/removeApplications",
         });
         continue;
       }
@@ -2750,25 +2866,29 @@ app.post("/api/admin/apply-suitability-overrides", async (c) => {
         const existingApps: string[] = Array.isArray(sd.fitForPurposeApplications)
           ? sd.fitForPurposeApplications
           : [];
-        const merged = new Set<string>(existingApps);
-        let added = 0;
+        const next = new Set<string>(existingApps);
+        let changed = 0;
+        // Apply removals first so a product that's both removed and
+        // re-added in different runs converges deterministically.
+        for (const r of removals) {
+          if (typeof r === "string" && next.delete(r)) changed++;
+        }
         for (const a of additions) {
-          if (typeof a === "string" && !merged.has(a)) {
-            merged.add(a);
-            added++;
+          if (typeof a === "string" && !next.has(a)) {
+            next.add(a);
+            changed++;
           }
         }
-        if (added === 0) {
-          // Already idempotent — every addition was already on the row.
+        if (changed === 0) {
           dockSkipped.push({
             name: productName,
-            reason: "all additions already present (idempotent no-op)",
+            reason: "no-op — all additions present and all removals absent",
           });
           continue;
         }
         const newPayload = {
           ...sd,
-          fitForPurposeApplications: Array.from(merged),
+          fitForPurposeApplications: Array.from(next),
         };
         const result = (await sqlClient`
           UPDATE products

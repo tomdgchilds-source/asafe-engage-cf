@@ -2,23 +2,38 @@
   "_meta": {
     "purpose": "Tag products with 'Loading Docks' (and supporting 'Service yard and dock protection') in their fitForPurposeApplications where the original PRH-1009 entry omitted the explicit dock label. Authority: ASAFE_GroundWorks_PRH-1005 (which lists the dock-gate family with a 'dock-door zones' substrate note) and the ASAFE_ProductSuitability_PRH-1009 inclusion criteria for HGV-class capable barriers.",
     "createdAt": "2026-04-30",
-    "policy": "Conservative interpretation: products that are HGV-class capable (≥7.5T vehicle suitability or 'Engine Counterbalance Heavy Duty Forklift Truck') AND whose catalog category is plausibly deployed at a loading-dock environment (perimeter traffic, dock-door height restrictors, dock-staging bollards, vehicle stops). Skip racking-only / pedestrian-only / cold-storage-only products with no dock-context evidence."
+    "updatedAt": "2026-05-06",
+    "updateNote": "May 6 2026 — Sagarika reported that Loading Docks recommendations were surfacing iFlex Double Traffic / Plus, which is wrong: the iFlex Double Traffic family is a warehouse traffic-pedestrian barrier (5.4-12kJ class) not a HGV-class dock-perimeter solution. Removed both from the 'Loading Docks' tag (kept on 'Service yard and dock protection' which IS appropriate). Atlas-class barriers stay on the dock list because Atlas Double Traffic is the 35kJ HGV-rated equivalent that A-SAFE actually deploys at dock perimeters.",
+    "policy": "Conservative interpretation v2: only HGV-class barriers (Atlas family, dedicated dock products, height restrictors at dock doors, bollards at dock corners, vehicle stops at dock-leveller edges, topple barriers at staging) get the 'Loading Docks' tag. iFlex Double Traffic / Plus stays on 'Service yard' (yard perimeter) but NOT on 'Loading Docks' (dock face)."
   },
   "additions": [
     {
-      "productName": "iFlex Double Traffic+",
+      "productName": "Atlas Double Traffic Barrier",
       "addApplications": ["Loading Docks", "Service yard and dock protection"],
-      "comment": "20kJ heavy-duty FLT-rated traffic barrier — directly suited to dock-staging perimeter where ≥10T forklifts approach loading bays."
+      "comment": "35kJ HGV-class heavy-duty barrier — A-SAFE's canonical recommendation for dock-perimeter traffic where loaded HGVs / heavy forklifts approach loading bays. Replaced the over-promoted iFlex Double Traffic in the May-6 recommender correction."
+    },
+    {
+      "productName": "Atlas Double Traffic Barrier+",
+      "addApplications": ["Loading Docks", "Service yard and dock protection"],
+      "comment": "Atlas family with elevated upper rail — same dock-perimeter application as Atlas Double Traffic, used where pedestrian visibility above the lower rail is required."
+    },
+    {
+      "productName": "iFlex Double Traffic+",
+      "addApplications": ["Service yard and dock protection"],
+      "removeApplications": ["Loading Docks"],
+      "comment": "Service-yard rated only — dropped from 'Loading Docks' May-6 2026 after rep feedback that it was being over-recommended at HGV-class dock faces. Atlas is the right product at the dock leveller; this stays for the broader yard perimeter."
     },
     {
       "productName": "iFlex Double Traffic",
-      "addApplications": ["Loading Docks", "Service yard and dock protection"],
-      "comment": "Heavy-duty FLT-rated traffic barrier; same family as Double Traffic+ minus the higher rail. Standard dock-staging perimeter."
+      "addApplications": ["Service yard and dock protection"],
+      "removeApplications": ["Loading Docks"],
+      "comment": "Service-yard rated only — see iFlex Double Traffic+ note above."
     },
     {
       "productName": "eFlex Single Traffic+",
-      "addApplications": ["Loading Docks", "Service yard and dock protection"],
-      "comment": "Heavy-duty counterbalance class; appropriate for dock-zone traffic-pedestrian segregation."
+      "addApplications": ["Service yard and dock protection"],
+      "removeApplications": ["Loading Docks"],
+      "comment": "Service-yard rated only — counterbalance-FLT class is below the HGV-class threshold A-SAFE uses for the dock-face itself."
     },
     {
       "productName": "Topple Barrier 3.6m with ForkGuard",

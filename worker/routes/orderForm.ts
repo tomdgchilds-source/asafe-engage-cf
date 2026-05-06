@@ -816,9 +816,9 @@ function sampleInputFor(
       productImpactJoules: productJ,
       requiredJoules: requiredJ,
       features: [
-        "Memaplex polymer - returns to shape after impact",
-        "PAS 13:2017 + TUV impact tested",
-        "Bolted-together post + rail architecture",
+        "Memaplex polymer - shape memory",
+        "PAS 13:2017 + TUV tested",
+        "Bolted post + rail",
       ],
       impactZoneLabel: "Up to 110 mm",
       sitePhotoUrl: which === "full" ? "site-photo-mock" : null,
