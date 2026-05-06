@@ -49,7 +49,9 @@ import pas13Chat from "./routes/pas13Chat";
 import installVideos from "./routes/installVideos";
 import recommendBarriers from "./routes/recommendBarriers";
 import quote from "./routes/quote";
+import communication from "./routes/communication";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
+import { scanCommSuggestions } from "./scheduled/commSuggestionsScanner";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -127,6 +129,7 @@ app.route("/api", pas13Chat);
 app.route("/api", installVideos);
 app.route("/api", recommendBarriers);
 app.route("/api", quote);
+app.route("/api", communication);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
@@ -1612,6 +1615,125 @@ app.post("/api/admin/apply-quote-drafts-schema", async (c) => {
     });
   } catch (e: any) {
     console.error("apply-quote-drafts-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
+// ─── Communication Plan schema + seed ──────────────────────────────────
+// Creates comm_templates + comm_suggestions and seeds the 12 default
+// templates from shared/commTemplates.ts. Idempotent: re-running upserts
+// any new defaults but never touches an existing row whose scenario
+// already has an active template (so admin edits aren't clobbered).
+//
+// Gated by MIGRATION_TOKEN, same pattern as /admin/apply-quote-drafts-schema.
+app.post("/api/admin/apply-comm-templates-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // 1. comm_templates — admin-editable library.
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS comm_templates (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        scenario VARCHAR NOT NULL,
+        title VARCHAR NOT NULL,
+        channel VARCHAR NOT NULL,
+        subject VARCHAR,
+        body TEXT NOT NULL,
+        trigger_event VARCHAR,
+        trigger_offset_days INTEGER,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `;
+    await sqlClient`CREATE INDEX IF NOT EXISTS comm_templates_scenario_idx ON comm_templates(scenario)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS comm_templates_trigger_idx ON comm_templates(trigger_event)`;
+
+    // 2. comm_suggestions — pending queue for the rep.
+    await sqlClient`
+      CREATE TABLE IF NOT EXISTS comm_suggestions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR REFERENCES projects(id) ON DELETE CASCADE,
+        template_id VARCHAR REFERENCES comm_templates(id) ON DELETE SET NULL,
+        suggested_at TIMESTAMP DEFAULT now(),
+        due_at TIMESTAMP,
+        status VARCHAR DEFAULT 'pending',
+        rendered_body TEXT,
+        rendered_subject VARCHAR,
+        rep_user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      )
+    `;
+    await sqlClient`CREATE INDEX IF NOT EXISTS comm_suggestions_rep_idx ON comm_suggestions(rep_user_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS comm_suggestions_project_idx ON comm_suggestions(project_id)`;
+    await sqlClient`CREATE INDEX IF NOT EXISTS comm_suggestions_status_idx ON comm_suggestions(status)`;
+
+    // 3. Seed defaults — only insert when no row with the same scenario
+    // already exists. Admin edits to an existing scenario stay intact.
+    const { DEFAULT_COMM_TEMPLATES } = await import("../shared/commTemplates");
+    const seeded: string[] = [];
+    const skippedSeeds: string[] = [];
+
+    for (const t of DEFAULT_COMM_TEMPLATES) {
+      const existing = (await sqlClient`
+        SELECT id FROM comm_templates
+        WHERE scenario = ${t.scenario} AND title = ${t.title}
+        LIMIT 1
+      `) as any[];
+      if (existing.length) {
+        skippedSeeds.push(t.scenario);
+        continue;
+      }
+      await sqlClient`
+        INSERT INTO comm_templates
+          (scenario, title, channel, subject, body, trigger_event,
+           trigger_offset_days, is_active)
+        VALUES (
+          ${t.scenario},
+          ${t.title},
+          ${t.channel},
+          ${t.subject ?? null},
+          ${t.body},
+          ${t.triggerEvent ?? null},
+          ${t.triggerOffsetDays ?? null},
+          true
+        )
+      `;
+      seeded.push(t.scenario);
+    }
+
+    const allRows = (await sqlClient`
+      SELECT scenario, title, channel, trigger_event
+      FROM comm_templates
+      ORDER BY scenario
+    `) as any[];
+
+    return c.json({
+      ok: true,
+      message: "comm_templates + comm_suggestions ensured",
+      seeded,
+      skippedSeeds,
+      total: allRows.length,
+      titles: allRows.map((r: any) => r.title),
+    });
+  } catch (e: any) {
+    console.error("apply-comm-templates-schema failed:", e);
     return c.json({ ok: false, message: e?.message || String(e) }, 500);
   }
 });
@@ -5550,11 +5672,18 @@ export default {
     if (cron === "0 3 * * SUN") {
       ctx.waitUntil(runBackups(env));
     } else if (cron === "0 6 * * *") {
+      // Daily 06:00 UTC dispatch:
+      //   1. Flag overdue installation phases.
+      //   2. Scan project events and write pending comm suggestions.
+      // Both are idempotent and cheap; running them in the same cron
+      // saves a second trigger registration in wrangler.toml.
       ctx.waitUntil(scanOverdueInstallations(env));
+      ctx.waitUntil(scanCommSuggestions(env));
     } else {
-      // Unknown schedule — run both to be safe; cheap and idempotent.
+      // Unknown schedule — run all to be safe; everything is cheap and idempotent.
       ctx.waitUntil(runBackups(env));
       ctx.waitUntil(scanOverdueInstallations(env));
+      ctx.waitUntil(scanCommSuggestions(env));
     }
   },
 };

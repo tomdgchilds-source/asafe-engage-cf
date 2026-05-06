@@ -1,524 +1,758 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  FileText, Mail, MessageSquare, Send, Calendar, 
-  ClipboardCheck, Calculator, Clock, ArrowRight,
-  Building2, User, MapPin, Wrench, HeadphonesIcon,
-  CheckCircle, AlertCircle, FileDown, Zap
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
-import { consultativeTemplates, getAllTemplates, workflowStages } from "@/data/consultativeTemplates";
+// ──────────────────────────────────────────────────────────────────────
+// CommunicationPlan.tsx
+//
+// Two-tab dashboard:
+//   1. Templates  — browse the curated library grouped by scenario.
+//                   Render any template against the rep's active project,
+//                   then ship it via WhatsApp deeplink or email.
+//   2. Pending    — trigger-driven suggestions queued by the daily scanner
+//                   (see worker/scheduled/commSuggestionsScanner.ts).
+//                   Always require rep click-to-approve. NEVER auto-send.
+// ──────────────────────────────────────────────────────────────────────
 
-interface QuickAction {
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { useActiveProject } from "@/hooks/useActiveProject";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Copy,
+  MessageSquare,
+  Mail,
+  CheckCircle2,
+  XCircle,
+  Bell,
+  ClipboardCheck,
+  RefreshCw,
+  Send,
+} from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+
+// ─── Types ────────────────────────────────────────────────────────────
+
+type CommChannel = "whatsapp" | "email" | "both";
+
+interface CommTemplate {
   id: string;
+  scenario: string;
   title: string;
-  description: string;
-  icon: any;
-  link?: string;
-  action?: () => void;
-  color: string;
+  channel: CommChannel;
+  subject: string | null;
+  body: string;
+  trigger_event: string | null;
+  trigger_offset_days: number | null;
+  is_active: boolean;
 }
+
+interface CommSuggestion {
+  id: string;
+  project_id: string | null;
+  template_id: string | null;
+  suggested_at: string;
+  due_at: string | null;
+  status: "pending" | "sent" | "dismissed";
+  rendered_body: string | null;
+  rendered_subject: string | null;
+  rep_user_id: string | null;
+  scenario: string | null;
+  title: string | null;
+  channel: CommChannel | null;
+  template_subject: string | null;
+  project_name: string | null;
+  customer_company_name: string | null;
+}
+
+interface RenderedTemplate {
+  id: string;
+  scenario: string;
+  title: string;
+  channel: CommChannel;
+  subject: string | null;
+  body: string;
+  placeholders: Record<string, string>;
+  projectId: string | null;
+}
+
+// ─── Scenario labels — mirrors shared/commTemplates.ts ────────────────
+
+const SCENARIO_LABELS: Record<string, { label: string; description: string }> = {
+  "discovery": {
+    label: "Discovery",
+    description: "First-meeting follow-up with observational survey report",
+  },
+  "site-survey-scheduling": {
+    label: "Site survey scheduling",
+    description: "Set up a site survey at the customer's facility",
+  },
+  "site-survey-complete": {
+    label: "Site survey complete",
+    description: "Hand over the observational impact protection survey report",
+  },
+  "quote-sent": {
+    label: "Quote sent",
+    description: "Initial quote delivery with budgetary number",
+  },
+  "quote-followup-3": {
+    label: "Quote follow-up — 3 days",
+    description: "Light-touch chase three days after sending",
+  },
+  "quote-followup-7": {
+    label: "Quote follow-up — 7 days",
+    description: "Mid-cycle check-in with revision options",
+  },
+  "quote-followup-14": {
+    label: "Quote follow-up — 14 days",
+    description: "Two-week chaser — re-engage or extend the quote",
+  },
+  "order-confirmation": {
+    label: "Order confirmation",
+    description: "Thank you + here's what happens next",
+  },
+  "pre-installation": {
+    label: "Pre-installation",
+    description: "Site readiness checklist five days before install",
+  },
+  "post-installation": {
+    label: "Post-installation",
+    description: "Snag list + sign-off form after the install completes",
+  },
+  "review-request": {
+    label: "Customer review request",
+    description: "Google review or LinkedIn testimonial ask",
+  },
+  "reciprocal-commitment": {
+    label: "Reciprocal value commitment",
+    description: "Reminder for the case-study / video promised at pricing",
+  },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+// Format a phone number for the wa.me deeplink: strip everything that
+// isn't a digit so "+971 50 123 4567" becomes "971501234567".
+function digitsOnly(phone: string | null | undefined): string {
+  return (phone || "").replace(/\D/g, "");
+}
+
+function buildWhatsappLink(phone: string, message: string): string {
+  return `https://wa.me/${digitsOnly(phone)}?text=${encodeURIComponent(message)}`;
+}
+
+function buildMailtoLink(
+  email: string,
+  subject: string | null,
+  body: string,
+): string {
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  params.set("body", body);
+  return `mailto:${encodeURIComponent(email)}?${params.toString()}`;
+}
+
+// Strip the basic markdown emphasis the email path uses so the WhatsApp /
+// clipboard preview reads cleanly. Mirrors renderTemplate(channel="whatsapp")
+// in shared/commTemplates.ts so previews and sends agree.
+function plainText(body: string): string {
+  return body
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/^# +/gm, "")
+    .replace(/^## +/gm, "")
+    .trim();
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────
 
 export default function CommunicationPlan() {
   const { toast } = useToast();
-  const [selectedChannel, setSelectedChannel] = useState<'email' | 'whatsapp'>('email');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [customMessage, setCustomMessage] = useState('');
-  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
-  const [recipientDetails, setRecipientDetails] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
+  const qc = useQueryClient();
+  const { activeProject } = useActiveProject();
+  const [selectedTemplate, setSelectedTemplate] = useState<CommTemplate | null>(null);
+  const [rendered, setRendered] = useState<RenderedTemplate | null>(null);
+  const [editedBody, setEditedBody] = useState("");
+  const [editedSubject, setEditedSubject] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(
+    null,
+  );
+
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<
+    CommTemplate[]
+  >({
+    queryKey: ["/api/communication/templates"],
   });
 
-  // Get quote requests and orders for recent activity
-  const { data: quoteRequests = [] } = useQuery<any[]>({
-    queryKey: ['/api/quote-requests'],
+  const { data: suggestions = [], isLoading: suggestionsLoading } = useQuery<
+    CommSuggestion[]
+  >({
+    queryKey: ["/api/communication/suggestions"],
   });
 
-  const { data: orders = [] } = useQuery<any[]>({
-    queryKey: ['/api/orders'],
-  });
-
-  // Get all templates
-  const templates = getAllTemplates();
-
-  // Quick actions for same-day tasks
-  const quickActions: QuickAction[] = [
-    {
-      id: 'site-survey',
-      title: 'Create Site Survey',
-      description: 'Build a new safety survey',
-      icon: ClipboardCheck,
-      link: '/site-survey',
-      color: 'bg-blue-500',
-    },
-    {
-      id: 'impact-calc',
-      title: 'Impact Calculator',
-      description: 'Calculate safety requirements',
-      icon: Calculator,
-      link: '/impact-calculator',
-      color: 'bg-green-500',
-    },
-    {
-      id: 'generate-quote',
-      title: 'Generate Quote',
-      description: 'Create a new quote',
-      icon: FileText,
-      link: '/orders',
-      color: 'bg-purple-500',
-    },
-    {
-      id: 'send-assessment',
-      title: 'Send Assessment',
-      description: 'Email site assessment',
-      icon: Send,
-      action: () => setSelectedTemplate('post_site_visit.site_assessment_delivery'),
-      color: 'bg-orange-500',
-    },
-  ];
-
-  // Recent customer activities
-  const recentActivities = [
-    ...quoteRequests.slice(0, 3).map((quote: any) => ({
-      id: quote.id,
-      type: 'quote',
-      customer: quote.customerName,
-      company: quote.customerCompany,
-      action: 'Requested quote',
-      date: new Date(quote.createdAt).toLocaleDateString(),
-      status: 'pending',
-    })),
-    ...orders.slice(0, 3).map((order: any) => ({
-      id: order.id,
-      type: 'order',
-      customer: order.customerName,
-      company: order.customerCompany,
-      action: 'Placed order',
-      date: new Date(order.createdAt).toLocaleDateString(),
-      status: order.status,
-    })),
-  ].slice(0, 5);
-
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplate(templateId);
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      const content = template.template[selectedChannel]?.content || template.template[selectedChannel];
-      setCustomMessage(content);
-      
-      // Extract variables from template
-      const variables = content.match(/{{(\w+)}}/g) || [];
-      const uniqueVars = Array.from(new Set(variables.map((v: string) => v.replace(/[{}]/g, ''))));
-      const defaultVars: Record<string, string> = {};
-      uniqueVars.forEach(v => {
-        defaultVars[v] = '';
-      });
-      setTemplateVariables(defaultVars);
+  // Group templates by scenario for the card layout.
+  const grouped = useMemo(() => {
+    const m = new Map<string, CommTemplate[]>();
+    for (const t of templates) {
+      const key = t.scenario;
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(t);
     }
-  };
+    return m;
+  }, [templates]);
 
-  const replaceTemplateVariables = (text: string) => {
-    let result = text;
-    Object.entries(templateVariables).forEach(([key, value]) => {
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value || `{{${key}}}`);
-    });
-    return result;
-  };
+  // Open the compose dialog for a template — fetch the rendered body
+  // against the active project so placeholders are filled before the
+  // rep sees the preview.
+  async function openTemplate(tmpl: CommTemplate) {
+    setSelectedTemplate(tmpl);
+    setRendered(null);
+    setEditedBody(tmpl.body);
+    setEditedSubject(tmpl.subject || "");
 
-  const handleSendMessage = () => {
-    if (!recipientDetails.email && !recipientDetails.phone) {
+    // Pre-fill recipient fields from the active project's primary contact.
+    const contact = (activeProject?.contacts || [])[0];
+    setRecipientPhone(contact?.mobile || "");
+    setRecipientEmail(contact?.email || "");
+
+    try {
+      const projectId = activeProject?.id || "";
+      const url = `/api/communication/templates/${tmpl.id}/render${projectId ? `?projectId=${projectId}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = (await res.json()) as RenderedTemplate;
+      setRendered(data);
+      setEditedBody(data.body);
+      setEditedSubject(data.subject || "");
+    } catch (err) {
       toast({
-        title: "Error",
-        description: "Please provide either email or phone number",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const finalMessage = replaceTemplateVariables(customMessage);
-    const subject = `A-SAFE — ${recipientDetails.name ? `Hi ${recipientDetails.name}` : "Follow-up"}`;
-
-    // Actually open the user's email client or WhatsApp so the message is sent.
-    if (selectedChannel === "email" && recipientDetails.email) {
-      const url =
-        `mailto:${encodeURIComponent(recipientDetails.email)}` +
-        `?subject=${encodeURIComponent(subject)}` +
-        `&body=${encodeURIComponent(finalMessage)}`;
-      window.open(url, "_blank");
-    } else if (selectedChannel === "whatsapp" && recipientDetails.phone) {
-      const phone = recipientDetails.phone.replace(/[^0-9]/g, "");
-      const url = `https://wa.me/${phone}?text=${encodeURIComponent(finalMessage)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      toast({
-        title: "Missing Contact",
+        title: "Could not render template",
         description:
-          selectedChannel === "email"
-            ? "An email address is required to open the email client."
-            : "A phone number is required to open WhatsApp.",
+          "We'll show the raw template — variables may not be filled in.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Open the compose dialog for an existing pending suggestion.
+  function openSuggestion(s: CommSuggestion) {
+    if (!s.template_id || !s.title) {
+      toast({
+        title: "Suggestion missing template",
+        description: "The original template was deleted — dismiss this one.",
         variant: "destructive",
       });
       return;
     }
-
-    toast({
-      title: "Opening " + (selectedChannel === "email" ? "email client" : "WhatsApp"),
-      description: `Message drafted for ${recipientDetails.name || "recipient"}. Review and send from the opened window.`,
+    const tmpl: CommTemplate = {
+      id: s.template_id,
+      scenario: s.scenario || "unknown",
+      title: s.title,
+      channel: (s.channel as CommChannel) || "whatsapp",
+      subject: s.template_subject,
+      body: s.rendered_body || "",
+      trigger_event: null,
+      trigger_offset_days: null,
+      is_active: true,
+    };
+    setSelectedTemplate(tmpl);
+    setRendered({
+      id: tmpl.id,
+      scenario: tmpl.scenario,
+      title: tmpl.title,
+      channel: tmpl.channel,
+      subject: s.rendered_subject,
+      body: s.rendered_body || "",
+      placeholders: {},
+      projectId: s.project_id,
     });
+    setEditedBody(s.rendered_body || "");
+    setEditedSubject(s.rendered_subject || "");
+    setActiveSuggestionId(s.id);
 
-    // Reset form
-    setCustomMessage("");
-    setRecipientDetails({ name: '', email: '', phone: '', company: '' });
-    setTemplateVariables({});
-    setSelectedTemplate('');
-  };
+    const contact = (activeProject?.contacts || [])[0];
+    setRecipientPhone(contact?.mobile || "");
+    setRecipientEmail(contact?.email || "");
+  }
+
+  function closeDialog() {
+    setSelectedTemplate(null);
+    setRendered(null);
+    setEditedBody("");
+    setEditedSubject("");
+    setActiveSuggestionId(null);
+  }
+
+  async function handleCopy() {
+    const text = plainText(editedBody);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard" });
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Browser blocked clipboard access — select and copy manually.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function handleOpenWhatsapp() {
+    if (!recipientPhone) {
+      toast({
+        title: "Phone number required",
+        description: "Add the customer's mobile to open WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const link = buildWhatsappLink(recipientPhone, plainText(editedBody));
+    window.open(link, "_blank", "noopener,noreferrer");
+    toast({
+      title: "WhatsApp opened",
+      description: "Review and tap send. Then mark this suggestion as sent.",
+    });
+  }
+
+  function handleOpenEmail() {
+    if (!recipientEmail) {
+      toast({
+        title: "Email address required",
+        description: "Add the customer's email to open your mail client.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const link = buildMailtoLink(
+      recipientEmail,
+      editedSubject || selectedTemplate?.title || "Hello",
+      editedBody,
+    );
+    window.open(link, "_blank");
+    toast({
+      title: "Email client opened",
+      description: "Review and send. Then mark this suggestion as sent.",
+    });
+  }
+
+  async function markSuggestionSent() {
+    if (!activeSuggestionId) {
+      closeDialog();
+      return;
+    }
+    try {
+      await apiRequest(
+        `/api/communication/suggestions/${activeSuggestionId}/sent`,
+        "POST",
+      );
+      toast({ title: "Marked as sent" });
+      qc.invalidateQueries({ queryKey: ["/api/communication/suggestions"] });
+      closeDialog();
+    } catch (err: any) {
+      toast({
+        title: "Failed to mark sent",
+        description: err?.message || "Try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function dismissSuggestion(id: string) {
+    try {
+      await apiRequest(
+        `/api/communication/suggestions/${id}/dismiss`,
+        "POST",
+      );
+      toast({ title: "Suggestion dismissed" });
+      qc.invalidateQueries({ queryKey: ["/api/communication/suggestions"] });
+    } catch (err: any) {
+      toast({
+        title: "Dismiss failed",
+        description: err?.message || "Try again",
+        variant: "destructive",
+      });
+    }
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-[#FFC72C]">Pre-Sales Enablement</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Quick tools for same-day surveys, assessments, and quotes
+          <h1 className="text-3xl font-bold text-[#FFC72C]">Communication Plan</h1>
+          <p className="text-muted-foreground mt-1">
+            Pre-written templates and trigger-based suggestions for customer comms.
+            Every send still requires your click-to-approve.
           </p>
         </div>
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-          <Zap className="h-4 w-4 mr-1" />
-          Consultative Advisor Mode
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="secondary" className="gap-1">
+            <ClipboardCheck className="h-3 w-3" />
+            {templates.length} templates
+          </Badge>
+          <Badge
+            variant={suggestions.length > 0 ? "destructive" : "secondary"}
+            className="gap-1"
+          >
+            <Bell className="h-3 w-3" />
+            {suggestions.length} pending
+          </Badge>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-[#FFC72C]" />
-            Quick Actions
-          </CardTitle>
-          <CardDescription>Same-day tools for post-meeting follow-up</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {quickActions.map((action) => (
-              <div key={action.id}>
-                {action.link ? (
-                  <Link href={action.link}>
-                    <Button
-                      variant="outline"
-                      className="w-full h-24 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    >
-                      <div className={`p-2 rounded-lg ${action.color} text-white`}>
-                        <action.icon className="h-5 w-5" />
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-sm">{action.title}</div>
-                        <div className="text-xs text-gray-500">{action.description}</div>
-                      </div>
-                    </Button>
-                  </Link>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="w-full h-24 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    onClick={action.action}
-                  >
-                    <div className={`p-2 rounded-lg ${action.color} text-white`}>
-                      <action.icon className="h-5 w-5" />
-                    </div>
-                    <div className="text-center">
-                      <div className="font-semibold text-sm">{action.title}</div>
-                      <div className="text-xs text-gray-500">{action.description}</div>
-                    </div>
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="templates" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="templates">
+            <ClipboardCheck className="h-4 w-4 mr-2" /> Templates
+          </TabsTrigger>
+          <TabsTrigger value="suggestions">
+            <Bell className="h-4 w-4 mr-2" /> Pending suggestions
+            {suggestions.length > 0 && (
+              <Badge
+                variant="destructive"
+                className="ml-2 h-5 min-w-[1.2rem] px-1.5 text-[10px]"
+              >
+                {suggestions.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Message Composer */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Message Composer</CardTitle>
-              <CardDescription>Send follow-up messages to customers</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Channel Selection */}
-              <Tabs value={selectedChannel} onValueChange={(v) => setSelectedChannel(v as 'email' | 'whatsapp')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="email">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Email
-                  </TabsTrigger>
-                  <TabsTrigger value="whatsapp">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    WhatsApp
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value={selectedChannel} className="space-y-4">
-                  {/* Template Selection */}
-                  <div>
-                    <Label>Message Template</Label>
-                    <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a template..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {template.category}
-                              </Badge>
-                              <span>{template.name}</span>
+        {/* ───── Templates tab ───── */}
+        <TabsContent value="templates" className="mt-4 space-y-4">
+          {templatesLoading ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Loading templates…
+              </CardContent>
+            </Card>
+          ) : templates.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <p className="mb-4">No templates seeded yet.</p>
+                <p className="text-sm">
+                  Run the migration endpoint{" "}
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
+                    POST /api/admin/apply-comm-templates-schema
+                  </code>{" "}
+                  to seed the defaults.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from(grouped.entries()).map(([scenario, items]) => {
+                const meta = SCENARIO_LABELS[scenario] || {
+                  label: scenario,
+                  description: "",
+                };
+                return (
+                  <Card key={scenario} className="flex flex-col">
+                    <CardHeader>
+                      <CardTitle className="text-base">{meta.label}</CardTitle>
+                      <CardDescription className="text-xs">
+                        {meta.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1 space-y-2">
+                      {items.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md border border-border bg-card hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {t.title}
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Recipient Details */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Contact Name</Label>
-                      <Input
-                        value={recipientDetails.name}
-                        onChange={(e) => setRecipientDetails({...recipientDetails, name: e.target.value})}
-                        placeholder="John Smith"
-                      />
-                    </div>
-                    <div>
-                      <Label>Company</Label>
-                      <Input
-                        value={recipientDetails.company}
-                        onChange={(e) => setRecipientDetails({...recipientDetails, company: e.target.value})}
-                        placeholder="ABC Logistics"
-                      />
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={recipientDetails.email}
-                        onChange={(e) => setRecipientDetails({...recipientDetails, email: e.target.value})}
-                        placeholder="john@example.com"
-                      />
-                    </div>
-                    <div>
-                      <Label>Phone</Label>
-                      <Input
-                        value={recipientDetails.phone}
-                        onChange={(e) => setRecipientDetails({...recipientDetails, phone: e.target.value})}
-                        placeholder="+971 50 123 4567"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Template Variables */}
-                  {Object.keys(templateVariables).length > 0 && (
-                    <div className="space-y-2">
-                      <Label>Template Variables</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.keys(templateVariables).map((variable) => (
-                          <div key={variable}>
-                            <Label className="text-xs text-gray-500">{variable}</Label>
-                            <Input
-                              value={templateVariables[variable]}
-                              onChange={(e) => setTemplateVariables({
-                                ...templateVariables,
-                                [variable]: e.target.value
-                              })}
-                              placeholder={`Enter ${variable}`}
-                              className="h-8"
-                            />
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] py-0 h-4"
+                              >
+                                {t.channel}
+                              </Badge>
+                              {t.trigger_event && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] py-0 h-4"
+                                >
+                                  auto
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                        ))}
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-[#FFC72C] hover:bg-[#FFB700] text-black h-8"
+                            onClick={() => openTemplate(t)}
+                            data-testid={`template-open-${t.scenario}`}
+                          >
+                            Use
+                          </Button>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ───── Pending suggestions tab ───── */}
+        <TabsContent value="suggestions" className="mt-4 space-y-4">
+          {suggestionsLoading ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Loading suggestions…
+              </CardContent>
+            </Card>
+          ) : suggestions.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <CheckCircle2 className="h-8 w-8 mx-auto mb-3 text-green-500" />
+                <p>No pending suggestions. You're all caught up.</p>
+                <p className="text-xs mt-2">
+                  The daily scanner runs at 06:00 UTC and queues messages
+                  triggered by project events (site survey complete, quote sent,
+                  install scheduled, etc).
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {suggestions.map((s) => {
+                const meta = s.scenario
+                  ? SCENARIO_LABELS[s.scenario] || {
+                      label: s.scenario,
+                      description: "",
+                    }
+                  : { label: "Suggestion", description: "" };
+                const dueAt = s.due_at ? new Date(s.due_at) : null;
+                const overdue = dueAt && dueAt < new Date();
+                return (
+                  <Card key={s.id} data-testid={`suggestion-${s.id}`}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                            {s.title || meta.label}
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] py-0 h-4"
+                            >
+                              {s.channel || "whatsapp"}
+                            </Badge>
+                            {overdue && (
+                              <Badge
+                                variant="destructive"
+                                className="text-[10px] py-0 h-4"
+                              >
+                                overdue
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <CardDescription className="text-xs mt-1">
+                            {s.project_name && (
+                              <>
+                                <strong>{s.project_name}</strong>
+                                {s.customer_company_name && (
+                                  <> · {s.customer_company_name}</>
+                                )}
+                                <> · </>
+                              </>
+                            )}
+                            Due{" "}
+                            {dueAt
+                              ? dueAt.toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "now"}
+                          </CardDescription>
+                        </div>
                       </div>
-                    </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-wrap mb-3">
+                        {s.rendered_body || ""}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="bg-[#FFC72C] hover:bg-[#FFB700] text-black"
+                          onClick={() => openSuggestion(s)}
+                          data-testid={`suggestion-review-${s.id}`}
+                        >
+                          <Send className="h-3.5 w-3.5 mr-1" />
+                          Review and send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => dismissSuggestion(s.id)}
+                          data-testid={`suggestion-dismiss-${s.id}`}
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1" />
+                          Dismiss
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* ───── Compose dialog ───── */}
+      <Dialog
+        open={!!selectedTemplate}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedTemplate?.title}</DialogTitle>
+            <DialogDescription>
+              {activeProject?.name ? (
+                <>
+                  Active project: <strong>{activeProject.name}</strong>
+                  {(activeProject as any).customerCompany?.name && (
+                    <> · {(activeProject as any).customerCompany.name}</>
                   )}
+                </>
+              ) : (
+                "No active project — placeholders may render as {{tokens}}."
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
-                  {/* Message Content */}
-                  <div>
-                    <Label>Message Content</Label>
-                    <Textarea
-                      value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
-                      placeholder="Type your message or select a template..."
-                      className="min-h-[200px]"
-                    />
-                  </div>
+          {selectedTemplate?.channel !== "whatsapp" && (
+            <div>
+              <Label htmlFor="comm-subject" className="text-xs">
+                Subject (email)
+              </Label>
+              <Input
+                id="comm-subject"
+                value={editedSubject}
+                onChange={(e) => setEditedSubject(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
 
-                  {/* Send Button */}
-                  <Button 
-                    onClick={handleSendMessage} 
-                    className="w-full bg-[#FFC72C] hover:bg-[#FFB300] text-black"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Prepare Message
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+          <div>
+            <Label htmlFor="comm-body" className="text-xs">
+              Message body
+            </Label>
+            <Textarea
+              id="comm-body"
+              value={editedBody}
+              onChange={(e) => setEditedBody(e.target.value)}
+              className="min-h-[260px] font-mono text-sm mt-1"
+              data-testid="comm-edit-body"
+            />
+          </div>
 
-          {/* Workflow Stages */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Workflow Stages</CardTitle>
-              <CardDescription>Simplified pre-sales process</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {workflowStages.map((stage, index) => (
-                  <div key={stage.id} className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        index === 0 ? 'bg-[#FFC72C] text-black' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {index + 1}
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{stage.name}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{stage.description}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="h-3 w-3 text-gray-400" />
-                        <span className="text-xs text-gray-500">{stage.timing}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {stage.actions.map((action) => (
-                          <Badge key={action} variant="secondary" className="text-xs">
-                            {action}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    {index < workflowStages.length - 1 && (
-                      <ArrowRight className="h-4 w-4 text-gray-400 mt-3" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="comm-phone" className="text-xs">
+                Recipient phone (WhatsApp)
+              </Label>
+              <Input
+                id="comm-phone"
+                value={recipientPhone}
+                onChange={(e) => setRecipientPhone(e.target.value)}
+                placeholder="+971 50 123 4567"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="comm-email" className="text-xs">
+                Recipient email
+              </Label>
+              <Input
+                id="comm-email"
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="contact@example.com"
+                className="mt-1"
+              />
+            </div>
+          </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Recent Activities */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Activities</CardTitle>
-              <CardDescription>Latest customer interactions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentActivities.length > 0 ? (
-                  recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 pb-3 border-b last:border-0">
-                      <div className={`p-2 rounded-lg ${
-                        activity.type === 'quote' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-green-100 dark:bg-green-900'
-                      }`}>
-                        {activity.type === 'quote' ? (
-                          <FileText className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-300" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{activity.customer}</p>
-                        <p className="text-xs text-gray-500 truncate">{activity.company}</p>
-                        <p className="text-xs text-gray-400 mt-1">{activity.action} • {activity.date}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No recent activities</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Helpful Resources */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Resources</CardTitle>
-              <CardDescription>Quick access to tools</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Link href="/products">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Building2 className="h-4 w-4 mr-2" />
-                    Product Catalog
-                  </Button>
-                </Link>
-                <Link href="/resources">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Technical Resources
-                  </Button>
-                </Link>
-                <Link href="/case-studies">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Case Studies
-                  </Button>
-                </Link>
-                <Link href="/admin">
-                  <Button variant="ghost" className="w-full justify-start">
-                    <Wrench className="h-4 w-4 mr-2" />
-                    Admin Panel
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Support */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Need Help?</CardTitle>
-              <CardDescription>Technical support</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <HeadphonesIcon className="h-4 w-4 text-gray-400" />
-                  <span>support@asafe-engage.com</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <MessageSquare className="h-4 w-4 text-gray-400" />
-                  <span>+971 4 123 4567</span>
-                </div>
-                <Button variant="outline" className="w-full mt-3">
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Report Issue
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCopy}
+              data-testid="comm-copy"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleOpenWhatsapp}
+              disabled={!recipientPhone}
+              data-testid="comm-whatsapp"
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Open WhatsApp
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleOpenEmail}
+              disabled={!recipientEmail}
+              data-testid="comm-email"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Open email
+            </Button>
+            {activeSuggestionId ? (
+              <Button
+                onClick={markSuggestionSent}
+                className="bg-[#FFC72C] hover:bg-[#FFB700] text-black"
+                data-testid="comm-mark-sent"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Mark as sent
+              </Button>
+            ) : (
+              <Button
+                onClick={closeDialog}
+                className="bg-[#FFC72C] hover:bg-[#FFB700] text-black"
+              >
+                Done
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
