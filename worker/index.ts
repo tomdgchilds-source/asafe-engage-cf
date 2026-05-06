@@ -2325,13 +2325,18 @@ app.get("/api/admin/promote-user", authMiddleware, async (c) => {
   }
 });
 
-// Bootstrap admin — public endpoint guarded by a secret token
-// Usage: GET /api/bootstrap-admin?token=asafe-engage-reset-2026&password=newPassword123
+// Bootstrap admin — public endpoint guarded by a secret env token.
+// Usage: GET /api/bootstrap-admin?token=<BOOTSTRAP_TOKEN>&password=newPassword123
 // Resets the admin@asafe.com password and ensures the user has admin role.
+// Token is read from env (wrangler secret put BOOTSTRAP_TOKEN). If the secret
+// is missing, the endpoint is disabled (fail-closed).
 app.get("/api/bootstrap-admin", async (c) => {
-  const BOOTSTRAP_TOKEN = "asafe-engage-reset-2026";
+  const BOOTSTRAP_TOKEN = (c.env as any).BOOTSTRAP_TOKEN as string | undefined;
+  if (!BOOTSTRAP_TOKEN) {
+    return c.json({ message: "Bootstrap endpoint disabled" }, 503);
+  }
   const token = c.req.query("token");
-  if (token !== BOOTSTRAP_TOKEN) {
+  if (!token || token !== BOOTSTRAP_TOKEN) {
     return c.json({ message: "Invalid bootstrap token" }, 403);
   }
   try {
@@ -2416,12 +2421,17 @@ app.get("/api/bootstrap-admin", async (c) => {
   }
 });
 
-// Create test user — guarded by bootstrap token, useful for team onboarding
-// Usage: GET /api/bootstrap-user?token=asafe-engage-reset-2026&email=user@team.com&password=test1234&firstName=John&lastName=Doe
+// Create test user — guarded by bootstrap token, useful for team onboarding.
+// Usage: GET /api/bootstrap-user?token=<BOOTSTRAP_TOKEN>&email=user@team.com&password=test1234&firstName=John&lastName=Doe
+// Token is read from env (wrangler secret put BOOTSTRAP_TOKEN). If the secret
+// is missing, the endpoint is disabled (fail-closed).
 app.get("/api/bootstrap-user", async (c) => {
-  const BOOTSTRAP_TOKEN = "asafe-engage-reset-2026";
+  const BOOTSTRAP_TOKEN = (c.env as any).BOOTSTRAP_TOKEN as string | undefined;
+  if (!BOOTSTRAP_TOKEN) {
+    return c.json({ message: "Bootstrap endpoint disabled" }, 503);
+  }
   const token = c.req.query("token");
-  if (token !== BOOTSTRAP_TOKEN) {
+  if (!token || token !== BOOTSTRAP_TOKEN) {
     return c.json({ message: "Invalid bootstrap token" }, 403);
   }
   try {
