@@ -33,6 +33,7 @@ import {
 } from "../../shared/pas13Rules";
 import { pas13Cite } from "../../shared/pas13Citations";
 import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
+import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
 
 const pas13Chat = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -232,27 +233,34 @@ async function embedQuery(
   env: Env,
   q: string,
 ): Promise<{ embedding: number[]; tokens: number }> {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+  const data = await withOpenAiRetry(
+    "embeddings.create:query",
+    async () => {
+      const res = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "text-embedding-3-small",
+          input: q.slice(0, 8000),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new OpenAiHttpError(
+          res.status,
+          body,
+          `OpenAI embeddings ${res.status}: ${body.slice(0, 400)}`,
+        );
+      }
+      return (await res.json()) as {
+        data: Array<{ embedding: number[] }>;
+        usage: { total_tokens: number };
+      };
     },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: q.slice(0, 8000),
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(
-      `OpenAI embeddings ${res.status}: ${body.slice(0, 400)}`,
-    );
-  }
-  const data = (await res.json()) as {
-    data: Array<{ embedding: number[] }>;
-    usage: { total_tokens: number };
-  };
+  );
   return {
     embedding: data.data[0].embedding,
     tokens: data.usage.total_tokens,
@@ -545,29 +553,36 @@ async function ragAnswer(
     ].join("\n"),
   });
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+  const data = await withOpenAiRetry(
+    "chat.completions.create:pas13",
+    async () => {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages,
+          temperature: 0.1,
+          max_tokens: 500,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new OpenAiHttpError(
+          res.status,
+          body,
+          `OpenAI chat ${res.status}: ${body.slice(0, 400)}`,
+        );
+      }
+      return (await res.json()) as {
+        choices: Array<{ message: { content: string } }>;
+        usage: { prompt_tokens: number; completion_tokens: number };
+      };
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages,
-      temperature: 0.1,
-      max_tokens: 500,
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(
-      `OpenAI chat ${res.status}: ${body.slice(0, 400)}`,
-    );
-  }
-  const data = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-    usage: { prompt_tokens: number; completion_tokens: number };
-  };
+  );
   let answer = data.choices[0].message.content.trim();
   // Ensure the footnote is present once.
   if (!answer.includes(PAS13_INDICATIVE_FOOTNOTE)) {
@@ -776,23 +791,7 @@ pas13Chat.post("/pas13/admin/whisper-transcribe", async (c) => {
   );
 
   const t0 = Date.now();
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${c.env.OPENAI_API_KEY}` },
-    body: upstream,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    return c.json(
-      {
-        message: "whisper transcription failed",
-        status: res.status,
-        detail: body.slice(0, 600),
-      },
-      502,
-    );
-  }
-  const data = (await res.json()) as {
+  let data: {
     text: string;
     duration?: number;
     language?: string;
@@ -803,6 +802,44 @@ pas13Chat.post("/pas13/admin/whisper-transcribe", async (c) => {
       text: string;
     }>;
   };
+  try {
+    data = await withOpenAiRetry(
+      "audio.transcriptions.create:whisper",
+      async () => {
+        const res = await fetch(
+          "https://api.openai.com/v1/audio/transcriptions",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${c.env.OPENAI_API_KEY}` },
+            body: upstream,
+          },
+        );
+        if (!res.ok) {
+          const body = await res.text();
+          throw new OpenAiHttpError(res.status, body);
+        }
+        return (await res.json()) as typeof data;
+      },
+    );
+  } catch (err) {
+    if (err instanceof OpenAiHttpError) {
+      return c.json(
+        {
+          message: "whisper transcription failed",
+          status: err.status,
+          detail: err.body.slice(0, 600),
+        },
+        502,
+      );
+    }
+    return c.json(
+      {
+        message: "whisper transcription failed",
+        detail: String((err as Error)?.message || err).slice(0, 600),
+      },
+      502,
+    );
+  }
   const segments = (data.segments || []).map((s) => ({
     start: s.start,
     end: s.end,
@@ -906,33 +943,53 @@ pas13Chat.post("/pas13/admin/embed-from-chunks", async (c) => {
       (c: any) => !Array.isArray(c.embedding) || c.embedding.length === 0,
     );
     if (pending.length === 0) continue;
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        input: pending.map((p: any) => p.text),
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
+    let data: {
+      data: Array<{ embedding: number[] }>;
+      usage?: { total_tokens: number };
+    };
+    try {
+      data = await withOpenAiRetry(
+        "embeddings.create:corpus_batch",
+        async () => {
+          const res = await fetch("https://api.openai.com/v1/embeddings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model,
+              input: pending.map((p: any) => p.text),
+            }),
+          });
+          if (!res.ok) {
+            const body = await res.text();
+            throw new OpenAiHttpError(res.status, body);
+          }
+          return (await res.json()) as typeof data;
+        },
+      );
+    } catch (err) {
+      if (err instanceof OpenAiHttpError) {
+        return c.json(
+          {
+            message: "embedding request failed",
+            status: err.status,
+            detail: err.body.slice(0, 400),
+            completedSoFar: i,
+          },
+          502,
+        );
+      }
       return c.json(
         {
           message: "embedding request failed",
-          status: res.status,
-          detail: body.slice(0, 400),
+          detail: String((err as Error)?.message || err).slice(0, 400),
           completedSoFar: i,
         },
         502,
       );
     }
-    const data = (await res.json()) as {
-      data: Array<{ embedding: number[] }>;
-      usage?: { total_tokens: number };
-    };
     totalTokens += data.usage?.total_tokens ?? 0;
     for (let j = 0; j < pending.length; j++) {
       pending[j].embedding = data.data[j].embedding;
