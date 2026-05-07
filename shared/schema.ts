@@ -565,6 +565,14 @@ export const resources = pgTable("resources", {
   thumbnailUrl: varchar("thumbnail_url"), // Thumbnail image URL for visual preview
   fileSize: integer("file_size"), // in bytes
   fileType: varchar("file_type"), // pdf, doc, etc.
+  // Whole-second runtime for video resources. Backfilled from the OpenAI
+  // Whisper transcripts in R2 (pas13/whisper/<videoId>.json) plus the
+  // bundled scripts/data/installation-videos.json dataset via
+  // POST /api/admin/backfill-resource-durations. Surfaced as a YouTube-
+  // style M:SS / H:MM:SS badge on the ResourceCard + Install Video panels
+  // and used by the install-team email digest for total-runtime hints.
+  // Nullable: PDF / non-video rows leave it NULL.
+  durationSeconds: integer("duration_seconds"),
   downloadCount: integer("download_count").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),

@@ -1510,6 +1510,7 @@ export class DatabaseStorage implements IStorage {
           fileUrl: resources.fileUrl,
           fileSize: resources.fileSize,
           fileType: resources.fileType,
+          durationSeconds: resources.durationSeconds,
           downloadCount: resources.downloadCount,
           isActive: resources.isActive,
           thumbnailUrl: resources.thumbnailUrl,
