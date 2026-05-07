@@ -588,6 +588,90 @@ projectsRoutes.get("/projects/:id/share-link", authMiddleware, async (c) => {
   }
 });
 
+// ─── Customer activity feed ───────────────────────────────────────
+// Unified audit stream — one row per customer action against the public
+// share link. Merges projectViewAudit + projectApprovals so the rep sees
+// "viewed / approved / requested changes" as a single timeline. Owner-
+// or-collaborator gated; the customer's IP is last-octet redacted and
+// the user-agent truncated before leaving the worker.
+projectsRoutes.get("/projects/:id/approvals", authMiddleware, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+
+    const userId = c.get("user").claims.sub;
+    const projectId = c.req.param("id");
+
+    const project = await storage.getProject(projectId);
+    if (!project) {
+      return c.json({ message: "Project not found" }, 404);
+    }
+    // Owner OR accepted collaborator. Mirrors the access check on the
+    // share-link endpoints so any rep with project access can see the
+    // audit log.
+    if (project.userId !== userId) {
+      const access = await storage.canAccessProject(projectId, userId, "viewer");
+      if (!access.allowed) {
+        return c.json({ message: "Project not found" }, 404);
+      }
+    }
+
+    const rows = await storage.getProjectActivity(projectId);
+
+    return c.json({
+      events: rows.map((r) => ({
+        id: r.id,
+        eventType: r.eventType,
+        createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+        approverName: r.approverName,
+        approverEmail: r.approverEmail,
+        comments: r.comments,
+        ipAddress: maskIp(r.ipAddress),
+        userAgent: shortUserAgent(r.userAgent),
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching project activity:", error);
+    return c.json({ message: "Failed to load activity" }, 500);
+  }
+});
+
+// Last-octet redact for IPv4; for IPv6 keep only the first three groups.
+// Either way the result still fingerprints "same vs different visitor"
+// at network granularity without leaking a usable address.
+function maskIp(ip: string | null | undefined): string | null {
+  if (!ip) return null;
+  const v4 = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/);
+  if (v4) return `${v4[1]}.x`;
+  if (ip.includes(":")) {
+    const groups = ip.split(":");
+    if (groups.length > 3) return `${groups.slice(0, 3).join(":")}::x`;
+  }
+  return ip;
+}
+
+// Truncate the user-agent down to a short browser+OS fingerprint. We
+// keep it readable in the UI ("Chrome on Mac") without exposing the
+// long fingerprintable ID. Falls back to a clipped raw string if no
+// known token matches.
+function shortUserAgent(ua: string | null | undefined): string | null {
+  if (!ua) return null;
+  const browser =
+    /Edg\//.test(ua) ? "Edge" :
+    /Chrome\//.test(ua) ? "Chrome" :
+    /Firefox\//.test(ua) ? "Firefox" :
+    /Safari\//.test(ua) ? "Safari" :
+    "Browser";
+  const os =
+    /Mac OS X|Macintosh/.test(ua) ? "Mac" :
+    /Windows/.test(ua) ? "Windows" :
+    /Android/.test(ua) ? "Android" :
+    /iPhone|iPad|iOS/.test(ua) ? "iOS" :
+    /Linux/.test(ua) ? "Linux" :
+    null;
+  return os ? `${browser} on ${os}` : browser;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // PAS 13 helpers — derive a verdict for each cart line item from the
 // product spec + the project's vehicle context. We pull the heaviest

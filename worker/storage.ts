@@ -362,6 +362,16 @@ export interface IStorage {
   getProjectByShareToken(token: string): Promise<Project | undefined>;
   recordProjectView(input: InsertProjectViewAudit): Promise<void>;
   getProjectViewStats(projectId: string): Promise<{ views: number; lastViewedAt: Date | null }>;
+  getProjectActivity(projectId: string): Promise<Array<{
+    id: string;
+    eventType: "view" | "approved" | "changes_requested";
+    createdAt: Date | null;
+    approverName: string | null;
+    approverEmail: string | null;
+    comments: string | null;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }>>;
   recordProjectApproval(input: InsertProjectApproval): Promise<ProjectApproval>;
   // Project collaboration (shared access)
   canAccessProject(
@@ -2582,6 +2592,75 @@ export class DatabaseStorage implements IStorage {
       views: rows.length,
       lastViewedAt: rows[0]?.viewedAt ?? null,
     };
+  }
+
+  // Unified customer-activity feed for the project detail page. Pulls
+  // the view audit (anonymous page-loads) and the approval rows (decision
+  // events with optional name/email/comments) and merges them into a
+  // single timeline ordered newest-first. The rep sees one stream of
+  // "what the customer did", not two siloed lists.
+  async getProjectActivity(projectId: string): Promise<Array<{
+    id: string;
+    eventType: "view" | "approved" | "changes_requested";
+    createdAt: Date | null;
+    approverName: string | null;
+    approverEmail: string | null;
+    comments: string | null;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }>> {
+    const [views, approvals] = await Promise.all([
+      this.db
+        .select({
+          id: projectViewAudit.id,
+          createdAt: projectViewAudit.viewedAt,
+          ipAddress: projectViewAudit.ipAddress,
+          userAgent: projectViewAudit.userAgent,
+        })
+        .from(projectViewAudit)
+        .where(eq(projectViewAudit.projectId, projectId))
+        .orderBy(desc(projectViewAudit.viewedAt))
+        .limit(200),
+      this.db
+        .select()
+        .from(projectApprovals)
+        .where(eq(projectApprovals.projectId, projectId))
+        .orderBy(desc(projectApprovals.createdAt))
+        .limit(200),
+    ]);
+
+    const merged = [
+      ...views.map((v) => ({
+        id: v.id,
+        eventType: "view" as const,
+        createdAt: v.createdAt ?? null,
+        approverName: null,
+        approverEmail: null,
+        comments: null,
+        ipAddress: v.ipAddress ?? null,
+        userAgent: v.userAgent ?? null,
+      })),
+      ...approvals.map((a) => ({
+        id: a.id,
+        eventType: (a.decision === "approved"
+          ? "approved"
+          : "changes_requested") as "approved" | "changes_requested",
+        createdAt: a.createdAt ?? null,
+        approverName: a.approverName ?? null,
+        approverEmail: a.approverEmail ?? null,
+        comments: a.comments ?? null,
+        ipAddress: a.ipAddress ?? null,
+        userAgent: a.userAgent ?? null,
+      })),
+    ];
+
+    merged.sort((a, b) => {
+      const at = a.createdAt ? a.createdAt.getTime() : 0;
+      const bt = b.createdAt ? b.createdAt.getTime() : 0;
+      return bt - at;
+    });
+
+    return merged;
   }
 
   async recordProjectApproval(
