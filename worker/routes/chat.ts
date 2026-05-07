@@ -3,6 +3,7 @@ import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
 
 const chat = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -112,24 +113,34 @@ chat.post("/chat/conversations/:id/messages", authMiddleware, async (c) => {
       content: msg.content,
     }));
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
+    const openaiData = await withOpenAiRetry(
+      "chat.completions.create:chat",
+      async () => {
+        const openaiResponse = await fetch(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: openaiMessages,
+            }),
+          },
+        );
+        if (!openaiResponse.ok) {
+          const err = await openaiResponse.text();
+          throw new OpenAiHttpError(
+            openaiResponse.status,
+            err,
+            `OpenAI API error: ${err}`,
+          );
+        }
+        return (await openaiResponse.json()) as any;
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: openaiMessages,
-      }),
-    });
-
-    if (!openaiResponse.ok) {
-      const err = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${err}`);
-    }
-
-    const openaiData = (await openaiResponse.json()) as any;
+    );
     const aiContent = openaiData.choices?.[0]?.message?.content ?? "";
 
     // Save AI response
