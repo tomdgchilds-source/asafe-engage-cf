@@ -1301,6 +1301,63 @@ app.post("/api/admin/apply-cart-accessories-schema", async (c) => {
   }
 });
 
+// resources.duration_seconds — whole-second runtime for video resources,
+// surfaced as a YouTube-style M:SS / H:MM:SS badge on the resource card
+// + install-video panels. Backfilled by the sibling
+// /api/admin/backfill-resource-durations endpoint, which reads the
+// OpenAI Whisper transcript JSON in R2 (pas13/whisper/<videoId>.json,
+// `duration` field) for the 16 PAS 13 educational videos and the
+// bundled scripts/data/installation-videos.json dataset (yt-dlp
+// `duration` field) for the rest of the install playlist.
+//
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN, same
+// pattern as /admin/apply-cart-accessories-schema.
+app.post("/api/admin/apply-resource-duration-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const preCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'resources' AND column_name = 'duration_seconds'
+    `) as any[];
+    const existedBefore = preCols.length > 0;
+
+    await sqlClient`
+      ALTER TABLE resources ADD COLUMN IF NOT EXISTS duration_seconds INTEGER
+    `;
+
+    const postCols = (await sqlClient`
+      SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'resources' AND column_name = 'duration_seconds'
+    `) as any[];
+
+    return c.json({
+      ok: true,
+      altered: existedBefore ? 0 : 1,
+      column: postCols[0]?.column_name || null,
+      dataType: postCols[0]?.data_type || null,
+    });
+  } catch (e: any) {
+    console.error("apply-resource-duration-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Layout Drawings → Project link: adds layout_drawings.project_id
 // (nullable FK to projects.id with ON DELETE SET NULL so deleting a
 // project doesn't cascade-wipe its drawing history), creates a
