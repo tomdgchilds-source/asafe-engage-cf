@@ -1384,6 +1384,67 @@ app.post("/api/admin/apply-layout-project-link", async (c) => {
   }
 });
 
+// Layout Drawings → PAS 13 guardrail metadata: adds two columns the
+// guardrail rules read from instead of inferring from notes.
+//   • floor_type TEXT — concrete | asphalt | interlock | tiles |
+//     underfloor_services | other. Drives anchor_floor_mismatch and
+//     the underfloor_services advisory.
+//   • vehicle_type_id UUID FK → vehicle_types(id) ON DELETE SET NULL —
+//     drives vehicle_class_mismatch (heaviest selected vehicle vs.
+//     each barrier's rated joules).
+//
+// Idempotent; re-running converges. Gated by MIGRATION_TOKEN (bearer),
+// same pattern as /admin/apply-layout-project-link. Returns
+// `{ ok, altered }` where `altered` is the count of columns this run
+// actually added (0 on a re-run, 1 or 2 on first apply).
+app.post("/api/admin/apply-layout-drawing-schema", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const preCols = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'layout_drawings'
+        AND column_name IN ('floor_type', 'vehicle_type_id')
+    `) as any[];
+    const preNames = new Set(preCols.map((r) => r.column_name));
+
+    await sqlClient`
+      ALTER TABLE layout_drawings
+      ADD COLUMN IF NOT EXISTS floor_type TEXT
+    `;
+    await sqlClient`
+      ALTER TABLE layout_drawings
+      ADD COLUMN IF NOT EXISTS vehicle_type_id VARCHAR
+      REFERENCES vehicle_types(id) ON DELETE SET NULL
+    `;
+
+    let altered = 0;
+    if (!preNames.has("floor_type")) altered += 1;
+    if (!preNames.has("vehicle_type_id")) altered += 1;
+
+    return c.json({ ok: true, altered });
+  } catch (e: any) {
+    console.error("apply-layout-drawing-schema failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Apply impact rating corrections from the verification report.
 // Reads the bundled patch file at build time and runs targeted UPDATEs
 // on the products table for entries where the live asafe.com page

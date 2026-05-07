@@ -1167,6 +1167,18 @@ export const layoutDrawings = pgTable("layout_drawings", {
   checkedBy: varchar("checked_by"),             // initials e.g. "SS"
   revisionHistory: jsonb("revision_history"),   // [{ rev: "01", date: "12-JAN-2026", notes: "STB-CS added" }, ...]
   notesSection: text("notes_section"),          // free-text bulleted note list for the "Notes Section" block
+  // Floor / substrate type the barriers will be installed on. Drives the
+  // PAS 13 anchor_floor_mismatch guardrail (concrete-only products on
+  // asphalt / paving / tiles trigger a warning) and the underfloor-
+  // services advisory chip. snake_case values: concrete | asphalt |
+  // interlock | tiles | underfloor_services | other.
+  floorType: text("floor_type"),
+  // Selected vehicle type for this drawing. FK → vehicle_types(id),
+  // ON DELETE SET NULL so removing a vehicle catalog row doesn't cascade
+  // wipe drawing history. Drives the vehicle_class_mismatch guardrail
+  // (compares the selected vehicle's class against each barrier's
+  // rated impact joules).
+  vehicleTypeId: varchar("vehicle_type_id").references(() => vehicleTypes.id, { onDelete: "set null" }),
   deletedAt: timestamp("deleted_at"), // For soft delete functionality
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
