@@ -34,14 +34,22 @@ type VideoRow = {
   videoId: string | null;
   thumbnailUrl: string | null;
   category: string | null;
+  durationSeconds: number | null;
   createdAt: string | null;
 };
 
 // Renders a `resources` row into the client-side shape expected by
 // ProductInstallVideos + InstallationTimeline. Keeps one source of truth
-// for the videoId / embed URL / share URL split.
+// for the videoId / embed URL / share URL split. `durationSeconds` may
+// be null on legacy rows whose transcript hasn't been backfilled yet
+// (see /api/admin/backfill-resource-durations).
 function mapRow(r: any): VideoRow {
   const videoId = r.external_id || r.externalId || extractVideoId(r.file_url || r.fileUrl);
+  const rawDuration = r.duration_seconds ?? r.durationSeconds;
+  const durationSeconds =
+    typeof rawDuration === "number" && rawDuration > 0
+      ? Math.round(rawDuration)
+      : null;
   return {
     id: r.id,
     title: r.title,
@@ -51,6 +59,7 @@ function mapRow(r: any): VideoRow {
     videoId: videoId || null,
     thumbnailUrl: r.thumbnail_url || r.thumbnailUrl,
     category: r.category,
+    durationSeconds,
     createdAt: r.created_at || r.createdAt,
   };
 }
@@ -91,31 +100,59 @@ installVideos.get("/products/:id/install-videos", async (c) => {
 
     const colRows = (await sqlClient`
       SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'resources' AND column_name = 'external_id'
+      WHERE table_name = 'resources'
+        AND column_name IN ('external_id', 'duration_seconds')
     `) as Array<{ column_name: string }>;
-    const hasExternalId = colRows.length > 0;
+    const colSet = new Set(colRows.map((r) => r.column_name));
+    const hasExternalId = colSet.has("external_id");
+    const hasDuration = colSet.has("duration_seconds");
 
-    const rows = hasExternalId
-      ? ((await sqlClient`
-          SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
-                 r.category, r.created_at, r.external_id, r.external_url
-          FROM product_resources pr
-          JOIN resources r ON r.id = pr.resource_id
-          WHERE pr.product_id = ${productId}
-            AND r.resource_type = 'Installation Video'
-            AND r.is_active = true
-          ORDER BY r.title ASC
-        `) as any[])
-      : ((await sqlClient`
-          SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
-                 r.category, r.created_at
-          FROM product_resources pr
-          JOIN resources r ON r.id = pr.resource_id
-          WHERE pr.product_id = ${productId}
-            AND r.resource_type = 'Installation Video'
-            AND r.is_active = true
-          ORDER BY r.title ASC
-        `) as any[]);
+    // Feature-detect both extension columns independently so a half-
+    // migrated DB still returns rows (just without duration / videoId).
+    const rows = ((await (hasExternalId
+      ? hasDuration
+        ? sqlClient`
+            SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
+                   r.category, r.created_at, r.external_id, r.external_url,
+                   r.duration_seconds
+            FROM product_resources pr
+            JOIN resources r ON r.id = pr.resource_id
+            WHERE pr.product_id = ${productId}
+              AND r.resource_type = 'Installation Video'
+              AND r.is_active = true
+            ORDER BY r.title ASC
+          `
+        : sqlClient`
+            SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
+                   r.category, r.created_at, r.external_id, r.external_url
+            FROM product_resources pr
+            JOIN resources r ON r.id = pr.resource_id
+            WHERE pr.product_id = ${productId}
+              AND r.resource_type = 'Installation Video'
+              AND r.is_active = true
+            ORDER BY r.title ASC
+          `
+      : hasDuration
+        ? sqlClient`
+            SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
+                   r.category, r.created_at, r.duration_seconds
+            FROM product_resources pr
+            JOIN resources r ON r.id = pr.resource_id
+            WHERE pr.product_id = ${productId}
+              AND r.resource_type = 'Installation Video'
+              AND r.is_active = true
+            ORDER BY r.title ASC
+          `
+        : sqlClient`
+            SELECT r.id, r.title, r.description, r.file_url, r.thumbnail_url,
+                   r.category, r.created_at
+            FROM product_resources pr
+            JOIN resources r ON r.id = pr.resource_id
+            WHERE pr.product_id = ${productId}
+              AND r.resource_type = 'Installation Video'
+              AND r.is_active = true
+            ORDER BY r.title ASC
+          `)) as any[]);
     return c.json(rows.map(mapRow));
   } catch (err) {
     console.error("install-videos (product) failed:", err);
