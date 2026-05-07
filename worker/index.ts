@@ -3052,6 +3052,101 @@ app.post("/api/admin/apply-suitability-overrides", async (c) => {
   }
 });
 
+// Widen Atlas family vehicleSuitability so the recommender returns Atlas
+// barriers for HGV / heavy-FLT inputs. PRH-1009 catalogues the Atlas
+// Double Traffic family with airport-class vehicles only (Charlotte, ULD
+// Can, Pushback) — but A-SAFE deploys these at HGV-class dock perimeters
+// in practice. Without this widening, F's recommender filters them out
+// for any heavy-vehicle query. Idempotent: only adds missing entries.
+//
+// Authority for the widening: GroundWorks PRH-1005 (Atlas family rated
+// 35 kJ HGV-class) + the dock-application override file already lists
+// Atlas Double Traffic / + as the canonical "Loading Docks" products.
+app.post("/api/admin/widen-atlas-vehicle-suitability", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    const ATLAS_TARGETS = [
+      "Atlas Double Traffic Barrier",
+      "Atlas Double Traffic Barrier+",
+    ];
+    const NEW_VEHICLES = [
+      "Heavy Duty Counterbalance Truck",
+      "Heavy Goods Lorry",
+      "Counterbalance Truck",
+    ];
+
+    const updated: Array<{ name: string; added: string[] }> = [];
+    const skipped: Array<{ name: string; reason: string }> = [];
+
+    for (const productName of ATLAS_TARGETS) {
+      const rows = (await sqlClient`
+        SELECT id, suitability_data
+        FROM products
+        WHERE name = ${productName} AND is_active = true
+        LIMIT 1
+      `) as Array<{ id: string; suitability_data: any }>;
+      if (rows.length === 0) {
+        skipped.push({ name: productName, reason: "row not found / inactive" });
+        continue;
+      }
+      const row = rows[0];
+      const sd = row.suitability_data;
+      if (!sd || typeof sd !== "object") {
+        skipped.push({ name: productName, reason: "suitability_data missing" });
+        continue;
+      }
+      const existing: string[] = Array.isArray(sd.vehicleSuitability)
+        ? sd.vehicleSuitability
+        : [];
+      const next = new Set<string>(existing);
+      const added: string[] = [];
+      for (const v of NEW_VEHICLES) {
+        if (!next.has(v)) {
+          next.add(v);
+          added.push(v);
+        }
+      }
+      if (added.length === 0) {
+        skipped.push({ name: productName, reason: "no-op — already widened" });
+        continue;
+      }
+      const newPayload = {
+        ...sd,
+        vehicleSuitability: Array.from(next),
+        _atlasVehicleWidenedAt: new Date().toISOString(),
+      };
+      await sqlClient`
+        UPDATE products
+        SET suitability_data = ${JSON.stringify(newPayload)}::jsonb,
+            updated_at = now()
+        WHERE id = ${row.id}
+      `;
+      updated.push({ name: productName, added });
+    }
+
+    return c.json({ ok: true, updated, skipped });
+  } catch (e: any) {
+    console.error("widen-atlas-vehicle-suitability failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // Apply VEHICLE_SUITABILITY_MAP (shared/vehicleSuitabilityMap.ts) into
 // vehicle_types.suitability_labels. Each entry keyed by DB vehicle name
 // writes its PDF-label array (possibly empty) to the matching row.
