@@ -768,7 +768,7 @@ function MissingEmailCallout({ teams }: { teams: InstallTeam[] }) {
       <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
       <div className="text-sm flex-1">
         <span className="font-medium">
-          {missing} team{missing === 1 ? "" : "s"} have no contact email
+          {missing} team{missing === 1 ? "" : "s"} {missing === 1 ? "has" : "have"} no contact email
         </span>
         {" — install-video digests will skip them. Add an email to enable notifications."}
       </div>
