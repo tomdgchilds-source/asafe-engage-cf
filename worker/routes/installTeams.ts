@@ -1,11 +1,16 @@
 import { Hono } from "hono";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Env, Variables } from "../types";
 import { authMiddleware } from "../middleware/auth";
 import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
-import { installTeams, installTeamMembers } from "../../shared/schema";
+import {
+  installTeams,
+  installTeamMembers,
+  installationAssignments,
+} from "../../shared/schema";
+import { fireInstallTeamDigest } from "./installations";
 
 // ═══════════════════════════════════════════════════════════════════
 // Install teams (external crews)
@@ -119,6 +124,69 @@ installTeamsRoutes.delete(
       .returning();
     if (!updated) return c.json({ message: "Team not found" }, 404);
     return c.json({ ok: true });
+  },
+);
+
+// ─── Test email ────────────────────────────────────────────────────
+//
+// Sends an install-video digest to the team's contact_email so the
+// admin can verify the address on /install-teams without waiting for
+// a real assignment. Picks the team's most recent installation
+// assignment to build the digest payload — if none exists, returns a
+// descriptive error so the operator knows to assign a job first.
+installTeamsRoutes.post(
+  "/install-teams/:id/test-email",
+  authMiddleware,
+  mutationRateLimit,
+  async (c) => {
+    const db = getDb(c.env.DATABASE_URL);
+    const id = c.req.param("id");
+    const [team] = await db
+      .select()
+      .from(installTeams)
+      .where(eq(installTeams.id, id))
+      .limit(1);
+    if (!team) return c.json({ ok: false, message: "Team not found" }, 404);
+    if (!team.contactEmail) {
+      return c.json(
+        { ok: false, message: "Team has no contact_email — set one first." },
+        400,
+      );
+    }
+
+    const [latest] = await db
+      .select({ installationId: installationAssignments.installationId })
+      .from(installationAssignments)
+      .where(eq(installationAssignments.teamId, id))
+      .orderBy(desc(installationAssignments.createdAt))
+      .limit(1);
+    if (!latest) {
+      return c.json(
+        {
+          ok: false,
+          message:
+            "No installation assignments exist for this team yet — assign a job before sending a test digest.",
+        },
+        400,
+      );
+    }
+
+    const result = await fireInstallTeamDigest(c.env, latest.installationId, {
+      id: team.id,
+      name: team.name,
+      leadContactName: team.leadContactName,
+      contactEmail: team.contactEmail,
+    });
+    return c.json({
+      ok: result.ok,
+      sent: result.sent,
+      recipient: result.recipient,
+      videoCount: result.videoCount,
+      productCount: result.productCount,
+      reason: result.reason,
+      messageId: result.messageId,
+      installationId: latest.installationId,
+    });
   },
 );
 
