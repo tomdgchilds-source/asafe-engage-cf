@@ -57,6 +57,7 @@ import {
   type QuoteZoneForPdf,
   type QuoteLineItemForPdf,
 } from "../lib/quoteDraftPdf";
+import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
 
 const quote = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -1181,26 +1182,35 @@ async function openAiNarrative(
         "\n```",
     },
   ];
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+  const data = await withOpenAiRetry(
+    "chat.completions.create:quote_narrative",
+    async () => {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages,
+          temperature: 0.2,
+          max_tokens: 320,
+        }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new OpenAiHttpError(
+          res.status,
+          txt,
+          `OpenAI ${res.status}: ${txt.slice(0, 200)}`,
+        );
+      }
+      return (await res.json()) as {
+        choices: Array<{ message: { content: string } }>;
+      };
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages,
-      temperature: 0.2,
-      max_tokens: 320,
-    }),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`OpenAI ${res.status}: ${txt.slice(0, 200)}`);
-  }
-  const data = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
+  );
   const out = (data.choices?.[0]?.message?.content || "").trim();
   if (!out) return fallback;
   if (!out.toLowerCase().includes("indicative")) {
