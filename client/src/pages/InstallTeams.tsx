@@ -1,13 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   Building2,
+  CheckCircle2,
   Edit3,
+  Loader2,
   Mail,
   Phone,
   Plus,
+  Send,
   Trash2,
   UserPlus,
   Users,
@@ -29,6 +34,15 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+
+// Simple, permissive email regex — same vibe as input[type=email]
+// validation. Rejects obvious typos but doesn't try to be RFC-strict.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (s: string) => EMAIL_RE.test(s.trim());
+
+// Per-session dismissal key so the empty-state callout doesn't nag
+// once the operator has acknowledged it.
+const CALLOUT_DISMISS_KEY = "install-teams.contact-email-callout.dismissed";
 
 interface InstallTeam {
   id: string;
@@ -155,6 +169,8 @@ export default function InstallTeams() {
         </Button>
       </div>
 
+      <MissingEmailCallout teams={teams} />
+
       {isLoading ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">Loading teams…</CardContent>
@@ -262,12 +278,6 @@ function TeamCard({ team, onEdit }: { team: InstallTeam; onEdit: () => void }) {
               {team.leadContactName}
             </div>
           )}
-          {team.contactEmail && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Mail className="h-3 w-3" />
-              {team.contactEmail}
-            </div>
-          )}
           {team.contactPhone && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Phone className="h-3 w-3" />
@@ -283,6 +293,8 @@ function TeamCard({ team, onEdit }: { team: InstallTeam; onEdit: () => void }) {
             </Badge>
           )}
         </div>
+
+        <ContactEmailEditor team={team} />
 
         <div className="pt-3 border-t">
           <div className="flex items-center justify-between mb-2">
@@ -541,5 +553,241 @@ function MemberDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── ContactEmailEditor ────────────────────────────────────────────
+//
+// Inline-edit row for install_teams.contact_email + chip showing
+// configured/missing state + "Send test" button. Save on blur (only
+// if changed and valid). Empty string clears the email (server stores
+// null via the existing PATCH /api/install-teams/:id endpoint).
+function ContactEmailEditor({ team }: { team: InstallTeam }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [value, setValue] = useState<string>(team.contactEmail || "");
+
+  // Re-sync local state when the upstream record changes (e.g. another
+  // tab/edit-dialog updates the team).
+  useEffect(() => {
+    setValue(team.contactEmail || "");
+  }, [team.contactEmail]);
+
+  const save = useMutation({
+    mutationFn: async (next: string | null) => {
+      const res = await apiRequest(`/api/install-teams/${team.id}`, "PATCH", {
+        contactEmail: next,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/install-teams"] });
+      toast({ title: "Contact email saved" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Save failed",
+        description: err?.message || String(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendTest = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(
+        `/api/install-teams/${team.id}/test-email`,
+        "POST",
+      );
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data?.ok && data?.sent) {
+        toast({
+          title: "Test sent",
+          description: `Delivered to ${data.recipient} (${data.videoCount ?? 0} videos, ${data.productCount ?? 0} products).`,
+        });
+      } else {
+        toast({
+          title: "Test not sent",
+          description: data?.reason || data?.message || "Resend declined.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Test failed",
+        description: err?.message || String(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const trimmed = value.trim();
+  const original = team.contactEmail || "";
+  const dirty = trimmed !== original;
+  const empty = trimmed.length === 0;
+  const validNow = empty || isValidEmail(trimmed);
+
+  const handleBlur = () => {
+    if (!dirty) return;
+    if (empty) {
+      save.mutate(null);
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      toast({
+        title: "Invalid email",
+        description: `"${trimmed}" doesn't look like a valid email address.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    save.mutate(trimmed);
+  };
+
+  const configured = !!team.contactEmail;
+
+  return (
+    <div className="pt-3 border-t space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Mail className="h-3.5 w-3.5" />
+          Contact email
+        </div>
+        {configured ? (
+          <Badge
+            className="bg-green-100 text-green-800 hover:bg-green-100 text-[10px] font-medium"
+            data-testid={`chip-email-configured-${team.id}`}
+          >
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Email configured
+          </Badge>
+        ) : (
+          <Badge
+            className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px] font-medium"
+            data-testid={`chip-email-missing-${team.id}`}
+          >
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            No email — digests skipped
+          </Badge>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="lead@example.com"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+            if (e.key === "Escape") {
+              setValue(original);
+            }
+          }}
+          aria-invalid={!validNow}
+          className={
+            !validNow
+              ? "border-red-400 focus-visible:ring-red-400 text-sm h-8"
+              : "text-sm h-8"
+          }
+          data-testid={`input-team-email-${team.id}`}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0"
+          disabled={!configured || sendTest.isPending || dirty}
+          onClick={() => sendTest.mutate()}
+          title={
+            !configured
+              ? "Set a contact email first"
+              : dirty
+                ? "Save the email change first (blur the field)"
+                : "Send a test install-video digest to this team"
+          }
+          data-testid={`btn-send-test-${team.id}`}
+        >
+          {sendTest.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Send className="h-3.5 w-3.5" />
+          )}
+          <span className="ml-1 text-xs">Send test</span>
+        </Button>
+      </div>
+      {!validNow && (
+        <p className="text-[11px] text-red-600">
+          Enter a valid email address (e.g. lead@example.com).
+        </p>
+      )}
+      {save.isPending && (
+        <p className="text-[11px] text-muted-foreground">Saving…</p>
+      )}
+    </div>
+  );
+}
+
+// ─── MissingEmailCallout ───────────────────────────────────────────
+//
+// Top-of-page nudge: counts teams without a contact_email and warns
+// that those teams will be silently skipped by the auto-digest. Per-
+// session dismiss (localStorage) so it stops nagging once Sagarika
+// has clocked it.
+function MissingEmailCallout({ teams }: { teams: InstallTeam[] }) {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return typeof window !== "undefined" &&
+        window.localStorage.getItem(CALLOUT_DISMISS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const missing = useMemo(
+    () => teams.filter((t) => t.active && !(t.contactEmail || "").trim()).length,
+    [teams],
+  );
+
+  if (dismissed) return null;
+  if (missing === 0) return null;
+
+  return (
+    <div
+      className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 flex items-start gap-3"
+      data-testid="callout-missing-email"
+    >
+      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+      <div className="text-sm flex-1">
+        <span className="font-medium">
+          {missing} team{missing === 1 ? "" : "s"} have no contact email
+        </span>
+        {" — install-video digests will skip them. Add an email to enable notifications."}
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 w-6 p-0 text-amber-900 hover:bg-amber-100"
+        onClick={() => {
+          try {
+            window.localStorage.setItem(CALLOUT_DISMISS_KEY, "1");
+          } catch {
+            /* localStorage may be disabled — non-fatal */
+          }
+          setDismissed(true);
+        }}
+        aria-label="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
   );
 }
