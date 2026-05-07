@@ -42,7 +42,8 @@ export type GuardrailCode =
   | "deflection_zone_obstructed"
   | "scale_not_set"
   | "vehicle_class_mismatch"
-  | "anchor_floor_mismatch";
+  | "anchor_floor_mismatch"
+  | "underfloor_services_advisory";
 
 export interface GuardrailViolation {
   /** Stable identifier so React reconciles row order across recomputes. */
@@ -573,6 +574,24 @@ export function evaluateGuardrails(
           citation: GROUNDWORKS_CITATION,
         });
       }
+    }
+  }
+
+  // ─── Rule 6: underfloor_services_advisory ──────────────────────────────
+  // Floor type "underfloor_services" means the slab has utilities below
+  // (electrical, drains, plumbing). Anchor depths from the standard
+  // GroundWorks spec may damage them. We surface one advisory chip per
+  // barrier so designers / engineering verify before installation.
+  if (floorType === "underfloor_services") {
+    for (const { markup } of barrierPolys) {
+      violations.push({
+        id: `underfloor_services_advisory:${markup.id}`,
+        markupId: markup.id,
+        severity: "warning",
+        code: "underfloor_services_advisory",
+        message: `Floor type "Underfloor services" — anchor depth may damage utilities (electrical, drains, plumbing). Confirm anchor specs with A-SAFE engineering before installation.`,
+        citation: GROUNDWORKS_CITATION,
+      });
     }
   }
 
