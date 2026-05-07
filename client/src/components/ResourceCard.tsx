@@ -12,6 +12,18 @@ import {
 import { Download, File, FileText, Image, Archive, ExternalLink, Video, PlayCircle, Share2, Mail, MessageCircle } from "lucide-react";
 import type { Resource } from "@shared/schema";
 
+// Format an integer-second duration as M:SS or H:MM:SS — YouTube-style.
+// Returns null for null / 0 / negative so the caller can skip rendering.
+function formatDuration(s: number | null | undefined): string | null {
+  if (typeof s !== "number" || s <= 0) return null;
+  const total = Math.round(s);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
 interface ResourceCardProps {
   resource: Resource;
   onDownload?: (resource: Resource) => void;
@@ -193,6 +205,14 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <PlayCircle className="h-10 w-10 text-white drop-shadow-lg opacity-90" />
                   </div>
+                )}
+                {isVideo && formatDuration(resource.durationSeconds) && (
+                  <span
+                    className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/75 text-white text-[10px] font-semibold leading-none tabular-nums pointer-events-none"
+                    data-testid={`resource-duration-${resource.id}`}
+                  >
+                    {formatDuration(resource.durationSeconds)}
+                  </span>
                 )}
                 <div className="absolute -bottom-1 -right-1 p-1 bg-white dark:bg-gray-800 rounded-full shadow-sm">
                   <FileIcon className="h-3 w-3 text-gray-600 dark:text-gray-400" />
