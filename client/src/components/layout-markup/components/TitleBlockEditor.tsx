@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +12,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
-import type { TitleBlockMeta } from "./TitleBlockFrame";
+import {
+  FLOOR_TYPE_LABELS,
+  type FloorType,
+  type TitleBlockMeta,
+} from "./TitleBlockFrame";
+
+interface VehicleTypeOption {
+  id: string;
+  name: string;
+  category?: string | null;
+}
 
 interface TitleBlockEditorProps {
   isOpen: boolean;
@@ -30,6 +48,14 @@ interface TitleBlockEditorProps {
 export function TitleBlockEditor({ isOpen, onOpenChange, initial, onSave }: TitleBlockEditorProps) {
   const [form, setForm] = useState<TitleBlockMeta>(initial);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Vehicle types catalog — fetched lazily when the dialog opens so we
+  // don't pay the network cost for users who never edit the title block.
+  const { data: vehicleTypes = [] } = useQuery<VehicleTypeOption[]>({
+    queryKey: ["/api/vehicle-types"],
+    enabled: isOpen,
+    staleTime: 5 * 60_000,
+  });
 
   useEffect(() => {
     if (isOpen) setForm(initial);
@@ -94,6 +120,67 @@ export function TitleBlockEditor({ isOpen, onOpenChange, initial, onSave }: Titl
           </div>
 
           <Field label="Scale" placeholder="NTS" value={form.drawingScale ?? ""} onChange={(v) => setForm({ ...form, drawingScale: v })} mono />
+
+          {/* PAS 13 inputs — drive the anchor_floor_mismatch and
+              vehicle_class_mismatch guardrail rules in the layout tool. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Floor type</Label>
+              <Select
+                value={form.floorType ?? "__unset"}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    floorType: v === "__unset" ? null : (v as FloorType),
+                  })
+                }
+              >
+                <SelectTrigger data-testid="title-block-floor-type">
+                  <SelectValue placeholder="Select substrate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unset">— Not set —</SelectItem>
+                  {FLOOR_TYPE_LABELS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Drives PAS 13 anchor / substrate compliance checks.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Vehicle type</Label>
+              <Select
+                value={form.vehicleTypeId ?? "__unset"}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    vehicleTypeId: v === "__unset" ? null : v,
+                  })
+                }
+              >
+                <SelectTrigger data-testid="title-block-vehicle-type">
+                  <SelectValue placeholder="Select vehicle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unset">— Not set —</SelectItem>
+                  {vehicleTypes.map((vt) => (
+                    <SelectItem key={vt.id} value={vt.id}>
+                      {vt.name}
+                      {vt.category ? ` (${vt.category})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Activates the vehicle-class mismatch rule per barrier.
+              </p>
+            </div>
+          </div>
 
           <div className="space-y-1">
             <Label>Notes section (one line per bullet)</Label>

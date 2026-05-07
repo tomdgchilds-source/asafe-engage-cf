@@ -381,6 +381,11 @@ layoutDrawings.patch("/layout-drawings/:id", mutationRateLimit, async (c) => {
       "location",
       "revisionHistory",
       "notesSection",
+      // PAS 13 inputs the title-block editor now writes:
+      //   floorType drives the anchor_floor_mismatch + underfloor_services
+      //   advisory rules; vehicleTypeId activates vehicle_class_mismatch.
+      "floorType",
+      "vehicleTypeId",
     ];
     for (const f of fields) {
       if (f in body) allowed[f] = body[f];

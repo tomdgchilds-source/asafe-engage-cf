@@ -9,6 +9,31 @@ import queensAwardImg from "@/assets/brand/queens-award.png";
 import type { LayoutMarkup } from "@shared/schema";
 
 /**
+ * Substrate type the barriers will be installed on. snake_case enum that
+ * mirrors `layout_drawings.floor_type`. UAE-specific values:
+ *   - "interlock"          : interlocking paving blocks (common in MENA)
+ *   - "underfloor_services": utilities (electrical, drains, plumbing) under
+ *                            the slab — anchor depth requires verification.
+ */
+export type FloorType =
+  | "concrete"
+  | "asphalt"
+  | "interlock"
+  | "tiles"
+  | "underfloor_services"
+  | "other";
+
+/** Display labels keyed by enum value. Order matches dropdown order. */
+export const FLOOR_TYPE_LABELS: Array<{ value: FloorType; label: string }> = [
+  { value: "concrete", label: "Concrete" },
+  { value: "asphalt", label: "Asphalt" },
+  { value: "interlock", label: "Interlock" },
+  { value: "tiles", label: "Tiles" },
+  { value: "underfloor_services", label: "Underfloor services" },
+  { value: "other", label: "Other" },
+];
+
+/**
  * Metadata block rendered inside the title frame. All fields are optional —
  * a drawing that hasn't been filled in yet gracefully falls back to "TBD"
  * / the current date / a generated drawing number so the frame is always
@@ -25,6 +50,13 @@ export interface TitleBlockMeta {
   checkedBy?: string | null;     // initials
   revisionHistory?: Array<{ rev: string; date: string; notes: string }> | null;
   notesSection?: string | null;
+  /** Floor / substrate the barriers will be installed on. snake_case
+   *  enum value backed by `layout_drawings.floor_type`. Drives the
+   *  PAS 13 anchor_floor_mismatch + underfloor_services guardrails. */
+  floorType?: FloorType | null;
+  /** Selected vehicle type id (FK → vehicle_types). Drives the
+   *  vehicle_class_mismatch guardrail. */
+  vehicleTypeId?: string | null;
   /** Copy displayed in the top-right address block. */
   officeName?: string;
   officeAddressLines?: string[];

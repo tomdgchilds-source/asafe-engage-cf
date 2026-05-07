@@ -499,6 +499,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
           projectName: meta.project ?? null,
           revisionHistory: meta.revisionHistory ?? null,
           notesSection: meta.notesSection ?? null,
+          floorType: meta.floorType ?? null,
+          vehicleTypeId: meta.vehicleTypeId ?? null,
         }),
       });
       if (!response.ok) throw new Error("Failed to save drawing metadata");
@@ -1521,14 +1523,13 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     return { byName };
   }, [catalogForGuardrails]);
 
-  // The Layout Drawing tool doesn't yet ship its own vehicle picker, so
-  // the selectedVehicleTypeIds list is empty by default. Future waves
-  // can plumb in a project-level vehicle selection without changing this
-  // component's signature. (See report — degrades to "no signal".)
-  const selectedVehicleTypeIdsForGuardrails: string[] = useMemo(
-    () => [],
-    [],
-  );
+  // The vehicle picker on the title block now drives this. Empty array
+  // when no vehicle is selected — vehicle_class_mismatch rule degrades
+  // to "no signal" rather than firing falsely.
+  const selectedVehicleTypeIdsForGuardrails: string[] = useMemo(() => {
+    const id = (drawing as any)?.vehicleTypeId;
+    return id ? [id as string] : [];
+  }, [drawing]);
 
   // Free-text the floor-mismatch rule scans for substrate keywords.
   // Combines drawing-level notes + per-markup comments so designers can
@@ -1551,6 +1552,7 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
       vehicleTypes: vehicleTypesCatalog as any[],
       productLookup: guardrailProductLookup,
       layoutNotesText: layoutNotesForGuardrails,
+      layoutFloorType: (drawing as any)?.floorType ?? null,
     });
   }, [
     guardrailsDisabled,
@@ -1561,6 +1563,7 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     vehicleTypesCatalog,
     guardrailProductLookup,
     layoutNotesForGuardrails,
+    drawing,
   ]);
 
   const guardrailViolationsByMarkup = useMemo(
@@ -1605,6 +1608,8 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
     project: (drawing as any)?.projectName || (drawing as any)?.company || null,
     revisionHistory: (drawing as any)?.revisionHistory || null,
     notesSection: (drawing as any)?.notesSection || null,
+    floorType: (drawing as any)?.floorType || null,
+    vehicleTypeId: (drawing as any)?.vehicleTypeId || null,
   };
 
   // Compose the barrier key from drawn markups. Each distinct cartItemId
