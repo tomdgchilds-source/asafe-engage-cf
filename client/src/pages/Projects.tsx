@@ -61,7 +61,12 @@ import {
   Copy,
   Eye,
   FileText,
+  CheckCircle,
+  XCircle,
+  MessageSquare,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { QuoteDraftDrawer, type QuoteDraftPayload } from "@/components/QuoteDraftDrawer";
 import type {
@@ -972,13 +977,9 @@ function ProjectDetailPane({
           />
         </TabsContent>
 
-        {/* Activity stub */}
+        {/* Activity tab — customer audit trail (views + approvals) */}
         <TabsContent value="activity" className="mt-4">
-          <Card>
-            <CardContent className="p-8 text-center text-sm text-muted-foreground">
-              Activity timeline coming soon.
-            </CardContent>
-          </Card>
+          <ActivitySection projectId={projectId} />
         </TabsContent>
       </Tabs>
     </div>
@@ -2326,5 +2327,173 @@ function AddCollaboratorModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Activity / customer audit timeline ─────────────────────────────
+// Renders the unified view + approval log for a project. The endpoint
+// returns events newest-first; we render them as a vertical timeline.
+// Icon + colour follow the same per-type pattern NotificationCenter
+// uses (CheckCircle/XCircle/MessageSquare/Eye) so the visual language
+// is consistent across the app.
+
+type ProjectActivityEvent = {
+  id: string;
+  eventType: "view" | "approved" | "changes_requested";
+  createdAt: string | null;
+  approverName: string | null;
+  approverEmail: string | null;
+  comments: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+};
+
+const ACTIVITY_META: Record<
+  ProjectActivityEvent["eventType"],
+  { label: string; Icon: typeof Eye; bg: string; fg: string }
+> = {
+  view: {
+    label: "Viewed share link",
+    Icon: Eye,
+    bg: "bg-blue-100 dark:bg-blue-900/30",
+    fg: "text-blue-700 dark:text-blue-300",
+  },
+  approved: {
+    label: "Approved",
+    Icon: CheckCircle,
+    bg: "bg-green-100 dark:bg-green-900/30",
+    fg: "text-green-700 dark:text-green-300",
+  },
+  changes_requested: {
+    label: "Requested changes",
+    Icon: MessageSquare,
+    bg: "bg-amber-100 dark:bg-amber-900/30",
+    fg: "text-amber-700 dark:text-amber-300",
+  },
+};
+
+function ActivitySection({ projectId }: { projectId: string }) {
+  const { data, isLoading, isError } = useQuery<{ events: ProjectActivityEvent[] }>({
+    queryKey: [`/api/projects/${projectId}/approvals`],
+    // 30s — these events trickle in via the public share viewer; a
+    // periodic refetch is plenty.
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-sm text-muted-foreground">
+          Couldn't load activity. Refresh the page to try again.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const events = data?.events ?? [];
+
+  if (events.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center" data-testid="activity-empty">
+          <Eye className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">
+            No customer activity yet on this project.
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Views, approvals, and change requests through the customer share
+            link will appear here.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <ScrollArea className="max-h-[560px]">
+          <ol className="relative px-6 py-5" data-testid="activity-timeline">
+            {/* Vertical connector running through the icons */}
+            <div className="absolute left-[31px] top-7 bottom-7 w-px bg-border" />
+            {events.map((evt) => (
+              <ActivityRow key={evt.id} event={evt} />
+            ))}
+          </ol>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActivityRow({ event }: { event: ProjectActivityEvent }) {
+  const meta = ACTIVITY_META[event.eventType];
+  const Icon = meta.Icon;
+  const when = event.createdAt
+    ? formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })
+    : "";
+  const exact = event.createdAt
+    ? new Date(event.createdAt).toLocaleString()
+    : undefined;
+
+  const who = event.approverName || event.approverEmail;
+  const fingerprint = [event.userAgent, event.ipAddress]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <li
+      className="relative pl-12 pb-5 last:pb-0"
+      data-testid={`activity-event-${event.eventType}`}
+    >
+      <div
+        className={cn(
+          "absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full ring-4 ring-background",
+          meta.bg,
+          meta.fg,
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-foreground">
+            {meta.label}
+            {who && (
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                — {who}
+              </span>
+            )}
+          </div>
+          {event.comments && (
+            <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line">
+              {event.comments}
+            </p>
+          )}
+          {fingerprint && (
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              {fingerprint}
+            </p>
+          )}
+        </div>
+        <span
+          className="flex-shrink-0 text-xs text-muted-foreground whitespace-nowrap mt-0.5"
+          title={exact}
+        >
+          {when}
+        </span>
+      </div>
+    </li>
   );
 }
