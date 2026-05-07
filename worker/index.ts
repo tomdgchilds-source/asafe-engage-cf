@@ -5158,6 +5158,255 @@ app.post("/api/admin/ingest-installation-videos", async (c) => {
   }
 });
 
+// ─── Admin: backfill resources.duration_seconds from Whisper + dataset ───
+//
+// Lists every video-typed row in `resources` (file_type = 'video' OR
+// resource_type ILIKE '%video%' OR file_url containing youtube/youtu.be)
+// and resolves a runtime in seconds for each by, in order:
+//   1. R2 lookup at pas13/whisper/<videoId>.json — the OpenAI Whisper
+//      verbose_json response from /api/pas13/admin/whisper-transcribe.
+//      `duration` is a float number of seconds; we round to integer.
+//   2. The bundled scripts/data/installation-videos.json dataset, which
+//      yt-dlp scraped at playlist ingest time. `duration` is already
+//      whole seconds.
+// videoId is extracted from resources.external_id (canonical, set by
+// the install-videos ingest) with a regex fallback over file_url for
+// any legacy rows missing external_id.
+//
+// Defensive against a single missing/malformed transcript: collects
+// per-video errors into the response and keeps going. Idempotent —
+// re-running re-resolves and only writes when the new value differs.
+//
+// Returns { scanned, backfilled, alreadySet, missing[], errors[] }.
+// Gated by MIGRATION_TOKEN (bearer), same pattern as the sibling admin
+// one-offs. Run after /api/admin/apply-resource-duration-schema so the
+// column exists.
+app.post("/api/admin/backfill-resource-durations", async (c) => {
+  const expected = (c.env as any).MIGRATION_TOKEN;
+  if (!expected) {
+    return c.json({ ok: false, message: "MIGRATION_TOKEN not configured" }, 500);
+  }
+  const auth = c.req.header("authorization") || "";
+  const provided = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  if (!provided || provided !== expected) {
+    return c.json({ ok: false, message: "Unauthorized" }, 401);
+  }
+  if (!c.env.DATABASE_URL) {
+    return c.json({ ok: false, message: "DATABASE_URL not configured" }, 500);
+  }
+
+  try {
+    const { neon } = await import("@neondatabase/serverless");
+    const sqlClient = neon(c.env.DATABASE_URL);
+
+    // Probe the column exists — we don't auto-run the migration here so
+    // the caller is forced to run /apply-resource-duration-schema first.
+    const colCheck = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'resources' AND column_name = 'duration_seconds'
+    `) as any[];
+    if (colCheck.length === 0) {
+      return c.json(
+        {
+          ok: false,
+          message:
+            "resources.duration_seconds missing — run /api/admin/apply-resource-duration-schema first",
+        },
+        409,
+      );
+    }
+
+    // Detect optional external_id column for clean lookups; legacy rows
+    // without it fall back to regex extraction from file_url.
+    const externalIdCheck = (await sqlClient`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'resources' AND column_name = 'external_id'
+    `) as any[];
+    const hasExternalId = externalIdCheck.length > 0;
+
+    // Pull every plausibly-video row. We over-select then filter on
+    // videoId presence so the response separately reports rows we
+    // couldn't extract a YouTube ID from at all.
+    const rows = hasExternalId
+      ? ((await sqlClient`
+          SELECT id, title, file_url, external_id, resource_type, file_type, duration_seconds
+          FROM resources
+          WHERE is_active = true
+            AND (
+              file_type = 'video'
+              OR resource_type ILIKE '%video%'
+              OR file_url ILIKE '%youtube.com%'
+              OR file_url ILIKE '%youtu.be%'
+            )
+        `) as Array<{
+          id: string;
+          title: string;
+          file_url: string | null;
+          external_id: string | null;
+          resource_type: string | null;
+          file_type: string | null;
+          duration_seconds: number | null;
+        }>)
+      : ((await sqlClient`
+          SELECT id, title, file_url, NULL::text AS external_id, resource_type, file_type, duration_seconds
+          FROM resources
+          WHERE is_active = true
+            AND (
+              file_type = 'video'
+              OR resource_type ILIKE '%video%'
+              OR file_url ILIKE '%youtube.com%'
+              OR file_url ILIKE '%youtu.be%'
+            )
+        `) as Array<{
+          id: string;
+          title: string;
+          file_url: string | null;
+          external_id: string | null;
+          resource_type: string | null;
+          file_type: string | null;
+          duration_seconds: number | null;
+        }>);
+
+    // Index the bundled installation-videos.json by videoId — that file
+    // already has whole-second durations from yt-dlp. We use it as the
+    // primary fallback when R2 doesn't have a Whisper transcript for
+    // that video.
+    const datasetModule: any = await import(
+      "../scripts/data/installation-videos.json"
+    );
+    const dataset = datasetModule.default || datasetModule;
+    const datasetVideos: Array<{ videoId: string; duration?: number }> =
+      Array.isArray(dataset?.videos) ? dataset.videos : [];
+    const datasetByVideoId = new Map<string, number>();
+    for (const v of datasetVideos) {
+      if (v.videoId && typeof v.duration === "number" && v.duration > 0) {
+        datasetByVideoId.set(v.videoId, Math.round(v.duration));
+      }
+    }
+
+    // Helper: extract a YouTube id from any of the three URL shapes the
+    // ingest stores (watch?v= / youtu.be / embed/).
+    const extractVideoId = (url: string | null): string | null => {
+      if (!url) return null;
+      const m1 = url.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+      if (m1) return m1[1];
+      const m2 = url.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+      if (m2) return m2[1];
+      const m3 = url.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/);
+      if (m3) return m3[1];
+      return null;
+    };
+
+    // Helper: try R2 for the Whisper transcript JSON. Returns rounded
+    // integer seconds when present + parseable, null otherwise. We never
+    // throw — a single missing/corrupt transcript shouldn't crash the
+    // whole backfill.
+    const bucket = c.env.R2_BUCKET;
+    const tryR2Duration = async (videoId: string): Promise<number | null> => {
+      if (!bucket) return null;
+      const key = `pas13/whisper/${videoId}.json`;
+      try {
+        const obj = await bucket.get(key);
+        if (!obj) return null;
+        const raw = await obj.text();
+        const parsed = JSON.parse(raw) as { duration?: number };
+        if (typeof parsed.duration === "number" && parsed.duration > 0) {
+          return Math.round(parsed.duration);
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    let backfilled = 0;
+    let alreadySet = 0;
+    const missing: Array<{
+      id: string;
+      title: string;
+      videoId: string | null;
+      reason: string;
+    }> = [];
+    const errors: Array<{ id: string; title: string; error: string }> = [];
+
+    for (const row of rows) {
+      try {
+        const videoId =
+          (row.external_id && row.external_id.trim()) ||
+          extractVideoId(row.file_url);
+        if (!videoId) {
+          missing.push({
+            id: row.id,
+            title: row.title,
+            videoId: null,
+            reason: "could not extract videoId from file_url",
+          });
+          continue;
+        }
+
+        // Whisper-in-R2 first, dataset fallback. Source is recorded for
+        // audit but not surfaced in the response — the count tells you
+        // enough; if you need details, re-run with logs on.
+        let durationSec: number | null = await tryR2Duration(videoId);
+        let source: "whisper-r2" | "dataset" | null = durationSec ? "whisper-r2" : null;
+        if (durationSec == null) {
+          const fromDataset = datasetByVideoId.get(videoId);
+          if (typeof fromDataset === "number") {
+            durationSec = fromDataset;
+            source = "dataset";
+          }
+        }
+        if (durationSec == null) {
+          missing.push({
+            id: row.id,
+            title: row.title,
+            videoId,
+            reason: "no whisper transcript in R2 and no dataset entry",
+          });
+          continue;
+        }
+        if (row.duration_seconds === durationSec) {
+          alreadySet++;
+          continue;
+        }
+        await sqlClient`
+          UPDATE resources
+          SET duration_seconds = ${durationSec}, updated_at = now()
+          WHERE id = ${row.id}
+        `;
+        backfilled++;
+        // Log per-row for prod traceability — small set (≤ 30 rows) so
+        // the noise is bounded and useful when verifying.
+        console.log(
+          `[backfill-resource-durations] ${row.id} (${videoId}) ${durationSec}s via ${source}`,
+        );
+      } catch (err: any) {
+        errors.push({
+          id: row.id,
+          title: row.title,
+          error: err?.message || String(err),
+        });
+      }
+    }
+
+    return c.json({
+      ok: true,
+      scanned: rows.length,
+      backfilled,
+      alreadySet,
+      missingCount: missing.length,
+      missing,
+      errorCount: errors.length,
+      errors,
+    });
+  } catch (e: any) {
+    console.error("backfill-resource-durations failed:", e);
+    return c.json({ ok: false, message: e?.message || String(e) }, 500);
+  }
+});
+
 // ─── Admin: replay the install-team digest for an existing assignment ───
 //
 // MIGRATION_TOKEN-gated. Lets ops reproduce the "watch-before-site-visit"
