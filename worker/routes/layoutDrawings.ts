@@ -7,8 +7,63 @@ import {
 } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { parseLayoutDoc, type Calibration, type LayoutDoc } from "../../shared/layout/doc";
+import { markupsToDoc } from "../../shared/layout/migrateMarkups";
 
 const layoutDrawings = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// =============================================
+// PHASE 4 DOCUMENT HELPERS (pure, unit-tested in layoutDrawings.doc.test.ts)
+// =============================================
+
+/**
+ * Legacy mirror of a LayoutDoc calibration. Older screens (the layout-markup
+ * editor, proposal PDF, drawing cards) still read `scale` (px per mm),
+ * `scaleLine` ({start, end, actualLength, zoomLevel}) and `isScaleSet`, so
+ * every document save keeps those columns in step. No calibration clears
+ * them so a stale legacy scale can never outlive the doc that removed it.
+ */
+export function legacyScaleFromCalibration(
+  cal: Calibration | undefined,
+): { scale: number | null; scaleLine: unknown; isScaleSet: boolean } {
+  if (!cal) return { scale: null, scaleLine: null, isScaleSet: false };
+  const dx = cal.b.x - cal.a.x;
+  const dy = cal.b.y - cal.a.y;
+  const px = Math.hypot(dx, dy);
+  if (!(px > 0) || !(cal.lengthMm > 0)) {
+    return { scale: null, scaleLine: null, isScaleSet: false };
+  }
+  return {
+    scale: px / cal.lengthMm,
+    scaleLine: {
+      start: { x: cal.a.x, y: cal.a.y },
+      end: { x: cal.b.x, y: cal.b.y },
+      actualLength: cal.lengthMm,
+      zoomLevel: 1,
+    },
+    isScaleSet: true,
+  };
+}
+
+export type BaseVersionCheck =
+  | { ok: true; baseVersion: number }
+  | { ok: false; status: 400; error: string }
+  | { ok: false; status: 409; error: string };
+
+/**
+ * Optimistic-concurrency gate for PUT .../document. `baseVersion` must be a
+ * non-negative integer (400 otherwise) and must equal the row's current
+ * `documentVersion` (409 otherwise — the caller re-reads and merges).
+ */
+export function checkBaseVersion(baseVersion: unknown, currentVersion: number): BaseVersionCheck {
+  if (typeof baseVersion !== "number" || !Number.isInteger(baseVersion) || baseVersion < 0) {
+    return { ok: false, status: 400, error: "baseVersion must be a non-negative integer" };
+  }
+  if (baseVersion !== currentVersion) {
+    return { ok: false, status: 409, error: "Document has changed since baseVersion" };
+  }
+  return { ok: true, baseVersion };
+}
 
 // All layout drawing and markup routes require authentication
 layoutDrawings.use("/layout-drawings/*", authMiddleware);
@@ -398,6 +453,142 @@ layoutDrawings.patch("/layout-drawings/:id", mutationRateLimit, async (c) => {
     return c.json(updated);
   } catch (error) {
     console.error("Error updating layout drawing:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// =============================================
+// PHASE 4 DOCUMENT ROUTES (plan Task L4)
+// =============================================
+
+// GET /api/layout-drawings/:id/document
+// Returns { document: LayoutDoc, version: number, migratedFromMarkups: boolean }.
+// Lazy migration (plan Task L0): when `document` is NULL the drawing's
+// non-deleted layout_markups are converted with markupsToDoc, saved as
+// version 1, and the source rows are soft-deleted so quantities are never
+// double-counted between the legacy and new editors.
+layoutDrawings.get("/layout-drawings/:id/document", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const id = c.req.param("id");
+    const drawing = await storage.getLayoutDrawing(id);
+    if (!drawing || drawing.userId !== userId) {
+      return c.json({ error: "Layout drawing not found" }, 404);
+    }
+
+    const current = await storage.getLayoutDoc(id);
+    if (current?.document) {
+      return c.json({ document: current.document, version: current.version, migratedFromMarkups: false });
+    }
+
+    // No document yet (or an unparseable one at version 0): build it from
+    // the legacy markups and the drawing's scale line.
+    const rows = await storage.getLayoutMarkups(id);
+    const doc: LayoutDoc = markupsToDoc(
+      rows.map((m) => ({
+        id: m.id,
+        layoutDrawingId: m.layoutDrawingId,
+        cartItemId: m.cartItemId,
+        productName: m.productName,
+        xPosition: m.xPosition,
+        yPosition: m.yPosition,
+        endX: m.endX,
+        endY: m.endY,
+        pathData: m.pathData,
+        comment: m.comment,
+        calculatedLength: m.calculatedLength,
+        deletedAt: m.deletedAt,
+      })),
+      {
+        id: drawing.id,
+        scale: drawing.scale,
+        scaleLine: drawing.scaleLine,
+        isScaleSet: drawing.isScaleSet,
+        vehicleTypeId: drawing.vehicleTypeId,
+        floorType: drawing.floorType,
+      },
+    );
+
+    const expected = current?.version ?? 0;
+    const saved = await storage.saveLayoutDoc(id, doc, expected, {
+      retireMarkups: rows.length > 0,
+    });
+    if (!saved) {
+      // Lost a race with a concurrent first GET / PUT — serve whatever won.
+      const again = await storage.getLayoutDoc(id);
+      if (again?.document) {
+        return c.json({ document: again.document, version: again.version, migratedFromMarkups: false });
+      }
+      return c.json({ error: "Document migration conflict, retry" }, 409);
+    }
+    return c.json({ document: doc, version: saved.version, migratedFromMarkups: true });
+  } catch (error) {
+    console.error("Error fetching layout document:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// PUT /api/layout-drawings/:id/document
+// Body { document: LayoutDoc, baseVersion: number } → { version: number }.
+// 400 when the document fails parseLayoutDoc or baseVersion is malformed;
+// 409 { error, current: { document, version } } when baseVersion is stale.
+// The calibration is mirrored into scale / scaleLine / isScaleSet so the
+// legacy editor, proposal PDF and drawing cards keep working.
+layoutDrawings.put("/layout-drawings/:id/document", mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const id = c.req.param("id");
+    const drawing = await storage.getLayoutDrawing(id);
+    if (!drawing || drawing.userId !== userId) {
+      return c.json({ error: "Layout drawing not found" }, 404);
+    }
+
+    let body: { document?: unknown; baseVersion?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    const doc = parseLayoutDoc(body?.document);
+    if (!doc) {
+      return c.json({ error: "Invalid document: expected { version: 1, elements: [] }" }, 400);
+    }
+
+    const current = await storage.getLayoutDoc(id);
+    const currentVersion = current?.version ?? 0;
+    const check = checkBaseVersion(body?.baseVersion, currentVersion);
+    if (!check.ok) {
+      if (check.status === 409) {
+        return c.json(
+          { error: check.error, current: { document: current?.document ?? null, version: currentVersion } },
+          409,
+        );
+      }
+      return c.json({ error: check.error }, 400);
+    }
+
+    const saved = await storage.saveLayoutDoc(id, doc, check.baseVersion, {
+      legacyScale: legacyScaleFromCalibration(doc.calibration),
+    });
+    if (!saved) {
+      // Version moved between our read and the compare-and-swap.
+      const latest = await storage.getLayoutDoc(id);
+      return c.json(
+        {
+          error: "Document has changed since baseVersion",
+          current: { document: latest?.document ?? null, version: latest?.version ?? currentVersion },
+        },
+        409,
+      );
+    }
+    return c.json({ version: saved.version });
+  } catch (error) {
+    console.error("Error saving layout document:", error);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
