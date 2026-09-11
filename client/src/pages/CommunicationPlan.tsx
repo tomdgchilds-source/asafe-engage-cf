@@ -449,11 +449,11 @@ export default function CommunicationPlan() {
               <CardContent className="py-8 text-center text-muted-foreground">
                 <p className="mb-4">No templates seeded yet.</p>
                 <p className="text-sm">
-                  Run the migration endpoint{" "}
+                  An admin needs to apply the pending migrations at{" "}
                   <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-                    POST /api/admin/apply-comm-templates-schema
-                  </code>{" "}
-                  to seed the defaults.
+                    /admin/migrations
+                  </code>
+                  . The default templates are seeded on the next visit.
                 </p>
               </CardContent>
             </Card>

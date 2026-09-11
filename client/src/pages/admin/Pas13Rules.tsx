@@ -268,11 +268,9 @@ export default function Pas13Rules() {
             <div>
               <CardTitle className="text-base">Schema not applied yet</CardTitle>
               <CardDescription>
-                Run{" "}
-                <code className="text-xs">
-                  POST /api/admin/apply-pas13-classes-schema
-                </code>{" "}
-                with the migration token before editing.
+                An admin needs to apply the pending migrations at{" "}
+                <code className="text-xs">/admin/migrations</code> before
+                editing.
               </CardDescription>
             </div>
           </CardHeader>

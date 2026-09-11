@@ -347,15 +347,9 @@ export default function UsageReport() {
         )}
         {error && (
           <p className="text-sm text-red-600 py-8 text-center">
-            Failed to load usage report. Run{" "}
-            <code className="px-1 bg-muted rounded">
-              /api/admin/apply-login-tracking
-            </code>{" "}
-            and{" "}
-            <code className="px-1 bg-muted rounded">
-              /api/admin/apply-quote-drafts-schema
-            </code>{" "}
-            with the migration token if columns are missing.
+            Failed to load usage report. If columns are missing, an admin
+            needs to apply the pending migrations at{" "}
+            <code className="px-1 bg-muted rounded">/admin/migrations</code>.
           </p>
         )}
         {data && (

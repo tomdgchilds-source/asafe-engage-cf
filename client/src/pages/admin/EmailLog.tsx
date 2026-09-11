@@ -209,11 +209,9 @@ export default function EmailLog() {
                 email_log table not yet created
               </CardTitle>
               <CardDescription>
-                Run{" "}
-                <code className="text-xs">
-                  POST /api/admin/apply-email-log-schema
-                </code>{" "}
-                with the migration token before this page can show data.
+                An admin needs to apply the pending migrations at{" "}
+                <code className="text-xs">/admin/migrations</code> before
+                this page can show data.
               </CardDescription>
             </div>
           </CardHeader>
