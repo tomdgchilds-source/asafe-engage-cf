@@ -173,7 +173,7 @@ Tests: at least 8 cases including clamps and rank ties (ties broken by severity 
 - Primary actions: "Continue walk", "Generate proposal" (Task S6), "Build order form" (bulk-add recommended barriers with their lengths to the cart, using the fixed modal from Phase 1), "Complete survey" (snapshot, Task S7).
 - Remove "Generate quote draft" button (the proposal replaces it) but keep the route alive for now.
 
-## Task S6: Proposal document (server-side pdf-lib)
+## Task S6: Proposal document (server-side pdf-lib) — SUPERSEDED by `2026-09-11-engage-phase3d-documents.md` (Tasks PD1–PD3). Kept for reference only.
 
 **Owns:** `worker/lib/pdf/` (new: `doc.ts` layout primitives, `theme.ts`, `images.ts`, `proposal.ts`, `orderForm.ts`, `proposal.test.ts`), `worker/routes/proposal.ts` (new), mount line in `worker/index.ts`, `package.json` (`pdf-lib` dependency), deletion of `client/src/utils/siteSurveyPdfGenerator.ts` and `client/src/utils/orderFormPdfGenerator.ts` and `worker/lib/orderFormPdfV2.ts` and `worker/lib/quoteDraftPdf.ts` once the new renderer is wired (and their call sites in `SiteSurvey.tsx`, `OrderForm.tsx`, `orderForm.ts`, `quote.ts` — one-line replacements allowed).
 
