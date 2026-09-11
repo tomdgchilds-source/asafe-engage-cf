@@ -85,7 +85,7 @@ export function OfflineBanner({
         data-testid="banner-reconnected"
       >
         <CheckCircle2 className="h-4 w-4" />
-        <span className="flex-1">Back online — changes synced.</span>
+        <span className="flex-1">Back online — your draft is still here.</span>
         {onSyncNow && (
           <button
             type="button"

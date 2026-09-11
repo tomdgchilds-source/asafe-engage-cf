@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useLocation } from 'wouter';
@@ -193,26 +193,45 @@ const CONDITION_OPTIONS = [
 
 // Component to handle product cart button with full product data fetching
 function SurveyProductCartButton({ product, area }: { product: any; area: any }) {
+  const { toast } = useToast();
   const [fullProduct, setFullProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+  // AddToCartModal owns its own open state behind a DialogTrigger, so once the
+  // product has loaded we click the trigger for the user instead of making
+  // them tap "Add To Cart" a second time.
+  const [autoOpen, setAutoOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (fullProduct && autoOpen) {
+      setAutoOpen(false);
+      triggerRef.current?.click();
+    }
+  }, [fullProduct, autoOpen]);
+
   const handleAddToCart = async () => {
-    if (!fullProduct) {
-      setIsLoading(true);
-      try {
-        // Fetch the full product with variants
-        const response = await fetch(`/api/products/${product.productId}`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const productData = await response.json();
-          setFullProduct(productData);
-        }
-      } catch (error) {
-        console.error('Failed to fetch product details:', error);
-      } finally {
-        setIsLoading(false);
+    if (fullProduct) return;
+    setIsLoading(true);
+    try {
+      // Fetch the full product with variants
+      const response = await fetch(`/api/products/${product.productId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Product lookup failed (${response.status})`);
       }
+      const productData = await response.json();
+      // Set product + open flag together so the modal opens on this same tap.
+      setAutoOpen(true);
+      setFullProduct(productData);
+    } catch {
+      toast({
+        title: 'Could not load product',
+        description: `We couldn't fetch details for ${product.productName || 'this product'}. Check your connection and try again.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -237,6 +256,7 @@ function SurveyProductCartButton({ product, area }: { product: any; area: any })
         } : undefined}
       >
         <Button
+          ref={triggerRef}
           size="sm"
           variant="default"
           className="bg-[#FFC72C] hover:bg-[#FFB300] text-black text-xs px-2 py-1"
@@ -398,19 +418,14 @@ export default function SiteSurvey() {
 
   // Offline-first draft store — buffers the in-progress "new survey" form in
   // localStorage so edits survive network drops / refreshes. Autosaves every
-  // 500ms; flushes the draft to the API on reconnect when there's something
-  // pending. The real create request still runs via createSurveyMutation on
-  // explicit submit (online behaviour unchanged).
+  // 500ms. The draft is *only* ever created on the server when the user
+  // presses Create (createSurveyMutation); there is deliberately no
+  // onOnlineFlush, because auto-posting on reconnect produced phantom
+  // surveys from half-filled forms. On reconnect the banner simply confirms
+  // the connection is back and the draft is still here.
   const offlineSurvey = useOfflineSurvey<NewSurveyDraft>({
     surveyId: 'new-survey-draft',
     autosaveMs: 500,
-    onOnlineFlush: async (draft) => {
-      // Only auto-flush if the user has meaningful content. Avoid creating
-      // empty surveys when the tab just regains connectivity.
-      if (!draft?.title && !draft?.facilityName) return;
-      await apiRequest('/api/site-surveys', 'POST', draft);
-      queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
-    },
   });
 
   // On mount, if there's a persisted draft, restore it into the visible form
@@ -521,7 +536,7 @@ export default function SiteSurvey() {
         body: JSON.stringify({ surveyId }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(err?.message || `quote ${res.status}`);
       }
       setQuoteDraft((await res.json()) as QuoteDraftPayload);
@@ -612,8 +627,8 @@ export default function SiteSurvey() {
       });
       
       if (areasResponse.ok && profileResponse.ok) {
-        const areas = await areasResponse.json();
-        const userProfile = await profileResponse.json();
+        const areas = (await areasResponse.json()) as Parameters<typeof generateSiteSurveyPdf>[1];
+        const userProfile = (await profileResponse.json()) as Parameters<typeof generateSiteSurveyPdf>[2];
         await generateSiteSurveyPdf(survey, areas, userProfile);
         haptic.success();
         toast({
@@ -890,7 +905,7 @@ export default function SiteSurvey() {
 
   const handleDeleteArea = (areaId: string) => {
     if (confirm('Are you sure you want to delete this area of concern?')) {
-      haptic.deleteAction();
+      haptic.delete();
       deleteAreaMutation.mutate(areaId);
     }
   };
@@ -2392,18 +2407,18 @@ export default function SiteSurvey() {
 
                 <div className="grid gap-3">
                   {area.recommendedProducts?.map((product: any) => (
-                    <Card key={product.id || product.name} className="p-4">
+                    <Card key={product.productId || product.productName} className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex gap-4">
                           {product.imageUrl && (
                             <img 
                               src={product.imageUrl} 
-                              alt={product.name}
+                              alt={product.productName}
                               className="w-20 h-20 object-contain border rounded"
                             />
                           )}
                           <div className="space-y-1">
-                            <h4 className="font-medium">{product.name}</h4>
+                            <h4 className="font-medium">{product.productName}</h4>
                             {product.impactRating && (
                               <Badge variant="secondary">
                                 Impact Rating: {product.impactRating} Joules
@@ -2415,14 +2430,14 @@ export default function SiteSurvey() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Label htmlFor={`qty-${area.id}-${product.id}`} className="text-sm">Qty:</Label>
+                          <Label htmlFor={`qty-${area.id}-${product.productId}`} className="text-sm">Qty:</Label>
                           <Input
-                            id={`qty-${area.id}-${product.id}`}
+                            id={`qty-${area.id}-${product.productId}`}
                             type="number"
                             min="1"
                             defaultValue="1"
                             className="w-20"
-                            data-testid={`input-quantity-${product.id}`}
+                            data-testid={`input-quantity-${product.productId}`}
                           />
                         </div>
                       </div>
@@ -2455,12 +2470,12 @@ export default function SiteSurvey() {
                     if (Array.isArray(surveyAreas)) {
                       surveyAreas.filter((area: any) => area.recommendedProducts?.length > 0).forEach((area: any) => {
                       area.recommendedProducts?.forEach((product: any) => {
-                        const qtyInput = document.getElementById(`qty-${area.id}-${product.id}`) as HTMLInputElement;
+                        const qtyInput = document.getElementById(`qty-${area.id}-${product.productId}`) as HTMLInputElement;
                         const quantity = parseInt(qtyInput?.value || '1', 10);
                         
                         if (quantity > 0) {
                           itemsToAdd.push({
-                            productName: product.name,
+                            productName: product.productName,
                             quantity,
                             pricingType: product.pricingType || 'unit',
                             unitPrice: product.price || 0,
@@ -2516,7 +2531,7 @@ export default function SiteSurvey() {
                       throw new Error('Failed to add products to cart');
                     }
                     
-                    const result = await response.json();
+                    const result = (await response.json()) as { message?: string; itemsAdded?: number };
                     
                     haptic.success();
                     toast({

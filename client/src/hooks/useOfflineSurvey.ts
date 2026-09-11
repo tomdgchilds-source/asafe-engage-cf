@@ -3,8 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /**
  * Offline-first draft hook for site surveys (or any other localStorage-backed
  * form). Writes a debounced copy to localStorage on every change so the user
- * can go offline / refresh / drop the tab without losing work, and flushes to
- * the server via a caller-supplied callback whenever the network returns.
+ * can go offline / refresh / drop the tab without losing work.
+ *
+ * Reconnecting never pushes anything by itself: the draft stays local until
+ * the user explicitly submits (or the caller invokes `forceSync()`, which only
+ * does something when an `onOnlineFlush` callback was supplied). The previous
+ * auto-flush-on-reconnect created phantom surveys from half-filled forms.
  *
  * Keys:
  *   survey-draft-<surveyId>       - latest draft JSON
@@ -27,7 +31,10 @@ export interface UseOfflineSurveyOptions<T> {
   surveyId: string;
   /** Debounce window before flushing to localStorage. Default 500ms. */
   autosaveMs?: number;
-  /** Called when the network returns (or forceSync() is invoked) with a pending draft. */
+  /**
+   * Optional server push used by `forceSync()`. When omitted the draft is
+   * purely local and `pendingPushCount` is always 0 (nothing to push).
+   */
   onOnlineFlush?: (draft: T) => Promise<void>;
 }
 
@@ -129,8 +136,10 @@ export function useOfflineSurvey<T>(
   const [online, setOnline] = useState<boolean>(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine
   );
+  // A draft with no server push configured has nothing "pending".
+  const hasFlush = typeof onOnlineFlush === 'function';
   const [pendingPushCount, setPendingPushCount] = useState<number>(() =>
-    pendingCountFromMeta(readMeta(surveyId))
+    hasFlush ? pendingCountFromMeta(readMeta(surveyId)) : 0
   );
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(() => {
     const m = readMeta(surveyId);
@@ -168,9 +177,10 @@ export function useOfflineSurvey<T>(
       draftRef.current = null;
     }
     const initMeta = readMeta(surveyId);
-    setPendingPushCount(pendingCountFromMeta(initMeta));
+    setPendingPushCount(hasFlush ? pendingCountFromMeta(initMeta) : 0);
     setLastSavedAt(initMeta.updatedAt > 0 ? initMeta.updatedAt : null);
     setStatus('idle');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surveyId]);
 
   const persistDraft = useCallback(
@@ -181,11 +191,11 @@ export function useOfflineSurvey<T>(
         syncedAt: readMeta(surveyId).syncedAt,
       };
       writeMeta(surveyId, meta);
-      setPendingPushCount(pendingCountFromMeta(meta));
+      setPendingPushCount(hasFlush ? pendingCountFromMeta(meta) : 0);
       setLastSavedAt(meta.updatedAt);
-      setStatus(navigator.onLine ? 'queued' : 'queued');
+      setStatus('queued');
     },
-    [surveyId]
+    [surveyId, hasFlush]
   );
 
   const scheduleLocalSave = useCallback(
@@ -223,6 +233,8 @@ export function useOfflineSurvey<T>(
 
   const forceSync = useCallback(async () => {
     if (syncInFlightRef.current) return;
+    // Purely local draft (no server push configured): nothing to sync.
+    if (!onFlushRef.current) return;
     const meta = readMeta(surveyId);
     if (pendingCountFromMeta(meta) === 0) {
       setStatus('synced');
@@ -249,26 +261,19 @@ export function useOfflineSurvey<T>(
       writeMeta(surveyId, nextMeta);
       setPendingPushCount(pendingCountFromMeta(nextMeta));
       setStatus('synced');
-    } catch (err) {
-      console.error('[useOfflineSurvey] flush failed:', err);
+    } catch {
       setStatus('error');
     } finally {
       syncInFlightRef.current = false;
     }
   }, [surveyId]);
 
-  // Watch online/offline events. When we come back online with a pending
-  // draft, attempt a flush.
+  // Track connectivity for the banner. Deliberately no auto-flush here: the
+  // draft is kept in localStorage and the user decides when to submit it.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleOnline = () => {
-      setOnline(true);
-      // Small delay — give the browser a tick to settle DNS/connections.
-      setTimeout(() => {
-        void forceSync();
-      }, 250);
-    };
+    const handleOnline = () => setOnline(true);
     const handleOffline = () => {
       setOnline(false);
       setStatus((prev) => (prev === 'syncing' ? 'queued' : prev));
@@ -280,7 +285,7 @@ export function useOfflineSurvey<T>(
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [forceSync]);
+  }, []);
 
   // Clean up the debounce timer on unmount.
   useEffect(() => {

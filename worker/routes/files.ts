@@ -69,6 +69,25 @@ async function storeFile(
   await kv.put(`file:${key}`, payload);
 }
 
+/**
+ * Store raw bytes under `key` (R2 when bound, otherwise the FILES_STORE KV
+ * fallback) so they are served back by `GET /api/objects/<key>`. Exported for
+ * other routes that need to persist binary payloads (e.g. site-survey photos
+ * that arrive as base64 data URLs).
+ */
+export async function putObject(
+  env: Env,
+  key: string,
+  bytes: ArrayBuffer | Uint8Array,
+  contentType: string
+): Promise<void> {
+  const buffer =
+    bytes instanceof Uint8Array
+      ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+      : bytes;
+  await storeFile(env, key, buffer as ArrayBuffer, contentType);
+}
+
 async function getFile(
   env: Env,
   key: string

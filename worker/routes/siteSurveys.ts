@@ -7,8 +7,136 @@ import {
 } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { z } from "zod";
+import { fromZodError } from "zod-validation-error";
+import { insertSiteSurveySchema, insertSiteSurveyAreaSchema } from "@shared/schema";
+import { putObject } from "./files";
 
 const siteSurveys = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// =============================================
+// PURE HELPERS (unit-tested in siteSurveys.test.ts)
+// =============================================
+
+export const MIN_IMPACT_ANGLE = 5;
+export const MAX_IMPACT_ANGLE = 90;
+
+/**
+ * Normalise a client-supplied impact angle (degrees). 0, undefined, null,
+ * empty and non-numeric values all mean "head-on" and become 90. Anything
+ * else is clamped to [5, 90] so sin(theta) never collapses the energy to ~0.
+ */
+export function clampImpactAngle(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
+  if (!Number.isFinite(n) || n === 0) return MAX_IMPACT_ANGLE;
+  return Math.min(MAX_IMPACT_ANGLE, Math.max(MIN_IMPACT_ANGLE, n));
+}
+
+const DATA_URL_RE = /^data:([^;,]+);base64,([\s\S]*)$/i;
+
+/** True for `data:<mime>;base64,<payload>` strings. */
+export function isDataUrl(value: unknown): value is string {
+  return typeof value === "string" && DATA_URL_RE.test(value);
+}
+
+/** True when a `photosUrls` payload contains at least one base64 data URL. */
+export function hasDataUrls(urls: unknown): urls is unknown[] {
+  return Array.isArray(urls) && urls.some(isDataUrl);
+}
+
+export interface ParsedDataUrl {
+  contentType: string;
+  bytes: Uint8Array;
+  extension: string;
+}
+
+const MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+};
+
+/**
+ * Decode a base64 data URL into bytes + content type. Returns null for
+ * anything that is not a well-formed base64 data URL. Uses atob so it runs
+ * unchanged in the Workers runtime (no Buffer).
+ */
+export function parseDataUrl(url: string): ParsedDataUrl | null {
+  const match = DATA_URL_RE.exec(url);
+  if (!match) return null;
+  const contentType = match[1].toLowerCase();
+  let binary: string;
+  try {
+    binary = atob(match[2].replace(/\s/g, ""));
+  } catch {
+    return null;
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return { contentType, bytes, extension: MIME_EXTENSIONS[contentType] ?? "jpg" };
+}
+
+/** Object key for a survey-area photo: `survey-photos/<areaId>/<uuid>.<ext>`. */
+export function surveyPhotoKey(
+  areaId: string,
+  extension = "jpg",
+  uuid: string = crypto.randomUUID()
+): string {
+  return `survey-photos/${areaId}/${uuid}.${extension}`;
+}
+
+/**
+ * Upload every base64 data URL in `urls` to object storage and return the
+ * list with those entries replaced by served `/api/objects/<key>` URLs.
+ * Already-hosted URLs pass through untouched; undecodable data URLs and
+ * non-string entries are dropped so multi-MB strings never reach Postgres.
+ */
+async function materialisePhotoUrls(env: Env, areaId: string, urls: unknown[]): Promise<string[]> {
+  const results = await Promise.all(
+    urls.map(async (url): Promise<string | null> => {
+      if (typeof url !== "string") return null;
+      if (!isDataUrl(url)) return url;
+      const parsed = parseDataUrl(url);
+      if (!parsed) return null;
+      const key = surveyPhotoKey(areaId, parsed.extension);
+      await putObject(env, key, parsed.bytes, parsed.contentType);
+      return `/api/objects/${key}`;
+    })
+  );
+  return results.filter((u): u is string => u !== null);
+}
+
+// =============================================
+// REQUEST BODY SCHEMAS
+// =============================================
+// Server-owned columns (id, userId, siteSurveyId, createdAt, updatedAt) are
+// never accepted from the client; the handlers set them explicitly.
+
+const surveyCreateSchema = insertSiteSurveySchema.omit({ userId: true });
+const surveyUpdateSchema = surveyCreateSchema.partial();
+const areaCreateSchema = insertSiteSurveyAreaSchema.omit({ siteSurveyId: true });
+const areaUpdateSchema = areaCreateSchema.partial();
+
+type ParsedBody<S extends z.ZodTypeAny> =
+  | { ok: true; data: z.infer<S> }
+  | { ok: false; message: string };
+
+function parseBody<S extends z.ZodTypeAny>(schema: S, body: unknown): ParsedBody<S> {
+  const result = schema.safeParse(body);
+  if (result.success) return { ok: true, data: result.data };
+  return { ok: false, message: fromZodError(result.error).message };
+}
+
+/** Clamp `impactAngle` when the client supplied one (leave absent/null alone). */
+function normaliseAreaAngle<T extends { impactAngle?: number | null }>(data: T): T {
+  if (data.impactAngle === undefined || data.impactAngle === null) return data;
+  return { ...data, impactAngle: clampImpactAngle(data.impactAngle) };
+}
 
 // All site survey routes require authentication
 siteSurveys.use("/site-surveys/*", authMiddleware);
@@ -57,15 +185,13 @@ siteSurveys.post("/site-surveys", heavyMutationRateLimit, async (c) => {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
     const userId = c.get("user").claims.sub;
-    const body = await c.req.json();
+    const parsed = parseBody(surveyCreateSchema, await c.req.json());
+    if (!parsed.ok) {
+      return c.json({ message: parsed.message }, 400);
+    }
+    const body = parsed.data;
 
-    // TODO: Add Zod validation with insertSiteSurveySchema
-    const validatedData = {
-      ...body,
-      userId,
-    };
-
-    const survey = await storage.createSiteSurvey(validatedData);
+    const survey = await storage.createSiteSurvey({ ...body, userId });
 
     // Fire-and-forget activity log
     try {
@@ -74,7 +200,7 @@ siteSurveys.post("/site-surveys", heavyMutationRateLimit, async (c) => {
           userId,
           activityType: "create_survey",
           section: "site-surveys",
-          details: { surveyId: survey.id, title: body.title || body.name },
+          details: { surveyId: survey.id, title: body.title },
         })
       );
     } catch {}
@@ -96,10 +222,12 @@ siteSurveys.put("/site-surveys/:id", heavyMutationRateLimit, async (c) => {
     if (!survey || survey.userId !== userId) {
       return c.json({ error: "Site survey not found" }, 404);
     }
-    const body = await c.req.json();
+    const parsed = parseBody(surveyUpdateSchema, await c.req.json());
+    if (!parsed.ok) {
+      return c.json({ message: parsed.message }, 400);
+    }
 
-    // TODO: Add Zod validation with insertSiteSurveySchema.partial()
-    const updatedSurvey = await storage.updateSiteSurvey(c.req.param("id"), body);
+    const updatedSurvey = await storage.updateSiteSurvey(c.req.param("id"), parsed.data);
     return c.json(updatedSurvey);
   } catch (error) {
     console.error("Error updating site survey:", error);
@@ -175,15 +303,25 @@ siteSurveys.post("/site-surveys/:id/areas", heavyMutationRateLimit, async (c) =>
     if (!survey || survey.userId !== userId) {
       return c.json({ error: "Site survey not found" }, 404);
     }
-    const body = await c.req.json();
+    const parsed = parseBody(areaCreateSchema, await c.req.json());
+    if (!parsed.ok) {
+      return c.json({ message: parsed.message }, 400);
+    }
+    const { photosUrls, ...rest } = normaliseAreaAngle(parsed.data);
+    const needsPhotoUpload = hasDataUrls(photosUrls);
 
-    // TODO: Add Zod validation with insertSiteSurveyAreaSchema
-    const validatedData = {
-      ...body,
+    // The photo key embeds the area id, so create first with only the
+    // already-hosted URLs, then upload any inline photos and patch the row.
+    let area = await storage.createSiteSurveyArea({
+      ...rest,
       siteSurveyId: c.req.param("id"),
-    };
-
-    const area = await storage.createSiteSurveyArea(validatedData);
+      photosUrls: needsPhotoUpload ? photosUrls.filter((u) => !isDataUrl(u)) : photosUrls,
+    });
+    if (needsPhotoUpload) {
+      area = await storage.updateSiteSurveyArea(area.id, {
+        photosUrls: await materialisePhotoUrls(c.env, area.id, photosUrls),
+      });
+    }
     return c.json(area, 201);
   } catch (error) {
     console.error("Error creating site survey area:", error);
@@ -208,9 +346,14 @@ siteSurveys.put("/site-survey-areas/:id", mutationRateLimit, async (c) => {
       return c.json({ error: "Site survey area not found" }, 404);
     }
 
-    const body = await c.req.json();
-
-    // TODO: Add Zod validation with insertSiteSurveyAreaSchema.partial()
+    const parsed = parseBody(areaUpdateSchema, await c.req.json());
+    if (!parsed.ok) {
+      return c.json({ message: parsed.message }, 400);
+    }
+    const body = normaliseAreaAngle(parsed.data);
+    if (hasDataUrls(body.photosUrls)) {
+      body.photosUrls = await materialisePhotoUrls(c.env, c.req.param("id"), body.photosUrls);
+    }
 
     // Only reset the impact calculation when inputs that actually affect it change.
     // Editing zone name, photos, Matterport URL, description, etc. should NOT wipe
@@ -220,7 +363,7 @@ siteSurveys.put("/site-survey-areas/:id", mutationRateLimit, async (c) => {
     const isProductSelectionUpdate =
       "recommendedProducts" in body && !calcInputChanged;
 
-    let dataToUpdate;
+    let dataToUpdate: typeof body;
     if (isProductSelectionUpdate) {
       dataToUpdate = body;
     } else if (calcInputChanged) {
@@ -262,17 +405,19 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", mutationRateLimit, a
       return c.json({ error: "Site survey area not found" }, 404);
     }
 
-    const { vehicleWeight, vehicleSpeed, impactAngle = 90 } = await c.req.json();
+    const { vehicleWeight, vehicleSpeed, impactAngle: rawImpactAngle } = await c.req.json();
 
     if (!vehicleWeight || !vehicleSpeed) {
-      return c.json({ message: "Vehicle weight, speed, and impact angle are required" }, 400);
+      return c.json({ message: "Vehicle weight and speed are required" }, 400);
     }
     const isRackingArea = currentArea?.areaType?.toLowerCase().includes("racking");
 
     // PAS 13 calculation: KE = 0.5 x m x (v x sin theta)^2
     const massKg = parseFloat(vehicleWeight);
     const speedKmh = parseFloat(vehicleSpeed);
-    const angleRadians = (parseFloat(impactAngle) * Math.PI) / 180;
+    // 0 / missing angle means head-on (90°); otherwise clamp to [5, 90].
+    const impactAngle = clampImpactAngle(rawImpactAngle);
+    const angleRadians = (impactAngle * Math.PI) / 180;
     const velocityMs = speedKmh / 3.6; // Convert km/h to m/s
     const velocityComponent = velocityMs * Math.sin(angleRadians);
     const kineticEnergy = 0.5 * massKg * Math.pow(velocityComponent, 2);
@@ -426,7 +571,7 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", mutationRateLimit, a
     const updatedArea = await storage.updateSiteSurveyArea(areaId, {
       vehicleWeight: massKg,
       vehicleSpeed: speedKmh,
-      impactAngle: parseFloat(impactAngle),
+      impactAngle,
       calculatedJoules: kineticEnergy,
       recommendedProducts,
     });
