@@ -7,9 +7,9 @@ import {
   ArrowLeft,
   ClipboardList,
   Calculator,
-  Lightbulb,
   Package,
-  PenTool
+  PenTool,
+  Briefcase
 } from "lucide-react";
 
 export default function StartNewProject() {
@@ -18,7 +18,7 @@ export default function StartNewProject() {
     document.title = "Start New Project - A-SAFE ENGAGE";
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Choose how to begin your A-SAFE project with our Site Survey, Impact Calculator, Solution Finder, or Browse Products tools.');
+      metaDescription.setAttribute('content', 'Choose how to begin your A-SAFE project: Site Survey, Layout Drawing, or Browse Products.');
     }
   }, []);
 
@@ -55,8 +55,10 @@ export default function StartNewProject() {
           </p>
         </div>
 
-        {/* 5-Option Grid - Layout Drawing added */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Three primary entry points. The Impact Calculator is a tool, not
+            a starting point, so it lives below as a secondary link.
+            Solution Finder is parked and has no entry here. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Site Survey - Primary highlighted option */}
           <Card className="border-2 border-[#FFC72C] bg-[#FFC72C]/10 hover:bg-[#FFC72C]/20 transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-0">
@@ -76,30 +78,24 @@ export default function StartNewProject() {
             </CardContent>
           </Card>
 
-          {/* Impact Calculator */}
-          <Card className="border-gray-200 dark:border-gray-700 hover:border-[#FFC72C] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 cursor-pointer">
+          {/* Layout Drawing */}
+          <Card className="border-gray-200 dark:border-gray-700 hover:border-[#8B5CF6] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:scale-105 cursor-pointer">
             <CardContent className="p-0">
-              <Link href="/calculator" data-testid="link-impact-calculator">
+              <Link href="/layout-drawings" data-testid="link-layout-drawing">
                 <div className="p-8 flex flex-col items-center text-center h-full">
-                  <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-full">
-                    <Calculator className="h-10 w-10 text-gray-700 dark:text-gray-300" />
+                  <div className="mb-4 p-4 bg-purple-100 dark:bg-purple-900/40 rounded-full">
+                    <PenTool className="h-10 w-10 text-purple-600 dark:text-purple-400" />
                   </div>
                   <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
-                    Impact Calculator
+                    Layout Drawing
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Calculate impact forces and get product recommendations
+                    Mark up your floor plan with safety barrier placements
                   </p>
                 </div>
               </Link>
             </CardContent>
           </Card>
-
-          {/* Solution Finder tile hidden in the Wave-1 cleanup
-              (May 2026) — see Layout.tsx for the rationale. The
-              /solution-finder route still works for the rare rep that
-              has the URL bookmarked; just no front-door entry while
-              the recommender is rebuilt. */}
 
           {/* Browse Products */}
           <Card className="border-gray-200 dark:border-gray-700 hover:border-[#FFC72C] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 cursor-pointer">
@@ -119,34 +115,22 @@ export default function StartNewProject() {
               </Link>
             </CardContent>
           </Card>
-
-          {/* Layout Drawing - New 5th option */}
-          <Card className="border-gray-200 dark:border-gray-700 hover:border-[#8B5CF6] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:scale-105 cursor-pointer">
-            <CardContent className="p-0">
-              <Link href="/layout-drawings" data-testid="link-layout-drawing">
-                <div className="p-8 flex flex-col items-center text-center h-full">
-                  <div className="mb-4 p-4 bg-purple-100 dark:bg-purple-900/40 rounded-full">
-                    <PenTool className="h-10 w-10 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
-                    Layout Drawing
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Mark up your floor plan with safety barrier placements
-                  </p>
-                </div>
-              </Link>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Link to Saved Drafts */}
-        <div className="mt-10 text-center">
-          <Link href="/draft-projects" data-testid="link-saved-drafts">
-            <span className="text-sm text-[#FFC72C] hover:text-[#FFB700] underline cursor-pointer">
-              View Saved Draft Projects
-            </span>
-          </Link>
+        {/* Secondary: tools and existing work */}
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Button asChild variant="outline" className="hover:border-[#FFC72C] hover:bg-[#FFC72C]/10">
+            <Link href="/calculator" data-testid="link-impact-calculator">
+              <Calculator className="mr-2 h-4 w-4" />
+              Impact Calculator (tool)
+            </Link>
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="/projects" data-testid="link-projects">
+              <Briefcase className="mr-2 h-4 w-4" />
+              View existing projects
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

@@ -143,7 +143,7 @@ export default function IndustryCaseStudies() {
                 className="bg-yellow-400 text-black hover:bg-yellow-500 whitespace-nowrap"
                 data-testid="login-button"
               >
-                <a href="/api/login">Sign In</a>
+                <a href="/">Sign In</a>
               </Button>
             </div>
           </div>
@@ -337,7 +337,7 @@ export default function IndustryCaseStudies() {
                 </Button>
               )}
               <Button asChild className="bg-yellow-400 text-black hover:bg-yellow-500">
-                <a href="/api/login">Sign In to Access Full Portal</a>
+                <a href="/">Sign In to Access Full Portal</a>
               </Button>
             </CardContent>
           </Card>
@@ -355,7 +355,7 @@ export default function IndustryCaseStudies() {
               size="lg"
               className="bg-yellow-400 text-black hover:bg-yellow-500"
             >
-              <a href="/api/login">Access Full Portal</a>
+              <a href="/">Access Full Portal</a>
             </Button>
             <Button 
               asChild

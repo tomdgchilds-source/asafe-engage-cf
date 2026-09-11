@@ -1227,7 +1227,7 @@ export function SolutionFinder() {
                             Browse Products
                           </Button>
                         </Link>
-                        <Link href="/impact-calculator">
+                        <Link href="/calculator">
                           <Button variant="outline" size="sm">
                             <Zap className="h-4 w-4 mr-2" />
                             Calculate Impact

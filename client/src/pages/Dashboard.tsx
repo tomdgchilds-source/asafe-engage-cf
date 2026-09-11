@@ -13,7 +13,6 @@ import {
   FileText,
   Briefcase,
   Activity,
-  Lightbulb,
   ClipboardList,
   ChartBar,
   BookOpen,
@@ -126,6 +125,13 @@ export default function Dashboard() {
     enabled: isAuthenticated,
   });
 
+  // Projects (the real container for a rep's work) — drives the count on
+  // the Projects card. Same list /projects renders.
+  const { data: projects } = useQuery<any[]>({
+    queryKey: ["/api/projects"],
+    enabled: isAuthenticated,
+  });
+
   // Fetch products for popular products section
   const { data: products } = useQuery({
     queryKey: ["/api/products"],
@@ -187,6 +193,10 @@ export default function Dashboard() {
 
   // Calculate counts for dashboard cards
   const draftProjectsCount = Array.isArray(draftProjects) ? draftProjects.length : 0;
+  // status is active | won | lost | on_hold; missing status counts as active
+  const activeProjectsCount = Array.isArray(projects)
+    ? projects.filter((p: any) => (p?.status ?? "active") === "active").length
+    : 0;
   const cartItemCount = Array.isArray(cartData) ? cartData.length : 0;
   const ordersCount = Array.isArray(orders) ? orders.length : 0;
   const calculationsCount = Array.isArray(calculations) ? calculations.length : 0;
@@ -203,9 +213,17 @@ export default function Dashboard() {
       id: 'start-new-project',
       title: 'Start New Project',
       icon: Target,
-      count: 5,
+      count: 3,
       color: 'bg-white dark:bg-gray-800',
-      description: 'Choose how to begin your project'
+      description: 'Site survey, layout drawing or browse products'
+    },
+    {
+      id: 'projects',
+      title: 'Projects',
+      icon: Briefcase,
+      count: activeProjectsCount,
+      color: 'bg-white dark:bg-gray-800',
+      description: 'Active projects and everything attached to them'
     },
     {
       id: 'draft-projects',
@@ -241,14 +259,6 @@ export default function Dashboard() {
       color: 'bg-white dark:bg-gray-800',
       badge: 'Tool',
       description: 'Conduct site assessments'
-    },
-    {
-      id: 'solution-finder',
-      title: 'Solution Finder',
-      icon: Lightbulb,
-      color: 'bg-white dark:bg-gray-800',
-      badge: 'Tool',
-      description: 'Find the right safety solutions'
     },
     {
       id: 'analytics',
@@ -337,47 +347,37 @@ export default function Dashboard() {
         );
       
       case 'start-new-project':
+        // The three real ways to start work. The Impact Calculator is a
+        // tool (Quick Actions below), not an entry point.
         return (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <Button asChild className="h-20 flex-col bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold">
               <Link href="/site-survey">
                 <ClipboardList className="h-6 w-6 mb-2" />
-                <span className="text-sm">Site Survey</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col hover:border-[#FFC72C] hover:bg-[#FFC72C]/10">
-              <Link href="/calculator">
-                <Calculator className="h-6 w-6 mb-2" />
-                <span className="text-sm">Impact Calculator</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col hover:border-[#FFC72C] hover:bg-[#FFC72C]/10">
-              <Link href="/solution-finder">
-                <Lightbulb className="h-6 w-6 mb-2" />
-                <span className="text-sm">Solution Finder</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col hover:border-[#FFC72C] hover:bg-[#FFC72C]/10">
-              <Link href="/products">
-                <Package className="h-6 w-6 mb-2" />
-                <span className="text-sm">Browse Products</span>
+                <span className="text-sm">Site survey</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-20 flex-col hover:border-[#9b59b6] hover:bg-[#9b59b6]/10 border-[#9b59b6]/30">
               <Link href="/layout-drawings">
                 <PenTool className="h-6 w-6 mb-2 text-[#9b59b6]" />
-                <span className="text-sm">Layout Drawing</span>
+                <span className="text-sm">Layout drawing</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col hover:border-[#FFC72C] hover:bg-[#FFC72C]/10">
+              <Link href="/products">
+                <Package className="h-6 w-6 mb-2" />
+                <span className="text-sm">Browse products</span>
               </Link>
             </Button>
           </div>
         );
 
-      case 'site-surveys':
-        setLocation('/site-survey');
+      case 'projects':
+        setLocation('/projects');
         return null;
 
-      case 'solution-finder':
-        setLocation('/solution-finder');
+      case 'site-surveys':
+        setLocation('/site-survey');
         return null;
 
       case 'analytics':
@@ -523,7 +523,7 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
                   Primary Actions
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
                   {primaryCards.map((card) => (
                     <motion.div
                       key={card.id}
