@@ -132,26 +132,6 @@ safety.post("/smart-reorders", authMiddleware, async (c) => {
   }
 });
 
-// ──────────────────────────────────────────────
-// PUT /api/smart-reorders/:id
-// ──────────────────────────────────────────────
-safety.put("/smart-reorders/:id", authMiddleware, async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const userId = c.get("user").claims.sub;
-    const id = c.req.param("id");
-    const body = await c.req.json();
-
-    // TODO: implement updateSmartReorder in storage
-    const updated = await (storage as any).updateSmartReorder(id, { ...body, userId });
-    return c.json(updated);
-  } catch (error) {
-    console.error("Error updating smart reorder:", error);
-    return c.json({ message: "Internal server error" }, 500);
-  }
-});
-
 // =============================================
 // TRAINING
 // =============================================
@@ -325,27 +305,6 @@ safety.get("/forum/topics/:topicId/replies", authMiddleware, async (c) => {
   }
 });
 
-// ──────────────────────────────────────────────
-// POST /api/forum/topics/:topicId/replies
-// ──────────────────────────────────────────────
-safety.post("/forum/topics/:topicId/replies", authMiddleware, async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const userId = c.get("user").claims.sub;
-    const topicId = c.req.param("topicId");
-    const body = await c.req.json();
-
-    // TODO: implement createForumReply in storage
-    const validatedData = { ...body, topicId, authorId: userId };
-    const reply = await (storage as any).createForumReply(validatedData);
-    return c.json(reply, 201);
-  } catch (error) {
-    console.error("Error creating forum reply:", error);
-    return c.json({ message: "Internal server error" }, 500);
-  }
-});
-
 // =============================================
 // MARKET TRENDS
 // =============================================
@@ -497,98 +456,6 @@ safety.post("/conversations/:id/messages", authMiddleware, async (c) => {
   } catch (error) {
     console.error("Error creating message:", error);
     return c.json({ message: "Internal server error" }, 500);
-  }
-});
-
-// =============================================
-// SAFETY TIPS
-// =============================================
-
-// ──────────────────────────────────────────────
-// GET /api/safety-tips
-// ──────────────────────────────────────────────
-safety.get("/safety-tips", async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const category = c.req.query("category");
-    const triggerType = c.req.query("triggerType");
-    const zone = c.req.query("zone");
-    const productId = c.req.query("productId");
-
-    // TODO: port direct Drizzle query for safety tips with filtering
-    // For now, delegate to storage layer
-    const tips = await (storage as any).getSafetyTips({
-      category,
-      triggerType,
-      zone,
-      productId,
-    });
-
-    return c.json(tips);
-  } catch (error) {
-    console.error("Error fetching safety tips:", error);
-    return c.json({ error: "Failed to fetch safety tips" }, 500);
-  }
-});
-
-// ──────────────────────────────────────────────
-// POST /api/safety-tips/:tipId/feedback
-// ──────────────────────────────────────────────
-safety.post("/safety-tips/:tipId/feedback", authMiddleware, async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const tipId = c.req.param("tipId");
-    const userId = c.get("user").claims.sub;
-    const { helpful } = await c.req.json<{ helpful?: boolean }>();
-
-    // TODO: port direct Drizzle update for userSafetyTipInteractions
-    await (storage as any).updateSafetyTipFeedback(userId, tipId, helpful);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error updating tip feedback:", error);
-    return c.json({ error: "Failed to update feedback" }, 500);
-  }
-});
-
-// ──────────────────────────────────────────────
-// GET /api/safety-progress
-// ──────────────────────────────────────────────
-safety.get("/safety-progress", authMiddleware, async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const userId = c.get("user").claims.sub;
-
-    // TODO: port direct Drizzle query for safetyProgress with recommendations
-    const result = await (storage as any).getSafetyProgress(userId);
-
-    return c.json(result);
-  } catch (error) {
-    console.error("Error fetching safety progress:", error);
-    return c.json({ error: "Failed to fetch safety progress" }, 500);
-  }
-});
-
-// ──────────────────────────────────────────────
-// POST /api/safety-progress
-// ──────────────────────────────────────────────
-safety.post("/safety-progress", authMiddleware, async (c) => {
-  try {
-    const db = getDb(c.env.DATABASE_URL);
-    const storage = createStorage(db);
-    const userId = c.get("user").claims.sub;
-    const updates = await c.req.json();
-
-    // TODO: port direct Drizzle update for safetyProgress
-    await (storage as any).updateSafetyProgress(userId, updates);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error updating safety progress:", error);
-    return c.json({ error: "Failed to update safety progress" }, 500);
   }
 });
 

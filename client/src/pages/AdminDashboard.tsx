@@ -218,6 +218,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:space-x-4 w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={() => setLocation("/admin/migrations")} data-testid="button-migrations">Migrations</Button>
               <Button
                 variant="outline"
                 size="sm"

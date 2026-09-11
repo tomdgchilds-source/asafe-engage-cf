@@ -30,7 +30,7 @@ const Contact = lazy(() => import("@/pages/Contact"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const FAQs = lazy(() => import("@/pages/FAQs"));
 const Help = lazy(() => import("@/pages/Help"));
-const Admin = lazy(() => import("@/pages/Admin"));
+const Migrations = lazy(() => import("@/pages/admin/Migrations"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const ImageReviewBacklog = lazy(() => import("@/pages/admin/ImageReviewBacklog"));
@@ -124,6 +124,7 @@ function Router() {
         <Route path="/admin/email-log">
           <AdminRoute><EmailLog /></AdminRoute>
         </Route>
+        <Route path="/admin/migrations"><AdminRoute><Migrations /></AdminRoute></Route>
         {/* Haptic test is a dev tool — only registered in development builds */}
         {import.meta.env.DEV && (
           <Route path="/haptic-test" component={HapticTestPage} />

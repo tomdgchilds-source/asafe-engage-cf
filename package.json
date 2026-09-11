@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run test",
     "create-user": "tsx scripts/createUser.ts",
+    "migrations:index": "tsx scripts/buildMigrationsIndex.ts",
     "test:e2e": "playwright test --config=e2e/playwright.config.ts"
   },
   "dependencies": {
