@@ -88,7 +88,7 @@ export const securityHeaders = createMiddleware<{
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set(
     "Permissions-Policy",
-    "camera=(self), microphone=(), geolocation=(self), interest-cohort=()"
+    "camera=(self), microphone=(self), geolocation=(self), interest-cohort=()"
   );
   // Merge: if a downstream handler already set a CSP, don't clobber it.
   if (!headers.get("Content-Security-Policy")) {

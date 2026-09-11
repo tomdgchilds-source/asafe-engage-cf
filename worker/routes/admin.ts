@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { and, eq, desc } from "drizzle-orm";
 import type { Env, Variables } from "../types";
 import { authMiddleware, createSession } from "../middleware/auth";
@@ -7,7 +8,19 @@ import { createStorage } from "../storage";
 import { verifyTurnstile } from "../lib/turnstile";
 import { products } from "@shared/schema";
 
+type AdminContext = Context<{ Bindings: Env; Variables: Variables }>;
+type Storage = ReturnType<typeof createStorage>;
+
 const admin = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+/**
+ * True when the authenticated session user has `users.role = 'admin'`.
+ * Read-only: never promotes. Callers are responsible for returning 403.
+ */
+async function requireAdmin(c: AdminContext, storage: Storage): Promise<boolean> {
+  const userRecord = await storage.getUser(c.get("user").claims.sub);
+  return userRecord?.role === "admin";
+}
 
 // ──────────────────────────────────────────────
 // POST /api/admin/login
@@ -59,8 +72,10 @@ admin.post("/admin/login", async (c) => {
     // session-based auth system works for admin pages too
     let regularUser = adminEmail ? await storage.getUserByEmail(adminEmail) : null;
     if (regularUser && regularUser.role !== "admin") {
-      // Promote existing user to admin role
+      // Explicit promotion: a valid admin_users credential grants the
+      // matching users row the admin role. Logged so it is auditable.
       await storage.updateUser(regularUser.id, { role: "admin" });
+      console.warn(`[admin] promoted ${adminEmail} via admin login`);
       regularUser = await storage.getUser(regularUser.id);
     }
 
@@ -106,17 +121,10 @@ admin.get("/admin/session", authMiddleware, async (c) => {
     const userId = c.get("user").claims.sub;
     const userRecord = await storage.getUser(userId);
 
-    // Check regular users table for admin role
+    // Read-only check against users.role. Promotion happens only via
+    // POST /api/admin/login (explicit) or scripts/promoteAdmin.ts.
     if (userRecord?.role !== "admin") {
-      // Also check if this user's email matches an admin_users entry
-      const adminByEmail = userRecord?.email
-        ? await storage.getAdminByEmail(userRecord.email)
-        : null;
-      if (!adminByEmail) {
-        return c.json({ message: "Not an admin" }, 403);
-      }
-      // Promote the user to admin since they have a matching admin_users record
-      await storage.updateUser(userId, { role: "admin" });
+      return c.json({ message: "Not an admin" }, 403);
     }
 
     return c.json({
@@ -159,8 +167,7 @@ admin.get("/admin/stats", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
@@ -181,9 +188,9 @@ admin.get("/admin/stats", authMiddleware, async (c) => {
       (c: any) => c.createdAt && new Date(c.createdAt) >= startOfMonth,
     ).length;
 
-    const productCategories = [
-      ...new Set(allProducts.map((p: any) => p.category)),
-    ].length;
+    const productCategories = new Set(
+      allProducts.map((p: any) => p.category),
+    ).size;
 
     return c.json({
       totalUsers: allUsers.length,
@@ -207,8 +214,7 @@ admin.get("/admin/users", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const users = await storage.getAllUsers();
@@ -226,8 +232,7 @@ admin.get("/admin/products", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const products = await storage.getProducts();
@@ -245,8 +250,7 @@ admin.get("/admin/calculations", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const calculations = await storage.getAllCalculations();
@@ -264,8 +268,7 @@ admin.get("/admin/activities", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const activities = await storage.getAllUserActivities();
@@ -283,8 +286,7 @@ admin.get("/admin/users/:userId/activities", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const userId = c.req.param("userId");
@@ -303,8 +305,7 @@ admin.get("/admin/users/:userId/details", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
     const userId = c.req.param("userId");
@@ -339,8 +340,7 @@ admin.post("/admin/case-studies", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const user = await storage.getUser(c.get("user").claims.sub);
-    if (user?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
@@ -361,8 +361,7 @@ admin.post("/admin/resources", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const user = await storage.getUser(c.get("user").claims.sub);
-    if (user?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
@@ -383,8 +382,7 @@ admin.post("/admin/faqs", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const user = await storage.getUser(c.get("user").claims.sub);
-    if (user?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
@@ -511,8 +509,7 @@ admin.get("/admin/image-review", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
@@ -547,8 +544,7 @@ admin.patch("/admin/image-review/:id", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const userRecord = await storage.getUser(c.get("user").claims.sub);
-    if (userRecord?.role !== "admin") {
+    if (!(await requireAdmin(c, storage))) {
       return c.json({ message: "Admin access required" }, 403);
     }
 
