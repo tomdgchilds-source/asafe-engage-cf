@@ -13,6 +13,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { Pas13VerdictPanel } from "@/components/Pas13VerdictPanel";
 import { Pas13ChatPanel } from "@/components/Pas13ChatPanel";
 import { pas13Verdict } from "@shared/pas13Rules";
+import { applicationAreaData } from "@shared/applicationAreas";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
@@ -239,58 +240,6 @@ interface CalculationInputs {
   aisleWidth?: number | string; // PAS 13 aisle width for angle calculation
   usePAS13?: boolean; // Toggle for PAS 13 compliance calculations
 }
-
-// Application area mapping data
-const applicationAreaData = {
-  "WorkStation(s)": {
-    risk: "Employees seated close to vehicle routes remain exposed while distracted. Basic, non-tested barriers are easily damaged and ineffective against real impacts.",
-    benefit: "Impact-rated barriers shield staff, reduce repeat maintenance, and prevent costly downtime from accidents."
-  },
-  "Pedestrian Walkways": {
-    risk: "Painted lines alone offer no protection. Pedestrians are exposed to vehicles, blocked routes, and poor driver visibility.",
-    benefit: "Physical barriers safely segregate pedestrians, maintain evacuation routes, and improve MHE efficiency with fewer obstacles."
-  },
-  "Crossing Points / Entry & Exits": {
-    risk: "Staff crossing high-traffic or blind spots are vulnerable. Painted markings fail to stop vehicles or distracted pedestrians.",
-    benefit: "Guided crossings and barriers provide safe, visible, and controlled movement across vehicle zones."
-  },
-  "Racking": {
-    risk: "Vehicle impacts compromise racking integrity, risking collapse, product loss, and costly replacement.",
-    benefit: "Barriers preserve racking stability, prevent collapse, and protect both staff and stored goods."
-  },
-  "Shutter Doors": {
-    risk: "Vehicle damage disrupts workflows, reduces loading capacity, and compromises environmental control.",
-    benefit: "Robust barriers protect doors, maintain security, efficiency, and climate control, while avoiding repair downtime."
-  },
-  "Cold Store Walls": {
-    risk: "Insulated panels are easily damaged, causing temperature loss, product spoilage, and high repair costs.",
-    benefit: "Barriers prevent panel damage, preserve goods, reduce energy waste, and avoid operational disruption."
-  },
-  "Fire Hose Cabinets": {
-    risk: "Impact damage can render firefighting equipment unusable, delaying emergency response.",
-    benefit: "Barriers ensure cabinets remain accessible and operational, protecting staff, assets, and compliance."
-  },
-  "Columns (Structural / Mezzanine)": {
-    risk: "Impacts from vehicles can damage structural or mezzanine columns, threatening building integrity.",
-    benefit: "Impact-rated barriers absorb collisions, protect structures, and prevent costly facility repairs."
-  },
-  "Overhead Pipework / Cables": {
-    risk: "Overhead utilities are often overlooked. Impacts can disrupt power, processing, or CCTV, causing downtime.",
-    benefit: "Barriers protect critical infrastructure, ensuring uninterrupted power and operations."
-  },
-  "Loading Docks": {
-    risk: "Forklifts risk falling 1–2m from raised docks, endangering operators and damaging equipment.",
-    benefit: "Barriers eliminate fall hazards, safeguard operators, and maintain safe, continuous loading operations."
-  },
-  "Processing Machines": {
-    risk: "Vehicle collisions can cause severe equipment damage, downtime, and injury or fatalities.",
-    benefit: "Barriers protect machinery, prevent production halts, and safeguard employees from life-threatening risks."
-  },
-  "Electrical DBs": {
-    risk: "Impact damage risks short circuits, outages, fires, and prolonged downtime from complex repairs.",
-    benefit: "Barriers maintain power continuity, reduce outage risks, and mitigate fire hazards."
-  }
-};
 
 export function VehicleImpactCalculator() {
   const { formatPrice } = useCurrency();

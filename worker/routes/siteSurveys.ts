@@ -11,6 +11,15 @@ import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { insertSiteSurveySchema, insertSiteSurveyAreaSchema } from "@shared/schema";
 import { putObject } from "./files";
+import {
+  PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT,
+  PAS13_INDICATIVE_FOOTNOTE,
+  PAS13_VERSION,
+  pas13Verdict,
+  requiredAbsorbedJoules,
+  sineFromPas13Table,
+  type Verdict,
+} from "@shared/pas13Rules";
 
 const siteSurveys = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -30,6 +39,182 @@ export function clampImpactAngle(raw: unknown): number {
   const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
   if (!Number.isFinite(n) || n === 0) return MAX_IMPACT_ANGLE;
   return Math.min(MAX_IMPACT_ANGLE, Math.max(MIN_IMPACT_ANGLE, n));
+}
+
+/** Parse an optional load mass (kg). Missing, non-numeric or negative → 0. */
+export function parseLoadKg(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Required absorbed energy (J) for a survey area, per PAS 13:2017 §6.1
+ * KE = ½ · (vehicle + load) · (v · sinΘ)². Delegates to the shared rule
+ * engine so the sinΘ comes from the §6.1 table (not Math.sin) and the
+ * calculator, survey and PAS 13 verdicts all agree. Angle is normalised
+ * with clampImpactAngle (0 / missing → 90° head-on, else [5, 90]).
+ */
+export function computeAreaEnergyJ(args: {
+  vehicleKg: number;
+  loadKg?: number;
+  speedKmh: number;
+  angleDeg: number;
+}): number {
+  return requiredAbsorbedJoules({
+    vehicleMassKg: args.vehicleKg,
+    loadMassKg: args.loadKg,
+    speedKmh: args.speedKmh,
+    approachAngleDeg: clampImpactAngle(args.angleDeg),
+  });
+}
+
+/** Minimal product shape the recommender needs (structurally satisfied by Product). */
+export interface RecommendableProduct {
+  id: string;
+  name: string;
+  impactRating?: number | null;
+  imageUrl?: string | null;
+  price?: string | number | null;
+  category?: string | null;
+  suitabilityData?: unknown;
+  impactTestingData?: unknown;
+}
+
+/** One entry of `site_survey_areas.recommended_products`. */
+export interface AreaProductRecommendation {
+  productId: string;
+  productName: string;
+  impactRating: number | null;
+  imageUrl: string | null;
+  price: string | number | null;
+  category: string | null;
+  /** PAS 13 safety margin, (rated − required) / rated × 100. */
+  safetyMarginPct: number;
+  pas13Verdict: Verdict;
+  /** True when the product does NOT meet the 30 % aligned margin — UI greys it out. */
+  notAligned: boolean;
+  reason: string;
+}
+
+/** Strip length / size suffixes so variants of one product family group together. */
+function baseProductName(name: string): string {
+  return name
+    .replace(/\s*–\s*\d+\s*mm.*$/i, "")
+    .replace(/\s*-\s*\d+\s*mm.*$/i, "")
+    .replace(/\s*\d+mm\s*x\s*\d+mm.*$/i, "")
+    .replace(/\s*\d+\s*mm.*$/i, "")
+    .replace(/\s*\(\d+.*\).*$/i, "")
+    .replace(/\s*\d+L.*$/i, "")
+    .replace(/\s+Plus$/i, " Plus")
+    .trim();
+}
+
+function isRackGuardName(name: string): boolean {
+  return name.toLowerCase().includes("rackguard");
+}
+
+/** Cert-documented lateral deformation envelope (mm), or 0 when unknown. */
+function impactZoneMaxMm(p: RecommendableProduct): number {
+  const suit = p.suitabilityData as
+    | { impactZone?: { maxMm?: unknown } | null }
+    | null
+    | undefined;
+  const fromSuit = Number(suit?.impactZone?.maxMm);
+  if (Number.isFinite(fromSuit) && fromSuit > 0) return fromSuit;
+  const test = p.impactTestingData as { impactZone?: unknown } | null | undefined;
+  const fromTest = Number(test?.impactZone);
+  return Number.isFinite(fromTest) && fromTest > 0 ? fromTest : 0;
+}
+
+/**
+ * Build the recommended-product list for a survey area using the PAS 13
+ * rule engine (pas13Verdict). Only products whose safety margin is at
+ * least PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT are recommended, one variant
+ * per product family (the most economical still-aligned one).
+ *
+ * Racking areas: if no RackGuard makes the aligned list, the strongest
+ * RackGuard is appended flagged `notAligned: true` with the racking
+ * justification so the UI can show it greyed out — it is never presented
+ * as a recommendation.
+ */
+export function recommendProductsForArea(args: {
+  products: readonly RecommendableProduct[];
+  vehicleKg: number;
+  loadKg?: number;
+  speedKmh: number;
+  angleDeg: number;
+  isRackingArea: boolean;
+}): AreaProductRecommendation[] {
+  const angleDeg = clampImpactAngle(args.angleDeg);
+  const requiredJ = computeAreaEnergyJ({
+    vehicleKg: args.vehicleKg,
+    loadKg: args.loadKg,
+    speedKmh: args.speedKmh,
+    angleDeg,
+  });
+
+  const verdictFor = (p: RecommendableProduct) =>
+    pas13Verdict({
+      vehicleMassKg: args.vehicleKg,
+      loadMassKg: args.loadKg,
+      speedKmh: args.speedKmh,
+      approachAngleDeg: angleDeg,
+      productRatedJoulesAt45deg: p.impactRating ?? 0,
+      productImpactZoneMaxMm: impactZoneMaxMm(p),
+    });
+
+  const toEntry = (
+    p: RecommendableProduct,
+    v: ReturnType<typeof pas13Verdict>,
+    reason: string,
+  ): AreaProductRecommendation => ({
+    productId: p.id,
+    productName: p.name,
+    impactRating: p.impactRating ?? null,
+    imageUrl: p.imageUrl ?? null,
+    price: p.price ?? null,
+    category: p.category ?? null,
+    safetyMarginPct: v.details.safetyMarginPct,
+    pas13Verdict: v.verdict,
+    notAligned: v.verdict !== "aligned",
+    reason,
+  });
+
+  const byFamily = new Map<string, AreaProductRecommendation>();
+  for (const p of args.products) {
+    if (!p.impactRating || p.impactRating <= 0) continue;
+    const v = verdictFor(p);
+    if (v.verdict !== "aligned") continue; // margin < PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT
+    const entry = toEntry(p, v, `Rated for ${p.impactRating}J — ${v.summary}`);
+    const family = baseProductName(p.name);
+    const existing = byFamily.get(family);
+    if (!existing || entry.safetyMarginPct < existing.safetyMarginPct) {
+      byFamily.set(family, entry);
+    }
+  }
+
+  const recommended = Array.from(byFamily.values()).sort(
+    (a, b) => (a.impactRating ?? 0) - (b.impactRating ?? 0),
+  );
+
+  if (args.isRackingArea && !recommended.some((r) => isRackGuardName(r.productName))) {
+    const rackGuards = args.products.filter(
+      (p) => isRackGuardName(p.name) && (p.impactRating ?? 0) > 0,
+    );
+    if (rackGuards.length > 0) {
+      const best = rackGuards.reduce((a, b) =>
+        (b.impactRating ?? 0) > (a.impactRating ?? 0) ? b : a,
+      );
+      const v = verdictFor(best);
+      const reason =
+        v.verdict === "not_aligned"
+          ? `Specifically designed for racking protection. Note: Rated for ${best.impactRating}J (below calculated ${Math.round(requiredJ)}J), but typical forklift speeds near racking are 1-2 kph during loading/unloading operations.`
+          : `Specifically designed for racking protection. ${v.summary}`;
+      recommended.push(toEntry(best, v, reason));
+    }
+  }
+
+  return recommended;
 }
 
 const DATA_URL_RE = /^data:([^;,]+);base64,([\s\S]*)$/i;
@@ -405,167 +590,44 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", mutationRateLimit, a
       return c.json({ error: "Site survey area not found" }, 404);
     }
 
-    const { vehicleWeight, vehicleSpeed, impactAngle: rawImpactAngle } = await c.req.json();
+    const body = await c.req.json();
+    const { vehicleWeight, vehicleSpeed, impactAngle: rawImpactAngle } = body;
 
     if (!vehicleWeight || !vehicleSpeed) {
       return c.json({ message: "Vehicle weight and speed are required" }, 400);
     }
-    const isRackingArea = currentArea?.areaType?.toLowerCase().includes("racking");
-
-    // PAS 13 calculation: KE = 0.5 x m x (v x sin theta)^2
     const massKg = parseFloat(vehicleWeight);
     const speedKmh = parseFloat(vehicleSpeed);
+    if (
+      !Number.isFinite(massKg) || massKg <= 0 ||
+      !Number.isFinite(speedKmh) || speedKmh <= 0
+    ) {
+      return c.json({ message: "Vehicle weight and speed must be positive numbers" }, 400);
+    }
+    // Optional load mass (kg) — accepted as `loadMass` or `loadWeight`.
+    const loadKg = parseLoadKg(body.loadMass ?? body.loadWeight);
     // 0 / missing angle means head-on (90°); otherwise clamp to [5, 90].
     const impactAngle = clampImpactAngle(rawImpactAngle);
-    const angleRadians = (impactAngle * Math.PI) / 180;
-    const velocityMs = speedKmh / 3.6; // Convert km/h to m/s
-    const velocityComponent = velocityMs * Math.sin(angleRadians);
-    const kineticEnergy = 0.5 * massKg * Math.pow(velocityComponent, 2);
+    const isRackingArea = currentArea.areaType?.toLowerCase().includes("racking") ?? false;
 
-    // Get ALL products from database
+    // PAS 13:2017 §6.1 KE = ½ (m_vehicle + m_load) (v sinΘ)² via the shared
+    // rule engine, so this matches the calculator and PAS 13 verdict panels.
+    const kineticEnergy = computeAreaEnergyJ({
+      vehicleKg: massKg,
+      loadKg,
+      speedKmh,
+      angleDeg: impactAngle,
+    });
+
     const allProducts = await storage.getProducts();
-
-    // Filter ALL products that meet or exceed the calculated energy
-    const qualifiedProducts = allProducts.filter((product) => {
-      const rating = product.impactRating || 0;
-      return rating >= kineticEnergy;
+    const recommendedProducts = recommendProductsForArea({
+      products: allProducts,
+      vehicleKg: massKg,
+      loadKg,
+      speedKmh,
+      angleDeg: impactAngle,
+      isRackingArea,
     });
-
-    // Smart grouping: Keep one variant per unique product type
-    const productTypeMap = new Map<string, any>();
-
-    qualifiedProducts.forEach((product) => {
-      let baseProductName = product.name
-        .replace(/\s*–\s*\d+\s*mm.*$/i, "")
-        .replace(/\s*-\s*\d+\s*mm.*$/i, "")
-        .replace(/\s*\d+mm\s*x\s*\d+mm.*$/i, "")
-        .replace(/\s*\d+\s*mm.*$/i, "")
-        .replace(/\s*\(\d+.*\).*$/i, "")
-        .replace(/\s*\d+L.*$/i, "")
-        .replace(/\s+Plus$/i, " Plus")
-        .trim();
-
-      if (!productTypeMap.has(baseProductName)) {
-        const safetyMargin = Math.round(
-          ((product.impactRating! - kineticEnergy) / kineticEnergy) * 100
-        );
-        productTypeMap.set(baseProductName, {
-          productId: product.id,
-          productName: product.name,
-          impactRating: product.impactRating,
-          imageUrl: product.imageUrl,
-          price: product.price,
-          category: product.category,
-          safetyMargin,
-          reason:
-            safetyMargin >= 20
-              ? `Rated for ${product.impactRating}J (${safetyMargin}% safety margin)`
-              : safetyMargin > 0
-                ? `Rated for ${product.impactRating}J (${safetyMargin}% margin - consider higher rated option)`
-                : `Rated for ${product.impactRating}J (meets minimum requirement)`,
-        });
-      } else {
-        const existing = productTypeMap.get(baseProductName);
-        const newSafetyMargin = Math.round(
-          ((product.impactRating! - kineticEnergy) / kineticEnergy) * 100
-        );
-
-        const isNewBetter =
-          (newSafetyMargin >= 20 &&
-            newSafetyMargin <= 50 &&
-            (existing.safetyMargin < 20 || existing.safetyMargin > 50)) ||
-          (newSafetyMargin >= 20 &&
-            newSafetyMargin <= 50 &&
-            existing.safetyMargin >= 20 &&
-            existing.safetyMargin <= 50 &&
-            Math.abs(newSafetyMargin - 25) < Math.abs(existing.safetyMargin - 25)) ||
-          (existing.safetyMargin < 20 &&
-            newSafetyMargin >= 0 &&
-            newSafetyMargin < existing.safetyMargin) ||
-          (existing.safetyMargin > 50 &&
-            newSafetyMargin >= 20 &&
-            newSafetyMargin < existing.safetyMargin);
-
-        if (isNewBetter) {
-          productTypeMap.set(baseProductName, {
-            productId: product.id,
-            productName: product.name,
-            impactRating: product.impactRating,
-            imageUrl: product.imageUrl,
-            price: product.price,
-            category: product.category,
-            safetyMargin: newSafetyMargin,
-            reason:
-              newSafetyMargin >= 20
-                ? `Rated for ${product.impactRating}J (${newSafetyMargin}% safety margin)`
-                : newSafetyMargin > 0
-                  ? `Rated for ${product.impactRating}J (${newSafetyMargin}% margin - consider higher rated option)`
-                  : `Rated for ${product.impactRating}J (meets minimum requirement)`,
-          });
-        }
-      }
-    });
-
-    // Convert map to array and sort by impact rating
-    let recommendedProducts = Array.from(productTypeMap.values())
-      .map(({ safetyMargin, ...product }) => product)
-      .sort((a, b) => (a.impactRating || 0) - (b.impactRating || 0));
-
-    // For racking areas, ensure RackGuard is included
-    if (isRackingArea) {
-      const hasRackGuard = recommendedProducts.some((p) =>
-        p.productName.toLowerCase().includes("rackguard")
-      );
-
-      if (!hasRackGuard) {
-        const rackGuardProducts = allProducts.filter((p) =>
-          p.name.toLowerCase().includes("rackguard")
-        );
-
-        if (rackGuardProducts.length > 0) {
-          let optimalRackGuard = rackGuardProducts[0];
-          let optimalDifference = Math.abs(
-            (rackGuardProducts[0].impactRating || 0) - kineticEnergy
-          );
-
-          rackGuardProducts.forEach((product) => {
-            const difference = Math.abs((product.impactRating || 0) - kineticEnergy);
-            if (
-              product.impactRating! >= kineticEnergy &&
-              (optimalRackGuard.impactRating! < kineticEnergy || difference < optimalDifference)
-            ) {
-              optimalRackGuard = product;
-              optimalDifference = difference;
-            } else if (
-              optimalRackGuard.impactRating! < kineticEnergy &&
-              difference < optimalDifference
-            ) {
-              optimalRackGuard = product;
-              optimalDifference = difference;
-            }
-          });
-
-          const impactDifference = optimalRackGuard.impactRating
-            ? Math.round(
-                ((optimalRackGuard.impactRating - kineticEnergy) / kineticEnergy) * 100
-              )
-            : -100;
-
-          recommendedProducts.unshift({
-            productId: optimalRackGuard.id,
-            productName: optimalRackGuard.name,
-            impactRating: optimalRackGuard.impactRating,
-            imageUrl: optimalRackGuard.imageUrl,
-            price: optimalRackGuard.price,
-            category: optimalRackGuard.category,
-            reason:
-              impactDifference >= 0
-                ? `Specifically designed for racking protection. Rated for ${optimalRackGuard.impactRating}J (${impactDifference}% margin)`
-                : `Specifically designed for racking protection. Note: Rated for ${optimalRackGuard.impactRating}J (below calculated ${Math.round(kineticEnergy)}J), but typical forklift speeds near racking are 1-2 kph during loading/unloading operations.`,
-          });
-        }
-      }
-    }
 
     // Update the area with calculation results
     const updatedArea = await storage.updateSiteSurveyArea(areaId, {
@@ -576,15 +638,20 @@ siteSurveys.post("/site-survey-areas/:id/calculate-impact", mutationRateLimit, a
       recommendedProducts,
     });
 
+    const velocityMs = speedKmh / 3.6; // km/h → m/s
     return c.json({
       area: updatedArea,
       kineticEnergy: Math.round(kineticEnergy),
       recommendedProducts,
       calculation: {
         mass: massKg,
+        loadMass: loadKg,
         speed: speedKmh,
         angle: impactAngle,
-        velocityComponent: velocityComponent.toFixed(2),
+        velocityComponent: (velocityMs * sineFromPas13Table(impactAngle)).toFixed(2),
+        alignedMinSafetyMarginPct: PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT,
+        standardVersion: PAS13_VERSION,
+        footnote: PAS13_INDICATIVE_FOOTNOTE,
       },
     });
   } catch (error) {

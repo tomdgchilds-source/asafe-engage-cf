@@ -264,7 +264,7 @@ export interface Pas13Verdict {
  * behaviour monotonically non-decreasing even if the table is edited in
  * future revisions.)
  */
-function sineFromPas13Table(angleDeg: number): number {
+export function sineFromPas13Table(angleDeg: number): number {
   const angle = Math.max(0, Math.min(90, angleDeg));
   const table = PAS13_SINE_TABLE;
   // Exact match
