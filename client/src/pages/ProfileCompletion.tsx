@@ -4,6 +4,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import type { User as UserProfile } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +29,7 @@ export function ProfileCompletion() {
   const { toast } = useToast();
 
   // Get current user data
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<UserProfile>({
     queryKey: ['/api/auth/user'],
   });
 

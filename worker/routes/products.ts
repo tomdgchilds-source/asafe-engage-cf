@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "../types";
+import type { Product } from "@shared/schema";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
@@ -15,9 +16,7 @@ products.get("/vehicle-types", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    console.log("Getting all vehicle types");
     const vehicleTypes = await storage.getVehicleTypes();
-    console.log(`Found ${vehicleTypes.length} vehicle types`);
     return c.json(vehicleTypes);
   } catch (error) {
     console.error("Error fetching vehicle types:", error);
@@ -250,7 +249,14 @@ products.get("/products", async (c) => {
       priceVariantsByProductId[key].push(v);
     }
 
-    const productsWithVariants = allProducts.map((product) => {
+    // The hand-written `Product` interface in shared/schema.ts lags the
+    // `products` table; these price-list columns do exist on the row.
+    type CatalogProduct = Product & {
+      pricingLogic?: string | null;
+      priceListSource?: string | null;
+      priceListVersion?: string | null;
+    };
+    const productsWithVariants = (allProducts as CatalogProduct[]).map((product) => {
       let variants: any[] = [];
       let specifications: any = product.specifications;
 
@@ -770,7 +776,7 @@ products.get("/products/variants/:baseName", async (c) => {
     const baseName = decodeURIComponent(c.req.param("baseName"));
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
-    const variants = await storage.getProductVariants(baseName);
+    const variants = await storage.getProductNameVariants(baseName);
     return c.json(variants);
   } catch (error) {
     console.error("Error fetching product variants:", error);
@@ -786,28 +792,23 @@ products.get("/products/:id", async (c) => {
 
     // URL decode the product ID to handle special characters like em-dashes
     const productId = decodeURIComponent(c.req.param("id"));
-    console.log("Fetching product with ID:", productId);
-    console.log("Raw param received:", c.req.param("id"));
 
     let product = await storage.getProduct(productId);
 
     // If not found, try converting em-dashes to triple hyphens (common ID format issue)
     if (!product && productId.includes("\u2013")) {
       const alternativeId = productId.replace(/\u2013/g, "---");
-      console.log(`Trying alternative ID format: ${alternativeId}`);
       product = await storage.getProduct(alternativeId);
     }
 
     // If still not found, try converting triple hyphens to em-dashes
     if (!product && productId.includes("---")) {
       const alternativeId = productId.replace(/---/g, "\u2013");
-      console.log(`Trying em-dash ID format: ${alternativeId}`);
       product = await storage.getProduct(alternativeId);
     }
 
     // Also try searching by name if ID lookup fails
     if (!product) {
-      console.log("Attempting product lookup by name similarity");
       const nameBasedProduct = await storage.getProductByNameSimilarity(productId);
       if (nameBasedProduct) {
         product = nameBasedProduct;
@@ -815,7 +816,6 @@ products.get("/products/:id", async (c) => {
     }
 
     if (!product) {
-      console.log(`Product not found after all attempts: ${productId}`);
       return c.json({ message: "Product not found" }, 404);
     }
 
@@ -847,14 +847,13 @@ products.get("/products/:id", async (c) => {
         .replace(/\s*\(\d+\s*rails?\)/gi, "")
         .trim();
 
-      const variants = await storage.getProductVariants(baseName);
+      const variants = await storage.getProductNameVariants(baseName);
       if (variants && variants.length > 1) {
         hasVariants = true;
         productVariants = variants;
       }
     } catch (err) {
       // If fetching variants fails, just use what we have
-      console.log("Could not fetch product variants:", err);
     }
 
     return c.json({
@@ -905,13 +904,6 @@ products.get("/search", async (c) => {
     // Perform comprehensive search
     const searchResults = await storage.searchAll(q, type, userId);
 
-    console.log(`Search query: "${q}", type: "${type}", results:`, {
-      products: searchResults.products.length,
-      resources: searchResults.resources.length,
-      caseStudies: searchResults.caseStudies.length,
-      orders: searchResults.orders.length,
-      faqs: searchResults.faqs.length,
-    });
 
     return c.json(searchResults);
   } catch (error) {

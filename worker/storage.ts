@@ -215,6 +215,20 @@ export interface OrderApprovalStatus {
   marketing: OrderSectionSignature | null;
 }
 
+export type PartnerCodeValidation =
+  | { valid: true; codeId: string; partnerName: string; discountPercent: number }
+  | {
+      valid: false;
+      reason:
+        | "invalid"
+        | "inactive"
+        | "expired"
+        | "notYetValid"
+        | "exhausted"
+        | "per_user_same_code_limit"
+        | "per_user_total_limit";
+    };
+
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
@@ -280,7 +294,12 @@ export interface IStorage {
   updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
   getProductRecommendations(jouleRating: number): Promise<Product[]>;
-  getProductVariants(baseName: string): Promise<Product[]>;
+  // Sibling products in the `products` table whose normalised name matches
+  // `baseName` (legacy name-based variant grouping).
+  getProductNameVariants(baseName: string): Promise<Product[]>;
+  // Rows from the `product_variants` price-list table, optionally scoped to
+  // one product. No argument returns every active variant.
+  getProductVariants(productId?: string): Promise<any[]>;
   
   // Case Study operations
   getCaseStudies(industry?: string): Promise<CaseStudy[]>;
@@ -346,10 +365,14 @@ export interface IStorage {
   // Customer / project / contact CRUD (new opportunity model)
   listCustomerCompanies(userId: string): Promise<CustomerCompany[]>;
   getCustomerCompany(id: string): Promise<CustomerCompany | undefined>;
+  // Cross-user lookup by id list (shared projects may reference companies
+  // owned by another rep). Empty input returns [] without a query.
+  getCustomerCompaniesByIds(ids: string[]): Promise<CustomerCompany[]>;
   createCustomerCompany(data: InsertCustomerCompany): Promise<CustomerCompany>;
   updateCustomerCompany(id: string, data: Partial<InsertCustomerCompany>): Promise<CustomerCompany>;
   listProjects(userId: string): Promise<Project[]>;
   getProject(id: string): Promise<Project | undefined>;
+  getProjectsByIds(ids: string[]): Promise<Project[]>;
   getProjectWithDetails(id: string): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | undefined>;
   createProject(data: InsertProject): Promise<Project>;
   updateProject(id: string, data: Partial<InsertProject>): Promise<Project>;
@@ -433,20 +456,7 @@ export interface IStorage {
   // validate time so the client can show a friendly error BEFORE the user
   // tries to check out. `userId` is required, not optional — every caller
   // is already in an authenticated route.
-  validatePartnerCode(code: string, userId: string): Promise<
-    | { valid: true; codeId: string; partnerName: string; discountPercent: number }
-    | {
-        valid: false;
-        reason:
-          | "invalid"
-          | "inactive"
-          | "expired"
-          | "notYetValid"
-          | "exhausted"
-          | "per_user_same_code_limit"
-          | "per_user_total_limit";
-      }
-  >;
+  validatePartnerCode(code: string, userId: string): Promise<PartnerCodeValidation>;
   redeemPartnerCode(
     code: string,
     userId: string,
@@ -666,8 +676,8 @@ export interface IStorage {
   createUser(data: { email: string; passwordHash: string; firstName: string; lastName: string; company?: string | null; phone?: string | null; jobTitle?: string | null; role?: string }): Promise<any>;
 
   // OAuth operations
-  getUserByOAuth(provider: string, oauthId: string): Promise<any | undefined>;
-  createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }): Promise<any>;
+  getUserByOAuth(provider: string, oauthId: string): Promise<User | undefined>;
+  createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }): Promise<User>;
   linkOAuthAccount(userId: string, provider: string, oauthId: string): Promise<void>;
 
   // ── Approval-token / magic-link operations ─────────────────────────────
@@ -1267,7 +1277,6 @@ export class DatabaseStorage implements IStorage {
       .replace(/\b\w/g, l => l.toUpperCase()) // Title case
       .trim();
 
-    console.log(`Searching for product name similarity: "${cleanedSearch}"`);
 
     const [similarProduct] = await this.db
       .select()
@@ -1299,7 +1308,7 @@ export class DatabaseStorage implements IStorage {
     await this.db.update(products).set({ isActive: false }).where(eq(products.id, id));
   }
 
-  async getProductVariants(baseName: string): Promise<Product[]> {
+  async getProductNameVariants(baseName: string): Promise<Product[]> {
     // Get all products that match the base name pattern
     const allProducts = await this.db
       .select()
@@ -1325,10 +1334,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductRecommendations(requiredImpactRating: number): Promise<Product[]> {
-    console.log(`Getting product recommendations for ${requiredImpactRating}J impact rating`);
     
     const requiredRating = Math.ceil(requiredImpactRating);
-    console.log(`Required rating: ${requiredRating}J`);
     
     // Get all products that meet the impact rating requirement
     const allProducts = await this.db
@@ -1414,14 +1421,12 @@ export class DatabaseStorage implements IStorage {
     // Sort by impact rating
     recommendedProducts.sort((a, b) => (a.impactRating || 0) - (b.impactRating || 0));
     
-    console.log(`Found ${allProducts.length} total variants, returning ${recommendedProducts.length} unique base products`);
     return recommendedProducts;
   }
 
   // Case Study operations - Now using corrected schema
   async getCaseStudies(industry?: string, contentType?: string): Promise<CaseStudy[]> {
     try {
-      console.log(`Fetching case studies with filters - industry: ${industry || 'none'}, contentType: ${contentType || 'none'}`);
       
       // Map frontend industry filters to database values
       const industryMapping: Record<string, string> = {
@@ -1457,7 +1462,6 @@ export class DatabaseStorage implements IStorage {
         .where(and(...conditions))
         .orderBy(desc(caseStudies.createdAt));
         
-      console.log(`Found ${results.length} case studies with applied filters`);
       return results;
     } catch (error) {
       console.error('Error in getCaseStudies:', error);
@@ -1491,7 +1495,6 @@ export class DatabaseStorage implements IStorage {
   // Resource operations
   async getResources(resourceType?: string): Promise<Resource[]> {
     try {
-      console.log('Getting resources with resourceType:', resourceType);
       
       // Use Drizzle query builder for type safety and SQL injection prevention
       const whereConditions = [eq(resources.isActive, true)];
@@ -1520,7 +1523,6 @@ export class DatabaseStorage implements IStorage {
         .from(resources)
         .where(and(...whereConditions))
         .orderBy(desc(resources.downloadCount), desc(resources.createdAt));
-      console.log('Resources query result:', result.length, 'rows');
       
       return result;
     } catch (error) {
@@ -1828,7 +1830,6 @@ export class DatabaseStorage implements IStorage {
   async updateCartItem(id: string, updates: Partial<InsertCartItem>): Promise<CartItem> {
     // If quantity is being updated, recalculate pricing
     if (updates.quantity !== undefined) {
-      console.log(`Recalculating pricing for cart item ${id} with new quantity: ${updates.quantity}`);
       
       // Get the current cart item to access product name
       const [currentItem] = await this.db.select().from(cartItems).where(eq(cartItems.id, id));
@@ -1848,7 +1849,6 @@ export class DatabaseStorage implements IStorage {
           updates.totalPrice = newTotal;
           updates.unitPrice = Math.round(existingUnit * 100) / 100;
           updates.pricingTier = currentItem.pricingTier || "Variant Price";
-          console.log(`Used existing variant price for update: Unit=${updates.unitPrice}, Total=${updates.totalPrice}`);
         } else {
           throw new Error("No pricing available for this product. Please request a quote.");
         }
@@ -1858,7 +1858,6 @@ export class DatabaseStorage implements IStorage {
         updates.totalPrice = pricingResult.totalPrice;
         updates.pricingTier = pricingResult.tier;
 
-        console.log(`Updated pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`);
       }
     }
     
@@ -1916,7 +1915,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async calculatePrice(productName: string, quantity: number): Promise<{ unitPrice: number; totalPrice: number; tier: string; requiresQuote?: boolean }> {
-    console.log(`Calculating price for product: "${productName}" with quantity: ${quantity}`);
     
     // Clean up product name - handle duplicate dimensions issue
     // e.g., "eFlex Single Rack End Barrier – 2500 mm – 2500 mm" -> "eFlex Single Rack End Barrier – 2500 mm"
@@ -1925,7 +1923,6 @@ export class DatabaseStorage implements IStorage {
     if (parts.length === 3 && parts[1] === parts[2]) {
       // If we have duplicate dimensions, remove the second one
       cleanProductName = `${parts[0]} – ${parts[1]}`;
-      console.log(`Cleaned product name from "${productName}" to "${cleanProductName}"`);
     }
     
     // First try exact match with cleaned name
@@ -1956,7 +1953,6 @@ export class DatabaseStorage implements IStorage {
     let tier: string = "";
     
     if (!pricing) {
-      console.log(`No pricing found for product: "${cleanProductName}", checking base product price...`);
       
       // Fallback to base product price from products table - try cleaned name first
       let [product] = await this.db
@@ -1974,7 +1970,6 @@ export class DatabaseStorage implements IStorage {
       
       if (product && product.price) {
         basePrice = parseFloat(product.price);
-        console.log(`Using base product price: ${basePrice} AED for "${cleanProductName}"`);
       } else {
         console.error(`No pricing found for product: "${productName}" in either pricing or products table`);
         // No pricing available - return a "requires quote" response instead of a fake price
@@ -2108,7 +2103,7 @@ export class DatabaseStorage implements IStorage {
   //  - `listPartnerCodes` / `createPartnerCode` / `setPartnerCodeActive`
   //    are admin-only (routes guard this).
   // ────────────────────────────────────────────────────────────────
-  async validatePartnerCode(code: string, userId: string) {
+  async validatePartnerCode(code: string, userId: string): Promise<PartnerCodeValidation> {
     const trimmed = (code || "").trim();
     if (!trimmed) {
       return { valid: false, reason: "invalid" as const };
@@ -2506,6 +2501,14 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async getCustomerCompaniesByIds(ids: string[]): Promise<CustomerCompany[]> {
+    if (ids.length === 0) return [];
+    return await this.db
+      .select()
+      .from(customerCompanies)
+      .where(inArray(customerCompanies.id, ids));
+  }
+
   async createCustomerCompany(data: InsertCustomerCompany): Promise<CustomerCompany> {
     const [row] = await this.db
       .insert(customerCompanies)
@@ -2534,6 +2537,15 @@ export class DatabaseStorage implements IStorage {
   async getProject(id: string): Promise<Project | undefined> {
     const [row] = await this.db.select().from(projects).where(eq(projects.id, id));
     return row;
+  }
+
+  async getProjectsByIds(ids: string[]): Promise<Project[]> {
+    if (ids.length === 0) return [];
+    return await this.db
+      .select()
+      .from(projects)
+      .where(inArray(projects.id, ids))
+      .orderBy(desc(projects.lastAccessedAt));
   }
 
   async getProjectWithDetails(id: string): Promise<(Project & { customerCompany: CustomerCompany | null; contacts: ProjectContact[] }) | undefined> {
@@ -4651,7 +4663,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // OAuth operations
-  async getUserByOAuth(provider: string, oauthId: string) {
+  async getUserByOAuth(provider: string, oauthId: string): Promise<User | undefined> {
     const [user] = await this.db.select().from(users).where(
       and(eq(users.oauthProvider, provider), eq(users.oauthId, oauthId))
     );
@@ -4676,7 +4688,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }) {
+  async createOAuthUser(profile: { email: string; firstName: string; lastName: string; provider: string; oauthId: string }): Promise<User> {
     const id = crypto.randomUUID();
     const [user] = await this.db.insert(users).values({
       id,

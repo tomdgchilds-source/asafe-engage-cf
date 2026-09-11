@@ -26,13 +26,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { LayoutDrawing as LayoutDrawingType, CartItem as CartItemType, Project, CustomerCompany } from "@shared/schema";
+import type { LayoutDrawing as LayoutDrawingType, CartItem as CartItemType, Project, CustomerCompany, User } from "@shared/schema";
 
 type ProjectWithCustomer = Project & { customerCompany: CustomerCompany | null };
 type ActiveProject = ProjectWithCustomer | null;
 
 export default function LayoutDrawing() {
   const { user } = useAuth();
+  // Only the profile fields used for pre-filling the upload form; keeps this
+  // page independent of how useAuth types its `user`.
+  const profile = user as Pick<User, "company" | "city"> | null | undefined;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDrawing, setSelectedDrawing] = useState<LayoutDrawingType | null>(null);
@@ -193,8 +196,8 @@ export default function LayoutDrawing() {
               </CardHeader>
               <CardContent>
                 <LayoutDrawingUpload
-                  company={user?.company || undefined}
-                  location={user?.location || undefined}
+                  company={profile?.company || undefined}
+                  location={profile?.city || undefined}
                   projectName="Layout Drawing Project"
                   onDrawingSelect={handleDrawingSelect}
                 />
@@ -264,7 +267,10 @@ export default function LayoutDrawing() {
                             {drawing.company} • {drawing.location}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
-                            {new Date(drawing.updatedAt || drawing.createdAt).toLocaleDateString()}
+                            {(() => {
+                              const ts = drawing.updatedAt ?? drawing.createdAt;
+                              return ts ? new Date(ts).toLocaleDateString() : "";
+                            })()}
                           </p>
                         </div>
                       </div>

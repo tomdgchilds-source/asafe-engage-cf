@@ -32,6 +32,17 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+// Shape of GET /api/admin/users/:userId/details (worker/routes/admin.ts).
+interface UserDetails {
+  user?: User;
+  orders?: Order[];
+  calculations?: unknown[];
+  activities?: UserActivity[];
+  quoteRequests?: unknown[];
+  solutionRequests?: unknown[];
+  siteSurveys?: unknown[];
+}
+
 interface AdminUser {
   id: string;
   username: string;
@@ -95,7 +106,7 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Admin session is verified by the AdminRoute wrapper
-  const { data: adminUser } = useQuery({
+  const { data: adminUser } = useQuery<AdminUser>({
     queryKey: ["/api/admin/session"],
     retry: false,
   });
@@ -137,7 +148,7 @@ export default function AdminDashboard() {
   });
 
   // Fetch selected user details
-  const { data: userDetails } = useQuery({
+  const { data: userDetails } = useQuery<UserDetails>({
     queryKey: ["/api/admin/users", selectedUserId, "details"],
     queryFn: async () => {
       const response = await fetch(`/api/admin/users/${selectedUserId}/details`);
@@ -392,7 +403,7 @@ export default function AdminDashboard() {
                               onClick={() => {
                                 setSelectedUserId(user.id);
                                 // Switch to user details tab
-                                document.querySelector('[data-value="user-details"]')?.click();
+                                document.querySelector<HTMLElement>('[data-value="user-details"]')?.click();
                               }}
                               data-testid={`button-view-user-${user.id}`}
                             >

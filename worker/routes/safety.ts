@@ -222,12 +222,23 @@ safety.patch("/training-progress/:moduleId", authMiddleware, async (c) => {
       progressPercentage?: number;
       timeSpent?: number;
     }>();
+    if (
+      typeof progressPercentage !== "number" ||
+      !Number.isFinite(progressPercentage) ||
+      progressPercentage < 0 ||
+      progressPercentage > 100
+    ) {
+      return c.json({ message: "progressPercentage must be a number between 0 and 100" }, 400);
+    }
+    if (timeSpent !== undefined && (typeof timeSpent !== "number" || !Number.isFinite(timeSpent) || timeSpent < 0)) {
+      return c.json({ message: "timeSpent must be a non-negative number of seconds" }, 400);
+    }
 
     const progress = await storage.updateTrainingProgress(
       userId,
       moduleId,
       progressPercentage,
-      timeSpent,
+      timeSpent ?? 0,
     );
     return c.json(progress);
   } catch (error) {

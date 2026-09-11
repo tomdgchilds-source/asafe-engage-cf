@@ -131,7 +131,7 @@ export function QuoteDraftDrawer({ open, onOpenChange, draft, isGenerating }: Pr
         credentials: "include",
       });
       if (!res.ok) throw new Error(`promote ${res.status}`);
-      const promotePayload = await res.json();
+      const promotePayload = (await res.json()) as { items?: unknown[]; projectInfo?: unknown };
       const items = promotePayload.items as any[];
       const projectInfo = promotePayload.projectInfo as any;
 

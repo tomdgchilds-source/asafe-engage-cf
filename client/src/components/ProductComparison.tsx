@@ -47,7 +47,7 @@ export function ProductComparison({
   const { toast } = useToast();
   
   // Fetch all products for selection
-  const { data: allProducts } = useQuery({
+  const { data: allProducts } = useQuery<Product[]>({
     queryKey: ["/api/products"],
     enabled: showProductSelector,
   });
@@ -121,11 +121,14 @@ export function ProductComparison({
       },
       {
         label: "Industry",
-        getValue: (p: Product) => p.industry || "General"
+        // industries/applications are jsonb string arrays on the product row.
+        getValue: (p: Product) =>
+          Array.isArray(p.industries) && p.industries.length > 0 ? p.industries.join(", ") : "General"
       },
       {
         label: "Application",
-        getValue: (p: Product) => p.application || "N/A"
+        getValue: (p: Product) =>
+          Array.isArray(p.applications) && p.applications.length > 0 ? p.applications.join(", ") : "N/A"
       }
     ];
 

@@ -171,7 +171,7 @@ export function PartnerCodesTab() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(err.message || `Create failed (${res.status})`);
       }
       return res.json();

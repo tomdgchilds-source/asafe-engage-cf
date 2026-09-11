@@ -96,7 +96,9 @@ export function useHapticFeedback(options: HapticFeedbackOptions = {}) {
   // Check if vibration is supported with enhanced mobile detection
   const isSupported = useCallback(() => {
     // Check for standard Vibration API
-    if ('vibrate' in navigator) return true;
+    // typeof check (not `in`): an `in` guard narrows `navigator` itself to
+    // `never` on the fall-through path because Navigator always has vibrate.
+    if (typeof navigator.vibrate === "function") return true;
     
     // Check for webkit prefixed version (older Safari)
     if ('webkitVibrate' in navigator) return true;
@@ -132,7 +134,7 @@ export function useHapticFeedback(options: HapticFeedbackOptions = {}) {
       const vibrationPattern = VIBRATION_PATTERNS[pattern];
       
       // Try standard Vibration API first
-      if ('vibrate' in navigator) {
+      if (typeof navigator.vibrate === "function") {
         // On mobile devices, ensure pattern is not too long
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile && vibrationPattern.length > 5) {

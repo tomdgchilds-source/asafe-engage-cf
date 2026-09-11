@@ -73,7 +73,7 @@ export function CompanyLogoFinder({
         companyName,
         forceRefresh
       });
-      const response = await res.json();
+      const response = (await res.json()) as { success?: boolean; logo?: LogoSearchResult | null };
 
       if (response.success && response.logo) {
         setSearchResult(response.logo);

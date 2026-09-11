@@ -298,7 +298,6 @@ auth.get("/auth/google/callback", async (c) => {
     steps.push("3. Building redirect URI");
     const baseUrl = getBaseUrl(c);
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
-    console.log("OAuth callback - baseUrl:", baseUrl, "redirectUri:", redirectUri);
 
     steps.push("4. Exchanging code for tokens");
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {

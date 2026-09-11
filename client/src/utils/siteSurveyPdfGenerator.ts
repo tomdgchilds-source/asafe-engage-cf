@@ -192,7 +192,7 @@ async function fetchSurveyCatalog(): Promise<SurveyCatalogProduct[]> {
       credentials: "include",
     });
     if (!res.ok) return [];
-    const data = await res.json();
+    const data = (await res.json()) as SurveyCatalogProduct[] | { products?: SurveyCatalogProduct[] };
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.products)) return data.products;
     return [];
@@ -352,7 +352,7 @@ export async function generateSiteSurveyPdf(
   const setStroke = (c: [number, number, number]) => pdf.setDrawColor(c[0], c[1], c[2]);
   const setText = (c: [number, number, number]) => pdf.setTextColor(c[0], c[1], c[2]);
 
-  const setFont = (size: number, weight: "normal" | "bold" = "normal") => {
+  const setFont = (size: number, weight: "normal" | "bold" | "italic" = "normal") => {
     pdf.setFontSize(size);
     pdf.setFont("helvetica", weight);
   };

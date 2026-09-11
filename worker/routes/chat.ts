@@ -170,10 +170,15 @@ chat.post("/chat/upload-image", authMiddleware, async (c) => {
       return c.json({ message: "No image file provided" }, 400);
     }
 
-    const buffer = await imageFile.arrayBuffer();
-    const base64Image = btoa(
-      String.fromCharCode(...new Uint8Array(buffer)),
-    );
+    const bytes = new Uint8Array(await imageFile.arrayBuffer());
+    // Encode in chunks: spreading a multi-MB image into fromCharCode(...)
+    // blows the argument limit / call stack on large uploads.
+    let binary = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+    }
+    const base64Image = btoa(binary);
     const dataUrl = `data:${imageFile.type};base64,${base64Image}`;
 
     return c.json({ imageUrl: dataUrl });

@@ -96,7 +96,7 @@ async function verifyDomainLogo(domain: string): Promise<boolean> {
 // ──────────────────────────────────────────────
 companyLogo.post("/company-logo/suggest", async (c) => {
   try {
-    const body = await c.req.json<{ query?: string }>().catch(() => ({}));
+    const body = await c.req.json<{ query?: string }>().catch(() => ({} as { query?: string }));
     const query = (body.query ?? "").trim();
     if (query.length < 2) {
       return c.json({ suggestions: [] });
@@ -111,7 +111,7 @@ companyLogo.post("/company-logo/suggest", async (c) => {
     // resolve to a real favicon.
     const candidates = guessDomains(query);
     const verified = await Promise.all(
-      candidates.map(async (domain) => {
+      candidates.map(async (domain): Promise<Suggestion | null> => {
         const ok = await verifyDomainLogo(domain);
         return ok
           ? {
@@ -192,7 +192,7 @@ companyLogo.post("/company-logo/search", async (c) => {
   try {
     const body = await c.req
       .json<{ companyName?: string }>()
-      .catch(() => ({}));
+      .catch(() => ({} as { companyName?: string }));
     const query = (body.companyName ?? "").trim();
     if (query.length < 2) {
       return c.json({

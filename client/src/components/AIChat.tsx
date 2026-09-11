@@ -80,7 +80,7 @@ export function AIChat({ children, className }: AIChatProps) {
       return apiRequest('/api/chat/conversations', 'POST', { title });
     },
     onSuccess: async (response) => {
-      const newConversation = await response.json();
+      const newConversation = (await response.json()) as { id: string };
       queryClient.invalidateQueries({ queryKey: ['/api/chat/conversations'] });
       setSelectedConversation(newConversation.id);
       haptic.success();
@@ -160,7 +160,7 @@ export function AIChat({ children, className }: AIChatProps) {
         throw new Error('Failed to upload image');
       }
       
-      return response.json();
+      return (await response.json()) as { imageUrl: string };
     },
     onSuccess: (data) => {
       setIsUploading(false);

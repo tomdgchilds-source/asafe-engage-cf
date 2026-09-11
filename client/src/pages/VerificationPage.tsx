@@ -9,6 +9,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, Phone, Loader2 } from 'lucide-react';
 
+interface VerificationStatus {
+  isVerified?: boolean;
+  mustCompleteProfile?: boolean;
+}
+
 export function VerificationPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -19,7 +24,7 @@ export function VerificationPage() {
   const [phone, setPhone] = useState('');
 
   // Check verification status
-  const { data: verificationStatus, refetch } = useQuery({
+  const { data: verificationStatus, refetch } = useQuery<VerificationStatus>({
     queryKey: ['/api/auth/verification-status'],
     refetchInterval: false,
   });
@@ -28,7 +33,7 @@ export function VerificationPage() {
   const sendCodeMutation = useMutation({
     mutationFn: async (data: { method: 'email' | 'whatsapp'; phone?: string }) => {
       const res = await apiRequest('/api/auth/send-verification', 'POST', data);
-      return res.json();
+      return (await res.json()) as { message?: string };
     },
     onSuccess: (data) => {
       toast({
@@ -50,7 +55,7 @@ export function VerificationPage() {
   const verifyCodeMutation = useMutation({
     mutationFn: async (code: string) => {
       const res = await apiRequest('/api/auth/verify-code', 'POST', { code });
-      return res.json();
+      return (await res.json()) as { message?: string };
     },
     onSuccess: async (data) => {
       toast({
@@ -87,7 +92,7 @@ export function VerificationPage() {
   const resendCodeMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('/api/auth/resend-code', 'POST');
-      return res.json();
+      return (await res.json()) as { message?: string };
     },
     onSuccess: (data) => {
       toast({

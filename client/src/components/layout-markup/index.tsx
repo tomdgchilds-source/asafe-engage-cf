@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { LayoutMarkup } from "@shared/schema";
+import type { LayoutMarkup, CartItem } from "@shared/schema";
 
 import type { LayoutMarkupEditorProps, DrawingPoint, MarkupPath } from "./types";
 import { isImageFileType, isBlankCanvasType, getProductColor as getProductColorUtil, getCartItemWithMarkings as getCartItemWithMarkingsUtil, getMarkedQuantity, detectCorners, calculateBarrierLength, parsePathData, getProductWidthMm } from "./utils";
@@ -592,7 +592,7 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
       return apiRequest("/api/cart", "POST", productData);
     },
     onSuccess: async (response) => {
-      const newProduct = await response.json();
+      const newProduct = (await response.json()) as CartItem;
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
 
       if (canvas.pendingPath) {
@@ -1993,7 +1993,7 @@ export function LayoutMarkupEditor({ isOpen, onClose, drawing, cartItems }: Layo
           // created item for immediate selection inside the ProductSidebar.
           try {
             const res = await apiRequest("/api/cart", "POST", { productName: name, quantity });
-            const newItem = await res.json();
+            const newItem = (await res.json()) as CartItem;
             queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
             return newItem;
           } catch (err) {

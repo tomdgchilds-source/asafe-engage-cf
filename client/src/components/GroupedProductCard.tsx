@@ -161,7 +161,7 @@ export function GroupedProductCard({ product, variants, onViewDetails }: Grouped
             {product.description}
           </p>
 
-          {product.features && Array.isArray(product.features) && product.features.length > 0 && (
+          {Array.isArray(product.features) && product.features.length > 0 && (
             <div className="mb-2 sm:mb-3">
               <h4 className="font-semibold text-xs sm:text-sm mb-1">Key Features:</h4>
               <ul className="text-xs text-gray-600 space-y-0.5">
@@ -175,7 +175,7 @@ export function GroupedProductCard({ product, variants, onViewDetails }: Grouped
             </div>
           )}
 
-          {product.applications && Array.isArray(product.applications) && product.applications.length > 0 && (
+          {Array.isArray(product.applications) && product.applications.length > 0 && (
             <div className="mb-2 sm:mb-3">
               <h4 className="font-semibold text-xs sm:text-sm mb-1">Applications:</h4>
               <div className="flex flex-wrap gap-1">

@@ -197,7 +197,6 @@ export const detectCorners = (points: { x: number; y: number }[]): number => {
 
   if (simplifiedPoints.length < 3) return 0;
 
-  console.log(`Corner detection: ${simplifiedPoints.length} simplified points from ${points.length} original points`);
 
   for (let i = 1; i < simplifiedPoints.length - 1; i++) {
     const prevPoint = simplifiedPoints[i - 1];
@@ -224,17 +223,14 @@ export const detectCorners = (points: { x: number; y: number }[]): number => {
     const cosAngle = dotProduct / (magnitude1 * magnitude2);
     const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle))) * (180 / Math.PI);
 
-    console.log(`Point ${i}: angle = ${angle.toFixed(1)}\u00b0`);
 
     // Check if angle is approximately 90 degrees (corner) or 180 degrees (straight continuation)
     // We want to detect significant direction changes
     if (Math.abs(angle - 90) <= angleThreshold) {
       cornerCount++;
-      console.log(`Corner detected at point ${i}: ${angle.toFixed(1)}\u00b0`);
     }
   }
 
-  console.log(`Total corners detected: ${cornerCount}`);
   return cornerCount;
 };
 

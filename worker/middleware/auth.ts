@@ -14,8 +14,20 @@ import {
 
 const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
 
+// Every route in this app is mounted on `Hono<{ Bindings: Env; Variables: Variables }>`,
+// so helpers must accept that context shape (Hono's Context is not assignable
+// across differing Variables). Path/input generics are left open so any route
+// can call these.
+type AppContext = Context<{ Bindings: Env; Variables: Variables }, any, any>;
+
+// accountLockout.ts imports KVNamespace from "@cloudflare/workers-types" (the
+// module form); Env uses the ambient global from the same package. They are
+// the same runtime object but distinct declarations to tsc, so bridge here.
+type LockoutKv = Parameters<typeof isAccountLocked>[0];
+const lockoutKv = (kv: KVNamespace): LockoutKv => kv as unknown as LockoutKv;
+
 // Get session from KV by cookie sid
-async function getSession(c: Context<{ Bindings: Env }>): Promise<SessionData | null> {
+async function getSession(c: AppContext): Promise<SessionData | null> {
   const sid = getCookie(c, "sid");
   if (!sid) return null;
   const data = await c.env.KV_SESSIONS.get<SessionData>(`session:${sid}`, "json");
@@ -33,7 +45,7 @@ async function getSession(c: Context<{ Bindings: Env }>): Promise<SessionData | 
 // "active rep". Failures here are swallowed so a transient DB blip
 // can't lock a user out of their own login.
 export async function createSession(
-  c: Context<{ Bindings: Env }>,
+  c: AppContext,
   user: { id: string; email: string | null; firstName: string | null; lastName: string | null }
 ): Promise<SessionData> {
   const sid = crypto.randomUUID();
@@ -78,7 +90,7 @@ export async function createSession(
 }
 
 // Destroy session
-export async function destroySession(c: Context<{ Bindings: Env }>): Promise<void> {
+export async function destroySession(c: AppContext): Promise<void> {
   const sid = getCookie(c, "sid");
   if (sid) {
     await c.env.KV_SESSIONS.delete(`session:${sid}`);
@@ -110,7 +122,7 @@ export const optionalAuth = createMiddleware<{ Bindings: Env; Variables: Variabl
 );
 
 // Login handler — verify email+password, create session
-export async function handleLogin(c: Context<{ Bindings: Env }>) {
+export async function handleLogin(c: AppContext) {
   const body = await c.req.json<{ email: string; password: string; turnstileToken?: string }>();
   if (!body.email || !body.password) {
     return c.json({ message: "Email and password are required" }, 400);
@@ -127,7 +139,7 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
 
   // Account lockout — block before we even hit the DB / bcrypt.
   const normalizedEmail = body.email.toLowerCase().trim();
-  const lockStatus = await isAccountLocked(c.env.KV_SESSIONS, normalizedEmail);
+  const lockStatus = await isAccountLocked(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
   if (lockStatus.locked) {
     c.header("Retry-After", Math.max(1, lockStatus.retryAfterSeconds).toString());
     const mins = Math.max(1, Math.ceil(lockStatus.retryAfterSeconds / 60));
@@ -146,13 +158,13 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
   if (!user || !user.passwordHash) {
     // Record a failure even when the email isn't in the DB so attackers
     // can't enumerate addresses by watching rate-limit behaviour.
-    await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
+    await recordFailedLogin(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
     return c.json({ message: "Invalid email or password" }, 401);
   }
 
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
-    const res = await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
+    const res = await recordFailedLogin(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
     if (res.locked) {
       c.header("Retry-After", Math.max(1, res.retryAfterSeconds).toString());
       const mins = Math.max(1, Math.ceil(res.retryAfterSeconds / 60));
@@ -167,7 +179,7 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
   }
 
   // Successful login — clear any accumulated failure counter.
-  await clearFailedLogins(c.env.KV_SESSIONS, normalizedEmail);
+  await clearFailedLogins(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
 
   await createSession(c, user);
 

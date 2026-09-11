@@ -110,9 +110,6 @@ cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
 
     // Recalculate pricing to apply tiered discounts
     if (cartItem.productName && cartItem.quantity) {
-      console.log(
-        `Recalculating price for new cart item: ${cartItem.productName} with quantity: ${cartItem.quantity}`
-      );
       const pricingResult = await storage.calculatePrice(
         cartItem.productName,
         cartItem.quantity
@@ -127,9 +124,6 @@ cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
           cartItem.totalPrice = Math.round(clientUnitPrice * cartItem.quantity * 100) / 100;
           cartItem.unitPrice = Math.round(clientUnitPrice * 100) / 100;
           cartItem.pricingTier = cartItem.pricingTier || "Variant Price";
-          console.log(
-            `Using client-provided variant price: Unit=${cartItem.unitPrice}, Total=${cartItem.totalPrice}`
-          );
         } else {
           return c.json(
             { message: "No pricing available for this product. Please request a quote." },
@@ -141,9 +135,6 @@ cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
         cartItem.totalPrice = pricingResult.totalPrice;
         cartItem.pricingTier = pricingResult.tier;
 
-        console.log(
-          `Applied pricing: Unit=${pricingResult.unitPrice}, Total=${pricingResult.totalPrice}, Tier=${pricingResult.tier}`
-        );
       }
     }
 
@@ -183,22 +174,25 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
     if (autoSaveExisting) {
       existingItems = await storage.getCartItems(userId);
       if (existingItems && existingItems.length > 0) {
+        // Same snapshot shape as POST /api/cart/save-as-draft so the draft
+        // can be restored by the same code path.
         const draftProject = await storage.createDraftProject({
           userId,
-          name: `Auto-saved Draft ${new Date().toLocaleDateString()}`,
+          projectName: `Auto-saved Draft ${new Date().toLocaleDateString()}`,
           description:
             "Auto-saved from cart before loading new site survey project",
-          cartSnapshot: existingItems,
-          projectData: {
+          currency: "AED",
+          totalAmount: existingItems
+            .reduce((sum: number, item: any) => sum + Number(item.totalPrice || 0), 0)
+            .toString(),
+          cartData: {
+            cartItems: existingItems,
             autoSaved: true,
             previousItemCount: existingItems.length,
           },
         });
 
-        await storage.clearCart(userId);
-        console.log(
-          `Auto-saved ${existingItems.length} items as draft project: ${draftProject.id}`
-        );
+        await storage.clearUserCart(userId);
       }
     }
 
@@ -210,8 +204,8 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
         location: projectInfo.location || "",
         projectDescription: projectInfo.projectDescription || "",
         companyLogoUrl: projectInfo.companyLogoUrl || "",
-        siteSurveyId: projectInfo.siteSurveyId || null,
-        siteSurveyTitle: projectInfo.siteSurveyTitle || null,
+        // cart_project_info has no site-survey columns; the survey link is
+        // carried per line item (siteSurveyId below) instead.
       });
     }
 

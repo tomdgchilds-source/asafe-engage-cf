@@ -99,16 +99,11 @@ projectsRoutes.get("/projects", authMiddleware, async (c) => {
   // come via the collaborator table. Each row is tagged with `sharedByUserId`
   // so the UI can render a "Shared by [name]" pill on non-owned projects.
   const owned = await storage.listProjects(userId);
-  const accessibleIds = typeof storage.accessibleProjectIds === "function"
-    ? await storage.accessibleProjectIds(userId)
-    : owned.map((p) => p.id);
+  const accessibleIds = await storage.accessibleProjectIds(userId);
   const sharedIds = accessibleIds.filter(
     (id) => !owned.some((p) => p.id === id),
   );
-  const sharedRows =
-    sharedIds.length > 0 && typeof storage.getProjectsByIds === "function"
-      ? await storage.getProjectsByIds(sharedIds)
-      : [];
+  const sharedRows = await storage.getProjectsByIds(sharedIds);
   const allRows = [...owned, ...sharedRows];
 
   // Hydrate customerCompany on each project so the list view doesn't
@@ -119,10 +114,8 @@ projectsRoutes.get("/projects", authMiddleware, async (c) => {
   const custIds = Array.from(
     new Set(allRows.map((p) => p.customerCompanyId).filter(Boolean)),
   ) as string[];
-  const customers = custIds.length > 0 && typeof storage.getCustomerCompaniesByIds === "function"
-    ? await storage.getCustomerCompaniesByIds(custIds)
-    : await storage.listCustomerCompanies(userId);
-  const custById = new Map(customers.map((c: any) => [c.id, c]));
+  const customers = await storage.getCustomerCompaniesByIds(custIds);
+  const custById = new Map(customers.map((c) => [c.id, c]));
   return c.json(
     allRows.map((p) => ({
       ...p,

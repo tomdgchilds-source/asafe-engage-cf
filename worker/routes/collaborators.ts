@@ -75,9 +75,7 @@ collaborators.post(
       // Best-effort notification. Fire-and-forget so a missing notifications
       // service never blocks the add. Look up the project for the title.
       try {
-        const [proj] = await storage.getProjectById
-          ? [await storage.getProjectById(projectId)]
-          : [null as any];
+        const proj = await storage.getProject(projectId);
         const projectName = proj?.name || "a project";
         if (typeof (storage as any).createNotification === "function") {
           await (storage as any).createNotification({
@@ -144,7 +142,7 @@ collaborators.delete(
       const storage = createStorage(getDb(c.env.DATABASE_URL));
       const projectId = c.req.param("id");
       const session = c.get("user");
-      const body = await c.req.json<{ userId?: string }>().catch(() => ({}));
+      const body = await c.req.json<{ userId?: string }>().catch(() => ({} as { userId?: string }));
       const targetUserId = body.userId ?? session.claims.sub;
 
       // Self-leave requires only project access. Removing someone else

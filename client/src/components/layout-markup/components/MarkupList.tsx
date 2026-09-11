@@ -124,7 +124,7 @@ export function MarkupList({
         autoSaveExisting: true
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as { message?: string };
       toast({
         title: "Project Created",
         description: data.message || `${items.length} products transferred to project cart`,

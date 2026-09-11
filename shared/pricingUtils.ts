@@ -1,7 +1,7 @@
 // Unified pricing utilities for consistent price display across the application
 export interface PricingData {
   productName: string;
-  pricingType: 'linear_meter' | 'standard_item' | 'per_meter' | 'fixed';
+  pricingType: 'linear_meter' | 'standard_item' | 'per_meter' | 'fixed' | 'variant';
   tiers?: {
     min: number;
     max: number;

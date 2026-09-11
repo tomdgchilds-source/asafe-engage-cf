@@ -43,9 +43,9 @@ export function ResourceCard({ resource, onDownload }: ResourceCardProps) {
       itemType: 'resource',
       itemId: resource.id,
       itemTitle: resource.title,
-      itemCategory: resource.category,
-      itemSubcategory: resource.resourceType,
-      itemImage: resource.thumbnailUrl,
+      itemCategory: resource.category ?? undefined,
+      itemSubcategory: resource.resourceType ?? undefined,
+      itemImage: resource.thumbnailUrl ?? undefined,
       metadata: {
         fileType: resource.fileType,
         downloadCount: resource.downloadCount

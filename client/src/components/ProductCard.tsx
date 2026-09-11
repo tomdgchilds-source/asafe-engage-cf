@@ -102,7 +102,7 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
           {product.description}
         </p>
 
-        {product.features && Array.isArray(product.features) && product.features.length > 0 && (
+        {Array.isArray(product.features) && product.features.length > 0 && (
           <div className="mb-3 sm:mb-4">
             <h4 className="font-semibold text-xs sm:text-sm mb-1 sm:mb-2">Key Features:</h4>
             <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
@@ -116,7 +116,7 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
           </div>
         )}
 
-        {product.applications && Array.isArray(product.applications) && product.applications.length > 0 && (
+        {Array.isArray(product.applications) && product.applications.length > 0 && (
           <div className="mb-3 sm:mb-4">
             <h4 className="font-semibold text-xs sm:text-sm mb-1 sm:mb-2">Applications:</h4>
             <div className="flex flex-wrap gap-1">

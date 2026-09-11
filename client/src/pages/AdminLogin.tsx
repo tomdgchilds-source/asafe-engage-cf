@@ -42,7 +42,7 @@ export default function AdminLogin() {
         credentials: "include",
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as { message?: string; fullName?: string };
 
       if (!response.ok) {
         setError(data.message || "Login failed");

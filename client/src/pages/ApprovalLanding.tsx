@@ -675,7 +675,18 @@ function ApprovedPanel({
         `/api/approval-tokens/${encodeURIComponent(token)}/order-data`,
         { credentials: "omit" },
       );
-      const data = await res.json();
+      const data = (await res.json()) as {
+        valid?: boolean;
+        order?: Record<string, any>;
+        preparedBy?: {
+          name?: string;
+          email?: string;
+          phone?: string;
+          jobTitle?: string;
+          jobRole?: string;
+          company?: string;
+        };
+      };
       if (!res.ok || !data?.valid || !data?.order) {
         alert("PDF couldn't be generated — the approval link may have expired. Please contact sales@asafe.ae.");
         return;

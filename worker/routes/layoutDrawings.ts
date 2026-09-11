@@ -180,7 +180,6 @@ layoutDrawings.post("/layout-drawings/blank-canvas", heavyMutationRateLimit, asy
       fileName: `Blank Canvas - ${new Date().toLocaleDateString()}`,
       fileUrl: "blank-canvas",
       fileType: "canvas",
-      thumbnailUrl: null,
     });
 
     return c.json(drawing, 201);

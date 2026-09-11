@@ -21,15 +21,12 @@ export default function CaseStudies() {
       if (selectedIndustry) params.append('industry', selectedIndustry);
       if (contentType) params.append('contentType', contentType);
       const url = `/api/case-studies${params.toString() ? '?' + params.toString() : ''}`;
-      console.log('Fetching case studies from:', url);
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) {
         console.error('API request failed:', res.status, res.statusText);
         throw new Error(`${res.status}: ${res.statusText}`);
       }
-      const data = await res.json();
-      console.log('Received case studies:', data.length);
-      return data;
+      return (await res.json()) as CaseStudy[];
     },
   });
 
