@@ -67,6 +67,10 @@ interface OrderItem {
   totalPrice: number;
   impactRating?: number;
   pricingType?: string;
+  /** Explicit run length in metres for per-metre lines, when the cart
+   *  stores it separately from `quantity`. Optional — most per-metre
+   *  lines encode the length directly in `quantity`. */
+  lengthMeters?: number | null;
   imageUrl?: string;
   category?: string;
   applicationArea?: string;
@@ -131,6 +135,11 @@ interface OrderFormPdfData {
    *  cover (mirrors the old-style hand-prepared quote). Off by default so
    *  every quote doesn't ship 10 pages of marketing. */
   includeBrandOverview?: boolean;
+  /** Free-text "Installation notes for the estimation team" — sourced
+   *  from `projects.installation_notes` (typed on the cart page). Rendered
+   *  as its own block after the Quote to Supply totals; skipped when
+   *  empty. Mirrors the section the server-side v2 builder renders. */
+  installationNotes?: string | null;
   orderDate: string;
   items: OrderItem[];
   servicePackage?: string;
@@ -184,45 +193,81 @@ interface OrderFormPdfData {
 // identically. Critical: /api/objects/* URLs on our own domain are cookie-
 // gated. We must pass credentials: "include" or user-uploaded imagery
 // silently returns 401 and never renders.
+//
+// Resilience: every remote image is bounded by IMAGE_TIMEOUT_MS (fetch +
+// decode together). A dead CDN or a stalled /api/objects stream returns
+// null instead of hanging the whole PDF; the caller skips that image.
 // ───────────────────────────────────────────────────────────────────────
-async function loadImage(
-  src: string,
-): Promise<{ dataUrl: string; width: number; height: number }> {
-  let fetchUrl = src;
-  if (src.startsWith("/")) {
-    fetchUrl = window.location.origin + src;
-  }
+const IMAGE_TIMEOUT_MS = 8000;
+
+type LoadedImage = { dataUrl: string; width: number; height: number };
+
+// Same-origin requests need the session cookie; cross-origin ones must
+// NOT send credentials or the CDN's CORS preflight rejects them.
+function imageFetchInit(fetchUrl: string, signal: AbortSignal): RequestInit {
   const sameOrigin = fetchUrl.startsWith(window.location.origin);
-  const response = await fetch(fetchUrl, sameOrigin ? { credentials: "include" } : {});
-  if (!response.ok) throw new Error(`Image HTTP ${response.status}: ${src}`);
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.startsWith("image/")) throw new Error(`Not an image (${contentType}): ${src}`);
-  const blob = await response.blob();
-  if (blob.size === 0) throw new Error(`Empty image: ${src}`);
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    const img = new Image();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      img.onload = () => resolve({ dataUrl, width: img.width, height: img.height });
-      img.onerror = () => reject(new Error(`Decode failed: ${src}`));
-      img.src = dataUrl;
-    };
-    reader.onerror = () => reject(new Error(`Reader failed: ${src}`));
-    reader.readAsDataURL(blob);
-  });
+  return sameOrigin ? { credentials: "include", signal } : { signal };
 }
 
-// Swallow errors — some images are expected to be missing (bad URLs in old
-// data) and we don't want a single bad photo to abort PDF generation.
-async function tryLoadImage(src: string | undefined | null) {
-  if (!src) return null;
+function resolveFetchUrl(src: string): string {
+  return src.startsWith("/") ? window.location.origin + src : src;
+}
+
+async function loadImage(src: string): Promise<LoadedImage | null> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve(null);
+    }, IMAGE_TIMEOUT_MS);
+  });
+
+  const work = (async (): Promise<LoadedImage> => {
+    const fetchUrl = resolveFetchUrl(src);
+    const response = await fetch(fetchUrl, imageFetchInit(fetchUrl, controller.signal));
+    if (!response.ok) throw new Error(`Image HTTP ${response.status}: ${src}`);
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) throw new Error(`Not an image (${contentType}): ${src}`);
+    const blob = await response.blob();
+    if (blob.size === 0) throw new Error(`Empty image: ${src}`);
+    return new Promise<LoadedImage>((resolve, reject) => {
+      const reader = new FileReader();
+      const img = new Image();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        img.onload = () => resolve({ dataUrl, width: img.width, height: img.height });
+        img.onerror = () => reject(new Error(`Decode failed: ${src}`));
+        img.src = dataUrl;
+      };
+      reader.onerror = () => reject(new Error(`Reader failed: ${src}`));
+      reader.readAsDataURL(blob);
+    });
+  })();
+
   try {
-    return await loadImage(src);
+    const result = await Promise.race([work, timeout]);
+    if (result === null) {
+      console.warn(`[orderFormPdf] image timed out after ${IMAGE_TIMEOUT_MS}ms: ${src}`);
+    }
+    return result;
   } catch (err) {
     console.warn(`[orderFormPdf] image failed: ${src}`, err);
     return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    // Stop the losing branch from logging an unhandled rejection later.
+    work.catch(() => {});
   }
+}
+
+// Null-safe wrapper: some images are expected to be missing (bad URLs in
+// old data) and we never want a single bad photo to abort PDF generation.
+// loadImage already returns null on any failure; this just guards the
+// empty-src case so call sites can pass optional URLs straight through.
+async function tryLoadImage(src: string | undefined | null): Promise<LoadedImage | null> {
+  if (!src) return null;
+  return loadImage(src);
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -252,19 +297,22 @@ async function rasterisePdfFirstPage(
     // the output PDF, ballooning file size with no visible quality gain.
     const clampedWidth = Math.min(Math.max(targetWidthPx, 300), 4000);
 
-    let fetchUrl = url;
-    if (url.startsWith("/")) {
-      fetchUrl = window.location.origin + url;
+    // Same fetch timeout as loadImage so a stalled drawing download can't
+    // hang the generator either. Rasterising itself is local CPU work and
+    // is not bounded here.
+    const fetchUrl = resolveFetchUrl(url);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
+    let arrayBuffer: ArrayBuffer;
+    try {
+      const response = await fetch(fetchUrl, imageFetchInit(fetchUrl, controller.signal));
+      if (!response.ok) {
+        throw new Error(`PDF HTTP ${response.status}: ${url}`);
+      }
+      arrayBuffer = await response.arrayBuffer();
+    } finally {
+      clearTimeout(timer);
     }
-    const sameOrigin = fetchUrl.startsWith(window.location.origin);
-    const response = await fetch(
-      fetchUrl,
-      sameOrigin ? { credentials: "include" } : {},
-    );
-    if (!response.ok) {
-      throw new Error(`PDF HTTP ${response.status}: ${url}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
     // Copy into a fresh Uint8Array — the pdfjs worker transfers typed
     // arrays and would detach our backing buffer, which matters if the
     // caller retries.
@@ -368,7 +416,7 @@ async function fetchCatalog(): Promise<CatalogProduct[]> {
       credentials: "include",
     });
     if (!res.ok) return [];
-    const data = await res.json();
+    const data: any = await res.json();
     // The endpoint returns either an array or a paginated envelope.
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.products)) return data.products;
@@ -501,14 +549,23 @@ function bucketByLetter(letter: BucketLetter): { letter: BucketLetter; label: st
   return { letter: b.letter, label: b.label };
 }
 
+// Per-metre lines: the cart's canonical value is "linear_meter"; older
+// rows and the pricing utils also use "per_meter" / "per-meter". An
+// explicit lengthMeters on the line also marks it as length-keyed.
+function isPerMetreLine(item: OrderItem): boolean {
+  const pt = (item.pricingType || "").toLowerCase();
+  if (pt === "linear_meter" || pt === "per_meter" || pt === "per-meter") return true;
+  return typeof item.lengthMeters === "number" && item.lengthMeters > 0;
+}
+
 // Derive a "length in metres" string for the Quote-to-Supply table. Items
 // bought per-linear-meter use their quantity as the length; items with a
 // selectedVariant.length or a dimension suffix in their name use that.
 // Returns null when the product isn't length-keyed (e.g. a single bollard).
 function inferLineLength(item: OrderItem, cat: CatalogProduct | null): string | null {
   // per-meter barriers: quantity IS the length in metres.
-  if (item.pricingType === "linear_meter" || item.pricingType === "per_meter") {
-    return item.quantity.toFixed(2);
+  if (isPerMetreLine(item)) {
+    return Number(item.quantity).toFixed(2);
   }
   // Variant-selected items (selectedVariant carries a lengthMm we stashed
   // at add-to-cart time).
@@ -553,6 +610,9 @@ interface LayoutDrawing {
 
 interface LayoutMarkupRecord {
   id: string;
+  /** Drawing the markup belongs to; markups without one are treated as
+   *  belonging to the order's single linked drawing. */
+  layoutDrawingId?: string | null;
   cartItemId?: string | null;
   productName?: string | null;
   pathData?: string | null; // JSON string of [{x, y}, ...]
@@ -1460,7 +1520,7 @@ export async function generateOrderFormPDF(
     hr(priceRowY - 5, ink.line, 0.2);
     setFont(8, "normal");
     setText(ink.muted);
-    const qtyUnit = item.pricingType === "linear_meter" ? "m" : "units";
+    const qtyUnit = isPerMetreLine(item) ? "m" : "units";
     pdf.text(`Qty: ${item.quantity} ${qtyUnit}`, textX, priceRowY);
     pdf.text(`Unit: ${money(item.unitPrice)}`, textX + 40, priceRowY);
     setFont(10, "bold");
@@ -1544,7 +1604,7 @@ export async function generateOrderFormPDF(
     if (groups.size === 1) {
       renderGallery(Array.from(groups.values())[0]);
     } else {
-      for (const [key, photos] of groups) {
+      for (const [key, photos] of Array.from(groups.entries())) {
         needSpace(16);
         if (key !== "__default") {
           eyebrow(`GROUP - ${key.substring(0, 12)}`, margin, yPosition);
@@ -1781,14 +1841,36 @@ export async function generateOrderFormPDF(
     bucketedItems[b.letter].push({ item: r.item, cat: r.cat });
   }
 
-  // Column positions — shared across every group table.
+  // Column positions — shared across every group table. Impact rating
+  // gets its own column with the unit beside the number ("19,200 J");
+  // length lives inside the QTY cell for per-metre / length-keyed lines
+  // ("12.4 m", "4 × 1.00 m") so there is no orphaned LEN column.
   const colX = {
     index: margin + 3,
     item: margin + 11,
-    length: margin + 108,
-    qty: margin + 124,
-    unit: margin + 138,
+    impact: margin + 98,
+    qty: margin + 122,
+    unit: margin + 146,
     total: pageWidth - margin - 2,
+  };
+
+  const impactCell = (item: OrderItem, cat: CatalogProduct | null): string => {
+    const rating = item.impactRating ?? cat?.impactRating ?? null;
+    if (typeof rating !== "number" || !Number.isFinite(rating) || rating <= 0) return "—";
+    return `${Math.round(rating).toLocaleString("en-US")} J`;
+  };
+
+  const qtyCell = (item: OrderItem, cat: CatalogProduct | null): string => {
+    const qty = Number(item.quantity) || 0;
+    const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ""));
+    const explicitLen =
+      typeof item.lengthMeters === "number" && Number.isFinite(item.lengthMeters) && item.lengthMeters > 0
+        ? item.lengthMeters
+        : null;
+    if (explicitLen !== null) return `${fmt(qty)} × ${explicitLen.toFixed(2)} m`;
+    if (isPerMetreLine(item)) return `${fmt(qty)} m`;
+    const inferred = inferLineLength(item, cat);
+    return inferred ? `${fmt(qty)} × ${inferred} m` : fmt(qty);
   };
 
   const renderGroupHeader = (letter: string, label: string) => {
@@ -1809,7 +1891,7 @@ export async function generateOrderFormPDF(
     setText(ink.white);
     pdf.text("#", colX.index, yPosition + 4);
     pdf.text("ITEM", colX.item, yPosition + 4);
-    pdf.text("LEN (m)", colX.length, yPosition + 4);
+    pdf.text("IMPACT", colX.impact, yPosition + 4);
     pdf.text("QTY", colX.qty, yPosition + 4);
     pdf.text("UNIT", colX.unit, yPosition + 4);
     pdf.text(`TOTAL (${orderData.currency})`, colX.total, yPosition + 4, {
@@ -1846,8 +1928,7 @@ export async function generateOrderFormPDF(
       }
       const rowY = yPosition + 4.2;
       const index = `${bucket.letter}.${idx + 1}`;
-      const lengthVal = inferLineLength(item, cat);
-      const nameMax = colX.length - colX.item - 3;
+      const nameMax = colX.impact - colX.item - 3;
 
       setFont(8, "bold");
       setText(brand.yellowDark);
@@ -1858,8 +1939,8 @@ export async function generateOrderFormPDF(
       const nm = wrap(item.productName, nameMax).slice(0, 1)[0] || item.productName;
       pdf.text(nm, colX.item, rowY);
 
-      pdf.text(lengthVal ?? "—", colX.length, rowY);
-      pdf.text(String(item.quantity), colX.qty, rowY);
+      pdf.text(impactCell(item, cat), colX.impact, rowY);
+      pdf.text(qtyCell(item, cat), colX.qty, rowY);
       pdf.text(money(item.unitPrice), colX.unit, rowY);
 
       setFont(8, "bold");
@@ -1936,6 +2017,52 @@ export async function generateOrderFormPDF(
   setText(ink.black);
   pdf.text(money(orderData.grandTotal), summaryRight, yPosition + 9, { align: "right" });
   yPosition += 16;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // INSTALLATION NOTES — free text the rep captured on the cart page for
+  // the estimation team (floor type, fixings, accessories, access). Sits
+  // directly under the totals so estimators see it beside the line items
+  // they're costing. Skipped entirely when empty. Ported from the v2
+  // server builder (worker/lib/orderFormPdfV2.ts renderInstallationNotes).
+  // ═══════════════════════════════════════════════════════════════════
+  const installationNotes = (orderData.installationNotes || "").trim();
+  if (installationNotes.length > 0) {
+    yPosition += 4;
+    sectionHeading(
+      "Installation notes",
+      "Captured by the rep at quote time — treat as definitive for estimation and install",
+    );
+
+    const cardPadX = 5;
+    const cardPadY = 4;
+    const lineH = 4.2;
+    const noteLines = wrap(installationNotes, contentWidth - cardPadX * 2 - 1.5);
+
+    // Paint the note as a soft-yellow card with a thin accent bar, paging
+    // the text across as many cards as needed so long notes never clip.
+    let cursor = 0;
+    while (cursor < noteLines.length) {
+      needSpace(cardPadY * 2 + lineH * 2);
+      const available = footerSafeBottom - yPosition - cardPadY * 2;
+      const fit = Math.max(1, Math.min(noteLines.length - cursor, Math.floor(available / lineH)));
+      const chunk = noteLines.slice(cursor, cursor + fit);
+      const cardH = cardPadY * 2 + chunk.length * lineH;
+
+      setFill(brand.yellowSoft);
+      pdf.rect(margin, yPosition, contentWidth, cardH, "F");
+      setFill(brand.yellow);
+      pdf.rect(margin, yPosition, 1.5, cardH, "F");
+
+      setFont(9, "normal");
+      setText(ink.body);
+      pdf.text(chunk, margin + cardPadX, yPosition + cardPadY + 3);
+
+      yPosition += cardH;
+      cursor += fit;
+      if (cursor < noteLines.length) newPage();
+    }
+    yPosition += 8;
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // RECIPROCAL VALUE COMMITMENTS — only if any were selected

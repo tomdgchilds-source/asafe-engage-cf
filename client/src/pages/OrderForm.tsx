@@ -881,21 +881,15 @@ export function OrderForm() {
     });
   };
 
-  // V2 download path — fetches the server-rendered PDF built by
+  // Text-only download path — fetches the server-rendered PDF built by
   // worker/lib/orderFormPdfV2.ts (via GET /api/orders/:id/order-form.pdf).
-  // This is the customer-facing artefact: cover page, customer profile,
-  // vehicle movements, impact-calc summary with PAS-13-aligned bar plot,
-  // brand collateral, proposed solutions with safety-factor pills,
-  // pricing tables, reciprocal commitments, signatures block, T&Cs,
-  // site-survey appendix. Replaces the legacy client-side jsPDF build
-  // that reps complained about in the May 5 feedback session ("very
-  // simple", missing product images, etc.).
-  //
-  // The legacy `downloadPDF` is kept below for the email-attachment
-  // flow (`generatePdfBase64`) which intercepts the jsPDF save() and
-  // hasn't been ported yet. Once that's migrated this whole legacy
-  // path can be deleted.
-  const downloadPdfV2 = async () => {
+  // The server builder cannot embed images (no product photos, site
+  // photos, drawings or logos), which was the sales team's top complaint
+  // after it briefly became the default on 6 May. It is fast and works
+  // without a browser canvas, so it stays available behind a secondary
+  // "Download (text-only, fast)" link. The main Download button uses the
+  // client-side, image-capable `downloadPDF` below.
+  const downloadPdfTextOnly = async () => {
     if (!orderData) {
       haptic.error();
       toast({
@@ -925,10 +919,10 @@ export function OrderForm() {
       haptic.success();
       toast({
         title: "PDF downloaded",
-        description: `${refNum} saved to your downloads folder.`,
+        description: `${refNum} (text-only) saved to your downloads folder.`,
       });
     } catch (err: any) {
-      console.error("V2 PDF download failed:", err);
+      console.error("Text-only PDF download failed:", err);
       haptic.error();
       toast({
         title: "Download failed",
@@ -940,6 +934,11 @@ export function OrderForm() {
     }
   };
 
+  // Main download path — client-side jsPDF generator
+  // (client/src/utils/orderFormPdfGenerator.ts). This is the image-capable
+  // build: product imagery, site photos, layout drawing snapshot, customer
+  // and A-SAFE logos. Also feeds the email-attachment flow via
+  // `generatePdfBase64`, which intercepts the final save().
   const downloadPDF = async (
     opts: { includeBrandOverview?: boolean } = {},
   ) => {
@@ -1098,6 +1097,19 @@ export function OrderForm() {
         customOrderNumber: orderData.customOrderNumber || customOrderNumber,
         uploadedImages: orderData.uploadedImages,
         layoutDrawingId: orderData.layoutDrawingId,
+        // Installation notes for the estimation team. Orders don't carry a
+        // projectId FK, so mirror the server's soft-join: prefer a direct
+        // field on the order if the API ever adds one, else use the active
+        // project's notes when it is (or is not contradicted by) the
+        // order's project name.
+        installationNotes:
+          (orderData as any).installationNotes ||
+          (activeProject &&
+          (!(orderData as any).projectName ||
+            (orderData as any).projectName === activeProject.name)
+            ? (activeProject as any).installationNotes
+            : undefined) ||
+          undefined,
         reciprocalCommitments: orderData.reciprocalCommitments,
         // Drawing ref — prefer an explicit field on the order, fall back to
         // the linked layout drawing's dwgNumber, then its filename. This
@@ -2101,8 +2113,10 @@ export function OrderForm() {
                   Share
                 </Button>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Main download: client-side, image-capable generator
+                      (product images, site photos, drawings, logos). */}
                   <Button
-                    onClick={downloadPdfV2}
+                    onClick={() => downloadPDF()}
                     variant="outline"
                     size="sm"
                     data-testid="button-download-pdf"
@@ -2110,13 +2124,16 @@ export function OrderForm() {
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
                   </Button>
-                  {/* "Include brand overview" toggle — the v2 server
-                      builder always inserts a distilled ~2-page brand
-                      collateral block, so the legacy checkbox is no
-                      longer wired. Kept here as a no-op control while
-                      the email-attachment path still references the
-                      legacy generator; will be removed once the
-                      generatePdfBase64 path is also cut over to v2. */}
+                  {/* Secondary: server-rendered v2 build. No images, but
+                      fast and canvas-free — kept so nothing is lost. */}
+                  <button
+                    type="button"
+                    onClick={downloadPdfTextOnly}
+                    data-testid="link-download-pdf-text-only"
+                    className="text-xs text-gray-500 dark:text-gray-400 underline underline-offset-2 hover:text-gray-800 dark:hover:text-gray-200"
+                  >
+                    Download (text-only, fast)
+                  </button>
                 </div>
                 {/* Lifecycle v2: email the PDF to the customer. Opens a
                     tiny dialog rather than navigating away so the user
