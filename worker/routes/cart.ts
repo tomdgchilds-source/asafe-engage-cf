@@ -4,6 +4,7 @@ import { authMiddleware } from "../middleware/auth";
 import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { round2 } from "../../shared/pricing";
 
 const cart = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -39,6 +40,40 @@ cart.get("/cart", authMiddleware, async (c) => {
     return c.json({ message: "Failed to fetch cart items" }, 500);
   }
 });
+
+/**
+ * Server-side re-pricing shared by POST /api/cart and /api/cart/bulk-add.
+ *
+ * Looks the product up in product_pricing (tiered by quantity — metres for
+ * per-metre lines, units otherwise) and overwrites unitPrice / totalPrice /
+ * pricingTier in place. When no tier row exists, a positive client-supplied
+ * unitPrice (e.g. a variant price) is trusted and the total recomputed.
+ * Returns false when the line cannot be priced at all.
+ */
+export async function applyServerPricing(
+  storage: ReturnType<typeof createStorage>,
+  cartItem: any,
+): Promise<boolean> {
+  const quantity = Number(cartItem?.quantity);
+  if (!cartItem?.productName || !Number.isFinite(quantity) || quantity <= 0) {
+    return true; // nothing to price; storage-level validation handles the rest
+  }
+  const pricingResult = await storage.calculatePrice(cartItem.productName, quantity);
+  if (pricingResult.requiresQuote) {
+    const clientUnitPrice = parseFloat(cartItem.unitPrice);
+    if (!isNaN(clientUnitPrice) && clientUnitPrice > 0) {
+      cartItem.unitPrice = round2(clientUnitPrice);
+      cartItem.totalPrice = round2(clientUnitPrice * quantity);
+      cartItem.pricingTier = cartItem.pricingTier || "Variant Price";
+      return true;
+    }
+    return false;
+  }
+  cartItem.unitPrice = pricingResult.unitPrice;
+  cartItem.totalPrice = pricingResult.totalPrice;
+  cartItem.pricingTier = pricingResult.tier;
+  return true;
+}
 
 // POST /api/cart - add item to cart
 cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
@@ -109,33 +144,12 @@ cart.post("/cart", authMiddleware, mutationRateLimit, async (c) => {
     }
 
     // Recalculate pricing to apply tiered discounts
-    if (cartItem.productName && cartItem.quantity) {
-      const pricingResult = await storage.calculatePrice(
-        cartItem.productName,
-        cartItem.quantity
+    const priced = await applyServerPricing(storage, cartItem);
+    if (!priced) {
+      return c.json(
+        { message: "No pricing available for this product. Please request a quote." },
+        400
       );
-
-      if (pricingResult.requiresQuote) {
-        // No pricing tier found for this product name. If the client provided a
-        // valid unitPrice (e.g. from a selected variant), trust it and compute
-        // the total rather than rejecting the request.
-        const clientUnitPrice = parseFloat(cartItem.unitPrice);
-        if (!isNaN(clientUnitPrice) && clientUnitPrice > 0) {
-          cartItem.totalPrice = Math.round(clientUnitPrice * cartItem.quantity * 100) / 100;
-          cartItem.unitPrice = Math.round(clientUnitPrice * 100) / 100;
-          cartItem.pricingTier = cartItem.pricingTier || "Variant Price";
-        } else {
-          return c.json(
-            { message: "No pricing available for this product. Please request a quote." },
-            400
-          );
-        }
-      } else {
-        cartItem.unitPrice = pricingResult.unitPrice;
-        cartItem.totalPrice = pricingResult.totalPrice;
-        cartItem.pricingTier = pricingResult.tier;
-
-      }
     }
 
     const newCartItem = await storage.addToCart(cartItem);
@@ -214,8 +228,11 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
     const user = await storage.getUser(userId);
     const activeProjectId = (user as any)?.activeProjectId ?? null;
 
-    // Add all items to cart with their metadata
+    // Add all items to cart with their metadata. Every line goes through
+    // the same server-side re-pricing as POST /api/cart so a quote draft
+    // or site survey can never land a stale / client-authored price.
     const addedItems = [];
+    const skipped: string[] = [];
     for (const item of items) {
       const cartItem = {
         ...item,
@@ -228,6 +245,11 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
         impactCalculationId: item.impactCalculationId,
         riskLevel: item.riskLevel,
       };
+      const priced = await applyServerPricing(storage, cartItem);
+      if (!priced) {
+        skipped.push(String(item.productName ?? "unknown"));
+        continue;
+      }
       const newItem = await storage.addToCart(cartItem);
       addedItems.push(newItem);
     }
@@ -236,6 +258,7 @@ cart.post("/cart/bulk-add", authMiddleware, mutationRateLimit, async (c) => {
       success: true,
       itemsAdded: addedItems.length,
       items: addedItems,
+      skipped,
       message:
         existingItems && existingItems.length > 0
           ? `Previous cart saved as draft. ${addedItems.length} items added to new project cart.`

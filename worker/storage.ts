@@ -1981,31 +1981,41 @@ export class DatabaseStorage implements IStorage {
         };
       }
     } else {
-      // Use existing tier-based pricing logic (with NaN safety)
-      const tier1Min = pricing.tier1Min ? parseFloat(pricing.tier1Min) : 0;
-      const tier1Max = pricing.tier1Max ? parseFloat(pricing.tier1Max) : 0;
-      const tier2Min = pricing.tier2Min ? parseFloat(pricing.tier2Min) : 0;
-      const tier2Max = pricing.tier2Max ? parseFloat(pricing.tier2Max) : 0;
-      const tier3Min = pricing.tier3Min ? parseFloat(pricing.tier3Min) : 0;
-      const tier3Max = pricing.tier3Max ? parseFloat(pricing.tier3Max) : 0;
-      const tier4Min = pricing.tier4Min ? parseFloat(pricing.tier4Min) : 0;
-      
-      if (quantity >= tier1Min && quantity < tier2Min) {
-        basePrice = parseFloat(pricing.tier1Price);
-        tier = `Tier 1 (${tier1Min}-${tier1Max}m)`;
-      } else if (quantity >= tier2Min && quantity < tier3Min) {
-        basePrice = parseFloat(pricing.tier2Price);
-        tier = `Tier 2 (${tier2Min}-${tier2Max}m)`;
-      } else if (quantity >= tier3Min && quantity < tier4Min) {
-        basePrice = parseFloat(pricing.tier3Price);
-        tier = `Tier 3 (${tier3Min}-${tier3Max}m)`;
-      } else if (quantity >= tier4Min) {
-        basePrice = parseFloat(pricing.tier4Price);
-        tier = `Tier 4 (${tier4Min}m+)`;
+      // Tier selection rule (the client must match this exactly):
+      //   a quantity falls in tier N when `quantity >= tierN.min` and
+      //   `quantity < tier(N+1).min`; the last tier is open-ended.
+      //   Equivalently: the highest tier whose min <= quantity.
+      // `quantity` is metres for linear_meter products and units for
+      // per_item products — labels reflect product_pricing.pricing_type.
+      // Tiers with no usable price are skipped; below every tier → tier 1.
+      const unit = pricing.pricingType === "linear_meter" ? "m" : "pcs";
+      const num = (v: unknown): number | null => {
+        const n = typeof v === "string" ? parseFloat(v) : (v as number);
+        return typeof n === "number" && Number.isFinite(n) ? n : null;
+      };
+      const tiers = [1, 2, 3, 4]
+        .map((n) => ({
+          n,
+          min: num(pricing[`tier${n}Min`]) ?? 0,
+          max: num(pricing[`tier${n}Max`]),
+          price: num(pricing[`tier${n}Price`]),
+        }))
+        .filter((t) => t.price !== null && t.price > 0)
+        .sort((a, b) => a.min - b.min);
+      const labelFor = (t: { n: number; min: number; max: number | null }, last: boolean) =>
+        last || t.max === null
+          ? `Tier ${t.n} (${t.min}${unit}+)`
+          : `Tier ${t.n} (${t.min}-${t.max}${unit})`;
+
+      let chosen = tiers[0];
+      for (const t of tiers) {
+        if (quantity >= t.min) chosen = t;
+      }
+      if (!chosen) {
+        basePrice = NaN; // caught by the NaN guard below → requiresQuote
       } else {
-        // Default to tier 1 if quantity doesn't fit any tier
-        basePrice = parseFloat(pricing.tier1Price);
-        tier = `Tier 1 (${tier1Min}-${tier1Max}m)`;
+        basePrice = chosen.price as number;
+        tier = labelFor(chosen, chosen === tiers[tiers.length - 1]);
       }
     }
     

@@ -50,6 +50,8 @@ import {
   type SignatureBlock,
 } from "../lib/orderFormPdfV2";
 import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
+import { computeTotals, normaliseComplexity } from "../../shared/pricing";
+import { orderItemsToPricingLines } from "../lib/money";
 
 const orderForm = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -217,20 +219,30 @@ async function buildInputFromOrder(args: {
   }
 
   // ─── pricing ─────────────────────────────────────────────────────
-  const goodsTotal = pricingRows.reduce((s, r) => s + r.extendedPrice, 0);
-  const deliveryAndInstallation = computeDeliveryAndInstall(items, order);
-  const reciprocalDiscount = pickReciprocalTotal(order, goodsTotal);
-  const grandTotal = Math.max(
-    0,
-    goodsTotal + deliveryAndInstallation - reciprocalDiscount,
-  );
+  // One pricing module (shared/pricing) — same numbers as POST /api/orders
+  // and the public share view. This is a budgetary order form: VAT is not
+  // quoted, so no VAT line is passed and the grand total is ex. VAT, which
+  // is exactly what the renderer's "GRAND TOTAL (Ex. VAT)" label says.
+  const totals = computeOrderTotals(items, order);
+  const serviceCare =
+    totals.servicePackageAed > 0
+      ? {
+          label: String(
+            (order.serviceCareDetails as any)?.packageName ||
+              (order.servicePackage as any)?.title ||
+              "Service Care",
+          ),
+          amount: totals.servicePackageAed,
+        }
+      : undefined;
 
   const pricing: PricingBlock = {
     rows: pricingRows,
-    goodsTotal,
-    deliveryAndInstallation,
-    reciprocalDiscount: reciprocalDiscount > 0 ? reciprocalDiscount : undefined,
-    grandTotal,
+    goodsTotal: totals.goodsAed,
+    deliveryAndInstallation: totals.deliveryAed + totals.installAed,
+    serviceCare,
+    reciprocalDiscount: totals.discountAed > 0 ? totals.discountAed : undefined,
+    grandTotal: totals.totalAed,
   };
 
   // ─── impact calculations summary ─────────────────────────────────
@@ -500,47 +512,33 @@ function deriveLinePricingMode(it: any): "per_length" | "per_unit" {
   return "per_unit";
 }
 
-function computeDeliveryAndInstall(items: any[], order: any): number {
-  // Mirrors the rate logic from POST /api/orders. We only re-derive when
-  // the order doesn't carry an explicit charge already.
-  const productTotal = items.reduce(
-    (s: number, it: any) => s + Number(it.totalPrice || 0),
-    0,
-  );
-  const deliveryRate = 0.096271916;
-  let installationRate = 0.1938872; // standard
-  switch (order.installationComplexity) {
-    case "simple":
-      installationRate = 0.1148264;
-      break;
-    case "complex":
-      installationRate = 0.26289773;
-      break;
-  }
-  const delivery = items
-    .filter((it: any) => it.requiresDelivery)
-    .reduce((s: number, it: any) => s + Number(it.totalPrice || 0) * deliveryRate, 0);
-  const installation = items
-    .filter((it: any) => it.requiresInstallation)
-    .reduce(
-      (s: number, it: any) => s + Number(it.totalPrice || 0) * installationRate,
-      0,
-    );
-  return Math.max(0, delivery + installation);
-}
-
-function pickReciprocalTotal(order: any, goodsTotal: number): number {
-  const opts = order.discountOptions;
-  let pct = 0;
-  if (Array.isArray(opts)) {
-    for (const o of opts) {
+/**
+ * Order row + its `items` snapshot → computeTotals. Discount inputs come
+ * from the pricing snapshot POST /api/orders stored on
+ * `reciprocalCommitments.pricing`; older rows fall back to the summed
+ * discountOptions / partnerDiscountPercent columns. Budgetary: VAT 0.
+ */
+function computeOrderTotals(items: any[], order: any) {
+  const reciprocal = order?.reciprocalCommitments ?? null;
+  const snap = reciprocal?.pricing ?? null;
+  let reciprocalPct = Number(snap?.reciprocalDiscountPercent ?? reciprocal?.totalDiscountPercent ?? NaN);
+  if (!Number.isFinite(reciprocalPct)) {
+    reciprocalPct = 0;
+    for (const o of Array.isArray(order?.discountOptions) ? order.discountOptions : []) {
       if (o && typeof o === "object" && typeof o.discountPercent === "number") {
-        pct += o.discountPercent;
+        reciprocalPct += o.discountPercent;
       }
     }
   }
-  pct = Math.min(40, Math.max(0, pct));
-  return Math.round(goodsTotal * (pct / 100));
+  return computeTotals({
+    lines: orderItemsToPricingLines(items),
+    complexity: normaliseComplexity(order?.installationComplexity),
+    reciprocalDiscountPercent: reciprocalPct,
+    partnerDiscountPercent: Number(snap?.partnerDiscountPercent ?? order?.partnerDiscountPercent ?? 0),
+    socialDiscountPercent: Number(snap?.socialDiscountPercent ?? 0),
+    servicePackageAed: Number(order?.serviceCareDetails?.cost ?? 0),
+    vatPercent: 0,
+  });
 }
 
 function signatureFrom(raw: unknown): SignatureBlock | null {

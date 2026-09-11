@@ -107,6 +107,9 @@ export const orders = pgTable("orders", {
   status: varchar("status").notNull().default("pending"), // pending, submitted_for_review, processing, shipped, installation_in_progress, fulfilled, cancelled
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   currency: varchar("currency").notNull().default("AED"),
+  // AED → `currency` multiplier frozen at order time. totalAmount and every
+  // figure in `items` stay AED; consumers multiply by this to display.
+  fxRateAtOrder: decimal("fx_rate_at_order", { precision: 12, scale: 6 }),
   orderDate: timestamp("order_date").defaultNow(),
   deliveryDate: timestamp("delivery_date"),
   items: jsonb("items").notNull(), // Array of order items

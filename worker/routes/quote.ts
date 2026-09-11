@@ -58,6 +58,7 @@ import {
   type QuoteLineItemForPdf,
 } from "../lib/quoteDraftPdf";
 import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
+import { INSTALL_RATES, normaliseComplexity, round2 } from "../../shared/pricing";
 
 const quote = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -626,6 +627,62 @@ quote.post("/quote/:id/share-link", authMiddleware, async (c) => {
 
 // ─── POST /api/quote/:id/promote-to-cart ───────────────────────────────────
 
+/** What promote-to-cart hands the client for POST /api/cart/bulk-add. */
+export interface PromotedCartLine {
+  productName: string;
+  productId: string;
+  sku?: string;
+  /** Metres for per-metre lines, units otherwise (cart_items.quantity). */
+  quantity: number;
+  pricingType: "per-meter" | "per-unit";
+  /** AED per metre or per unit — 2 dp. */
+  unitPrice: number;
+  /** unitPrice × quantity, 2 dp. */
+  totalPrice: number;
+  impactRating: number | null;
+  category: string;
+  requiresInstallation: boolean;
+  requiresDelivery: boolean;
+  zoneName: string | null;
+  areaName: string | null;
+  riskLevel: null;
+}
+
+/**
+ * Quote line → cart line. `cart_items` has no lengthMeters column: a
+ * per-length line is stored as quantity = metres, pricingType 'per-meter',
+ * unitPrice = per-metre rate. Returns null for lines that cannot be
+ * priced (priceMissing, or no positive quantity).
+ */
+export function quoteLineToCartItem(
+  li: QuoteLineItemForPdf,
+  ctx: {
+    product?: { impactRating?: number | null; category?: string | null } | null;
+    zoneName?: string | null;
+  },
+): PromotedCartLine | null {
+  if (li.priceMissing) return null;
+  const quantity = Number(li.quantityOrLengthMeters);
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  const unitPrice = round2(Number(li.unitPriceAed) || 0);
+  return {
+    productName: li.productName,
+    productId: li.productId,
+    sku: li.sku ?? undefined,
+    quantity,
+    pricingType: li.pricingMode === "per_length" ? "per-meter" : "per-unit",
+    unitPrice,
+    totalPrice: round2(unitPrice * quantity),
+    impactRating: ctx.product?.impactRating ?? null,
+    category: ctx.product?.category ?? "safety-barriers",
+    requiresInstallation: true,
+    requiresDelivery: true,
+    zoneName: ctx.zoneName ?? null,
+    areaName: ctx.zoneName ?? null,
+    riskLevel: null,
+  };
+}
+
 quote.post("/quote/:id/promote-to-cart", authMiddleware, async (c) => {
   try {
     await ensureQuoteDraftsTable(c.env).catch(() => {});
@@ -652,29 +709,18 @@ quote.post("/quote/:id/promote-to-cart", authMiddleware, async (c) => {
       if (sku) skuToZone.set(sku, z);
     }
 
+    // The client hands these straight to POST /api/cart/bulk-add, which
+    // re-prices every line through storage.calculatePrice exactly like
+    // POST /api/cart does — so the unit price here is a hint, not the truth.
     const items: any[] = [];
     for (const li of lineItems) {
-      // Skip price-missing accessories — rep contacts A-SAFE for those.
+      // Price-missing accessories are skipped — rep contacts A-SAFE for those.
       if (li.priceMissing) continue;
       // Recover the product to populate cart fields.
       const product = await storage.getProduct(li.productId).catch(() => null);
       const zone = li.sku ? skuToZone.get(li.sku) : null;
-      items.push({
-        productName: li.productName,
-        productId: li.productId,
-        sku: li.sku ?? undefined,
-        quantity: li.pricingMode === "per_unit" ? li.quantityOrLengthMeters : 1,
-        lengthMeters: li.pricingMode === "per_length" ? li.quantityOrLengthMeters : undefined,
-        unitPrice: li.unitPriceAed,
-        totalPrice: li.extendedAed,
-        impactRating: product?.impactRating ?? null,
-        category: product?.category ?? "safety-barriers",
-        requiresInstallation: true,
-        requiresDelivery: true,
-        zoneName: zone?.name ?? null,
-        areaName: zone?.name ?? null,
-        riskLevel: null,
-      });
+      const item = quoteLineToCartItem(li, { product, zoneName: zone?.name ?? null });
+      if (item) items.push(item);
     }
 
     // Mark the quote as "converted" but keep the row so the user can
@@ -983,22 +1029,10 @@ function computeServiceCare(
   complexity: "simple" | "standard" | "complex" | "none",
   subtotal: number,
 ): { amount: number; label: string } {
-  // Mirrors orders.ts:getInstallationRate — same percentages, but applied
+  // Same installation percentages the order uses (shared/pricing), applied
   // to the subtotal as a single "Service Care" line on the quote.
   if (complexity === "none") return { amount: 0, label: "No service care" };
-  let pct: number;
-  switch (complexity) {
-    case "simple":
-      pct = 0.1148264;
-      break;
-    case "complex":
-      pct = 0.26289773;
-      break;
-    case "standard":
-    default:
-      pct = 0.1938872;
-      break;
-  }
+  const pct = INSTALL_RATES[normaliseComplexity(complexity)];
   const label = `Service Care (${complexity}, ${(pct * 100).toFixed(1)}%)`;
   return { amount: Math.round(subtotal * pct), label };
 }

@@ -19,6 +19,129 @@ import {
   type ReportLineItem as Pas13ReportLineItem,
   type VehicleContextForReport,
 } from "../lib/pas13AlignmentReportPdf";
+import {
+  computeTotals,
+  normaliseComplexity,
+  round2,
+  type PricingResult,
+} from "../../shared/pricing";
+import { getCombinedDiscount } from "../../shared/discountLimits";
+import {
+  formatMoney,
+  orderItemsToPricingLines,
+  resolveFxRate,
+} from "../lib/money";
+
+// ─── Order number ────────────────────────────────────────────────────────
+//
+// `ENG_QUOAE` prefix per the rep-feedback spec. The customer-facing
+// order-form PDF and the comm-suggestion scanner both render this verbatim,
+// so the format is the visible "Order Ref" on every artefact. Scheme:
+//
+//   ENG_QUOAE  <YYMMDD>  <XXXXX>
+//   ↑ prefix   ↑ date    ↑ random tail (5 chars, A-Z0-9)
+//
+// The date prefix keeps refs roughly chronological in lists; the tail comes
+// from crypto.getRandomValues (~60M possibilities/day) and the insert is
+// retried on a unique violation so concurrent submits can't collide.
+export const ORDER_NUMBER_PREFIX = "ENG_QUOAE";
+export const ORDER_NUMBER_MAX_ATTEMPTS = 5;
+const ORDER_TAIL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const ORDER_TAIL_LENGTH = 5;
+// Largest multiple of 36 that fits in a byte; bytes at or above it are
+// rejected so `byte % 36` is uniform.
+const ORDER_TAIL_UNBIASED_LIMIT = 252;
+
+function cryptoRandomBytes(n: number): Uint8Array {
+  const bytes = new Uint8Array(n);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+export function generateOrderNumber(
+  now: Date = new Date(),
+  randomBytes: (n: number) => Uint8Array = cryptoRandomBytes,
+): string {
+  const yy = String(now.getUTCFullYear()).slice(-2);
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  let tail = "";
+  while (tail.length < ORDER_TAIL_LENGTH) {
+    const bytes = randomBytes(ORDER_TAIL_LENGTH * 2);
+    for (const b of bytes) {
+      if (b >= ORDER_TAIL_UNBIASED_LIMIT) continue;
+      tail += ORDER_TAIL_ALPHABET[b % ORDER_TAIL_ALPHABET.length];
+      if (tail.length === ORDER_TAIL_LENGTH) break;
+    }
+    if (bytes.length === 0) break; // defensive: a broken source can't loop forever
+  }
+  return `${ORDER_NUMBER_PREFIX}${yy}${mm}${dd}${tail}`;
+}
+
+/** Postgres unique_violation (23505), as surfaced by Drizzle / neon. */
+export function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: unknown; cause?: { code?: unknown }; message?: unknown };
+  if (e.code === "23505" || e.cause?.code === "23505") return true;
+  return typeof e.message === "string" && /duplicate key|unique constraint/i.test(e.message);
+}
+
+/**
+ * Runs `insert(orderNumber)` with a fresh number each time, retrying only on
+ * a unique violation, up to ORDER_NUMBER_MAX_ATTEMPTS. Any other error is
+ * rethrown immediately.
+ */
+export async function insertWithUniqueOrderNumber<T>(
+  insert: (orderNumber: string) => Promise<T>,
+  opts: {
+    attempts?: number;
+    now?: Date;
+    randomBytes?: (n: number) => Uint8Array;
+  } = {},
+): Promise<{ order: T; orderNumber: string; attempts: number }> {
+  const max = Math.max(1, opts.attempts ?? ORDER_NUMBER_MAX_ATTEMPTS);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= max; attempt++) {
+    const orderNumber = generateOrderNumber(opts.now ?? new Date(), opts.randomBytes);
+    try {
+      const order = await insert(orderNumber);
+      return { order, orderNumber, attempts: attempt };
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
+/** Percent from a service-care option's `value` ("5%", "Free" → 0). */
+function serviceCarePercent(option: { chargeable?: boolean | null; value?: string | null } | null | undefined): number {
+  if (!option || !option.chargeable || typeof option.value !== "string") return 0;
+  const m = option.value.match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+/** The pricing snapshot persisted on the order (inside reciprocalCommitments). */
+function pricingSnapshot(totals: PricingResult, extra: {
+  reciprocalDiscountPercent: number;
+  partnerDiscountPercent: number;
+  socialDiscountPercent: number;
+  fxRateAtOrder: number;
+  currency: string;
+}) {
+  return {
+    goodsAed: totals.goodsAed,
+    deliveryAed: totals.deliveryAed,
+    installAed: totals.installAed,
+    discountPercentApplied: totals.discountPercentApplied,
+    discountAed: totals.discountAed,
+    servicePackageAed: totals.servicePackageAed,
+    subtotalAed: totals.subtotalAed,
+    vatAed: totals.vatAed,
+    totalAed: totals.totalAed,
+    ...extra,
+  };
+}
 
 // Order statuses that represent "this order is won and moving towards
 // delivery/install". When an order enters any of these, we try to
@@ -155,93 +278,118 @@ orders.post("/orders", authMiddleware, async (c) => {
       companyLogoUrl,
     } = await c.req.json();
 
-    // Generate order number — `ENG_QUOAE` prefix per the rep-feedback spec.
-    // The customer-facing order-form PDF and the comm-suggestion scanner
-    // both render this verbatim, so the format is the visible "Order Ref"
-    // on every artefact. Scheme:
-    //
-    //   ENG_QUOAE  <YYMMDD>  <-XXXXX>
-    //   ↑ prefix   ↑ date     ↑ random tail (5 chars, base36)
-    //
-    // The date prefix keeps refs roughly chronological in lists, the
-    // random tail gives ~60M possibilities/day so concurrent submits
-    // don't collide. Uppercase throughout to match the legacy QUOAE
-    // format the reps recognise.
-    const dt = new Date();
-    const yy = String(dt.getUTCFullYear()).slice(-2);
-    const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(dt.getUTCDate()).padStart(2, "0");
-    const tail = Math.random().toString(36).slice(2, 7).toUpperCase();
-    const orderNumber = `ENG_QUOAE${yy}${mm}${dd}${tail}`;
-
-    // Calculate total amount
-    const productTotal = cartItems.reduce(
-      (sum: number, item: any) => sum + item.totalPrice,
-      0
-    );
-
-    // Calculate delivery costs
-    const deliveryTotal = cartItems
-      .filter((item: any) => item.requiresDelivery)
-      .reduce(
-        (sum: number, item: any) => sum + item.totalPrice * 0.096271916,
-        0
+    // ────────────────────────────────────────────────────────────────
+    // Money. Everything below is computed from the SERVER's own read of
+    // the cart and the user's saved discount / service selections. The
+    // client-supplied `cartItems`, `discountOptions`, `servicePackage`
+    // and `partnerDiscountPercent` are never used for arithmetic — they
+    // only survive as display context on the order row.
+    // ────────────────────────────────────────────────────────────────
+    const placingUser = await storage.getUser(userId);
+    const activeProjectId = (placingUser as any)?.activeProjectId ?? undefined;
+    const serverCartItems = await storage.getUserCart(userId, activeProjectId);
+    if (!Array.isArray(serverCartItems) || serverCartItems.length === 0) {
+      return c.json({ message: "Your cart is empty — add products before creating an order." }, 400);
+    }
+    if (Array.isArray(cartItems) && cartItems.length !== serverCartItems.length) {
+      console.warn(
+        `[orders] client sent ${cartItems.length} cart lines, server cart has ${serverCartItems.length}; using server cart`,
       );
-
-    // Calculate installation costs based on complexity
-    const getInstallationRate = () => {
-      switch (installationComplexity) {
-        case "simple":
-          return 0.1148264;
-        case "standard":
-          return 0.1938872;
-        case "complex":
-          return 0.26289773;
-        default:
-          return 0.1938872;
-      }
-    };
-    const installationTotal = cartItems
-      .filter((item: any) => item.requiresInstallation)
-      .reduce(
-        (sum: number, item: any) =>
-          sum + item.totalPrice * getInstallationRate(),
-        0
-      );
-
-    // Calculate service package cost
-    let servicePackageCost = 0;
-    if (servicePackage && servicePackage.chargeable && servicePackage.value) {
-      const percentageMatch = servicePackage.value.match(
-        /(\d+(?:\.\d+)?)%/
-      );
-      if (percentageMatch) {
-        const percentage = parseFloat(percentageMatch[1]);
-        servicePackageCost = productTotal * (percentage / 100);
-      }
     }
 
-    // Calculate discount amount
-    const totalDiscountPercent = discountOptions.reduce(
-      (sum: number, discount: any) => {
-        return sum + (discount.discountPercent || 0);
-      },
-      0
+    // Reciprocal commitments the user has actually saved (not what the
+    // client claims). Sum of the option percentages, uncapped — the cap is
+    // applied inside computeTotals via discountLimits.
+    const [savedSelections, allDiscountOptions] = await Promise.all([
+      storage.getUserDiscountSelections(userId),
+      storage.getDiscountOptions(),
+    ]);
+    const optionById = new Map(allDiscountOptions.map((o) => [o.id, o]));
+    const selectedDiscountOptions = savedSelections
+      .map((s) => optionById.get(s.discountOptionId))
+      .filter((o): o is NonNullable<typeof o> => !!o);
+    const reciprocalDiscountPercent = selectedDiscountOptions.reduce(
+      (sum, o) => sum + (Number(o.discountPercent) || 0),
+      0,
     );
 
-    // Discounts are applied as selected. Cap at 100% as a sanity check to
-    // prevent negative prices, but no business-rule-driven 20% ceiling.
-    const appliedDiscountPercent = Math.min(Math.max(totalDiscountPercent, 0), 100);
-    const subtotal =
-      productTotal + deliveryTotal + installationTotal + servicePackageCost;
-    const discountAmount = subtotal * (appliedDiscountPercent / 100);
-    const totalAmount = Math.max(subtotal - discountAmount, 0);
+    // Partner code: re-validate server-side; the client's % is ignored.
+    let partnerDiscountRaw = 0;
+    if (partnerDiscountCode) {
+      const validation = await storage.validatePartnerCode(String(partnerDiscountCode), userId);
+      if (validation.valid) partnerDiscountRaw = Number(validation.discountPercent) || 0;
+    }
+
+    // Service package: the user's saved selection wins; fall back to the
+    // option id the client sent, but always read the % from the DB row.
+    const [savedService, serviceOptions] = await Promise.all([
+      storage.getUserServiceSelection(userId),
+      storage.getServiceCareOptions(),
+    ]);
+    const serviceOptionId =
+      savedService?.serviceOptionId || servicePackage?.id || servicePackage?.serviceOptionId || null;
+    const serviceOption = serviceOptionId
+      ? serviceOptions.find((o) => o.id === serviceOptionId) || null
+      : null;
+
+    const complexity = normaliseComplexity(installationComplexity);
+    const pricingLines = orderItemsToPricingLines(serverCartItems);
+
+    // First pass without the service package to learn the goods figure the
+    // service % applies to; second pass is the real one.
+    const goodsOnly = computeTotals({
+      lines: pricingLines,
+      complexity,
+      reciprocalDiscountPercent,
+      partnerDiscountPercent: partnerDiscountRaw,
+      socialDiscountPercent: 0,
+    });
+    const servicePackageAed = round2(goodsOnly.goodsAed * (serviceCarePercent(serviceOption) / 100));
+
+    // LinkedIn social reciprocity is an AED amount (capped at 2,500 / 1 %
+    // of goods) computed from the user's saved follower count. Express it
+    // as a % of goods so it flows through the same cap chain.
+    let socialDiscountPercent = 0;
+    try {
+      const social = await storage.getLinkedInDiscountForCart(userId);
+      const data = (social?.linkedinDiscountData ?? null) as { followers?: number; status?: string } | null;
+      if (data && data.status !== "removed" && Number(data.followers) > 0 && goodsOnly.goodsAed > 0) {
+        const { cappedDiscount } = await storage.calculateLinkedInDiscount(
+          Number(data.followers),
+          goodsOnly.goodsAed,
+        );
+        socialDiscountPercent = round2((cappedDiscount / goodsOnly.goodsAed) * 100);
+      }
+    } catch (err) {
+      console.warn("[orders] LinkedIn discount lookup failed (ignored):", err);
+    }
+
+    const totals = computeTotals({
+      lines: pricingLines,
+      complexity,
+      reciprocalDiscountPercent,
+      partnerDiscountPercent: partnerDiscountRaw,
+      socialDiscountPercent,
+      servicePackageAed,
+      vatPercent: 0, // budgetary order form — VAT is not quoted
+    });
+    const totalAmount = totals.totalAed;
+    const servicePackageCost = totals.servicePackageAed;
+    // Partner % actually deducted after the 15 % cap and the 40 % combined
+    // ceiling (partner shaved first) — same call computeTotals makes.
+    const capped = getCombinedDiscount(reciprocalDiscountPercent, partnerDiscountRaw, totals.goodsAed);
+    const partnerDiscountApplied = Math.round(capped.partner);
+    const reciprocalDiscountApplied = capped.reciprocal;
+    const appliedDiscountPercent = totals.discountPercentApplied;
+
+    const orderCurrency = String(currency || "AED").toUpperCase();
+    const fxRateAtOrder = await resolveFxRate(orderCurrency);
 
     // Enrich cart items with product details including images. We also
     // capture the product row on the enriched item so the PAS 13 pre-flight
     // below doesn't have to round-trip the DB a second time.
     const enrichedCartItems = await Promise.all(
-      cartItems.map(async (item: any) => {
+      serverCartItems.map(async (item: any) => {
         const product = await storage.getProductByName(item.productName);
         return {
           ...item,
@@ -424,8 +572,7 @@ orders.post("/orders", authMiddleware, async (c) => {
     const fullProjectCaseStudies = projectCaseStudies;
 
     if (!fullApplicationAreas && impactCalculationId) {
-      const userCalculations =
-        await storage.getUserImpactCalculations(userId);
+      const userCalculations = await storage.getUserCalculations(userId);
       fullApplicationAreas = userCalculations || [];
     }
 
@@ -434,43 +581,62 @@ orders.post("/orders", authMiddleware, async (c) => {
       fullLayoutMarkups = markups || [];
     }
 
-    const fullReciprocalCommitments = reciprocalCommitments || {
-      commitments: discountOptions,
-      explanationText:
-        "At A-SAFE, we believe in creating partnerships that benefit both sides. That's why we offer added value through a reciprocal approach meaning if you share your safety successes, such as a testimonial, referrals, or a LinkedIn post, we can recognize your achievements, promote safer work practices, and celebrate your improvements while enhancing the overall value you receive on your project.",
-      totalDiscountPercent: appliedDiscountPercent,
+    // Snapshot of the money as computed here, so every later consumer
+    // (emails, share view, PDF) can read the figures without re-deriving.
+    // `totalDiscountPercent` keeps its historical meaning (the reciprocal
+    // % applied); `discountPercentApplied` is the combined figure.
+    const snapshot = pricingSnapshot(totals, {
+      reciprocalDiscountPercent: reciprocalDiscountApplied,
+      partnerDiscountPercent: partnerDiscountApplied,
+      socialDiscountPercent,
+      fxRateAtOrder,
+      currency: orderCurrency,
+    });
+    const fullReciprocalCommitments = {
+      ...(reciprocalCommitments && typeof reciprocalCommitments === "object"
+        ? reciprocalCommitments
+        : {
+            commitments: selectedDiscountOptions,
+            explanationText:
+              "At A-SAFE, we believe in creating partnerships that benefit both sides. That's why we offer added value through a reciprocal approach meaning if you share your safety successes, such as a testimonial, referrals, or a LinkedIn post, we can recognize your achievements, promote safer work practices, and celebrate your improvements while enhancing the overall value you receive on your project.",
+          }),
+      totalDiscountPercent: reciprocalDiscountApplied,
+      discountPercentApplied: appliedDiscountPercent,
+      pricing: snapshot,
     };
 
     const fullServiceCareDetails =
       serviceCareDetails ||
-      (servicePackage
+      (serviceOption
         ? {
-            packageName: servicePackage.title,
-            packageTier: servicePackage.id,
-            services: servicePackage.features || [],
+            packageName: serviceOption.title,
+            packageTier: serviceOption.id,
+            services: (servicePackage?.features as unknown[]) || [],
             cost: servicePackageCost,
-            chargeable: servicePackage.chargeable,
+            chargeable: serviceOption.chargeable,
           }
         : null);
 
     const orderData = {
       userId,
-      orderNumber,
       customOrderNumber: customOrderNumber || undefined,
       companyLogoUrl: companyLogoUrl || undefined,
       status: "submitted_for_review" as const,
+      // Stored in AED. `currency` + `fxRateAtOrder` let consumers display
+      // the converted figure without re-fetching a rate.
       totalAmount: totalAmount.toString(),
-      currency: currency || "AED",
+      currency: orderCurrency,
+      fxRateAtOrder: fxRateAtOrder.toString(),
       items: enrichedCartItems || [],
       isForUser: isForUser !== undefined ? isForUser : true,
-      servicePackage,
-      discountOptions,
+      servicePackage: serviceOption ?? servicePackage ?? null,
+      discountOptions: selectedDiscountOptions,
       impactCalculationId,
       installationComplexity: installationComplexity || "standard",
       revisionCount: revisionInfo?.revisionCount || 0,
       isRevision: revisionInfo?.isRevision || false,
-      ...(partnerDiscountCode ? { partnerDiscountCode } : {}),
-      ...(partnerDiscountPercent ? { partnerDiscountPercent } : {}),
+      ...(partnerDiscountCode && partnerDiscountApplied > 0 ? { partnerDiscountCode } : {}),
+      ...(partnerDiscountApplied > 0 ? { partnerDiscountPercent: partnerDiscountApplied } : {}),
       ...(revisionInfo?.originalOrderId
         ? { originalOrderId: revisionInfo.originalOrderId }
         : {}),
@@ -511,8 +677,9 @@ orders.post("/orders", authMiddleware, async (c) => {
       ...(pas13Warnings.length > 0 ? { pas13Warnings } : {}),
     };
 
-    const order = await storage.createOrder(orderData);
-    console.log("Created order:", order);
+    const { order, orderNumber } = await insertWithUniqueOrderNumber((candidate) =>
+      storage.createOrder({ ...orderData, orderNumber: candidate }),
+    );
 
     // Audit-log the PAS 13 override when it fired. The blocker details are
     // captured verbatim so the admin-side review has the full cited reason.
@@ -539,7 +706,8 @@ orders.post("/orders", authMiddleware, async (c) => {
     // validation UI. If redemption fails (cap just hit, code deactivated,
     // etc), we DO NOT block the order — we strip the partner discount so
     // downstream invoicing matches a verified redemption.
-    if (partnerDiscountCode) {
+    let finalTotals = totals;
+    if (partnerDiscountCode && partnerDiscountApplied > 0) {
       try {
         const subtotalForAudit = Number.isFinite(totalAmount) ? Number(totalAmount) : null;
         const redeemed = await storage.redeemPartnerCode(
@@ -552,9 +720,32 @@ orders.post("/orders", authMiddleware, async (c) => {
           console.warn(
             `Partner code ${partnerDiscountCode} could not be redeemed for order ${order.id} — stripping from order.`
           );
+          // Re-price without the partner component so the stored total
+          // matches what was actually granted.
+          finalTotals = computeTotals({
+            lines: pricingLines,
+            complexity,
+            reciprocalDiscountPercent,
+            partnerDiscountPercent: 0,
+            socialDiscountPercent,
+            servicePackageAed,
+            vatPercent: 0,
+          });
           await storage.updateOrder(order.id, {
             partnerDiscountCode: null as any,
             partnerDiscountPercent: null as any,
+            totalAmount: finalTotals.totalAed.toString(),
+            reciprocalCommitments: {
+              ...fullReciprocalCommitments,
+              discountPercentApplied: finalTotals.discountPercentApplied,
+              pricing: pricingSnapshot(finalTotals, {
+                reciprocalDiscountPercent: reciprocalDiscountApplied,
+                partnerDiscountPercent: 0,
+                socialDiscountPercent,
+                fxRateAtOrder,
+                currency: orderCurrency,
+              }),
+            },
           });
         }
       } catch (redeemErr) {
@@ -587,7 +778,7 @@ orders.post("/orders", authMiddleware, async (c) => {
           "Customer";
 
         const itemCount = enrichedCartItems?.length ?? 0;
-        const formattedTotal = `${currency || "AED"} ${Number(totalAmount).toLocaleString("en", { minimumFractionDigits: 2 })}`;
+        const formattedTotal = formatMoney(finalTotals.totalAed, orderCurrency, fxRateAtOrder);
 
         // ────────────────────────────────────────────────────────────
         // PAS 13 Alignment Report — attach the customer-facing PDF to
@@ -659,7 +850,7 @@ orders.post("/orders", authMiddleware, async (c) => {
           customerName: resolvedCustomerName,
           customerEmail: emailAddress,
           totalAmount: formattedTotal,
-          currency: (currency || "AED") as string,
+          currency: orderCurrency,
         });
       } catch (err) {
         console.error("Order notification error (non-blocking):", err);
@@ -1232,13 +1423,6 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
       return c.json({ message: "Not authorized to access this order" }, 403);
     }
 
-    console.log(
-      "Restoring order:",
-      order.id,
-      "for user:",
-      userId,
-      "as revision"
-    );
 
     // Clear existing cart items for the ACTIVE PROJECT only. Without the
     // project filter, restoring an order revision for Project A would wipe
@@ -1254,7 +1438,6 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
 
     // Restore each order item to cart
     const orderItems = (order.items || []) as any[];
-    console.log("Restoring", orderItems.length, "items to cart");
 
     for (const orderItem of orderItems) {
       const cartItem = {
@@ -1300,10 +1483,6 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
 
         if (serviceOptionId) {
           await storage.saveUserServiceSelection(userId, serviceOptionId);
-          console.log(
-            "Service package restored successfully:",
-            serviceOptionId
-          );
         } else {
           console.warn(
             "Service package could not be restored - invalid serviceOptionId"
@@ -1328,10 +1507,6 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
 
         if (discountOptionIds.length > 0) {
           await storage.saveUserDiscountSelections(userId, discountOptionIds);
-          console.log(
-            "Discount options restored successfully:",
-            discountOptionIds
-          );
         }
       } catch (discountError) {
         console.warn(
@@ -1465,7 +1640,7 @@ orders.post("/orders/:id/rejection-notification", authMiddleware, async (c) => {
       type: "order_rejected",
       title: "Order Rejected",
       message: `Your order #${order.orderNumber || orderId.slice(0, 8)} has been rejected. Please review the feedback and resubmit.`,
-      metadata: JSON.stringify({ orderId }),
+      data: { orderId },
     });
 
     // Fire-and-forget: also send rejection email
@@ -1650,7 +1825,11 @@ async function dispatchApprovalRequest(
   const approvalUrl = `${appUrl}/approve/${token}`;
   const pdfDownloadUrl = `${approvalUrl}?pdf=1`;
 
-  const formattedTotal = `${order.currency || "AED"} ${Number(order.totalAmount || 0).toLocaleString("en", { minimumFractionDigits: 2 })}`;
+  const formattedTotal = formatMoney(
+    Number(order.totalAmount || 0),
+    order.currency || "AED",
+    (order as any).fxRateAtOrder,
+  );
 
   // Fire-and-forget via waitUntil — email delivery is best-effort relative
   // to the token write (the token is now persisted; sales can resend). But
@@ -2559,26 +2738,25 @@ orders.get("/public/orders/:token", async (c) => {
       return cleaned;
     });
 
-    // Recompute delivery / installation charges using the same logic as the
-    // client. Safer than trusting cached numbers on the order row — the
-    // sanitiser is the only place that hits the customer so the math must
-    // be deterministic.
-    const subtotal = sanitisedItems.reduce(
-      (sum: number, item: any) => sum + (Number(item.totalPrice) || 0),
-      0,
-    );
-    const deliveryCharge = sanitisedItems
-      .filter((i: any) => i.requiresDelivery)
-      .reduce((sum: number, i: any) => sum + (Number(i.totalPrice) || 0) * 0.096271916, 0);
-    const installationRate =
-      order.installationComplexity === "simple"
-        ? 0.1148264
-        : order.installationComplexity === "complex"
-          ? 0.26289773
-          : 0.1938872;
-    const installationCharge = sanitisedItems
-      .filter((i: any) => i.requiresInstallation)
-      .reduce((sum: number, i: any) => sum + (Number(i.totalPrice) || 0) * installationRate, 0);
+    // Recompute the money from the order's own line snapshot with the one
+    // shared pricing module. The sanitiser is the only place that hits the
+    // customer so the math must be deterministic and match the PDF.
+    const snapshot = (reciprocal as any)?.pricing as
+      | { reciprocalDiscountPercent?: number; partnerDiscountPercent?: number; socialDiscountPercent?: number }
+      | undefined;
+    const publicTotals = computeTotals({
+      lines: orderItemsToPricingLines(sanitisedItems),
+      complexity: normaliseComplexity(order.installationComplexity),
+      reciprocalDiscountPercent: Number(snapshot?.reciprocalDiscountPercent ?? reciprocal?.totalDiscountPercent ?? 0),
+      partnerDiscountPercent: Number(snapshot?.partnerDiscountPercent ?? order.partnerDiscountPercent ?? 0),
+      socialDiscountPercent: Number(snapshot?.socialDiscountPercent ?? 0),
+      servicePackageAed: Number((order.serviceCareDetails as any)?.cost ?? 0),
+      vatPercent: 0,
+    });
+    const subtotal = publicTotals.goodsAed;
+    const deliveryCharge = publicTotals.deliveryAed;
+    const installationCharge = publicTotals.installAed;
+    const fxRateAtOrder = (order as any).fxRateAtOrder ?? null;
 
     return c.json({
       isPublicView: true,
@@ -2590,12 +2768,21 @@ orders.get("/public/orders/:token", async (c) => {
       orderDate: order.orderDate,
       status: order.status,
       statusChangedAt: (order as any).statusChangedAt,
+      // All money below is AED; multiply by fxRateAtOrder to show `currency`.
       currency: order.currency,
+      fxRateAtOrder,
       subtotal,
-      grandTotal: Number(order.totalAmount) || subtotal + deliveryCharge + installationCharge,
+      grandTotal: Number(order.totalAmount) || publicTotals.totalAed,
       totalAmount: order.totalAmount,
+      formattedTotal: formatMoney(
+        Number(order.totalAmount) || publicTotals.totalAed,
+        order.currency,
+        fxRateAtOrder,
+      ),
       deliveryCharge,
       installationCharge,
+      discountPercentApplied: publicTotals.discountPercentApplied,
+      discountAmount: publicTotals.discountAed,
       installationComplexity: order.installationComplexity,
       items: sanitisedItems,
       companyLogoUrl: order.companyLogoUrl,
