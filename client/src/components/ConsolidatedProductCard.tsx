@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, Star, ArrowRight, Package, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { ProductImpactBadges } from "@/components/ProductImpactBadges";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { formatHeightMm, getHeightVariants } from "@/components/GroupedProductCard";
 
 // Widened to carry the schema impact/PAS13/height/cold-storage fields so
 // the unified <ProductImpactBadges> can render consistently with
@@ -50,8 +53,16 @@ export function ConsolidatedProductCard({
   impactRange,
   index
 }: ConsolidatedProductCardProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(product);
+  // Variants that differ only by height (bollards) get an always-visible
+  // "Height" picker, matching GroupedProductCard / HeightRestrictorKitCard.
+  const heightVariants = useMemo(() => getHeightVariants(variants), [variants]);
+  // Default to the lowest height so the picker always shows a real option
+  // (the recommendation's `product` isn't necessarily one of the variants).
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
+    () => heightVariants?.[0]?.product ?? product,
+  );
   const [showVariants, setShowVariants] = useState(false);
+  const { formatPrice } = useCurrency();
 
   const handleVariantChange = (variantId: string) => {
     const variant = variants?.find(v => v.id === variantId);
@@ -73,8 +84,36 @@ export function ConsolidatedProductCard({
           <div className="flex-1">
             <CardTitle className="text-lg">{baseProductName}</CardTitle>
             
+            {/* Height-only family: labelled picker, no disclosure toggle */}
+            {heightVariants && (
+              <div className="mt-2">
+                <Label htmlFor={`cons-height-${product.id}`} className="text-xs font-semibold">
+                  Height
+                </Label>
+                <Select value={selectedVariant.id} onValueChange={handleVariantChange}>
+                  <SelectTrigger
+                    id={`cons-height-${product.id}`}
+                    className="h-9 mt-1"
+                    data-testid={`consolidated-height-${product.id}`}
+                  >
+                    <SelectValue placeholder="Select height" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {heightVariants.map(({ product: v, heightMm }) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {formatHeightMm(heightMm)}
+                        {typeof v.price === "number" && v.price > 0
+                          ? ` · ${formatPrice(v.price)}`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Variants indicator and selector */}
-            {variants && variants.length > 1 && (
+            {!heightVariants && variants && variants.length > 1 && (
               <div className="mt-2 space-y-2">
                 <Badge 
                   variant="outline" 

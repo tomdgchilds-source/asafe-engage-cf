@@ -261,6 +261,10 @@ export default function Products() {
         // Group by base name (remove dimensions and specific details)
         const baseName = product.name
           .replace(/\s*–\s*\d{3,4}\s*mm/g, '')
+          // Height suffix on bollards: "iFlex 190 Bollard - 2m" / "- 1.2 m".
+          // Same-model heights collapse into one family so GroupedProductCard
+          // can offer its height picker (Task J). \b keeps "1500mm" intact.
+          .replace(/\s*[-–]\s*\d+(?:\.\d+)?\s*m\b/gi, '')
           .replace(/\s*\d{3,4}\s*x\s*\d{3,4}/g, '')
           .replace(/\s*\(\w+\)/g, '')
           .replace(/\s+/g, ' ')
@@ -283,6 +287,11 @@ export default function Products() {
             const extractDimension = (product: Product): number => {
               const name = product.name;
               
+              // Heights in metres ("- 2m", "- 1.2 m") sort in mm so 1.2 m < 2 m
+              // lands ahead of any "1500mm" style token further along.
+              const metres = name.match(/(\d+(?:\.\d+)?)\s*m\b/i);
+              if (metres) return Math.round(parseFloat(metres[1]) * 1000);
+
               // Extract numeric dimensions from product name
               // Look for patterns like "1500 mm", "900 x 900", "190 OD", etc.
               const dimensionMatches = [
