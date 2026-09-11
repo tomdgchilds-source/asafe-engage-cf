@@ -1,5 +1,3 @@
-import type { KVNamespace } from "@cloudflare/workers-types";
-
 // ─────────────────────────────────────────────────────────
 // Email-scoped account lockout after consecutive failed logins.
 //

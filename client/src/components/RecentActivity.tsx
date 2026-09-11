@@ -36,9 +36,13 @@ export function RecentActivity() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
 
-  const { data: activities = [], isLoading, refetch } = useQuery({
+  const { data: activities = [], isLoading, refetch } = useQuery<UserActivity[]>({
     queryKey: ['/api/activity/recent'],
-    queryFn: () => activityService.getRecentActivity(100),
+    queryFn: async () => {
+      // activityService hands back parsed JSON as `unknown`; guard the shape.
+      const rows = await activityService.getRecentActivity(100);
+      return Array.isArray(rows) ? (rows as UserActivity[]) : [];
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 

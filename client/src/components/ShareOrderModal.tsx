@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ export function ShareOrderModal({
   const [copied, setCopied] = useState(false);
 
   // Initialize messages when modal opens
-  useState(() => {
+  useEffect(() => {
     const defaultEmailBody = `Dear ${customerName || "Customer"},
 
 Please find your A-SAFE Order Form at the following link:

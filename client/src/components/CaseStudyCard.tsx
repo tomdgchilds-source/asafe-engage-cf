@@ -174,7 +174,7 @@ export function CaseStudyCard({ caseStudy, onDownload }: CaseStudyCardProps) {
           </div>
         )}
 
-        {caseStudy.outcomes && Array.isArray(caseStudy.outcomes) && caseStudy.outcomes.length > 0 && (
+        {Array.isArray(caseStudy.outcomes) && caseStudy.outcomes.length > 0 && (
           <div className="mb-4">
             <h4 className="font-semibold text-sm text-gray-800 mb-2">Key Outcomes:</h4>
             <ul className="text-xs text-gray-600 space-y-1">

@@ -115,7 +115,7 @@ export function ForkGuardKerbCalculator({ onCalculate, onAddToCart }: ForkGuardK
       const lengths = [];
       let totalQuantity = 0;
       
-      for (const [lengthValue, quantity] of bestSolution.lengths.entries()) {
+      for (const [lengthValue, quantity] of Array.from(bestSolution.lengths.entries())) {
         const kerbLength = availableLengths.find(l => l.length === lengthValue);
         if (kerbLength && quantity > 0) {
           lengths.push({ length: kerbLength, quantity });

@@ -286,6 +286,14 @@ function AuthenticatedImage({ src, alt, className }: { src: string; alt: string;
   );
 }
 
+// Shape of the body POSTed to /api/recommend-barriers — mirrors the `inline`
+// scenario accepted by POST /api/quote/draft (worker/routes/quote.ts).
+type RecommenderInput = {
+  vehicleTypes: Array<{ id: string; massKg: number; speedKmh: number; dbVehicleTypeName?: string }>;
+  zones: Array<{ name: string; areaApplicationType: string; riskLevel: "low" | "medium" | "high" | "critical" }>;
+  environment: { internal: boolean; external: boolean; coldStorage: boolean; atex: boolean };
+};
+
 export function SolutionFinder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [recommendations, setRecommendations] = useState<any>(null);
@@ -306,6 +314,10 @@ export function SolutionFinder() {
   const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
   const [quoteGenerating, setQuoteGenerating] = useState(false);
+  // Most recent payload sent to POST /api/recommend-barriers, kept so the
+  // Quoting AI assistant can forward it verbatim as the `inline` scenario.
+  const [latestRecommenderInput, setLatestRecommenderInput] =
+    useState<RecommenderInput | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
@@ -479,7 +491,7 @@ export function SolutionFinder() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(err?.message || `quote ${res.status}`);
       }
       setQuoteDraft((await res.json()) as QuoteDraftPayload);
@@ -1073,7 +1085,7 @@ export function SolutionFinder() {
                               autoSaveExisting: true
                             });
 
-                            const data = await response.json();
+                            const data = (await response.json()) as { message?: string };
                             toast({
                               title: "Project Created",
                               description: data.message || `${items.length} solutions added to project cart`,
@@ -1600,7 +1612,7 @@ export function SolutionFinder() {
                               autoSaveExisting: true
                             });
 
-                            const data = await response.json();
+                            const data = (await response.json()) as { message?: string };
                             toast({
                               title: "Project Created",
                               description: data.message || `${items.length} solutions added to project cart`,

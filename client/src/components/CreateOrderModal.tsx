@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { User, UserPlus, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { Badge } from "@/components/ui/badge";
@@ -147,17 +147,6 @@ export function CreateOrderModal({
     setCustomOrderNumber('');
   };
 
-  const handleSelectionNext = (forUser: boolean) => {
-    setIsForUser(forUser);
-    if (forUser) {
-      // Create order immediately for user
-      handleCreateOrder(true, {});
-    } else {
-      // Go to customer details step
-      setStep('customer-details');
-    }
-  };
-
   const handleCreateOrder = (forUser: boolean, details: any) => {
     const orderData = {
       cartItems,
@@ -240,60 +229,6 @@ export function CreateOrderModal({
             <p className="text-sm text-muted-foreground">
               Generating order form for the active project…
             </p>
-          </div>
-        )}
-
-        {step === 'selection-legacy-disabled' && (
-          <div className="space-y-4">
-            <Card 
-              className="cursor-pointer hover:bg-gray-50 transition-colors border-2 hover:border-yellow-400"
-              onClick={() => handleSelectionNext(true)}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <User className="h-8 w-8 text-yellow-600" />
-                <div>
-                  <h3 className="font-medium">For Me</h3>
-                  <p className="text-sm text-gray-600">
-                    Use my profile information as the customer
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:bg-gray-50 transition-colors border-2 hover:border-yellow-400"
-              onClick={() => handleSelectionNext(false)}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <UserPlus className="h-8 w-8 text-blue-600" />
-                <div>
-                  <h3 className="font-medium">For Another Customer</h3>
-                  <p className="text-sm text-gray-600">
-                    Enter customer details manually
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-2">
-              <Label htmlFor="custom-order-number">Custom A-SAFE Order Form Number (Optional)</Label>
-              <Input
-                id="custom-order-number"
-                value={customOrderNumber}
-                onChange={(e) => setCustomOrderNumber(e.target.value)}
-                placeholder="e.g. ASAFE-2024-001"
-                data-testid="input-custom-order-number"
-              />
-              <p className="text-xs text-gray-500">
-                Add your own reference number for CRM alignment and searchability
-              </p>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={onClose} className="flex-1">
-                Cancel
-              </Button>
-            </div>
           </div>
         )}
 

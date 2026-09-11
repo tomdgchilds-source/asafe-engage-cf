@@ -154,7 +154,10 @@ export function ProfileImageUpload({ currentImage, onImageUpdate }: ProfileImage
       });
 
       if (uploadResponse.ok) {
-        const { imageUrl } = await uploadResponse.json();
+        const { imageUrl } = (await uploadResponse.json()) as { imageUrl?: string };
+        if (typeof imageUrl !== 'string') {
+          throw new Error('Upload succeeded but no imageUrl was returned');
+        }
         haptic.upload();
         onImageUpdate(imageUrl);
         setIsModalOpen(false);

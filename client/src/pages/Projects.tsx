@@ -755,7 +755,7 @@ function ProjectDetailPane({
                     body: JSON.stringify({ projectId }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
+                    const err = (await res.json().catch(() => ({}))) as { message?: string };
                     throw new Error(err?.message || `quote ${res.status}`);
                   }
                   setQuoteDraft((await res.json()) as QuoteDraftPayload);

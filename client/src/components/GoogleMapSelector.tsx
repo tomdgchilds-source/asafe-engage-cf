@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
@@ -30,33 +30,34 @@ export function GoogleMapSelector({ onLocationSelect, selectedLocation, classNam
           return;
         }
 
-        const loader = new Loader({
-          apiKey: GOOGLE_MAPS_API_KEY,
-          version: "weekly",
-          libraries: ["places"]
-        });
-
-        const google = await loader.load();
+        // @googlemaps/js-api-loader v2 removed `Loader.load()`; the functional
+        // API loads each library on demand (first importLibrary call boots the SDK).
+        setOptions({ key: GOOGLE_MAPS_API_KEY, v: "weekly" });
+        const [{ Map: GoogleMap, MapTypeId }, { Geocoder }, { Marker }] = await Promise.all([
+          importLibrary("maps"),
+          importLibrary("geocoding"),
+          importLibrary("marker"),
+        ]);
         
         if (!mapRef.current) return;
 
         // Default location (Dubai, UAE)
         const defaultLocation = { lat: 25.2048, lng: 55.2708 };
         
-        const mapInstance = new google.maps.Map(mapRef.current, {
+        const mapInstance = new GoogleMap(mapRef.current, {
           zoom: 11,
           center: selectedLocation || defaultLocation,
-          mapTypeId: google.maps.MapTypeId.SATELLITE,
+          mapTypeId: MapTypeId.SATELLITE,
           streetViewControl: false,
           mapTypeControl: true,
           fullscreenControl: false,
         });
 
-        const geocoderInstance = new google.maps.Geocoder();
+        const geocoderInstance = new Geocoder();
         setGeocoder(geocoderInstance);
 
         // Create marker
-        const markerInstance = new google.maps.Marker({
+        const markerInstance = new Marker({
           position: selectedLocation || defaultLocation,
           map: mapInstance,
           draggable: true,

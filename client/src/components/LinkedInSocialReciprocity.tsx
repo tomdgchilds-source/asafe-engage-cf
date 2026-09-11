@@ -54,8 +54,11 @@ export function LinkedInSocialReciprocity({ subtotal, currency, exchangeRate, on
         followers: followerCount, 
         subtotal: currentSubtotal 
       });
-      const data = await response.json();
-      setCalculatedDiscount(data);
+      const data = (await response.json()) as Partial<{ baseAedDiscount: number; cappedDiscount: number }>;
+      setCalculatedDiscount({
+        baseAedDiscount: Number(data.baseAedDiscount ?? 0),
+        cappedDiscount: Number(data.cappedDiscount ?? 0),
+      });
     } catch (error) {
       console.error("Failed to calculate discount:", error);
     }

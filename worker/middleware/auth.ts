@@ -20,12 +20,6 @@ const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
 // can call these.
 type AppContext = Context<{ Bindings: Env; Variables: Variables }, any, any>;
 
-// accountLockout.ts imports KVNamespace from "@cloudflare/workers-types" (the
-// module form); Env uses the ambient global from the same package. They are
-// the same runtime object but distinct declarations to tsc, so bridge here.
-type LockoutKv = Parameters<typeof isAccountLocked>[0];
-const lockoutKv = (kv: KVNamespace): LockoutKv => kv as unknown as LockoutKv;
-
 // Get session from KV by cookie sid
 async function getSession(c: AppContext): Promise<SessionData | null> {
   const sid = getCookie(c, "sid");
@@ -139,7 +133,7 @@ export async function handleLogin(c: AppContext) {
 
   // Account lockout — block before we even hit the DB / bcrypt.
   const normalizedEmail = body.email.toLowerCase().trim();
-  const lockStatus = await isAccountLocked(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
+  const lockStatus = await isAccountLocked(c.env.KV_SESSIONS, normalizedEmail);
   if (lockStatus.locked) {
     c.header("Retry-After", Math.max(1, lockStatus.retryAfterSeconds).toString());
     const mins = Math.max(1, Math.ceil(lockStatus.retryAfterSeconds / 60));
@@ -158,13 +152,13 @@ export async function handleLogin(c: AppContext) {
   if (!user || !user.passwordHash) {
     // Record a failure even when the email isn't in the DB so attackers
     // can't enumerate addresses by watching rate-limit behaviour.
-    await recordFailedLogin(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
+    await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
     return c.json({ message: "Invalid email or password" }, 401);
   }
 
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
-    const res = await recordFailedLogin(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
+    const res = await recordFailedLogin(c.env.KV_SESSIONS, normalizedEmail);
     if (res.locked) {
       c.header("Retry-After", Math.max(1, res.retryAfterSeconds).toString());
       const mins = Math.max(1, Math.ceil(res.retryAfterSeconds / 60));
@@ -179,7 +173,7 @@ export async function handleLogin(c: AppContext) {
   }
 
   // Successful login — clear any accumulated failure counter.
-  await clearFailedLogins(lockoutKv(c.env.KV_SESSIONS), normalizedEmail);
+  await clearFailedLogins(c.env.KV_SESSIONS, normalizedEmail);
 
   await createSession(c, user);
 
