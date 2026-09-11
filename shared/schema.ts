@@ -12,6 +12,7 @@ import {
   boolean,
   real,
   unique,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1934,6 +1935,10 @@ export interface Product {
   deflectionZone?: number | null;
   price?: string | null;
   currency?: string | null;
+  // Price-list provenance (mirrors pricing_logic / price_list_* columns)
+  pricingLogic?: string | null;
+  priceListSource?: string | null;
+  priceListVersion?: string | null;
   imageUrl?: string | null;
   technicalSheetUrl?: string | null;
   applications?: unknown;
@@ -2476,3 +2481,67 @@ export const insertEmailLogSchema = createInsertSchema(emailLog).omit({
 export type EmailLog = typeof emailLog.$inferSelect;
 export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
 
+
+// ──────────────────────────────────────────────
+// SURVEY PHOTOS — one row per photo captured on a Survey Walk
+// (Phase 3, Task S0/S1). Replaces the `photos_urls` jsonb array for new
+// surveys; old arrays are still read. `analysis` holds the
+// VisionObservation JSON produced by worker/services/vision once
+// `analysisStatus` is 'done'.
+//
+// `analysisStatus` values: pending | done | failed | skipped
+//   - skipped: no vision provider configured (no ANTHROPIC/OPENAI key)
+// ──────────────────────────────────────────────
+export const surveyPhotos = pgTable("survey_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteSurveyId: varchar("site_survey_id")
+    .notNull()
+    .references(() => siteSurveys.id, { onDelete: "cascade" }),
+  areaId: varchar("area_id").references(() => siteSurveyAreas.id, { onDelete: "set null" }),
+  zoneName: varchar("zone_name"),
+  objectKey: varchar("object_key").notNull(), // R2 key
+  width: integer("width"),
+  height: integer("height"),
+  takenAt: timestamp("taken_at").defaultNow(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  voiceNote: text("voice_note"),
+  analysis: jsonb("analysis"), // VisionObservation, null until analysed
+  analysisStatus: varchar("analysis_status").notNull().default("pending"),
+  analysisModel: varchar("analysis_model"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  surveyIdx: index("survey_photos_survey_idx").on(t.siteSurveyId),
+}));
+
+export const insertSurveyPhotoSchema = createInsertSchema(surveyPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SurveyPhoto = typeof surveyPhotos.$inferSelect;
+export type InsertSurveyPhoto = z.infer<typeof insertSurveyPhotoSchema>;
+
+// ──────────────────────────────────────────────
+// AI USAGE — one row per LLM call so spend is auditable per survey.
+// `kind` is the call site (e.g. 'vision_photo'); `costUsdEst` is derived
+// from the provider's published per-token prices at call time.
+// ──────────────────────────────────────────────
+export const aiUsage = pgTable("ai_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  kind: varchar("kind"),
+  model: varchar("model"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  costUsdEst: decimal("cost_usd_est", { precision: 10, scale: 6 }),
+  surveyId: varchar("survey_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertAiUsageSchema = createInsertSchema(aiUsage).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type AiUsage = typeof aiUsage.$inferSelect;
+export type InsertAiUsage = z.infer<typeof insertAiUsageSchema>;

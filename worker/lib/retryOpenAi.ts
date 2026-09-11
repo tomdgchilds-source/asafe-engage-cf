@@ -114,10 +114,11 @@ const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Run `fn` with exponential-backoff + jitter retries on transient
- * failures. See the file header for the retry policy.
+ * Shared retry loop. `logTag` only affects the console.warn prefix so
+ * existing log readers keep seeing `[openai-retry]` for OpenAI calls.
  */
-export async function withOpenAiRetry<T>(
+async function runWithRetry<T>(
+  logTag: string,
   label: string,
   fn: () => Promise<T>,
   opts: RetryOptions = {},
@@ -155,7 +156,7 @@ export async function withOpenAiRetry<T>(
       const jitterFactor = 0.75 + random() * 0.5; // [0.75, 1.25]
       const delay = Math.round(expDelay * jitterFactor);
       console.warn(
-        "[openai-retry]",
+        logTag,
         label,
         "attempt",
         attempt + 1,
@@ -168,4 +169,33 @@ export async function withOpenAiRetry<T>(
   }
   // Unreachable — the loop either returns or throws — but TS wants it.
   throw lastErr;
+}
+
+/**
+ * Run `fn` with exponential-backoff + jitter retries on transient
+ * failures. See the file header for the retry policy.
+ */
+export async function withOpenAiRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  opts: RetryOptions = {},
+): Promise<T> {
+  return runWithRetry("[openai-retry]", label, fn, opts);
+}
+
+/**
+ * Provider-agnostic variant of `withOpenAiRetry` for any upstream HTTP
+ * call (Anthropic, OpenAI, Resend, ...). Same policy: transient classes
+ * (network errors, 408, 429, 5xx — which covers Anthropic's 529
+ * `overloaded_error` — and the OpenAI 403 region quirk) are retried with
+ * backoff; anything that looks permanent is surfaced immediately. Throw
+ * an error carrying a numeric `status` (e.g. `OpenAiHttpError`, or any
+ * `{ status: number }` shaped error) so the decider can classify it.
+ */
+export async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  opts: RetryOptions = {},
+): Promise<T> {
+  return runWithRetry("[retry]", label, fn, opts);
 }

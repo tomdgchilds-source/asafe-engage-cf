@@ -18,6 +18,7 @@ export type Env = {
 
   // AI
   OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY?: string; // optional; preferred vision provider when set
 
   // WhatsApp
   WHATSAPP_ACCESS_TOKEN: string;

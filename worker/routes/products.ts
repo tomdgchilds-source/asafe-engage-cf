@@ -249,14 +249,7 @@ products.get("/products", async (c) => {
       priceVariantsByProductId[key].push(v);
     }
 
-    // The hand-written `Product` interface in shared/schema.ts lags the
-    // `products` table; these price-list columns do exist on the row.
-    type CatalogProduct = Product & {
-      pricingLogic?: string | null;
-      priceListSource?: string | null;
-      priceListVersion?: string | null;
-    };
-    const productsWithVariants = (allProducts as CatalogProduct[]).map((product) => {
+    const productsWithVariants = allProducts.map((product) => {
       let variants: any[] = [];
       let specifications: any = product.specifications;
 
