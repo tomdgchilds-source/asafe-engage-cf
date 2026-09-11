@@ -1,0 +1,390 @@
+<title>Engage Review</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F5F4EF; --surface:#FFFFFF; --surface-2:#EFEDE6; --ink:#17160F; --ink-2:#4A4840; --muted:#7A776C; --line:#DDDAD0;
+  --accent:#FFC72C; --accent-ink:#7A5B00; --accent-soft:#FFF1C2;
+  --crit:#B3261E; --crit-soft:#FBE4E2; --warn:#9A5B00; --warn-soft:#FFE9C7; --ok:#2C6E3A; --ok-soft:#DCEFDF; --info:#2F5D9E; --info-soft:#DEE8F7;
+  --code-bg:#ECEAE2;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#151510; --surface:#1E1D17; --surface-2:#26251E; --ink:#F0EDE3; --ink-2:#C9C5B8; --muted:#8F8B7E; --line:#33322A;
+  --accent:#FFC72C; --accent-ink:#FFD65C; --accent-soft:#3A2F08;
+  --crit:#FF7B72; --crit-soft:#3B1B18; --warn:#FFB454; --warn-soft:#3A2A10; --ok:#7BD38C; --ok-soft:#173A1F; --info:#8FB4F0; --info-soft:#17284A;
+  --code-bg:#2A2921;
+}}
+:root[data-theme="dark"]{
+  --bg:#151510; --surface:#1E1D17; --surface-2:#26251E; --ink:#F0EDE3; --ink-2:#C9C5B8; --muted:#8F8B7E; --line:#33322A;
+  --accent:#FFC72C; --accent-ink:#FFD65C; --accent-soft:#3A2F08;
+  --crit:#FF7B72; --crit-soft:#3B1B18; --warn:#FFB454; --warn-soft:#3A2A10; --ok:#7BD38C; --ok-soft:#173A1F; --info:#8FB4F0; --info-soft:#17284A;
+  --code-bg:#2A2921;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.55;margin:0}
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;max-width:1160px;margin:0 auto;padding:40px 28px 96px}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:24px;padding:24px 18px 64px}}
+nav.toc{position:sticky;top:24px;align-self:start;font-size:13.5px}
+@media (max-width:900px){nav.toc{position:static;border-bottom:1px solid var(--line);padding-bottom:16px}}
+nav.toc .eyebrow{margin-bottom:10px}
+nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+nav.toc a{color:var(--ink-2);text-decoration:none;display:block;padding:3px 0 3px 10px;border-left:2px solid var(--line)}
+nav.toc a:hover{border-left-color:var(--accent);color:var(--ink)}
+main{min-width:0;max-width:760px}
+.eyebrow{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.08em;font-size:13px;color:var(--muted)}
+h1{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:56px;line-height:.95;letter-spacing:-.01em;margin:6px 0 14px;text-wrap:balance}
+h2{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:32px;line-height:1.05;margin:56px 0 14px;padding-top:18px;border-top:3px solid var(--ink);text-wrap:balance}
+h3{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;font-size:22px;line-height:1.1;margin:30px 0 8px;text-wrap:balance}
+p{margin:0 0 14px;max-width:68ch}
+ul,ol{margin:0 0 14px;padding-left:22px;max-width:68ch}
+li{margin-bottom:6px}
+li::marker{color:var(--muted)}
+strong{font-weight:600}
+code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:3px}
+.meta{display:flex;flex-wrap:wrap;gap:18px 28px;color:var(--ink-2);font-size:14px;padding:16px 0 22px;border-bottom:1px solid var(--line);margin-bottom:26px}
+.meta b{display:block;font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.lede{font-size:19px;line-height:1.5;color:var(--ink);max-width:62ch}
+.callout{background:var(--accent-soft);border-left:4px solid var(--accent);padding:14px 18px;margin:18px 0 22px;max-width:70ch}
+.callout p:last-child{margin-bottom:0}
+.chip{display:inline-block;font-family:"Barlow Condensed",sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:12.5px;line-height:1;padding:5px 8px 4px;border-radius:3px;white-space:nowrap;vertical-align:middle}
+.chip.crit{background:var(--crit-soft);color:var(--crit)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.chip.na{background:var(--surface-2);color:var(--muted)}
+.tablewrap{overflow-x:auto;margin:14px 0 24px;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-family:"Barlow Condensed",sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:12.5px;color:var(--muted);background:var(--surface-2);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td .ref{display:block;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);margin-top:3px}
+.score{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:14px 0 26px}
+.score div{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:12px 14px}
+.score div .name{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:18px;line-height:1.1;margin-bottom:6px}
+.score div .why{font-size:13.5px;color:var(--ink-2);margin-top:6px;line-height:1.4}
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0 24px}
+@media (max-width:640px){.flow{grid-template-columns:1fr}}
+.flow>div{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:14px 16px}
+.flow .eyebrow{margin-bottom:8px}
+.flow ol{padding-left:20px;font-size:14.5px}
+.phase{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:16px 18px;margin:12px 0}
+.phase h3{margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.phase .eff{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);font-weight:400}
+.q{counter-reset:q}
+.q li{list-style:none;position:relative;padding-left:0;margin-bottom:12px}
+.small{font-size:13.5px;color:var(--muted)}
+figure{margin:14px 0 22px}
+figure img{border:1px solid var(--line);border-radius:4px;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#verdict">Verdict</a></li>
+    <li><a href="#scorecard">Feature scorecard</a></li>
+    <li><a href="#feedback">Team feedback, tracked</a></li>
+    <li><a href="#survey">Site survey</a></li>
+    <li><a href="#drawing">Layout drawing</a></li>
+    <li><a href="#pricing">Pricing, cart, order form</a></li>
+    <li><a href="#platform">Platform, mobile, security</a></li>
+    <li><a href="#plan">Recommended plan</a></li>
+    <li><a href="#questions">Questions for Tom</a></li>
+  </ol>
+</nav>
+
+<main>
+<div class="eyebrow">A-SAFE Engage · full application review</div>
+<h1>Engage Review</h1>
+<div class="meta">
+  <div><b>Date</b>11 September 2026</div>
+  <div><b>Codebase</b>asafe-engage-cf @ 6533fb0 (125 commits, 137k lines TS)</div>
+  <div><b>Live</b>asafe-engage.tom-d-g-childs.workers.dev, deployed 7 May 2026</div>
+  <div><b>Inputs</b>Code read, live browser pass (public pages), 5 May team feedback transcript</div>
+</div>
+
+<h2 id="verdict" style="margin-top:0;border-top:0;padding-top:0">Verdict</h2>
+<p class="lede">Engage is a big, ambitious internal tool that already does the "browse products, price a cart, produce an order form" job well enough that Branden got a quote within AED 10k of the estimation team. The two things you actually want it for, walk-and-shoot site surveys that produce a PAS 13 risk assessment and a drawing tool the team will use on a tablet, are the two least finished parts of it.</p>
+
+<div class="callout">
+<p><strong>The most important finding:</strong> there is no image analysis anywhere in the app. Photos taken during a survey are stored as base64 strings in Postgres and printed into the PDF, but no AI ever looks at them. The risk level on each area is a dropdown pre-filled from a hard-coded table keyed on area type. The "AI chat" accepts a photo upload with the prompt "Please analyze this image" and then strips the image before calling OpenAI. Your vision of "take pictures, identify problems, build a PAS 13 risk assessment" is not partially built. It is unbuilt, on top of a survey form that is a reasonable skeleton for it.</p>
+</div>
+
+<p>Three other things frame everything below:</p>
+<ul>
+  <li><strong>The team's May 5 feedback was mostly actioned on May 6.</strong> Request Quote flow removed, customer-info step removed, Solution Finder hidden, category filters fixed, dropdown flicker fixed, per-metre prices on survey recommendations, the 2.5 m price-doubling logic replaced, an accessory picker added, a server-side order-form PDF v2 started. Several of those fixes are partial, and one went backwards: the new order-form PDF has no images at all, where the old one did. Nothing has shipped since 7 May.</li>
+  <li><strong>Mobile "lag" has a concrete cause.</strong> The catalogue page fires one request per product family for base plates on load, 59 API calls and 2.7 s of network before the page settles, plus ten 401s from auth probes on every public page. Voice notes cannot work in production because the security headers disable the microphone. These are hours to fix, not weeks.</li>
+  <li><strong>The codebase has grown faster than it has been pruned.</strong> A 6,300-line worker entry file where 5,900 lines are one-off migration endpoints served as live HTTP routes, 14 orphaned components, an orphaned 623-line Meeting Notes page, a 941-line matching engine never imported, 394 MB of uploaded assets committed to git, no typecheck in CI, and an end-to-end test that runs against production rather than the PR. None of this blocks users, but it makes every fix slower and riskier than it should be.</li>
+</ul>
+<p>My recommendation is a short stabilisation pass (security, performance, the open feedback items), then rebuild the survey around a photo-first, AI-assessed flow as the flagship, then rebuild the drawing tool's interaction model for touch. Detail in <a href="#plan">the plan</a>.</p>
+
+<h2 id="scorecard">Feature scorecard</h2>
+<p>Status from the user's side. "Works" means the team can rely on it today; "Partly" means it functions but with bugs or gaps they will hit; "Broken" means a core path fails; "Missing" means it exists in name only.</p>
+<div class="score">
+  <div><div class="name">Browse products → cart → order form</div><span class="chip warn">Partly</span><div class="why">The path Branden and Jam use. Pricing close to estimation-team numbers in the app. The downloadable PDF currently has no images, and the server does not enforce discount caps or currency.</div></div>
+  <div><div class="name">Site survey capture</div><span class="chip warn">Partly</span><div class="why">Form, camera, offline draft, PDF all function. No AI on photos, "Build Project" modal is broken, phantom surveys on flaky signal.</div></div>
+  <div><div class="name">AI risk assessment from photos</div><span class="chip crit">Missing</span><div class="why">No vision call exists. Risk level is a manual dropdown with hard-coded defaults.</div></div>
+  <div><div class="name">PAS 13 engine + chat</div><span class="chip ok">Works</span><div class="why">Deterministic verdict engine, RAG chat over the standard, alignment-report PDF. The best-built piece. Not wired into survey photos or areas.</div></div>
+  <div><div class="name">Impact calculator</div><span class="chip ok">Works</span><div class="why">Solid. Survey's own KE calc diverges from it (0 % margin vs 30 %, no load mass).</div></div>
+  <div><div class="name">Layout drawing</div><span class="chip warn">Partly</span><div class="why">Upload, calibrate, draw runs, export PDF work. Touch is a separate code path with gaps, undo deletes the wrong markup, one drawing tool only.</div></div>
+  <div><div class="name">Quote draft (AI narrative)</div><span class="chip warn">Partly</span><div class="why">Generates a draft from a survey, but every zone total is a 1-metre price and it invents a 5 t forklift when no vehicle is set.</div></div>
+  <div><div class="name">Projects, sharing, approvals</div><span class="chip warn">Partly</span><div class="why">Rich model. Projects page is not in the nav. Collaborators cannot make a shared project active.</div></div>
+  <div><div class="name">Installation timeline + teams</div><span class="chip ok">Works</span><div class="why">Sagarika rated it good. Daily overdue scanner emails.</div></div>
+  <div><div class="name">Communication plan</div><span class="chip warn">Partly</span><div class="why">Was 404 in May; built out May 6. Nice-to-have per Tom.</div></div>
+  <div><div class="name">Solution Finder</div><span class="chip na">Parked</span><div class="why">Hidden from nav but still linked from Dashboard and Start New Project.</div></div>
+  <div><div class="name">Mobile / PWA</div><span class="chip warn">Partly</span><div class="why">Real service worker and manifest, but scoped to Site Survey only. Catalogue is slow on phones for a fixable reason.</div></div>
+  <div><div class="name">Admin, analytics, email log</div><span class="chip ok">Works</span><div class="why">Usage report, kanban, PAS 13 thresholds, Resend diagnostics.</div></div>
+  <div><div class="name">Security posture</div><span class="chip crit">Needs action</span><div class="why">Good headers, lockout, Turnstile. But two permanent GET bootstrap endpoints take passwords in the URL and can mint any admin.</div></div>
+</div>
+
+<h2 id="feedback">Team feedback, tracked</h2>
+<p>Every item raised in the 5 May session, with where it stands in the code today. "Fixed May 6" means a commit addressed it and it is deployed. I could not confirm behaviour in the logged-in app without a test account, so "fixed" here means the code change is present, not that I re-tested it live.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Raised by</th><th>Item</th><th>Status</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Jam</td><td>Order-form PDF has no product images and no uploaded images</td><td><span class="chip crit">Regressed</span></td><td>The Download button was switched on May 6 to a new server-side "v2" PDF that has no image support at all: the cover hero is a drawn rectangle and site photos print as the text "[ site photo on file ]". The older client-side generator it replaced did embed product images, site photos, drawings, and logos. Either add JPEG embedding to v2 or point the button back. <span class="ref">orderFormPdfV2.ts:394-396, 1051 · OrderForm.tsx:884-898</span></td></tr>
+<tr><td>Jam, Bassil</td><td>PDF format too basic; wants product photo, datasheet, site photos, drawing in one document</td><td><span class="chip warn">Open</span></td><td>v2 adds "value-add sections" but does not pull in survey photos or the layout drawing. This is the right target for the proposal document in the plan.</td></tr>
+<tr><td>Shadab, Sagarika, Vinod</td><td>Draft email to UAE support appears automatically; confusing "Request Quote" path</td><td><span class="chip ok">Fixed May 6</span></td><td>Request Quote flow removed from the cart. <code>EnhancedQuoteRequestModal</code> file kept but unmounted.</td></tr>
+<tr><td>Bassil, Vinod</td><td>"Use my profile as customer" step errors; intermediate customer-info step unwanted</td><td><span class="chip ok">Fixed May 6</span></td><td>Customer-info step removed in the same commit.</td></tr>
+<tr><td>Shadab</td><td>Started a project and could not find it again; Draft Projects showed zero</td><td><span class="chip warn">Open</span></td><td>Root cause is navigation. The Projects page is not in the sidebar at all; it is only reachable from the project switcher's "Manage projects". "Start New Project" also links to a <code>/draft-projects</code> route that does not exist.</td></tr>
+<tr><td>Sagarika</td><td>Add per-metre price to each recommended solution in the survey PDF</td><td><span class="chip ok">Fixed May 6</span></td><td>Per-metre approximate price now shown on recommended-product chips.</td></tr>
+<tr><td>Sagarika, Micah, Akshay</td><td>Dropdowns flicker / page jumps on open</td><td><span class="chip ok">Fixed May 6</span></td><td>Two commits: scroll-lock rule removed, dropdown snap fixed.</td></tr>
+<tr><td>Sagarika</td><td>Communication Plan 404</td><td><span class="chip ok">Fixed May 6</span></td><td>Built out with templates + trigger-based suggestions.</td></tr>
+<tr><td>Sagarika</td><td>Capture extras the estimation team needs: SS bolts, weld plates, floor type, dock buffers, L-brackets, height</td><td><span class="chip warn">Partly</span></td><td>Installation-notes textarea and a per-line Accessory Picker were added. Floor type exists on the layout drawing only, not on the cart or survey area.</td></tr>
+<tr><td>Micah, Shahla</td><td>Pedestrian Barriers and Vehicle Stops category filters return nothing</td><td><span class="chip ok">Fixed May 6</span></td><td>Filter slug mismatch fixed (<code>pedestrian-guardrails</code>, <code>stops</code>).</td></tr>
+<tr><td>Shahla</td><td>Heavy-duty bollard duplicated under yellow bollard; no price shown</td><td><span class="chip ok">Fixed May 6</span></td><td>Bollards regrouped by model, phantom Heavy Duty parent handled.</td></tr>
+<tr><td>Shahla</td><td>iFlex 190 bollard 2 m "view details" shows product not found</td><td><span class="chip ok">Fixed May 1</span></td><td>QA fix BUG-004 for product detail 404.</td></tr>
+<tr><td>Shahla</td><td>Cannot select bollard height (1.2 m vs 2 m) as a variant</td><td><span class="chip warn">Open</span></td><td>Variants are separate products, not a height picker on one product.</td></tr>
+<tr><td>Bassil</td><td>eFlex Rack End 2.5 m priced as 2.4 m + 0.9 m (doubled); 2.6 m same as 2.5 m</td><td><span class="chip warn">Partly</span></td><td>Replaced with "longest piece + per-metre extension" in the Quote Builder panel only. The Add-to-Cart modal that Branden and Jam use has its own variant pricing path. Needs one shared function.</td></tr>
+<tr><td>Bassil, Akshay</td><td>Slow / laggy on phone; half the screen sometimes not accessible on the survey page</td><td><span class="chip crit">Open</span></td><td>Catalogue fires 59 API calls on load. 4.1 MB of JS across chunks. Site survey page is 2,561 lines with two dialogs bound to the same state. Detail in Platform.</td></tr>
+<tr><td>Jam</td><td>Show length next to quantity on cart lines; unit "J" should sit beside the number</td><td><span class="chip warn">Open</span></td><td>Not found in post-May-5 commits.</td></tr>
+<tr><td>Jam</td><td>Good / Better / Best safety % shows even without an impact calc</td><td><span class="chip ok">Fixed May 6</span></td><td>Switcher gated on impact-calc presence; asterisk for unrated tiers.</td></tr>
+<tr><td>Naif</td><td>Wants a "request for drawing" with attachments in the same app</td><td><span class="chip info">Exists</span></td><td>Layout Drawing accepts PDF, images, and DWG/DXF uploads (DWG has no renderer, only a download link). The upload card still says "PDF or JPG".</td></tr>
+<tr><td>Tom</td><td>Remove Solution Finder for now</td><td><span class="chip warn">Partly</span></td><td>Hidden from sidebar but still linked from Dashboard and Start New Project cards.</td></tr>
+<tr><td>Vinod</td><td>Order form errors on create; NetSuite quote number field unclear</td><td><span class="chip warn">Open</span></td><td>Could not reproduce without a login. The field is a free-text reference; worth relabelling "NetSuite quote no. (optional)".</td></tr>
+<tr><td>Sagarika</td><td>Will sanity-check pricing across 10 to 15 real quotations</td><td><span class="chip info">Action</span></td><td>Still the best validation available. See pricing section for the specific paths to compare.</td></tr>
+</tbody></table></div>
+
+<h2 id="survey">Site survey</h2>
+<h3>How it works today</h3>
+<div class="flow">
+<div><div class="eyebrow">Capture</div><ol>
+<li>Create survey: title, facility, logo, location, requested-by contact. Pre-filled from the active project. Autosaved to local storage for offline.</li>
+<li>Add "Area of Concern": zone, area name, area type (12 hard-coded types), condition, risk level, issue description with voice dictation, vehicle weight/speed/angle, Matterport link, up to 8 photos.</li>
+<li>Photos: rear camera or gallery, resized to 1280 px JPEG at 0.8, stored as base64 inside the area row's JSON column.</li>
+</ol></div>
+<div><div class="eyebrow">Assess and output</div><ol>
+<li>Impact calc per area: KE = ½ m (v sin θ)², filter products with rating ≥ KE, pick one per family at ~25 % margin.</li>
+<li>PAS 13 recommender runs the shared verdict engine and shows top 3 aligned barriers per zone.</li>
+<li>Outputs: client-side jsPDF report (cover, summary, per-area pages with photos, product cards, roadmap, methodology), Build Project to cart, AI quote draft, Complete Survey.</li>
+</ol></div>
+</div>
+
+<h3>Where it falls short of the vision</h3>
+<ul>
+  <li><strong>No photo intelligence.</strong> Nothing reads the images. Risk level is chosen by the rep from a dropdown. The "Risk Assessment" paragraph shown per area is canned copy per area type. <span class="small">SiteSurvey.tsx:105-178, 2014-2017</span></li>
+  <li><strong>Two competing safety calculations.</strong> The survey's own impact calc uses a 0 % safety margin, raw <code>Math.sin</code>, and ignores load mass; the PAS 13 engine below it uses a 30 % minimum margin and the standard's tables. The same area can show a product as "recommended" in one box and "not aligned" in the next. <span class="small">siteSurveys.ts:275-287 vs pas13Rules.ts:52, 399-416</span></li>
+  <li><strong>Racking override recommends under-rated product.</strong> A RackGuard is force-injected for racking areas even when its rating is below the calculated energy, with a prose justification. <span class="small">siteSurveys.ts:370-423</span></li>
+  <li><strong>"Build Project" modal is broken.</strong> It reads <code>product.id</code> and <code>product.name</code> but the data has <code>productId</code> and <code>productName</code>, so every product in an area shares one quantity input and cart lines get an undefined name. <span class="small">SiteSurvey.tsx:2394-2481</span></li>
+  <li><strong>Vehicle never reaches the recommender.</strong> Suggested vehicles are appended as text into the issue description; the code that reads <code>area.suggestedVehicle</code> for the PAS 13 lookup finds nothing, so it always falls back to a closest-analogue path. <span class="small">SiteSurvey.tsx:915, quote.ts:837</span></li>
+  <li><strong>Costs shown per zone are 1-metre prices.</strong> The recommender's cost estimate defaults to 1 m and quantity 1 when no length is passed, and the survey never passes a length. <span class="small">barrierRecommender.ts:501-522</span></li>
+  <li><strong>Phantom surveys on flaky signal.</strong> The offline hook auto-posts the draft when connectivity returns if a title has been typed, then the explicit Create button posts a second one. <span class="small">SiteSurvey.tsx:407-414</span></li>
+  <li><strong>Photo payload.</strong> Eight photos become roughly 4 MB of base64 in one POST and one Postgres row. The camera component's own docstring says the page should re-upload to R2; it never does. No EXIF orientation handling on the fallback path; HEIC silently produces broken thumbnails and missing PDF photos.</li>
+  <li><strong>Voice notes are dead in production.</strong> <code>Permissions-Policy: microphone=()</code> blocks the Web Speech API the button relies on. <span class="small">securityHeaders.ts:91</span></li>
+  <li><strong>No input validation on any survey route.</strong> Request bodies are spread straight into updates. A client can change a survey's <code>userId</code> or <code>status</code>. Four TODOs say "add Zod validation". <span class="small">siteSurveys.ts:62, 101, 180, 213</span></li>
+  <li><strong>Add-to-cart takes two taps</strong> because the first tap only fetches and sets state; the modal mounts on the next render.</li>
+</ul>
+
+<h3>What the survey should become</h3>
+<p>The observational survey report is, by the team's own account, the single highest-converting artefact they produce, and reps do them on phones. That argues for making the survey the flagship rather than one of five entry points. The flow I would build:</p>
+<ol>
+  <li><strong>Walk and shoot.</strong> Camera-first screen. Each photo is uploaded to R2 immediately (queued offline), tagged with GPS and the current zone. A one-tap "same zone / new zone" control between shots, optional voice note per photo.</li>
+  <li><strong>AI reads each photo.</strong> A vision model returns structured JSON: what is visible (racking, dock, pedestrian route, column, existing barrier and its condition, floor type, damage evidence), the likely vehicle class from context, a suggested area type, hazard tags, and a plain-English observation. The rep confirms or corrects in one screen rather than filling in ten fields.</li>
+  <li><strong>Deterministic PAS 13 assessment.</strong> Feed the confirmed observations into the engine you already have: vehicle class from the T1-T4 thresholds, energy with load mass and the standard's sine table, 30 % margin, aligned barrier families per zone. The AI proposes, the engine decides; that keeps the report defensible.</li>
+  <li><strong>Risk register.</strong> Each zone gets likelihood × severity from a small rubric (vehicle class, traffic density, pedestrian exposure, existing protection, observed damage), and a priority ranking across the site. This is the "risk assessment aligned with PAS 13" the report currently only gestures at.</li>
+  <li><strong>One proposal document.</strong> Generated server-side: cover, executive summary, risk map, per-zone page with the annotated photo, observation, PAS 13 verdict, recommended barrier with datasheet thumbnail and budget line, then the layout drawing if one exists, then the budgetary order form. This replaces both the survey PDF and the order-form PDF the team criticised.</li>
+  <li><strong>Before/after.</strong> Store the survey as a snapshot so a return visit six months later can be compared zone by zone. Tom raised exactly this on the call.</li>
+</ol>
+<p>Model choice: the vision step is the only new AI dependency. Claude's vision is strong at this kind of structured scene description and the app already has an OpenAI key, so either works. I would put the call behind one service function with a fixed JSON schema so the model can be swapped later.</p>
+
+<h2 id="drawing">Layout drawing</h2>
+<h3>How it works today</h3>
+<ul>
+  <li>Upload PDF, image, or DWG/DXF (DWG only gets a download link, no renderer). Files are stored in R2 with a <code>.bin</code> extension because the extension override was never implemented. 100 MB cap. A blank 4000×4000 graph-paper canvas is also offered.</li>
+  <li>Rendering is hybrid: an <code>&lt;img&gt;</code> for images, react-pdf for PDFs with tiered rasterisation, and one SVG overlay on top for all markups.</li>
+  <li>Scale calibration: click two points on a known dimension, type the length in millimetres. No metres, feet, or 1:100 ratio entry.</li>
+  <li>One drawing tool: a polyline bound to a cart item. A single click makes a point marker. Corners are auto-detected and corner posts are auto-added to the cart as a side effect. No text, symbol, rectangle, dimension, or wall/obstacle tool.</li>
+  <li>Quantity per product is the number of markups, not total length, so a 60 m run and a 2 m run each count as one.</li>
+  <li>Overlay has two modes: a technical top view with post circles and rail rectangles at real physical width once calibrated (genuinely good), or a schematic stroke. Colour is per cart-item index from a 15-colour palette, not per product family, and the on-canvas numbering scheme differs from the A/B/C key in the title block.</li>
+  <li>Export is PDF only, via html2canvas screenshot of the title-block frame into an A3 jsPDF. A print-preview toggle exists.</li>
+  <li>Live PAS 13 guardrails: scale-not-set, post-centre spacing, deflection zone obstructed, vehicle class mismatch, anchor/floor mismatch, underfloor services. Error-level findings gate "Transfer to cart" behind a confirm.</li>
+</ul>
+
+<h3>Why it feels clunky</h3>
+<ul>
+  <li><strong>Mouse and touch are two separate code paths.</strong> Pointer handlers bail on <code>pointerType === 'touch'</code> and a parallel set of touch handlers reimplements drawing, pan, and pinch. Right-angle snapping only exists on the mouse path. Long-press menus promised in the help dialog do not exist. <span class="small">index.tsx:755, 876, 932; useCanvasDrawing.ts:339-585</span></li>
+  <li><strong>Undo is destructive and wrong.</strong> Cmd+Z deletes the last markup from the server, no redo, and because the server returns newest-first while local state appends, after a refetch undo removes the oldest markup. <span class="small">index.tsx:1153-1162</span></li>
+  <li><strong>Stale markups leak between drawings.</strong> Opening a drawing with no markups leaves the previous drawing's markups on screen. <span class="small">index.tsx:228-232</span></li>
+  <li><strong>Repositioning corrupts the origin.</strong> Only the path and end point are sent; the start coordinates keep the old location, and calculated length is never recomputed. <span class="small">index.tsx:772-777</span></li>
+  <li><strong>Auto-align rewrites every markup with no confirm and no undo.</strong> <span class="small">index.tsx:1037-1138</span></li>
+  <li><strong>The main component is 2,308 lines with 34 <code>useState</code> hooks</strong>, the drawing hook adds 25 more and returns a fresh 40-key object every render, and the overlay takes about 70 props with no memoisation. Every pan or zoom re-renders every markup. That is the lag on a tablet.</li>
+  <li><strong>Product width and product id are never persisted</strong> on a markup; they are re-derived from the product name by regex on every load.</li>
+  <li><strong>The deflection-zone rule almost never fires</strong> because there is no way to draw a wall; obstacles are inferred from product-name regex.</li>
+</ul>
+
+<h3>What it should become</h3>
+<p>The product idea is right: a marked-up plan with A-SAFE products as a legible overlay, usable on a tablet on site. The interaction model needs rebuilding rather than patching:</p>
+<ul>
+  <li><strong>One pointer-events code path</strong> for mouse, pen, and touch, with pinch-zoom and two-finger pan as gestures on the container, not on the drawing tool. Snapping and long-press work identically everywhere.</li>
+  <li><strong>A small, explicit tool set:</strong> select, barrier run (polyline), bollard/column guard (stamp), wall/obstacle, dimension, text note, and calibrate. Symbols come from a product-family library so the overlay is colour-and-shape coded per family, matches the title-block key, and the legend is generated from what is on the canvas.</li>
+  <li><strong>Markups as a single versioned document</strong> (one JSON per drawing with an undo/redo history) instead of one row per stroke and a server round-trip per undo. Save on debounce, keep the last N versions.</li>
+  <li><strong>Quantities from geometry:</strong> total length per family, post count from the run length and post-centre spacing, corners as a derived count the rep can override. That feeds the cart directly and removes the "one markup = one unit" surprise.</li>
+  <li><strong>Vector PDF export</strong> of the drawing with the overlay and title block, rather than a screenshot, so it prints sharp at A3 and can be embedded in the proposal document.</li>
+  <li>Keep the PAS 13 guardrails; give them a real wall tool to check against.</li>
+</ul>
+
+<h2 id="pricing">Pricing, cart, order form</h2>
+<h3>How a price is built today</h3>
+<ul>
+  <li><strong>Source.</strong> The 2025 v1 AED price list (PRL-1019, November 2025) is loaded by a script into per-SKU variant prices. Each product also gets a headline <code>price</code> (the shortest SKU) and a <code>basePricePerMeter</code> (the per-metre rate of the longest, cheapest SKU). A separate <code>product_pricing</code> table holds four quantity tiers as text columns. There is no price-list table as such.</li>
+  <li><strong>Currency.</strong> Everything is AED internally. Conversion happens only in the browser, using live rates fetched from a free exchange-rate API on every request with hard-coded fallbacks. The worker never converts. Two different fallback rate sets exist, one on the server and one on the client. A <code>currency_rates</code> table exists and is never used.</li>
+  <li><strong>Discounts.</strong> Reciprocal value commitments, partner codes (capped 15 %), LinkedIn social, a Standard/Silver/Gold/Platinum cap by subtotal (25 to 30 %), combined ceiling 40 %. All of that lives in a shared file the server never imports.</li>
+  <li><strong>Delivery and installation</strong> are percentage uplifts (delivery 9.63 %; install 11.5 / 19.4 / 26.3 % for simple / normal / complex). The constants are copy-pasted in six places, and a seventh copy in the Add-to-Cart modal uses a different number (23.57 %).</li>
+  <li><strong>Accessories</strong> (floor type, fixings, dock buffers, steel plates, L-brackets, height extension) are descriptive only. They add nothing to the price. Base plates are a separate table, also not priced into the cart.</li>
+  <li><strong>VAT</strong> exists only on the AI quote draft (5 %). The cart and order form are ex-VAT throughout. The v2 PDF prints a VAT line and then labels the band "Grand total (ex. VAT)".</li>
+</ul>
+
+<h3>Three artefacts, one confusing name</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Thing</th><th>Created by</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td>Quote draft</td><td>Survey → "Generate quote draft"</td><td>AI-composed budget draft in AED with VAT. Its "promote to cart" path writes to a column that does not exist and omits a required field, so it should fail for per-length lines.</td></tr>
+<tr><td>Quote request</td><td>Removed from cart May 6</td><td>Legacy "email the estimation team" flow. Free-text body. Tables still exist.</td></tr>
+<tr><td>Order form</td><td>Cart → "Create order form"</td><td>The priced document. Status chain draft → submitted → approved → in production → delivered → installed → invoiced → paid, plus a technical → commercial → marketing signature chain by magic link, plus a separate customer share link.</td></tr>
+</tbody></table></div>
+
+<h3>Pricing bugs, in order of impact</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>#</th><th>Bug</th><th>Effect</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td>Order-form PDF v2 has no image support</td><td>The document the team sends has no product photos, site photos, drawings, or logos. This is Jam's original complaint, made worse.</td><td><span class="ref">orderFormPdfV2.ts:394, 1051</span></td></tr>
+<tr><td class="num">2</td><td>Server does not enforce any discount cap</td><td>It sums whatever discount percentages the client sends and clamps at 100 %. A crafted request books a 99 % discount. Partner discount is stored but never deducted, so stored total ≠ displayed total.</td><td><span class="ref">orders.ts:225-238, 473</span></td></tr>
+<tr><td class="num">3</td><td>Currency label without conversion</td><td>Orders store the AED sum under whatever currency was selected. Confirmation and approval emails, the PDF, and the public share view print AED digits with a GBP or USD label. About 4.5× overstatement for GBP.</td><td><span class="ref">orders.ts:462, 590, 1653; orderForm.ts:375</span></td></tr>
+<tr><td class="num">4</td><td>Four different total formulas</td><td>Cart, order creation, order-form page, and PDF each compute the grand total differently (discount base, which lines carry delivery, whether the service package is included). The PDF total does not match the stored order total when a service package is selected.</td><td><span class="ref">Cart.tsx:586; orders.ts:235; OrderForm.tsx:996; orderForm.ts:220</span></td></tr>
+<tr><td class="num">5</td><td>Length pricing not unified</td><td>The 2.5 m doubling fix (longest piece + per-metre extension) landed only in the Quote Builder. Add-to-Cart still uses its own variant path. The recommender names one SKU but charges the cheapest per-metre rate, so short runs are systematically underpriced.</td><td><span class="ref">QuoteBuilderPanel.tsx:173-218; barrierRecommender.ts:443-522</span></td></tr>
+<tr><td class="num">6</td><td>String concatenation on column-guard spacers</td><td>The variant price is a string, so adding a spacer cost produces "1200859.87" instead of 2059.87 for FlexiShield Column Guard with any spacer.</td><td><span class="ref">AddToCartModal.tsx:888-895</span></td></tr>
+<tr><td class="num">7</td><td>Tier boundary off-by-one</td><td>At an exact quantity boundary the client shows one tier and the server charges the next. Tiers also assume metres for every product, so per-unit products get metre-keyed breaks.</td><td><span class="ref">storage.ts:1998-2013; AddToCartModal.tsx:836</span></td></tr>
+<tr><td class="num">8</td><td>Spend-more-save-more double conversion</td><td>The slider divides an AED sum by the display rate and multiplies it back, so the quoted discount % is wrong in every non-AED currency. Its rates query has no fetch function, so conversion silently no-ops. Its 35 % maximum also exceeds the 30 % hard ceiling elsewhere.</td><td><span class="ref">SpendMoreSaveMoreDiscount.tsx:22-69</span></td></tr>
+<tr><td class="num">9</td><td>Mixed rounding</td><td>Two-decimal, whole-dirham, and no rounding are used in different places, so cart, order, and PDF drift by cents.</td><td><span class="ref">storage.ts:2037; orderForm.ts:543; Cart.tsx:586</span></td></tr>
+<tr><td class="num">10</td><td>Order number collisions</td><td>Five random characters from <code>Math.random</code> on a unique column with no retry; a collision is a bare 500. Likely one cause of Vinod's "error creating order".</td><td><span class="ref">orders.ts:174</span></td></tr>
+</tbody></table></div>
+
+<h3>What to do about pricing</h3>
+<p>The individual fixes are small; the structural fix is one pricing module. Put one function in <code>shared/</code> that takes cart lines, complexity, currency, discounts, and service package, and returns every subtotal, and have the cart, order creation, order-form page, PDF, and quote draft all call it. Then the numbers agree by construction and Sagarika's 10-to-15-quotation check becomes a real test suite. Add server-side enforcement of the discount ceiling and a stored currency plus rate at order time. Price accessories, or label them clearly as "for the estimation team, not priced".</p>
+<p>Also worth deciding: whether the budgetary tool should show VAT at all. Today it shows it in one place and not the others.</p>
+
+<h2 id="platform">Platform, mobile, security</h2>
+<h3>Navigation</h3>
+<ul>
+  <li><strong>The Projects page is not in the sidebar.</strong> It is the 2,499-line heart of the app and is only reachable from the project switcher's "Manage projects" or global search. This is the direct cause of Shadab's "I created a project and cannot find it".</li>
+  <li>Broken links: Cart → <code>/order-form</code> (route needs an id), Start New Project → <code>/draft-projects</code> (no such route), Solution Finder → <code>/impact-calculator</code> (route is <code>/calculator</code>), Industry Case Studies → GET <code>/api/login</code> (POST-only).</li>
+  <li>Solution Finder is hidden from the sidebar but still linked from the Dashboard card and Start New Project. Analytics, Layout Drawings, and Calculations History are reachable only from deep links.</li>
+  <li>The "Administration" group shows for every user; non-admins get bounced to an admin login.</li>
+  <li>Five entry points on "Start New Project" was Tom's own design, but the team consistently used one (Browse Products). Worth collapsing to: Survey (flagship), Drawing, Catalogue, with the calculator as a tool inside each rather than a starting point.</li>
+</ul>
+
+<h3>Mobile performance</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Measured on the live catalogue page</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>API calls on load</td><td class="num">59</td></tr>
+<tr><td>Of which base-plate lookups, one per product family</td><td class="num">53</td></tr>
+<tr><td>Time from first to last API response</td><td class="num">2.7 s</td></tr>
+<tr><td>Failed auth probes (401) on a public page</td><td class="num">10</td></tr>
+<tr><td>Total JavaScript across all chunks</td><td class="num">4.1 MB</td></tr>
+<tr><td>Largest chunks: PDF generation, PDF viewer, charts, Radix, Uppy</td><td class="num">578 / 452 / 416 / 301 / 242 KB</td></tr>
+</tbody></table></div>
+<ul>
+  <li>Fix the N+1 by returning compatible base plates inside the product list response, or by lazy-loading the panel only when a product detail is opened. One change, removes 53 requests.</li>
+  <li>Gate the authenticated probes (cart, active project, calculations, surveys, PAS 13 profile) on the auth result instead of firing them in parallel with it.</li>
+  <li>The service worker's cache version is a hand-edited date string last bumped 30 April; 40 deploys since. Stale shells plus lazily-loaded chunks with new hashes is the classic cause of "it went blank and restarted" mid-session. Bump the version from the build hash and add a chunk-load-error handler that reloads once.</li>
+  <li>The PWA manifest is named "A-SAFE Site Survey" and starts at <code>/site-survey</code>. Fine if the survey becomes the flagship; confusing today.</li>
+</ul>
+
+<h3>Security</h3>
+<p>The basics are good: bcrypt, KV sessions with httpOnly cookies, Turnstile, per-email lockout, per-IP rate limits, strict CSP and HSTS, per-user tenant isolation, bearer-gated migration endpoints. Three things need attention:</p>
+<ul>
+  <li><strong>Bootstrap endpoints are permanent GETs with credentials in the URL.</strong> <code>/api/bootstrap-admin?token=&amp;password=</code> resets the admin password to any value and echoes it back; <code>/api/bootstrap-user?token=&amp;email=&amp;password=&amp;role=admin</code> creates any user at any role. Both are gated on one env secret, but query strings land in Cloudflare logs and browser history. One leaked token is full takeover. Remove both now that the admin exists, or convert to a one-shot CLI script. <span class="small">worker/index.ts:2451, 2546</span></li>
+  <li><strong>Admin promotion happens as a side effect of reads.</strong> <code>GET /api/admin/session</code> promotes a user to admin if an <code>admin_users</code> row matches their email; the admin login does the same. Consolidate to one explicit promotion path.</li>
+  <li><strong>Twelve routes accept unvalidated JSON bodies</strong> and spread them into updates (surveys, areas, most of <code>safety.ts</code>). Ownership fields are writable by the client.</li>
+</ul>
+
+<h3>Engineering health</h3>
+<ul>
+  <li><code>worker/index.ts</code> is 6,283 lines; roughly 5,900 are 67 one-off schema, seed, ingest, and fix endpoints served as live routes. Move applied migrations to a migrations folder and delete the routes.</li>
+  <li>No typecheck anywhere: <code>tsc</code> is never run in CI or build. The single Playwright test runs against production, so a PR check can never catch a regression in the PR, and it passes green with zero assertions when the secrets are absent.</li>
+  <li>Dead code worth deleting: <code>MeetingNotes.tsx</code> (623 lines, no route), 14 orphaned components (about 2,800 lines), <code>safetyMatching.ts</code> (941 lines, never imported), <code>whatsapp.ts</code> (no call sites), <code>useKeyboardShortcuts</code>, the forum and safety-metrics routes with no UI. About 6,000 lines of client and worker code with no path to a user.</li>
+  <li>394 MB of <code>attached_assets</code> (1,012 files: photos, brand guide, CSV price lists) is committed to git. Move to R2 and purge from history.</li>
+  <li>Apple Sign-In is fully built server-side but the button is commented out pending credentials. Account deletion has a careful GDPR endpoint and no button.</li>
+  <li>Both Zod schemas for surveys exist in <code>shared/schema.ts</code> and are unused. Wiring them in is a small task with a big safety payoff.</li>
+</ul>
+
+<h2 id="plan">Recommended plan</h2>
+<p>Ordered by risk removed per day of effort. Phases 1 and 2 are what lets you roll out to the team with confidence; 3 and 4 are the product you described. Effort is my estimate for me working with sub-agents, not a promise.</p>
+
+<div class="phase"><h3><span class="chip crit">1</span> Stabilise <span class="eff">1 to 2 days</span></h3>
+<ul>
+  <li>Point the order-form Download button back at the image-capable generator until v2 can embed JPEGs. This restores what Jam and Bassil asked for in one line.</li>
+  <li>Remove or lock down the two bootstrap endpoints; single admin-promotion path.</li>
+  <li>Enforce the discount ceiling on the server, deduct partner discount, and store currency plus rate at order time.</li>
+  <li>Enable the microphone in Permissions-Policy so voice notes work.</li>
+  <li>Kill the catalogue N+1 and the parallel auth probes. Build-hash the service-worker version and add a chunk-load-error reload.</li>
+  <li>Put Projects in the sidebar. Fix the four broken links. Remove the remaining Solution Finder links. Hide Administration for non-admins.</li>
+  <li>Wire the existing Zod schemas into the survey and area routes; strip ownership fields from updates.</li>
+  <li>Add <code>tsc --noEmit</code> to CI. Point the e2e test at a preview deployment instead of production.</li>
+</ul></div>
+
+<div class="phase"><h3><span class="chip warn">2</span> Close the feedback list <span class="eff">2 to 3 days</span></h3>
+<ul>
+  <li>One shared length-pricing function used by Add-to-Cart, Quote Builder, and the server; verify the 2.4 / 2.5 / 2.6 m cases against the estimation team's numbers.</li>
+  <li>Fix the survey "Build Project" modal field names; fix the two-tap add-to-cart; stop the phantom-survey auto-post.</li>
+  <li>Cart line: length beside quantity; unit beside the value.</li>
+  <li>Height as a variant picker on bollards rather than separate products, if the price list supports it.</li>
+  <li>Sit with Sagarika's 10 to 15 real quotations and diff line by line.</li>
+  <li>Delete the dead code listed above; move applied migrations out of the worker.</li>
+</ul></div>
+
+<div class="phase"><h3><span class="chip info">3</span> Survey as flagship <span class="eff">1 to 2 weeks</span></h3>
+<ul>
+  <li>Photo-first capture with immediate R2 upload and an offline queue; GPS and zone per photo.</li>
+  <li>Vision analysis per photo returning structured observations; a confirm-and-correct screen.</li>
+  <li>Unify on the PAS 13 engine for energy, class, and verdict; drop the survey's private calc and the racking override.</li>
+  <li>Risk register with likelihood × severity and site-wide priority.</li>
+  <li>Server-side proposal document that merges survey, drawing, and budgetary order form, with product images, datasheet thumbnails, and site photos. Retire the two client-side jsPDF generators.</li>
+  <li>Survey snapshots for before/after comparison on return visits.</li>
+</ul></div>
+
+<div class="phase"><h3><span class="chip info">4</span> Drawing tool rebuild <span class="eff">1 to 2 weeks</span></h3>
+<ul>
+  <li>Single pointer-events model; gestures on the container; identical behaviour on phone, tablet, and laptop.</li>
+  <li>Tool set: select, barrier run, stamp, wall, dimension, note, calibrate. Family-coded symbols and an auto-generated legend that matches the title block.</li>
+  <li>Markups as one versioned JSON document with local undo/redo.</li>
+  <li>Quantities from geometry; vector PDF export; keep the guardrails and give them walls to check against.</li>
+</ul></div>
+
+<h2 id="questions">Questions for Tom</h2>
+<ol class="q">
+  <li><strong>Test login.</strong> Can you create me a rep-level account (or share the E2E credentials) so I can walk the authenticated flows live and confirm the "fixed" items in the tracker actually behave? Registering my own account on production felt like a step to check with you first.</li>
+  <li><strong>Vision model.</strong> The app is on OpenAI throughout. Are you happy for the photo analysis to use Claude, which I would recommend for structured scene description, or do you want to stay single-vendor?</li>
+  <li><strong>Who reads the proposal document?</strong> The team said the order-form PDF goes to customers and should look like a real A-SAFE quotation. Is there a current A-SAFE UAE quotation or observation report I should match, beyond the brand guide already in the repo?</li>
+  <li><strong>Price list source of truth.</strong> Pricing is loaded from CSVs in the repo. Is there a newer price list than the one in <code>attached_assets</code>, and who owns updates?</li>
+  <li><strong>Scope of the stabilisation pass.</strong> Should I start Phase 1 now, or do you want to review this and pick? Everything in Phase 1 is reversible and self-contained.</li>
+  <li><strong>Partners.</strong> Several features (Solution Finder, Request Quote, customer-info step) existed for a partner audience you have since deferred. Should I treat partner access as out of scope and remove the remaining partner-only paths?</li>
+</ol>
+<p class="small">Method note: four parallel code-reading passes (survey, drawing, pricing, platform) plus a live browser pass over the public pages at desktop and phone widths, cross-referenced against the 5 May transcript. File and line references are to the current main branch.</p>
+</main>
+</div>
