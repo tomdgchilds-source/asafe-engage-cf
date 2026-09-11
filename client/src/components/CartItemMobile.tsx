@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus, Edit, Package } from "lucide-react";
 import { useLocation } from "wouter";
 import { AccessoryPicker } from "@/components/AccessoryPicker";
+import { formatCartQuantity } from "@/components/CartItem";
 
 interface CartItemMobileProps {
   item: any;
@@ -92,8 +93,8 @@ export function CartItemMobile({
           
           {/* Quantity and Price Info */}
           <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-2">
-            <span className="font-medium">
-              {item.quantity}{item.pricingType === "linear_meter" ? "m" : " items"}
+            <span className="font-medium whitespace-nowrap" data-testid={`text-quantity-summary-${item.id}`}>
+              Qty {formatCartQuantity(item)}
             </span>
             <span>•</span>
             <span className="font-bold text-gray-900 dark:text-white">

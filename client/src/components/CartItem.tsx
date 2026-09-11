@@ -36,6 +36,53 @@ interface CartItemProps {
   removeItemMutation: any;
 }
 
+/**
+ * Resolve the per-unit length (mm) of a cart line when it is a lengthed
+ * SKU. Reads the stored variant first (`lengthMm` / `length_mm` / `length`;
+ * AddToCartModal persists `length`, often as a string), then falls back to
+ * a "1600mm" suffix in the product name. Returns null for unlengthed lines.
+ */
+export function cartLineLengthMm(item: any): number | null {
+  const sv = item?.selectedVariant || item?.specifications?.selectedVariant;
+  for (const raw of [sv?.lengthMm, sv?.length_mm, sv?.length]) {
+    if (raw == null || raw === "") continue;
+    const mm = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+    if (Number.isFinite(mm) && mm >= 100) return mm;
+  }
+  const m = String(item?.productName || "").match(/\b(\d{3,5})\s*mm\b/i);
+  if (m) {
+    const mm = parseInt(m[1], 10);
+    if (Number.isFinite(mm) && mm > 0) return mm;
+  }
+  return null;
+}
+
+const formatCartNumber = (n: number): string =>
+  Number(n.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+/**
+ * Quantity summary for a cart line (5 May sales feedback: show the
+ * length beside the quantity, not on its own line):
+ *   linear-metre lines  -> "2.4 m"
+ *   lengthed item lines -> "3 × 2.4 m"
+ *   other item lines    -> "3 items" / "1 item"
+ */
+export function formatCartQuantity(item: any): string {
+  const qty = Number(item?.quantity) || 0;
+  if (item?.pricingType === "linear_meter") return `${formatCartNumber(qty)} m`;
+  const lengthMm = cartLineLengthMm(item);
+  if (lengthMm != null) {
+    return `${formatCartNumber(qty)} × ${formatCartNumber(lengthMm / 1000)} m`;
+  }
+  return `${formatCartNumber(qty)} ${qty === 1 ? "item" : "items"}`;
+}
+
+/** "19,200 J" — unit beside the value, never wrapped onto its own line. */
+export function formatImpactRating(value: unknown): string {
+  const n = Number(value);
+  return `${Number.isFinite(n) ? n.toLocaleString() : String(value)} J`;
+}
+
 // Helper function to upload image to object storage
 const uploadImageToStorage = async (file: File): Promise<string> => {
   try {
@@ -110,18 +157,10 @@ export function CartItem({
 
   // Extract the target lengthMm from this item (if it's a lengthed SKU)
   // so we can keep the length fixed when swapping tiers.
-  const targetLengthMm: number | null = useMemo(() => {
-    const sv = item.selectedVariant || item.specifications?.selectedVariant;
-    const fromVariant = sv?.lengthMm ?? sv?.length_mm;
-    if (typeof fromVariant === "number" && fromVariant > 0) return fromVariant;
-    // Fallback: parse a "1600mm" suffix out of the product name.
-    const m = String(item.productName || "").match(/\b(\d{3,5})\s*mm\b/i);
-    if (m) {
-      const mm = parseInt(m[1], 10);
-      if (Number.isFinite(mm) && mm > 0) return mm;
-    }
-    return null;
-  }, [item.productName, item.selectedVariant, item.specifications]);
+  const targetLengthMm: number | null = useMemo(
+    () => cartLineLengthMm(item),
+    [item.productName, item.selectedVariant, item.specifications],
+  );
 
   // Per-tier unit-price + impact joules lookup. When the line item is a
   // per-length SKU we pick the variant row matching `targetLengthMm`,
@@ -466,7 +505,9 @@ export function CartItem({
               )}
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-              <span>{item.quantity}{item.pricingType === "linear_meter" ? "m" : " items"}</span>
+              <span className="whitespace-nowrap" data-testid={`text-quantity-summary-${item.id}`}>
+                Qty {formatCartQuantity(item)}
+              </span>
               <span>•</span>
               <span className="font-medium">{formatPrice(item.totalPrice)}</span>
             </div>
@@ -601,15 +642,18 @@ export function CartItem({
                         
                         {/* Display impact rating with site verification badge */}
                         {(item.impactRating || product?.impactRating) && (
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                            <span className="font-medium">{(item.impactRating || product?.impactRating)?.toLocaleString()}J</span> Impact Rating
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-medium whitespace-nowrap" data-testid={`text-impact-rating-${item.id}`}>
+                              {formatImpactRating(item.impactRating || product?.impactRating)}
+                            </span>
+                            <span>Impact Rating</span>
                             {item.impactRating && (
-                              <Badge variant="secondary" className="ml-2 text-xs">
+                              <Badge variant="secondary" className="text-xs">
                                 <Calculator className="h-3 w-3 mr-1" />
                                 Site Verified
                               </Badge>
                             )}
-                          </p>
+                          </div>
                         )}
                         
                         {/* Display risk level if from site survey */}
@@ -859,8 +903,12 @@ export function CartItem({
                   </Button>
                 </div>
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                {item.pricingType === "linear_meter" ? "meters" : "items"}
+              <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1 whitespace-nowrap">
+                {item.pricingType === "linear_meter"
+                  ? "meters"
+                  : targetLengthMm != null
+                    ? `items × ${formatCartNumber(targetLengthMm / 1000)} m`
+                    : "items"}
               </div>
             </div>
 
@@ -875,8 +923,8 @@ export function CartItem({
                      data-testid={`text-unit-price-${item.id}`}>
                   {formatPrice(item.unitPrice)}/{item.pricingType === "linear_meter" ? "m" : "item"}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  {item.quantity}{item.pricingType === "linear_meter" ? "m" : " items"} total
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 whitespace-nowrap">
+                  {formatCartQuantity(item)} total
                 </div>
               </div>
             </div>
