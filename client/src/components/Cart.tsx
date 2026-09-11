@@ -32,11 +32,13 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import type { Product, LayoutDrawing, CaseStudy, ProjectCaseStudy } from "@shared/schema";
 import { getCombinedDiscount } from "@shared/discountLimits";
 import {
+  cartItemsToPricingLines,
   computeTotals,
   lineTotalAed,
   normaliseComplexity,
   round2,
-  type PricingLine,
+  servicePackageAed as servicePackageAedOf,
+  socialDiscountPercent as socialDiscountPercentOf,
 } from "@shared/pricing";
 import { Link, useLocation } from "wouter";
 
@@ -580,27 +582,17 @@ export function Cart() {
   // exactly what the order form and the API will show. All values are AED;
   // `formatPrice` converts for display only.
   //
-  // Line mapping (must match worker/routes/orders.ts):
-  //   linear_meter → per-meter, quantity = metres, unitPrice = AED/m
-  //   anything else → per-unit
-  //   delivery / install carried only by lines flagged requiresDelivery /
-  //   requiresInstallation (the DB columns, default false).
-  const pricingLines: PricingLine[] = cartItems.map((item: any) => ({
-    id: String(item.id),
-    unitPriceAed: Number(item.unitPrice) || 0,
-    quantity: Number(item.quantity) || 0,
-    pricingType: item.pricingType === 'linear_meter' ? 'per-meter' : 'per-unit',
-    includesDelivery: !!item.requiresDelivery,
-    includesInstall: !!item.requiresInstallation,
-    isProduct: true,
-  }));
+  // Line mapping is `cartItemsToPricingLines` (shared/pricing/lines) — the
+  // same function worker/routes/orders.ts runs, so the client can never
+  // price a line differently from the server.
+  const pricingLines = cartItemsToPricingLines(cartItems);
   const goodsAed = round2(pricingLines.reduce((sum, line) => sum + lineTotalAed(line), 0));
   // Service package is a flat % of goods, added after discount (never
-  // discounted) — mirrors the server.
-  const servicePackageCost = round2(goodsAed * (servicePackageRate / 100));
+  // discounted) — same helper as the server.
+  const servicePackageCost = servicePackageAedOf(goodsAed, servicePackageRate);
   // LinkedIn social reciprocity is an AED amount (≤ 1 % of goods); the
   // pricing module takes it as a % of goods so it can share the ceiling.
-  const socialDiscountPercent = goodsAed > 0 ? (linkedInDiscountAmount / goodsAed) * 100 : 0;
+  const socialDiscountPercent = socialDiscountPercentOf(linkedInDiscountAmount, goodsAed);
   const totals = computeTotals({
     lines: pricingLines,
     complexity: normaliseComplexity(installationComplexity),

@@ -7,8 +7,6 @@
  * share view, PDFs — converts the same way and the number never drifts
  * after the fact.
  */
-import type { PricingLine } from "../../shared/pricing";
-
 /** Same table `GET /api/currency/rates` falls back to. AED → X multipliers. */
 export const FALLBACK_FX_RATES: Record<string, number> = {
   AED: 1,
@@ -78,32 +76,11 @@ export function formatMoney(
   })}`;
 }
 
-function num(v: unknown): number {
-  const n = typeof v === "string" ? parseFloat(v) : (v as number);
-  return typeof n === "number" && Number.isFinite(n) ? n : 0;
-}
-
-/** Any of the per-metre spellings the cart has accumulated over time. */
-export function isPerMetre(pricingType: unknown): boolean {
-  return /met(er|re)/i.test(String(pricingType ?? ""));
-}
-
 /**
  * Cart rows / `orders.items` snapshot → `PricingLine[]` for computeTotals.
  *
- * `cart_items.quantity` is already metres for per-metre lines and
- * `unit_price` is per metre, so no separate `lengthMeters` is passed —
- * the module multiplies unit × quantity either way. Delivery and install
- * follow the per-line flags, which is what the cart UI shows.
+ * The mapping lives in `shared/pricing/lines.ts` (`cartItemsToPricingLines`)
+ * so the Worker and the client price a line identically. Re-exported under
+ * the Worker's historical name for `worker/routes/orderForm.ts`.
  */
-export function orderItemsToPricingLines(items: ReadonlyArray<any>): PricingLine[] {
-  return (items ?? []).map((item, i) => ({
-    id: String(item?.id ?? `line-${i}`),
-    unitPriceAed: num(item?.unitPrice),
-    quantity: num(item?.quantity),
-    pricingType: isPerMetre(item?.pricingType) ? "per-meter" : "per-unit",
-    includesDelivery: item?.requiresDelivery === true,
-    includesInstall: item?.requiresInstallation === true,
-    isProduct: true,
-  }));
-}
+export { cartItemsToPricingLines as orderItemsToPricingLines } from "../../shared/pricing";

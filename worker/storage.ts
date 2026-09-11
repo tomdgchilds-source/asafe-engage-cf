@@ -193,6 +193,16 @@ import {
   PER_USER_SAME_CODE_WINDOW_MONTHS,
   PER_USER_TOTAL_REDEMPTIONS_PER_WINDOW,
 } from "@shared/discountLimits";
+import { parseLayoutDoc, type LayoutDoc } from "@shared/layout/doc";
+import { rankAreas } from "@shared/risk/riskRegister";
+
+/** Options for IStorage.saveLayoutDoc (Phase 4 layout editor). */
+export interface SaveLayoutDocOptions {
+  /** Mirror of the doc's calibration for screens that still read scale/scaleLine/isScaleSet. */
+  legacyScale?: { scale: number | null; scaleLine: unknown; isScaleSet: boolean };
+  /** Soft-delete the drawing's legacy layout_markups rows in the same save (lazy migration only). */
+  retireMarkups?: boolean;
+}
 
 // Shape of a per-section signature stored in orders.technical_signature,
 // orders.commercial_signature, and orders.marketing_signature. We read these
@@ -509,6 +519,13 @@ export interface IStorage {
   updateLayoutDrawingScale(id: string, scaleData: { scale?: number; scaleLine?: any; isScaleSet?: boolean }): Promise<LayoutDrawing>;
   updateLayoutDrawingTitle(id: string, fileName: string): Promise<LayoutDrawing>;
   updateLayoutDrawing(id: string, patch: Partial<LayoutDrawing>): Promise<LayoutDrawing>;
+  // Phase 4 layout editor document (plan Task L0/L4). getLayoutDoc returns
+  // the parsed LayoutDoc (null when the column is NULL or unparseable) plus
+  // the concurrency counter; saveLayoutDoc is a compare-and-swap on
+  // document_version and returns undefined when expectedVersion no longer
+  // matches the row.
+  getLayoutDoc(id: string): Promise<{ document: LayoutDoc | null; version: number } | undefined>;
+  saveLayoutDoc(id: string, doc: LayoutDoc, expectedVersion: number, opts?: SaveLayoutDocOptions): Promise<{ version: number } | undefined>;
   
   // Layout Markup operations
   getLayoutMarkups(layoutDrawingId: string): Promise<LayoutMarkup[]>;
@@ -640,6 +657,12 @@ export interface IStorage {
   createSiteSurveyArea(area: InsertSiteSurveyArea): Promise<SiteSurveyArea>;
   updateSiteSurveyArea(id: string, updates: Partial<InsertSiteSurveyArea>): Promise<SiteSurveyArea>;
   deleteSiteSurveyArea(id: string): Promise<void>;
+  /**
+   * Recompute `priority_rank` for every area of a survey from `risk_score`
+   * (shared/risk/riskRegister rankAreas: score desc, severity desc, name asc).
+   * Areas without a score get a null rank. Returns the areas in rank order.
+   */
+  rankSurveyAreas(siteSurveyId: string): Promise<SiteSurveyArea[]>;
   
   // Vehicle Type operations
   getVehicleTypes(): Promise<VehicleType[]>;
@@ -3208,6 +3231,73 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  // Phase 4 layout document (layout_drawings.document / document_version).
+  async getLayoutDoc(id: string): Promise<{ document: LayoutDoc | null; version: number } | undefined> {
+    const [row] = await this.db
+      .select({
+        document: layoutDrawings.document,
+        documentVersion: layoutDrawings.documentVersion,
+      })
+      .from(layoutDrawings)
+      .where(and(
+        eq(layoutDrawings.id, id),
+        isNull(layoutDrawings.deletedAt)
+      ));
+    if (!row) return undefined;
+    return {
+      document: row.document == null ? null : parseLayoutDoc(row.document),
+      version: row.documentVersion ?? 0,
+    };
+  }
+
+  /**
+   * Compare-and-swap save of the layout document. The UPDATE is guarded by
+   * `document_version = expectedVersion` so two editors racing on the same
+   * drawing cannot both win; the loser gets `undefined` and should re-read.
+   * Optionally mirrors the calibration into the legacy scale columns and
+   * soft-deletes the drawing's legacy layout_markups (used once, by the
+   * lazy migration) so they are never double-counted.
+   */
+  async saveLayoutDoc(
+    id: string,
+    doc: LayoutDoc,
+    expectedVersion: number,
+    opts: SaveLayoutDocOptions = {},
+  ): Promise<{ version: number } | undefined> {
+    const now = new Date();
+    const patch: Partial<LayoutDrawing> = {
+      document: doc,
+      documentVersion: expectedVersion + 1,
+      updatedAt: now,
+    };
+    if (opts.legacyScale) {
+      patch.scale = opts.legacyScale.scale;
+      patch.scaleLine = opts.legacyScale.scaleLine;
+      patch.isScaleSet = opts.legacyScale.isScaleSet;
+    }
+    const [updated] = await this.db
+      .update(layoutDrawings)
+      .set(patch)
+      .where(and(
+        eq(layoutDrawings.id, id),
+        eq(layoutDrawings.documentVersion, expectedVersion),
+        isNull(layoutDrawings.deletedAt)
+      ))
+      .returning({ documentVersion: layoutDrawings.documentVersion });
+    if (!updated) return undefined;
+
+    if (opts.retireMarkups) {
+      await this.db
+        .update(layoutMarkups)
+        .set({ deletedAt: now })
+        .where(and(
+          eq(layoutMarkups.layoutDrawingId, id),
+          isNull(layoutMarkups.deletedAt)
+        ));
+    }
+    return { version: updated.documentVersion };
+  }
+
   // Layout Markup operations
   async getLayoutMarkups(layoutDrawingId: string): Promise<LayoutMarkup[]> {
     return await this.db
@@ -4318,6 +4408,54 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSiteSurveyArea(id: string): Promise<void> {
     await this.db.delete(siteSurveyAreas).where(eq(siteSurveyAreas.id, id));
+  }
+
+  async rankSurveyAreas(siteSurveyId: string): Promise<SiteSurveyArea[]> {
+    const areas = await this.getSiteSurveyAreas(siteSurveyId);
+    const scored = areas.filter(
+      (a) => typeof a.riskScore === "number" && Number.isFinite(a.riskScore),
+    );
+    const unscored = areas.filter((a) => !scored.includes(a));
+
+    const ranked = rankAreas(
+      scored.map((a) => ({
+        id: a.id,
+        score: a.riskScore as number,
+        severity: a.severity,
+        name: a.areaName,
+      })),
+    );
+    const rankById = new Map(ranked.map((r) => [r.id, r.priorityRank]));
+
+    // Only touch rows whose rank actually changes.
+    const updates: Array<Promise<unknown>> = [];
+    for (const a of scored) {
+      const next = rankById.get(a.id) ?? null;
+      if (a.priorityRank !== next) {
+        updates.push(
+          this.db
+            .update(siteSurveyAreas)
+            .set({ priorityRank: next })
+            .where(eq(siteSurveyAreas.id, a.id)),
+        );
+      }
+    }
+    for (const a of unscored) {
+      if (a.priorityRank !== null) {
+        updates.push(
+          this.db
+            .update(siteSurveyAreas)
+            .set({ priorityRank: null })
+            .where(eq(siteSurveyAreas.id, a.id)),
+        );
+      }
+    }
+    await Promise.all(updates);
+
+    const byRank = scored
+      .map((a) => ({ ...a, priorityRank: rankById.get(a.id) ?? null }))
+      .sort((a, b) => (a.priorityRank ?? 0) - (b.priorityRank ?? 0));
+    return [...byRank, ...unscored.map((a) => ({ ...a, priorityRank: null }))];
   }
   
   // Communication Template operations

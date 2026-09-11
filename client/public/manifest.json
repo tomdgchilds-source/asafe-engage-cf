@@ -2,7 +2,7 @@
   "name": "A-SAFE Site Survey",
   "short_name": "Site Survey",
   "description": "On-site facility safety surveys for A-SAFE surveyors. Capture areas of concern, photos and notes — works offline on a tablet.",
-  "start_url": "/site-survey",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

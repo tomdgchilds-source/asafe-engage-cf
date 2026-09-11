@@ -3,11 +3,13 @@ import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCombinedDiscount } from "@shared/discountLimits";
 import {
+  cartItemsToPricingLines,
   computeTotals,
   lineTotalAed,
   normaliseComplexity,
   round2,
-  type PricingLine,
+  servicePackageAed as servicePackageAedOf,
+  socialDiscountPercent as socialDiscountPercentOf,
 } from "@shared/pricing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -484,22 +486,12 @@ export function OrderForm() {
   // GET /api/orders/:id agree to the fil. All AED; `formatPrice` converts
   // for display only.
   //
-  // Line mapping (must match worker/routes/orders.ts):
-  //   linear_meter → per-meter, quantity = metres, unitPrice = AED/m
-  //   anything else → per-unit
-  //   delivery / install carried only by lines flagged requiresDelivery /
-  //   requiresInstallation.
+  // Line mapping is `cartItemsToPricingLines` (shared/pricing/lines) — the
+  // same function the Worker runs, so this page can never price a line
+  // differently from the stored order.
   const orderTotals = useMemo(() => {
     const items: any[] = Array.isArray(orderData?.items) ? orderData!.items : [];
-    const lines: PricingLine[] = items.map((item: any, index: number) => ({
-      id: String(item.id ?? index),
-      unitPriceAed: Number(item.unitPrice) || 0,
-      quantity: Number(item.quantity) || 0,
-      pricingType: item.pricingType === "linear_meter" ? "per-meter" : "per-unit",
-      includesDelivery: !!item.requiresDelivery,
-      includesInstall: !!item.requiresInstallation,
-      isProduct: true,
-    }));
+    const lines = cartItemsToPricingLines(items);
     const goodsAed = round2(lines.reduce((sum, line) => sum + lineTotalAed(line), 0));
 
     // Raw reciprocal % the customer selected. Stored either as full option
@@ -519,7 +511,7 @@ export function OrderForm() {
     // LinkedIn social reciprocity is an AED amount (≤ 1 % of goods); the
     // pricing module takes it as a % of goods so it shares the ceiling.
     const linkedInDiscountAmount = Number((orderData as any)?.linkedInDiscountAmount) || 0;
-    const socialDiscountPercent = goodsAed > 0 ? (linkedInDiscountAmount / goodsAed) * 100 : 0;
+    const socialDiscountPercent = socialDiscountPercentOf(linkedInDiscountAmount, goodsAed);
 
     // Service package: stored as the option title (legacy) or as an object
     // carrying serviceOptionId / id / packageTier. Flat % of goods, added
@@ -534,7 +526,7 @@ export function OrderForm() {
       : undefined;
     let servicePackageAed = 0;
     if (serviceOption?.chargeable && typeof serviceOption.value === "string" && serviceOption.value.includes("%")) {
-      servicePackageAed = round2(goodsAed * (parseFloat(serviceOption.value.replace("%", "")) / 100));
+      servicePackageAed = servicePackageAedOf(goodsAed, parseFloat(serviceOption.value.replace("%", "")));
     } else if (sp && typeof sp === "object" && sp.chargeable && Number.isFinite(Number(sp.cost))) {
       servicePackageAed = round2(Number(sp.cost));
     }

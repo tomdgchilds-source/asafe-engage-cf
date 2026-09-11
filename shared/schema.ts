@@ -13,6 +13,7 @@ import {
   real,
   unique,
   doublePrecision,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -868,6 +869,10 @@ export const siteSurveys = pgTable("site_surveys", {
   sharedWithManagement: boolean("shared_with_management").default(false),
   sharedAt: timestamp("shared_at"),
   lastViewed: timestamp("last_viewed"),
+  // Phase 3 (Task S0/S7): return visits and the frozen snapshot written on completion
+  previousSurveyId: varchar("previous_survey_id").references((): AnyPgColumn => siteSurveys.id),
+  snapshot: jsonb("snapshot"), // SurveySnapshot, frozen at completion
+  proposalObjectKey: varchar("proposal_object_key"), // last rendered proposal PDF in R2
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -903,6 +908,18 @@ export const siteSurveyAreas = pgTable("site_survey_areas", {
   justification: text("justification"), // Why these products were recommended
   matterportUrl: varchar("matterport_url"),
   matterportModelId: varchar("matterport_model_id"),
+  // Risk register (Phase 3, Task S0/S4) — see shared/risk/riskRegister.ts
+  likelihood: integer("likelihood"), // 1..5
+  severity: integer("severity"), // 1..5
+  riskScore: integer("risk_score"), // likelihood × severity
+  priorityRank: integer("priority_rank"), // 1 = most urgent within the survey
+  loadMass: real("load_mass"), // kg, carried load
+  trafficDensity: varchar("traffic_density"), // low|medium|high
+  pedestrianExposure: varchar("pedestrian_exposure"), // none|occasional|frequent|constant
+  existingProtection: varchar("existing_protection"), // none|partial|adequate
+  recommendedLengthM: real("recommended_length_m"), // rep-entered run length for costing
+  pas13Verdict: jsonb("pas13_verdict"), // Pas13Verdict for the top recommended product
+  aiObservation: text("ai_observation"), // vision model's report-ready observation
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1191,6 +1208,17 @@ export const layoutDrawings = pgTable("layout_drawings", {
   // (compares the selected vehicle's class against each barrier's
   // rated impact joules).
   vehicleTypeId: varchar("vehicle_type_id").references(() => vehicleTypes.id, { onDelete: "set null" }),
+  // ── Phase 4 layout editor (plan Task L0) ──
+  // `document` is the versioned LayoutDoc (shared/layout/doc.ts). NULL until
+  // the first GET /api/layout-drawings/:id/document lazily migrates the
+  // drawing's layout_markups rows. `documentVersion` is the optimistic-
+  // concurrency counter the PUT compares against `baseVersion`.
+  document: jsonb("document"),
+  documentVersion: integer("document_version").notNull().default(0),
+  // Last server-side vector PDF export in R2 and the documentVersion it was
+  // rendered from; export is stale when exportVersion !== documentVersion.
+  exportObjectKey: varchar("export_object_key"),
+  exportVersion: integer("export_version"),
   deletedAt: timestamp("deleted_at"), // For soft delete functionality
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

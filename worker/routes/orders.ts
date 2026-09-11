@@ -20,17 +20,16 @@ import {
   type VehicleContextForReport,
 } from "../lib/pas13AlignmentReportPdf";
 import {
+  cartItemsToPricingLines,
   computeTotals,
   normaliseComplexity,
   round2,
+  servicePackageAed as servicePackageAedOf,
+  socialDiscountPercent as socialDiscountPercentOf,
   type PricingResult,
 } from "../../shared/pricing";
 import { getCombinedDiscount } from "../../shared/discountLimits";
-import {
-  formatMoney,
-  orderItemsToPricingLines,
-  resolveFxRate,
-} from "../lib/money";
+import { formatMoney, resolveFxRate } from "../lib/money";
 
 // ─── Order number ────────────────────────────────────────────────────────
 //
@@ -333,7 +332,8 @@ orders.post("/orders", authMiddleware, async (c) => {
       : null;
 
     const complexity = normaliseComplexity(installationComplexity);
-    const pricingLines = orderItemsToPricingLines(serverCartItems);
+    // Same mapping the cart UI and the order form use (shared/pricing/lines).
+    const pricingLines = cartItemsToPricingLines(serverCartItems);
 
     // First pass without the service package to learn the goods figure the
     // service % applies to; second pass is the real one.
@@ -344,7 +344,7 @@ orders.post("/orders", authMiddleware, async (c) => {
       partnerDiscountPercent: partnerDiscountRaw,
       socialDiscountPercent: 0,
     });
-    const servicePackageAed = round2(goodsOnly.goodsAed * (serviceCarePercent(serviceOption) / 100));
+    const servicePackageAed = servicePackageAedOf(goodsOnly.goodsAed, serviceCarePercent(serviceOption));
 
     // LinkedIn social reciprocity is an AED amount (capped at 2,500 / 1 %
     // of goods) computed from the user's saved follower count. Express it
@@ -358,7 +358,7 @@ orders.post("/orders", authMiddleware, async (c) => {
           Number(data.followers),
           goodsOnly.goodsAed,
         );
-        socialDiscountPercent = round2((cappedDiscount / goodsOnly.goodsAed) * 100);
+        socialDiscountPercent = socialDiscountPercentOf(cappedDiscount, goodsOnly.goodsAed);
       }
     } catch (err) {
       console.warn("[orders] LinkedIn discount lookup failed (ignored):", err);
@@ -2745,7 +2745,7 @@ orders.get("/public/orders/:token", async (c) => {
       | { reciprocalDiscountPercent?: number; partnerDiscountPercent?: number; socialDiscountPercent?: number }
       | undefined;
     const publicTotals = computeTotals({
-      lines: orderItemsToPricingLines(sanitisedItems),
+      lines: cartItemsToPricingLines(sanitisedItems),
       complexity: normaliseComplexity(order.installationComplexity),
       reciprocalDiscountPercent: Number(snapshot?.reciprocalDiscountPercent ?? reciprocal?.totalDiscountPercent ?? 0),
       partnerDiscountPercent: Number(snapshot?.partnerDiscountPercent ?? order.partnerDiscountPercent ?? 0),
