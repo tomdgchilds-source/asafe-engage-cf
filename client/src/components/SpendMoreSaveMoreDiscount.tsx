@@ -1,59 +1,49 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Percent, DollarSign, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useAutoMinimize } from "@/hooks/useAutoMinimize";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { HARD_DISCOUNT_CEILING } from "@shared/discountLimits";
 
 interface SpendMoreSaveMoreDiscountProps {
+  /** Cart lines. `totalPrice` is AED (all stored money is AED). */
   cartItems: any[];
-  currency: string;
+  /** Kept for callers that still pass it; display currency now comes from
+   *  CurrencyContext so this component can never disagree with the cart. */
+  currency?: string;
 }
 
-export function SpendMoreSaveMoreDiscount({ cartItems, currency }: SpendMoreSaveMoreDiscountProps) {
+// Constants for the illustrative discount scale
+const MAX_CONTRACT_VALUE = 3_000_000; // 3M AED
+// The curve can never promise more than the policy ceiling.
+const MAX_DISCOUNT_PERCENT = HARD_DISCOUNT_CEILING;
+
+// Curved progression that hits exactly 25 % at 1M AED, capped at the
+// HARD_DISCOUNT_CEILING from shared/discountLimits.
+function calculateDiscountPercent(contractValueAed: number): number {
+  if (contractValueAed <= 0) return 0;
+  // discount = 25 × (value / 1M)^0.3
+  const k = 0.3;
+  const baseValue = 1_000_000;
+  const targetDiscount = 25;
+  const discountPercent = targetDiscount * Math.pow(contractValueAed / baseValue, k);
+  return Math.min(discountPercent, MAX_DISCOUNT_PERCENT);
+}
+
+export function SpendMoreSaveMoreDiscount({ cartItems }: SpendMoreSaveMoreDiscountProps) {
   const [dragPosition, setDragPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [showPercentage, setShowPercentage] = useState(false);
   const { isExpanded, toggleExpanded, cardRef } = useAutoMinimize(false);
+  // Display-only conversion. Every number this component reasons about is AED.
+  const { formatPrice } = useCurrency();
 
-  // Get currency rates for conversion
-  const { data: rates = {} } = useQuery<{ [key: string]: number }>({
-    queryKey: ["/api/currency/rates"],
-  });
-
-  // Constants for the discount scale
-  const MAX_CONTRACT_VALUE = 3000000; // 3M AED
-  const MAX_DISCOUNT_PERCENT = 35; // 35% max discount
-  
-  // Calculate current cart total in AED
-  const getCurrentCartTotal = () => {
-    const total = cartItems?.reduce((sum: number, item: any) => sum + item.totalPrice, 0) || 0;
-    // Convert to AED if needed
-    if (currency === 'AED') return total;
-    const aedRate = 1; // AED is base currency
-    const currentRate = rates[currency] || 1;
-    return total / currentRate * aedRate;
-  };
-
-  const currentCartTotalAED = getCurrentCartTotal();
-  
-  // Calculate discount percentage based on cart value with curved progression
-  // Curved progression achieves exactly 25% discount at 1M AED spend
-  const calculateDiscountPercent = (contractValue: number) => {
-    if (contractValue <= 0) return 0;
-    
-    // Using power curve: discount = c * (contractValue/1000000)^k * 25
-    // This ensures exactly 25% at 1M AED with smooth curve progression
-    const k = 0.3; // Power factor for curve shape
-    const baseValue = 1000000; // 1M AED reference point
-    const targetDiscount = 25; // 25% discount at 1M AED
-    
-    const discountPercent = targetDiscount * Math.pow(contractValue / baseValue, k);
-    
-    return Math.min(discountPercent, MAX_DISCOUNT_PERCENT);
-  };
+  // Current cart total in AED — line prices are stored in AED, no conversion.
+  const currentCartTotalAED =
+    cartItems?.reduce((sum: number, item: any) => sum + (Number(item.totalPrice) || 0), 0) || 0;
 
   // Calculate contract value from position (0-1)
   const calculateContractValueFromPosition = (position: number) => {
@@ -73,26 +63,10 @@ export function SpendMoreSaveMoreDiscount({ cartItems, currency }: SpendMoreSave
   const draggedContractValue = calculateContractValueFromPosition(dragPosition || currentPosition);
   const draggedDiscountPercent = calculateDiscountPercent(draggedContractValue);
 
-  // Format currency value
-  const formatCurrency = (value: number, targetCurrency: string = currency) => {
-    // Convert from AED to target currency
-    const convertedValue = targetCurrency === 'AED' ? value : value * (rates[targetCurrency] || 1);
-    
-    const symbols: { [key: string]: string } = {
-      AED: 'د.إ',
-      SAR: '﷼',
-      GBP: '£',
-      USD: '$',
-      EUR: '€'
-    };
+  // Format an AED value in the user's selected display currency
+  const formatCurrency = (valueAed: number) => formatPrice(valueAed);
 
-    return `${symbols[targetCurrency] || targetCurrency} ${convertedValue.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })}`;
-  };
-
-  // Calculate savings amount
+  // Calculate savings amount (AED)
   const calculateSavings = (contractValue: number, discountPercent: number) => {
     return contractValue * (discountPercent / 100);
   };
@@ -229,7 +203,7 @@ export function SpendMoreSaveMoreDiscount({ cartItems, currency }: SpendMoreSave
         <div className="space-y-4">
           <div className="flex justify-between text-xs text-gray-500">
             <span>0 AED (0%)</span>
-            <span>3M AED (35%)</span>
+            <span>3M AED ({MAX_DISCOUNT_PERCENT}%)</span>
           </div>
           
           <div 

@@ -7,6 +7,7 @@ import { Loader2, Zap, Ruler, Wrench } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { planLength, type LengthVariant } from "@shared/pricing";
 
 /**
  * QuoteBuilderPanel
@@ -154,72 +155,25 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
 
   // ─────────────────────────────────────────────────────────────
   // Length-segmented pricing plan (Rack End Barrier, Step Guard,
-  // ForkGuard, HD ForkGuard).
-  //
-  // These products ship as one barrier per nominal length (900mm, 1100mm,
-  // 2000mm, 2400mm, ...). The historical behaviour was to greedily fill
-  // the requested run with multiple barriers — for a 2.5m request with
-  // a 2400mm longest variant, it added 1× 2400 + 1× 900, doubling the
-  // price at the boundary. Reps don't actually buy two barriers to make
-  // up 100mm; they fit one barrier and pay an extension on the linear
-  // metre rate for the difference.
-  //
-  // The corrected plan picks ONE piece:
-  //   - L ≤ longest variant: pick the smallest variant whose nominal
-  //     length ≥ L (or the smallest variant if L is below it). The user
-  //     pays that variant's unit price.
-  //   - L > longest variant: pick the longest variant as the "base"
-  //     piece and add a per-metre extension charge for the overflow.
-  //     extension_rate = base_price / base_length_m  (so a 2.4m piece
-  //     at 2,341.32 AED yields ~975.55 AED/m for the overflow).
-  //
-  // This keeps the price curve smooth across the boundary and matches
-  // how the sales team actually quotes these jobs (see Mohammed
-  // Bassil's May 5 feedback: doubling at 2.5m, identical price at 2.6m).
+  // ForkGuard, HD ForkGuard). The rule lives in shared/pricing/lengthPlan
+  // (one base piece + per-metre extension at the base rate; see the
+  // module comment and Mohammed Bassil's 2.5 m case) so this panel,
+  // AddToCartModal and the Worker all price a run identically.
   // ─────────────────────────────────────────────────────────────
   const segmentedPlan = useMemo(() => {
     if (mode !== "length-segmented" || !totalLength) return null;
     const totalMm = Math.round(Number(totalLength) * 1000);
     if (!Number.isFinite(totalMm) || totalMm <= 0) return null;
-    const variants = (product.priceVariants ?? [])
-      .map((v) => ({
-        id: v.id,
-        sku: v.sku ?? null,
-        name: v.name,
-        length: Number(v.lengthMm ?? v.length_mm ?? v.length ?? 0),
-        price: Number(v.priceAed ?? v.price ?? 0),
-      }))
-      .filter((v) => v.length > 0 && v.price > 0)
-      .sort((a, b) => a.length - b.length);
-    if (!variants.length) return null;
-
-    const longest = variants[variants.length - 1];
-    let basePiece: typeof variants[number];
-    let extensionMm = 0;
-    if (totalMm <= longest.length) {
-      // Walk up the (ascending-sorted) variants and pick the first one
-      // whose nominal length is ≥ requested length. Falls back to the
-      // smallest if the request is below every variant (rare — e.g.
-      // someone types 0.5m for a barrier whose smallest piece is 900mm).
-      basePiece =
-        variants.find((v) => v.length >= totalMm) ?? variants[0];
-    } else {
-      basePiece = longest;
-      extensionMm = totalMm - longest.length;
-    }
-    const extensionRatePerM =
-      Math.round((longest.price / (longest.length / 1000)) * 100) / 100;
-    const extensionCharge =
-      Math.round(((extensionMm / 1000) * extensionRatePerM) * 100) / 100;
-    const totalPrice = Math.round((basePiece.price + extensionCharge) * 100) / 100;
-    return {
-      basePiece,
-      extensionMm,
-      extensionRatePerM,
-      extensionCharge,
-      totalPrice,
-      requestedMm: totalMm,
-    };
+    // Key each variant by its cart product name so the chosen base piece
+    // maps straight back to the SKU we POST to /api/cart.
+    const variants: LengthVariant[] = (product.priceVariants ?? []).map((v) => ({
+      sku: v.name,
+      lengthMm: Number(v.lengthMm ?? v.length_mm ?? v.length ?? 0),
+      priceAed: Number(v.priceAed ?? v.price ?? 0),
+    }));
+    const plan = planLength(variants, totalMm);
+    if (!plan) return null;
+    return { ...plan, basePieceName: plan.basePiece.sku };
   }, [mode, totalLength, product]);
 
   // Greedy SKU-mix used by the per-linear-metre `length` mode (iFlex /
@@ -313,6 +267,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         unitPrice,
         totalPrice,
         pricingTier: "Total length",
+        requiresDelivery: true,
+        requiresInstallation: true,
         notes: mix
           ? `Suggested SKU mix: ${mix.chosen
               .map((c) => `${c.qty}× ${c.length}mm`)
@@ -354,37 +310,36 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
     setSubmitting(true);
     try {
       const meters = Number(totalLength);
-      const { basePiece, extensionMm, extensionRatePerM, totalPrice } =
+      const { basePiece, basePieceName, extensionMm, extensionRatePerM, totalPrice } =
         segmentedPlan;
-      const tier =
-        extensionMm > 0
-          ? `Custom ${meters.toFixed(2)}m (${(basePiece.length / 1000).toFixed(2)}m base + ${(extensionMm / 1000).toFixed(2)}m extension @ AED ${extensionRatePerM.toLocaleString()}/m)`
-          : `Nominal ${(basePiece.length / 1000).toFixed(2)}m piece`;
       const noteLines = [
         `Total run requested: ${meters.toFixed(2)} m`,
-        `Base piece: ${basePiece.name} (AED ${basePiece.price.toLocaleString()})`,
+        `Base piece: ${basePieceName} (AED ${basePiece.priceAed.toLocaleString()})`,
       ];
       if (extensionMm > 0) {
         noteLines.push(
-          `Length extension: ${(extensionMm / 1000).toFixed(2)} m × AED ${extensionRatePerM.toLocaleString()}/m = AED ${segmentedPlan.extensionCharge.toLocaleString()}`,
+          `Length extension: ${(extensionMm / 1000).toFixed(2)} m × AED ${extensionRatePerM.toLocaleString()}/m = AED ${segmentedPlan.extensionChargeAed.toLocaleString()}`,
         );
       }
       await apiRequest("/api/cart", "POST", {
-        productName: basePiece.name,
+        productName: basePieceName,
         quantity: 1,
         pricingType: "single_item",
         unitPrice: totalPrice,
         totalPrice,
-        pricingTier: tier,
+        // The shared plan label, e.g. "1 × 2400 mm + 0.10 m extension @ 975.55 AED/m"
+        pricingTier: segmentedPlan.label,
         notes: noteLines.join("\n"),
+        requiresDelivery: true,
+        requiresInstallation: true,
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
       toast({
         title: "Added to cart",
         description:
           extensionMm > 0
-            ? `${(basePiece.length / 1000).toFixed(2)}m base + ${(extensionMm / 1000).toFixed(2)}m extension · AED ${totalPrice.toLocaleString()}`
-            : `${(basePiece.length / 1000).toFixed(2)}m piece · AED ${totalPrice.toLocaleString()}`,
+            ? `${(basePiece.lengthMm / 1000).toFixed(2)}m base + ${(extensionMm / 1000).toFixed(2)}m extension · AED ${totalPrice.toLocaleString()}`
+            : `${(basePiece.lengthMm / 1000).toFixed(2)}m piece · AED ${totalPrice.toLocaleString()}`,
       });
       onComplete?.();
     } catch (err: any) {
@@ -441,6 +396,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         unitPrice: postPrice,
         totalPrice: postPrice * 2,
         pricingTier: "Kit: Height Restrictor",
+        requiresDelivery: true,
+        requiresInstallation: true,
         notes: `Clear height ${h}mm × width ${w}mm — 2× post`,
       });
       // 1× rail
@@ -451,6 +408,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         unitPrice: railPrice,
         totalPrice: railPrice,
         pricingTier: "Kit: Height Restrictor",
+        requiresDelivery: true,
+        requiresInstallation: true,
         notes: `Clear height ${h}mm × width ${w}mm — 1× top rail`,
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
@@ -504,6 +463,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         unitPrice: gatePrice,
         totalPrice: gatePrice,
         pricingTier: "Kit: Swing Gate",
+        requiresDelivery: true,
+        requiresInstallation: true,
         notes: `Opening width ${w}mm — 1× gate`,
       });
       await apiRequest("/api/cart", "POST", {
@@ -513,6 +474,8 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
         unitPrice: postPrice,
         totalPrice: postPrice,
         pricingTier: "Kit: Swing Gate",
+        requiresDelivery: true,
+        requiresInstallation: true,
         notes: `Opening width ${w}mm — 1× post`,
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
@@ -624,11 +587,11 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
               <ul className="space-y-0.5 mt-1">
                 <li className="flex items-center justify-between text-gray-600 dark:text-gray-400">
                   <span>
-                    1× {(segmentedPlan.basePiece.length / 1000).toFixed(2)}m
+                    1× {(segmentedPlan.basePiece.lengthMm / 1000).toFixed(2)}m
                     base piece
                   </span>
                   <span>
-                    AED {segmentedPlan.basePiece.price.toLocaleString()}
+                    AED {segmentedPlan.basePiece.priceAed.toLocaleString()}
                   </span>
                 </li>
                 {segmentedPlan.extensionMm > 0 && (
@@ -639,7 +602,7 @@ export function QuoteBuilderPanel({ product, allProducts = [], onComplete }: Pro
                       {segmentedPlan.extensionRatePerM.toLocaleString()}/m
                     </span>
                     <span>
-                      AED {segmentedPlan.extensionCharge.toLocaleString()}
+                      AED {segmentedPlan.extensionChargeAed.toLocaleString()}
                     </span>
                   </li>
                 )}

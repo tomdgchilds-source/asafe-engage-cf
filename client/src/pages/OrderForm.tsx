@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getDiscountCap, getCombinedDiscount } from "@shared/discountLimits";
+import { getCombinedDiscount } from "@shared/discountLimits";
+import {
+  computeTotals,
+  lineTotalAed,
+  normaliseComplexity,
+  round2,
+  type PricingLine,
+} from "@shared/pricing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -192,7 +199,6 @@ interface SignoffMemory {
 export function OrderForm() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
-  console.log('OrderForm ID from useParams:', id);
   const { formatPrice } = useCurrency();
   const { toast } = useToast();
   const haptic = useHapticFeedback();
@@ -471,6 +477,91 @@ export function OrderForm() {
   });
   const discountOptions = valueCommitmentOptions; // Alias for backward compatibility
 
+  // ── Order money ────────────────────────────────────────────────────
+  // One computation, through shared/pricing/computeTotals, feeds both the
+  // on-page Order Summary and the client-side PDF. It is the same function
+  // the Worker ran when it stored the order, so cart, this page and
+  // GET /api/orders/:id agree to the fil. All AED; `formatPrice` converts
+  // for display only.
+  //
+  // Line mapping (must match worker/routes/orders.ts):
+  //   linear_meter → per-meter, quantity = metres, unitPrice = AED/m
+  //   anything else → per-unit
+  //   delivery / install carried only by lines flagged requiresDelivery /
+  //   requiresInstallation.
+  const orderTotals = useMemo(() => {
+    const items: any[] = Array.isArray(orderData?.items) ? orderData!.items : [];
+    const lines: PricingLine[] = items.map((item: any, index: number) => ({
+      id: String(item.id ?? index),
+      unitPriceAed: Number(item.unitPrice) || 0,
+      quantity: Number(item.quantity) || 0,
+      pricingType: item.pricingType === "linear_meter" ? "per-meter" : "per-unit",
+      includesDelivery: !!item.requiresDelivery,
+      includesInstall: !!item.requiresInstallation,
+      isProduct: true,
+    }));
+    const goodsAed = round2(lines.reduce((sum, line) => sum + lineTotalAed(line), 0));
+
+    // Raw reciprocal % the customer selected. Stored either as full option
+    // objects (with discountPercent) or as option ids.
+    const rawReciprocalPercent = (orderData?.discountOptions ?? []).reduce(
+      (total: number, sel: any) => {
+        if (sel && typeof sel === "object" && sel.discountPercent !== undefined) {
+          return total + (Number(sel.discountPercent) || 0);
+        }
+        const id = sel && typeof sel === "object" ? sel.discountOptionId ?? sel.id : sel;
+        const option = discountOptions?.find((opt: any) => opt.id === id);
+        return total + (option?.discountPercent || 0);
+      },
+      0,
+    );
+    const rawPartnerPercent = Number((orderData as any)?.partnerDiscountPercent) || 0;
+    // LinkedIn social reciprocity is an AED amount (≤ 1 % of goods); the
+    // pricing module takes it as a % of goods so it shares the ceiling.
+    const linkedInDiscountAmount = Number((orderData as any)?.linkedInDiscountAmount) || 0;
+    const socialDiscountPercent = goodsAed > 0 ? (linkedInDiscountAmount / goodsAed) * 100 : 0;
+
+    // Service package: stored as the option title (legacy) or as an object
+    // carrying serviceOptionId / id / packageTier. Flat % of goods, added
+    // after discount and never discounted — mirrors the server.
+    const sp: any = orderData?.servicePackage;
+    const spId = sp && typeof sp === "object" ? sp.serviceOptionId ?? sp.id ?? sp.packageTier : undefined;
+    const spTitle = typeof sp === "string" ? sp : sp?.packageName ?? sp?.title;
+    const serviceOption = Array.isArray(serviceCareOptions)
+      ? serviceCareOptions.find(
+          (opt: any) => (spId && opt.id === spId) || (spTitle && opt.title === spTitle),
+        )
+      : undefined;
+    let servicePackageAed = 0;
+    if (serviceOption?.chargeable && typeof serviceOption.value === "string" && serviceOption.value.includes("%")) {
+      servicePackageAed = round2(goodsAed * (parseFloat(serviceOption.value.replace("%", "")) / 100));
+    } else if (sp && typeof sp === "object" && sp.chargeable && Number.isFinite(Number(sp.cost))) {
+      servicePackageAed = round2(Number(sp.cost));
+    }
+
+    const totals = computeTotals({
+      lines,
+      complexity: normaliseComplexity(orderData?.installationComplexity),
+      reciprocalDiscountPercent: rawReciprocalPercent,
+      partnerDiscountPercent: rawPartnerPercent,
+      socialDiscountPercent,
+      servicePackageAed,
+    });
+    // Split of the applied % for the two labelled savings lines — same caps
+    // computeTotals applies (tiered reciprocal, 15 % partner, 40 % combined).
+    const combined = getCombinedDiscount(rawReciprocalPercent, rawPartnerPercent, goodsAed);
+    return {
+      ...totals,
+      serviceOption,
+      reciprocalPercent: combined.reciprocal,
+      partnerPercent: combined.partner,
+      reciprocalDiscountAed: round2(goodsAed * (combined.reciprocal / 100)),
+      partnerDiscountAed: round2(goodsAed * (combined.partner / 100)),
+      linkedInDiscountAmount,
+      subtotalAfterDiscountAed: round2(goodsAed - totals.discountAed),
+    };
+  }, [orderData, discountOptions, serviceCareOptions]);
+
   // Fetch layout drawings for this order
   const { data: layoutDrawings } = useQuery<any[]>({
     queryKey: ["/api/layout-drawings"],
@@ -564,7 +655,6 @@ export function OrderForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile]);
 
-  console.log('Query enabled:', !!id, 'isLoading:', isLoading, 'error:', error, 'data:', orderData);
 
   // Section-level sign-off. Posts to /approve-section (owner OR customer-by-
   // email) and invalidates both the single-order query (this page) and the
@@ -953,73 +1043,17 @@ export function OrderForm() {
     }
 
     try {
-      // Calculate order summary values - matching Cart logic exactly
-      const subtotal = orderData.items.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
-      
-      // Get the raw reciprocal total the user selected. Caps (tiered
-      // reciprocal, flat partner, combined ceiling) are all applied by
-      // getCombinedDiscount so every site in this file uses identical math.
-      let rawReciprocalTotal = 0;
-      if (orderData.discountOptions && orderData.discountOptions.length > 0) {
-        rawReciprocalTotal = orderData.discountOptions.reduce((total: number, opt: any) => {
-          if (opt.discountPercent !== undefined) {
-            return total + opt.discountPercent;
-          }
-          const discountOption = discountOptions?.find((d: any) => d.id === opt);
-          return total + (discountOption?.discountPercent || 0);
-        }, 0);
-      }
-
-      // Add partner discount if available
-      const rawPartnerPercent = (orderData as any).partnerDiscountPercent || 0;
-
-      // Add LinkedIn discount if available
-      const linkedInDiscountAmount = (orderData as any).linkedInDiscountAmount || 0;
-
-      // Single source of truth for the three caps (tiered reciprocal, flat
-      // 15% partner, 40% combined).
-      const combined = getCombinedDiscount(rawReciprocalTotal, rawPartnerPercent, subtotal);
-      const reciprocalDiscountPercentage = combined.reciprocal;
-      const partnerDiscountPercent = combined.partner;
-      const percentageDiscountTotal = combined.combined;
-      const percentageDiscountAmount = subtotal * (percentageDiscountTotal / 100);
-      const discountAmount = percentageDiscountAmount + linkedInDiscountAmount;
-      const subtotalAfterDiscount = subtotal - discountAmount;
-      
-      // Calculate service package cost
-      let servicePackageCost = 0;
-      if (orderData.servicePackage && serviceCareOptions && Array.isArray(serviceCareOptions)) {
-        const serviceOption = serviceCareOptions.find((opt: any) => opt.title === orderData.servicePackage);
-        if (serviceOption?.chargeable && serviceOption?.value) {
-          const serviceRate = parseFloat(serviceOption.value.replace('%', ''));
-          servicePackageCost = subtotalAfterDiscount * (serviceRate / 100);
-        }
-      }
-      
-      // Calculate delivery and installation charges based on ORIGINAL subtotal (before discounts)
-      // This matches the Cart.tsx logic
-      const deliveryRate = 0.096271916;
-      
-      // Get installation rate based on complexity
-      const getInstallationRate = () => {
-        switch (orderData.installationComplexity) {
-          case 'simple':
-            return 0.1148264;
-          case 'standard':
-            return 0.1938872;
-          case 'complex':
-            return 0.26289773;
-          default:
-            return 0.1938872; // Default to standard
-        }
-      };
-      const installationRate = getInstallationRate();
-      
-      const deliveryCharge = subtotal * deliveryRate;  // Based on original subtotal
-      const installationCharge = subtotal * installationRate;  // Based on original subtotal
-      
-      // Calculate grand total
-      const grandTotal = subtotalAfterDiscount + servicePackageCost + deliveryCharge + installationCharge;
+      // Order summary values — the same computeTotals result that drives the
+      // on-page Order Summary (see `orderTotals`).
+      const subtotal = orderTotals.goodsAed;
+      const reciprocalDiscountPercentage = orderTotals.reciprocalPercent;
+      const partnerDiscountPercent = orderTotals.partnerPercent;
+      const linkedInDiscountAmount = orderTotals.linkedInDiscountAmount;
+      const discountAmount = orderTotals.discountAed;
+      const servicePackageCost = orderTotals.servicePackageAed;
+      const deliveryCharge = orderTotals.deliveryAed;
+      const installationCharge = orderTotals.installAed;
+      const grandTotal = orderTotals.subtotalAed;
       
       // Prepare customer data
       const customer = orderData.isForUser && orderData.user ? {
@@ -1058,8 +1092,8 @@ export function OrderForm() {
         ),
         partnerDiscountCode: (orderData as any).partnerDiscountCode,
         partnerDiscountPercent: partnerDiscountPercent,
-        partnerDiscountAmount: partnerDiscountPercent > 0 ? subtotal * (partnerDiscountPercent / 100) : 0,
-        reciprocalDiscountAmount: reciprocalDiscountPercentage > 0 ? subtotal * (reciprocalDiscountPercentage / 100) : 0,
+        partnerDiscountAmount: orderTotals.partnerDiscountAed,
+        reciprocalDiscountAmount: orderTotals.reciprocalDiscountAed,
         linkedInDiscountAmount: linkedInDiscountAmount,
         linkedInDiscountData: (orderData as any).linkedInDiscountData,
         totalAmount: orderData.totalAmount,
@@ -3239,17 +3273,8 @@ export function OrderForm() {
                   <div className="flex items-center justify-between font-medium text-lg">
                     <span>Total Reciprocal Value:</span>
                     <span className="text-green-600">
-                      {orderData.reciprocalCommitments?.totalDiscountPercent || 
-                       Math.min(
-                        (orderData.discountOptions || []).reduce((total: number, sel: any) => {
-                          if (sel.discountPercent !== undefined) {
-                            return total + sel.discountPercent;
-                          }
-                          const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                          return total + (discount?.discountPercent || 0);
-                        }, 0),
-                        getDiscountCap((orderData.items || []).reduce((s: number, i: any) => s + (i.totalPrice || 0), 0))
-                      )}% Savings
+                      {orderData.reciprocalCommitments?.totalDiscountPercent ||
+                        orderTotals.reciprocalPercent}% Savings
                     </span>
                   </div>
                 </div>
@@ -3268,206 +3293,73 @@ export function OrderForm() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {/* Products Subtotal */}
+              {/* Every figure here is orderTotals (shared computeTotals) */}
               <div className="flex justify-between items-center">
                 <Label className="text-gray-600 dark:text-gray-400">Subtotal:</Label>
-                <p className="font-medium">
-                  {formatPrice(orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0)}
+                <p className="font-medium" data-testid="text-order-subtotal">
+                  {formatPrice(orderTotals.goodsAed)}
                 </p>
               </div>
-              
-              {/* Applied Discounts - Reciprocal Savings */}
-              {orderData.discountOptions && orderData.discountOptions.length > 0 && (
-                <>
-                  {(() => {
-                    const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    const rawReciprocal = orderData.discountOptions.reduce((total: number, sel: any) => {
-                      if (sel.discountPercent !== undefined) {
-                        return total + sel.discountPercent;
-                      }
-                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                      return total + (discount?.discountPercent || 0);
-                    }, 0);
-                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
-                    // Post-cap values so the line-items match the grand total below.
-                    const { reciprocal: reciprocalDiscountPercent, partner: partnerDiscountPercent } =
-                      getCombinedDiscount(rawReciprocal, rawPartner, subtotal);
 
-                    return (
-                      <>
-                        {reciprocalDiscountPercent > 0 && (
-                          <div className="flex justify-between items-center text-green-600">
-                            <Label className="text-sm">Reciprocal Savings ({reciprocalDiscountPercent}%):</Label>
-                            <p className="font-medium">-{formatPrice(subtotal * (reciprocalDiscountPercent / 100))}</p>
-                          </div>
-                        )}
-                        {partnerDiscountPercent > 0 && (
-                          <div className="flex justify-between items-center text-purple-600">
-                            <Label className="text-sm">Partner Rate ({partnerDiscountPercent}%):</Label>
-                            <p className="font-medium">-{formatPrice(subtotal * (partnerDiscountPercent / 100))}</p>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-
-                  {(() => {
-                    const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    const rawReciprocal = orderData.discountOptions.reduce((total: number, sel: any) => {
-                      if (sel.discountPercent !== undefined) {
-                        return total + sel.discountPercent;
-                      }
-                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                      return total + (discount?.discountPercent || 0);
-                    }, 0);
-                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
-                    const { combined: totalDiscountPercent } = getCombinedDiscount(
-                      rawReciprocal,
-                      rawPartner,
-                      subtotal,
-                    );
-                    const discountAmount = subtotal * (totalDiscountPercent / 100);
-                    const subtotalAfterDiscount = subtotal - discountAmount;
-
-                    return (
-                      <div className="flex justify-between items-center font-medium">
-                        <Label>Subtotal after savings:</Label>
-                        <p>{formatPrice(subtotalAfterDiscount)}</p>
-                      </div>
-                    );
-                  })()}
-                </>
+              {orderTotals.reciprocalPercent > 0 && (
+                <div className="flex justify-between items-center text-green-600">
+                  <Label className="text-sm">Reciprocal Savings ({orderTotals.reciprocalPercent}%):</Label>
+                  <p className="font-medium">-{formatPrice(orderTotals.reciprocalDiscountAed)}</p>
+                </div>
               )}
-              
-              {/* Delivery & Installation - based on original subtotal */}
+              {orderTotals.partnerPercent > 0 && (
+                <div className="flex justify-between items-center text-purple-600">
+                  <Label className="text-sm">Partner Rate ({orderTotals.partnerPercent}%):</Label>
+                  <p className="font-medium">-{formatPrice(orderTotals.partnerDiscountAed)}</p>
+                </div>
+              )}
+              {orderTotals.linkedInDiscountAmount > 0 && (
+                <div className="flex justify-between items-center text-blue-600">
+                  <Label className="text-sm">LinkedIn Social Discount:</Label>
+                  <p className="font-medium">-{formatPrice(orderTotals.linkedInDiscountAmount)}</p>
+                </div>
+              )}
+              {orderTotals.discountAed > 0 && (
+                <div className="flex justify-between items-center font-medium">
+                  <Label>Subtotal after savings:</Label>
+                  <p data-testid="text-order-subtotal-after-savings">
+                    {formatPrice(orderTotals.subtotalAfterDiscountAed)}
+                  </p>
+                </div>
+              )}
+
+              {/* Delivery & Installation — % of the goods carrying them, before discount */}
               <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
                 <Label className="text-sm">Delivery Charges:</Label>
-                <p className="font-medium">
-                  {(() => {
-                    const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    return formatPrice(subtotal * 0.096271916);
-                  })()}
+                <p className="font-medium" data-testid="text-order-delivery">
+                  {formatPrice(orderTotals.deliveryAed)}
                 </p>
               </div>
               <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
                 <Label className="text-sm">Installation Charges ({orderData.installationComplexity || 'standard'}):</Label>
-                <p className="font-medium">
-                  {(() => {
-                    const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    const getInstallationRate = () => {
-                      switch (orderData.installationComplexity) {
-                        case 'simple':
-                          return 0.1148264;
-                        case 'standard':
-                          return 0.1938872;
-                        case 'complex':
-                          return 0.26289773;
-                        default:
-                          return 0.1938872;
-                      }
-                    };
-                    return formatPrice(subtotal * getInstallationRate());
-                  })()}
+                <p className="font-medium" data-testid="text-order-installation">
+                  {formatPrice(orderTotals.installAed)}
                 </p>
               </div>
-              
+
               {/* Service Package */}
               {orderData.servicePackage && (
                 <div className="flex justify-between items-center text-blue-600">
                   <Label className="text-sm">
-                    {serviceCareOptions?.find((opt: any) => opt.id === (orderData.servicePackage.serviceOptionId || orderData.servicePackage.id))?.title || 'Service Package'}:
+                    {orderTotals.serviceOption?.title || 'Service Package'}:
                   </Label>
-                  <p className="font-medium">
-                    {(() => {
-                      const serviceOption = serviceCareOptions?.find((opt: any) => 
-                        opt.id === (orderData.servicePackage.serviceOptionId || orderData.servicePackage.id)
-                      );
-                      if (!serviceOption?.chargeable) return formatPrice(0);
-                      
-                      const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                      const rawReciprocal = orderData.discountOptions?.reduce((total: number, sel: any) => {
-                        if (sel.discountPercent !== undefined) {
-                          return total + sel.discountPercent;
-                        }
-                        const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                        return total + (discount?.discountPercent || 0);
-                      }, 0) || 0;
-                      const rawPartner = (orderData as any).partnerDiscountPercent || 0;
-                      const { combined: totalDiscountPercent } = getCombinedDiscount(
-                        rawReciprocal,
-                        rawPartner,
-                        subtotal,
-                      );
-                      const discountAmount = subtotal * (totalDiscountPercent / 100);
-                      const subtotalAfterDiscount = subtotal - discountAmount;
-
-                      if (serviceOption?.value?.includes('%')) {
-                        const rate = parseFloat(serviceOption.value.replace('%', ''));
-                        return formatPrice(subtotalAfterDiscount * (rate / 100));
-                      }
-                      return formatPrice(0);
-                    })()}
+                  <p className="font-medium" data-testid="text-order-service-package">
+                    {formatPrice(orderTotals.servicePackageAed)}
                   </p>
                 </div>
               )}
-              
+
               {/* Grand Total */}
               <Separator className="my-3" />
               <div className="flex justify-between items-center">
                 <Label className="text-lg font-semibold">Grand Total (Ex. VAT):</Label>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {(() => {
-                    const subtotal = orderData.items?.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0) || 0;
-                    
-                    // Calculate discount — reciprocal is size-tiered (25–30%),
-                    // partner is flat-capped at 15%, combined is clamped at 40%.
-                    const rawReciprocal = orderData.discountOptions?.reduce((total: number, sel: any) => {
-                      if (sel.discountPercent !== undefined) {
-                        return total + sel.discountPercent;
-                      }
-                      const discount = discountOptions?.find((opt: any) => opt.id === (sel.discountOptionId || sel));
-                      return total + (discount?.discountPercent || 0);
-                    }, 0) || 0;
-                    const rawPartner = (orderData as any).partnerDiscountPercent || 0;
-                    const { combined: totalDiscountPercent } = getCombinedDiscount(
-                      rawReciprocal,
-                      rawPartner,
-                      subtotal,
-                    );
-                    const discountAmount = subtotal * (totalDiscountPercent / 100);
-                    const subtotalAfterDiscount = subtotal - discountAmount;
-                    
-                    // Delivery and installation based on original subtotal
-                    const deliveryCharge = subtotal * 0.096271916;
-                    const getInstallationRate = () => {
-                      switch (orderData.installationComplexity) {
-                        case 'simple':
-                          return 0.1148264;
-                        case 'standard':
-                          return 0.1938872;
-                        case 'complex':
-                          return 0.26289773;
-                        default:
-                          return 0.1938872;
-                      }
-                    };
-                    const installationCharge = subtotal * getInstallationRate();
-                    
-                    // Service package cost
-                    let servicePackageCost = 0;
-                    if (orderData.servicePackage) {
-                      const serviceOption = serviceCareOptions?.find((opt: any) => 
-                        opt.id === (orderData.servicePackage.serviceOptionId || orderData.servicePackage.id)
-                      );
-                      if (serviceOption?.chargeable && serviceOption?.value?.includes('%')) {
-                        const rate = parseFloat(serviceOption.value.replace('%', ''));
-                        servicePackageCost = subtotalAfterDiscount * (rate / 100);
-                      }
-                    }
-                    
-                    const grandTotal = subtotalAfterDiscount + deliveryCharge + installationCharge + servicePackageCost;
-                    return formatPrice(grandTotal);
-                  })()}
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-order-grand-total">
+                  {formatPrice(orderTotals.subtotalAed)}
                 </p>
               </div>
             </div>

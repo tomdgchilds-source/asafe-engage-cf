@@ -28,7 +28,8 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { GoogleMapSelector } from "./GoogleMapSelector";
 import { SiteReferenceUploader } from "./SiteReferenceUploader";
 import { ForkGuardKerbCalculator } from "./ForkGuardKerbCalculator";
-import { QuoteBuilderPanel } from "./QuoteBuilderPanel";
+import { QuoteBuilderPanel, detectBuilderMode } from "./QuoteBuilderPanel";
+import { computeTotals, planLength, round2, type LengthVariant } from "@shared/pricing";
 import {
   calculateHeightRestrictorPricing as calcHeightRestrictor,
   calculateIFlexRailPricing as calcIFlexRail,
@@ -42,6 +43,9 @@ interface Product {
   impactRating?: number;
   specifications?: any;
   variants?: Product[];
+  /** Pricing-tier rows (e.g. "1-2 meters") and price-list variants carry these. */
+  measurement?: string;
+  price?: string | number;
 }
 
 interface AddToCartModalProps {
@@ -82,6 +86,8 @@ interface PricingData {
   unitPrice: number;
   totalPrice: number;
   tier: string;
+  /** shared/pricing planLength label, e.g. "1 × 2400 mm + 0.10 m extension @ 975.55 AED/m". */
+  planLabel?: string;
 }
 
 export function AddToCartModal({ product, children, impactCalculationId, calculationContext, variants, showVariantSelector, calculatorImages, isEditMode = false }: AddToCartModalProps) {
@@ -209,21 +215,31 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
   const isVehicleStop = product.category === "vehicle-stops" || product.name === "Vehicle Stops";
   const isGate = product.category === "gates" || product.name.toLowerCase().includes("gate") || product.name === "Slide Gates";
 
-  // Helper functions for cost calculations
-  const getDeliveryCost = () => {
-    if (!pricingData || !requiresDelivery) return 0;
-    return pricingData.totalPrice * 0.096271916; // 9.6271916% of total product cost
-  };
-
-  const getInstallationCost = () => {
-    if (!pricingData || !requiresInstallation) return 0;
-    return pricingData.totalPrice * 0.235679237; // 23.5679237% of total product cost
-  };
-
-  const getFinalTotal = () => {
-    if (!pricingData) return 0;
-    return pricingData.totalPrice + getDeliveryCost() + getInstallationCost();
-  };
+  // Preview of this line's delivery / installation share, from the same
+  // shared/pricing module the cart and the Worker use. Complexity is
+  // "normal" here — the cart sets the order's complexity (and so the final
+  // install rate) for every line at once.
+  const linePreview = pricingData
+    ? computeTotals({
+        lines: [
+          {
+            id: "preview",
+            unitPriceAed: pricingData.totalPrice,
+            quantity: 1,
+            pricingType: "per-unit",
+            includesDelivery: requiresDelivery,
+            includesInstall: requiresInstallation,
+          },
+        ],
+        complexity: "normal",
+        reciprocalDiscountPercent: 0,
+        partnerDiscountPercent: 0,
+        socialDiscountPercent: 0,
+      })
+    : null;
+  const getDeliveryCost = () => linePreview?.deliveryAed ?? 0;
+  const getInstallationCost = () => linePreview?.installAed ?? 0;
+  const getFinalTotal = () => linePreview?.subtotalAed ?? 0;
 
   // Determine pricing type and quantity rules based on product category
   const getProductConfig = () => {
@@ -400,6 +416,61 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
   // Only show variants section if product explicitly has variants or there are real selectable variants
   const hasVariants = ((product as any).hasVariants === true && availableVariants.length > 0) || 
     availableVariants.length > 1;
+
+  // ── Length plan (Rack End Barrier, Step Guard, ForkGuard, HD ForkGuard) ──
+  // These ship as ONE piece per nominal length. A required run length is
+  // priced by shared/pricing planLength: the smallest piece that covers it,
+  // or the longest piece + a per-metre extension at the base rate — never
+  // two pieces (2.5 m = 2.4 m + 0.1 m extension, not 2.4 m + 0.9 m).
+  // QuoteBuilderPanel prices the same request through the same function.
+  const [requiredLengthM, setRequiredLengthM] = useState("");
+  const extractLengthMm = (v: any): number => {
+    const direct = Number(v?.lengthMm ?? v?.length_mm ?? v?.Length_mm ?? v?.length ?? 0);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const m = String(v?.name ?? v?.variant ?? "").match(/(\d{3,4})\s*mm/i);
+    return m ? Number(m[1]) : 0;
+  };
+  const lengthPlanSource: any[] =
+    Array.isArray((product as any).priceVariants) && (product as any).priceVariants.length > 0
+      ? (product as any).priceVariants
+      : availableVariants;
+  const lengthPlanVariants: LengthVariant[] = (lengthPlanSource ?? [])
+    .map((v: any) => ({
+      sku: String(v?.name ?? v?.sku ?? v?.id ?? ""),
+      lengthMm: extractLengthMm(v),
+      priceAed: Number(v?.priceAed ?? v?.price ?? 0),
+    }))
+    .filter((v) => v.lengthMm > 0 && v.priceAed > 0);
+  const lowerName = product.name.toLowerCase();
+  const isLengthSegmentedFamily =
+    new Set(lengthPlanVariants.map((v) => v.lengthMm)).size >= 2 &&
+    !lowerName.includes("kerb") &&
+    (/rack end barrier|step guard|forkguard/.test(lowerName) ||
+      detectBuilderMode(product as any) === "length-segmented");
+  // QuoteBuilderPanel already renders the total-length input for catalogue
+  // products it recognises; only show ours when it does not.
+  const showRequiredLengthInput =
+    isLengthSegmentedFamily && detectBuilderMode(product as any) !== "length-segmented";
+  const lengthPlan =
+    isLengthSegmentedFamily && requiredLengthM
+      ? planLength(lengthPlanVariants, Math.round(Number(requiredLengthM) * 1000))
+      : null;
+  const handleRequiredLengthChange = (value: string) => {
+    setRequiredLengthM(value);
+    const metres = Number(value);
+    if (!value || !Number.isFinite(metres) || metres <= 0) return;
+    const plan = planLength(lengthPlanVariants, Math.round(metres * 1000));
+    if (!plan) return;
+    const qty = quantity > 0 ? quantity : 1;
+    if (quantity <= 0) setQuantity(1);
+    setPricingData({
+      unitPrice: plan.totalPrice,
+      totalPrice: round2(plan.totalPrice * qty),
+      tier: plan.label,
+      planLabel: plan.label,
+    });
+    setRequiresQuote(false);
+  };
 
   // Catalog snapshot used by QuoteBuilderPanel so Height Restrictor /
   // Swing Gate kits can resolve their sibling families (Post ↔ Top Rail /
@@ -835,8 +906,8 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                   }
                 }
                 
-                // Check if current quantity falls within this tier
-                if (qty >= minQty && qty <= maxQty) {
+                // Tier boundary rule: >= min && < nextMin (same as storage.calculatePrice)
+                if (qty >= minQty && qty < maxQty) {
                   perMeterPrice = parseFloat(variation.price);
                   tierLabel = variation.measurement;
                   break;
@@ -868,8 +939,9 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                 }
               }
               
-              if (qty >= minQty && qty <= maxQty) {
-                perMeterPrice = parseFloat(variant.price);
+              // Tier boundary rule: >= min && < nextMin (same as storage.calculatePrice)
+              if (qty >= minQty && qty < maxQty) {
+                perMeterPrice = parseFloat(String(variant.price));
                 tierLabel = variant.measurement;
                 break;
               }
@@ -886,9 +958,21 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
         };
       }
       
+      // Required run length on a one-piece-per-length family → shared planLength
+      if (lengthPlan) {
+        setIsLoadingPrice(false);
+        return {
+          unitPrice: lengthPlan.totalPrice,
+          totalPrice: round2(lengthPlan.totalPrice * qty),
+          tier: lengthPlan.label,
+          planLabel: lengthPlan.label,
+        };
+      }
+
       // If variant is selected, use its specific pricing
       if (selectedVariant && selectedVariant.price) {
-        let unitPrice = selectedVariant.price;
+        // Variant prices arrive as strings from the API — parse BEFORE adding spacer cost.
+        let unitPrice = parseFloat(String(selectedVariant.price)) || 0;
         
         // Add spacer costs for FlexiShield Column Guard
         if (isFlexiShieldColumnGuard) {
@@ -1440,7 +1524,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                     title: "Success",
                     description: "ForGuard Kerb combination added to cart",
                   });
-                  haptic("success");
+                  haptic.success();
                   setOpen(false);
                   queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
                 }}
@@ -2369,6 +2453,34 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
             )}
           </div>
 
+          {showRequiredLengthInput && (
+            <div className="space-y-2" data-testid="required-length">
+              <Label htmlFor="required-length" className="flex items-center gap-2">
+                <Ruler className="h-4 w-4" />
+                Required run length (metres, optional)
+              </Label>
+              <Input
+                id="required-length"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                placeholder="e.g. 2.5"
+                value={requiredLengthM}
+                onChange={(e) => handleRequiredLengthChange(e.target.value)}
+                data-testid="input-required-length"
+              />
+              <p className="text-sm text-muted-foreground">
+                Priced as one piece; any length beyond the longest piece is charged per metre at that piece's rate.
+              </p>
+              {lengthPlan && (
+                <p className="text-xs text-muted-foreground" data-testid="text-length-plan">
+                  {lengthPlan.label}
+                </p>
+              )}
+            </div>
+          )}
+
           {pricingData && (
             <div className="space-y-2 sm:space-y-3 p-3 sm:p-4 bg-muted rounded-lg" data-testid="pricing-info">
               {/* Show dynamic pricing tier message for Cold Storage products */}
@@ -2392,6 +2504,11 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
                   {formatPrice(pricingData.unitPrice)}/{isLinearMeter ? "m" : "item"}
                   {pricingData.tier?.includes('Spacers') && (
                     <div className="text-xs text-green-600 mt-1">Includes spacers</div>
+                  )}
+                  {pricingData.planLabel && (
+                    <div className="text-xs text-muted-foreground mt-1" data-testid="text-plan-label">
+                      {pricingData.planLabel}
+                    </div>
                   )}
                 </span>
               </div>

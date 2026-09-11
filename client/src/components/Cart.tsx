@@ -31,6 +31,13 @@ import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import type { Product, LayoutDrawing, CaseStudy, ProjectCaseStudy } from "@shared/schema";
 import { getCombinedDiscount } from "@shared/discountLimits";
+import {
+  computeTotals,
+  lineTotalAed,
+  normaliseComplexity,
+  round2,
+  type PricingLine,
+} from "@shared/pricing";
 import { Link, useLocation } from "wouter";
 
 interface CartItemType {
@@ -506,7 +513,6 @@ export function Cart() {
 
   // Helper functions
   const cartItems = Array.isArray(cartData) ? cartData : [];
-  const totalAmount = cartItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
   // Fetch user's current service selection
   const { data: userServiceSelectionData } = useQuery<{serviceOptionId: string}>({
     queryKey: ["/api/user-service-selection"],
@@ -552,11 +558,10 @@ export function Cart() {
   const userServiceSelection = userServiceSelectionData || { serviceOptionId: 'SERVICE_ESSENTIAL' };
   
   // Calculate service package cost
-  const servicePackageRate = selectedServiceOption?.chargeable && selectedServiceOption?.value 
-    ? parseFloat(selectedServiceOption.value.replace('%', '')) 
+  const servicePackageRate = selectedServiceOption?.chargeable && selectedServiceOption?.value
+    ? parseFloat(selectedServiceOption.value.replace('%', ''))
     : 0;
-  const servicePackageCost = totalAmount * (servicePackageRate / 100);
-  
+
   // Get selected discounts
   const selectedDiscounts = userDiscountSelectionsData
     .filter(selection => selection.isSelected)
@@ -565,14 +570,49 @@ export function Cart() {
       return option;
     })
     .filter(Boolean);
-  
-  const rawReciprocalPercent = selectedDiscounts.reduce((sum, discount) => sum + (discount?.discountPercent || 0), 0);
 
-  // Apply the three caps in one place (tiered reciprocal, 15% partner, 40%
-  // combined). `totalDiscountPercent` stays as an alias for the *post-cap*
-  // reciprocal so downstream UI that displays "Reciprocal Savings (X%)"
-  // shows the number actually applied — not the raw-selected number.
-  const combined = getCombinedDiscount(rawReciprocalPercent, partnerDiscountPercent, totalAmount);
+  const rawReciprocalPercent = selectedDiscounts.reduce((sum, discount) => sum + (discount?.discountPercent || 0), 0);
+  const userDiscountSelections = selectedDiscounts;
+
+  // ── Order money ─────────────────────────────────────────────────────
+  // Every figure below comes from shared/pricing/computeTotals — the same
+  // function the Worker runs when it stores the order — so the cart shows
+  // exactly what the order form and the API will show. All values are AED;
+  // `formatPrice` converts for display only.
+  //
+  // Line mapping (must match worker/routes/orders.ts):
+  //   linear_meter → per-meter, quantity = metres, unitPrice = AED/m
+  //   anything else → per-unit
+  //   delivery / install carried only by lines flagged requiresDelivery /
+  //   requiresInstallation (the DB columns, default false).
+  const pricingLines: PricingLine[] = cartItems.map((item: any) => ({
+    id: String(item.id),
+    unitPriceAed: Number(item.unitPrice) || 0,
+    quantity: Number(item.quantity) || 0,
+    pricingType: item.pricingType === 'linear_meter' ? 'per-meter' : 'per-unit',
+    includesDelivery: !!item.requiresDelivery,
+    includesInstall: !!item.requiresInstallation,
+    isProduct: true,
+  }));
+  const goodsAed = round2(pricingLines.reduce((sum, line) => sum + lineTotalAed(line), 0));
+  // Service package is a flat % of goods, added after discount (never
+  // discounted) — mirrors the server.
+  const servicePackageCost = round2(goodsAed * (servicePackageRate / 100));
+  // LinkedIn social reciprocity is an AED amount (≤ 1 % of goods); the
+  // pricing module takes it as a % of goods so it can share the ceiling.
+  const socialDiscountPercent = goodsAed > 0 ? (linkedInDiscountAmount / goodsAed) * 100 : 0;
+  const totals = computeTotals({
+    lines: pricingLines,
+    complexity: normaliseComplexity(installationComplexity),
+    reciprocalDiscountPercent: rawReciprocalPercent,
+    partnerDiscountPercent,
+    socialDiscountPercent,
+    servicePackageAed: servicePackageCost,
+  });
+
+  // Split of the applied % for the two labelled savings lines. Same caps
+  // computeTotals applies (tiered reciprocal, 15 % partner, 40 % combined).
+  const combined = getCombinedDiscount(rawReciprocalPercent, partnerDiscountPercent, goodsAed);
   const totalDiscountPercent = combined.reciprocal;
   // Effective partner % after the 15% per-order cap + 40% combined ceiling.
   // The `partnerDiscountPercent` state var still holds the *raw* % returned
@@ -580,32 +620,12 @@ export function Cart() {
   // rate elsewhere — but the cart line-item shows the number we're actually
   // giving the customer.
   const effectivePartnerDiscountPercent = combined.partner;
-  const combinedDiscountPercent = combined.combined;
-  const effectiveDiscountPercent = combined.combined;
-  // Calculate discount amount including LinkedIn discount
-  const percentageDiscount = totalAmount * (effectiveDiscountPercent / 100);
-  const discountAmount = percentageDiscount + linkedInDiscountAmount;
-  const userDiscountSelections = selectedDiscounts;
-  
-  // Calculate all charges and totals
-  const deliveryCharge = totalAmount * 0.096271916; // 9.6271916% of subtotal
-  
-  // Calculate installation charge based on complexity
-  const getInstallationRate = () => {
-    switch (installationComplexity) {
-      case 'simple':
-        return 0.1148264; // 11.48264% for simple
-      case 'standard':
-        return 0.1938872; // 19.38872% for standard
-      case 'complex':
-        return 0.26289773; // 26.289773% for complex
-      default:
-        return 0.1938872; // Default to standard
-    }
-  };
-  const installationCharge = totalAmount * getInstallationRate();
-  const subtotalAfterDiscount = totalAmount - discountAmount;
-  const grandTotalExVat = subtotalAfterDiscount + deliveryCharge + installationCharge + servicePackageCost;
+  const reciprocalDiscountAed = round2(goodsAed * (totalDiscountPercent / 100));
+  const partnerDiscountAed = round2(goodsAed * (effectivePartnerDiscountPercent / 100));
+  const deliveryCharge = totals.deliveryAed;
+  const installationCharge = totals.installAed;
+  const subtotalAfterDiscount = round2(goodsAed - totals.discountAed);
+  const grandTotalExVat = totals.subtotalAed;
 
   const getProductImage = (productName: string): string | null => {
     // First try exact match
@@ -1177,7 +1197,7 @@ export function Cart() {
                     <Separator className="my-2" />
                     <div className="flex items-center justify-between font-medium">
                       <span>Total Discount Applied:</span>
-                      <span className="text-green-600">{Math.min(totalDiscountPercent, 23)}%</span>
+                      <span className="text-green-600">{totalDiscountPercent}%</span>
                     </div>
                   </div>
                 ) : (
@@ -1353,20 +1373,20 @@ export function Cart() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>{formatPrice(totalAmount)}</span>
+                    <span>{formatPrice(totals.goodsAed)}</span>
                   </div>
                   
                   {totalDiscountPercent > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Reciprocal Savings ({totalDiscountPercent}%):</span>
-                      <span>-{formatPrice(totalAmount * (totalDiscountPercent / 100))}</span>
+                      <span>-{formatPrice(reciprocalDiscountAed)}</span>
                     </div>
                   )}
                   
                   {effectivePartnerDiscountPercent > 0 && (
                     <div className="flex justify-between text-purple-600">
                       <span>Partner Rate ({effectivePartnerDiscountPercent}%):</span>
-                      <span>-{formatPrice(totalAmount * (effectivePartnerDiscountPercent / 100))}</span>
+                      <span>-{formatPrice(partnerDiscountAed)}</span>
                     </div>
                   )}
                   
@@ -1377,7 +1397,7 @@ export function Cart() {
                     </div>
                   )}
                   
-                  {(totalDiscountPercent > 0 || partnerDiscountPercent > 0 || linkedInDiscountAmount > 0) && (
+                  {totals.discountAed > 0 && (
                     <div className="flex justify-between font-medium">
                       <span>Subtotal after savings:</span>
                       <span>{formatPrice(subtotalAfterDiscount)}</span>

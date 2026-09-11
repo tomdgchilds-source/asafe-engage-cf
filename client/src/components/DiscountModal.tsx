@@ -17,6 +17,7 @@ import { Percent, Tag, AlertCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { DiscountTermsModal } from "@/components/DiscountTermsModal";
+import { getCombinedDiscount, getDiscountCap } from "@shared/discountLimits";
 
 interface DiscountOption {
   id: string;
@@ -71,11 +72,9 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
     enabled: isOpen && !!user,
   });
 
-  // Cart total in AED — used to request a tier-appropriate cap from the server.
-  // NOTE: cartItems.totalPrice is already in the user's chosen display currency,
-  // so when non-AED we leave the conversion to the server in a future iteration.
-  // For now we treat the display number as the AED proxy (the existing code does
-  // the same thing for the hard-coded 23% cap).
+  // Cart total in AED. Every stored price in the app is AED (CurrencyContext
+  // converts for display only), so this is the subtotal the size-tiered
+  // caps in shared/discountLimits are defined against.
   const cartTotalAed = (cartItems || []).reduce(
     (sum: number, item: any) => sum + (item.totalPrice || 0),
     0
@@ -95,7 +94,9 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
     enabled: isOpen,
     staleTime: 30_000,
   });
-  const discountCap = limitInfo?.cap ?? 25; // safe default while loading
+  // Same tier table the server uses (shared/discountLimits), so the cap is
+  // right even before /api/discount-limit answers.
+  const discountCap = limitInfo?.cap ?? getDiscountCap(cartTotalAed);
 
   // Update selected discounts when user selections load
   useEffect(() => {
@@ -194,6 +195,12 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
 
   const totalDiscount = getTotalDiscount();
   const cartTotal = getCartTotal();
+  // Enforce the cap with the same function the cart, order form and Worker
+  // apply. Selections saved against a bigger cart can exceed today's tier
+  // once items are removed — in that case confirm is disabled until the
+  // rep deselects enough to fit.
+  const cappedReciprocal = getCombinedDiscount(totalDiscount, 0, cartTotalAed).reciprocal;
+  const overCap = totalDiscount > cappedReciprocal;
 
   if (optionsLoading || selectionsLoading) {
     return (
@@ -347,6 +354,19 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
 
           <Separator />
 
+          {overCap && (
+            <div
+              className="flex items-center gap-2 text-sm text-red-600"
+              data-testid="text-discount-over-cap"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <span>
+                Selected savings total {totalDiscount}% but this order size qualifies for
+                at most {cappedReciprocal}%. Deselect an option to continue.
+              </span>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <Button
@@ -359,7 +379,7 @@ export function DiscountModal({ isOpen, onClose, user, cartItems }: DiscountModa
             </Button>
             <Button
               onClick={() => saveSelectionsMutation.mutate(selectedDiscounts)}
-              disabled={saveSelectionsMutation.isPending}
+              disabled={saveSelectionsMutation.isPending || overCap}
               className="flex-1 bg-yellow-400 text-black hover:bg-yellow-500"
               data-testid="button-save-discounts"
             >
