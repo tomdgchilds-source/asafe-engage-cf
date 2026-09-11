@@ -12,7 +12,12 @@ import { AddToCartModal } from "@/components/AddToCartModal";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Pas13VerdictPanel } from "@/components/Pas13VerdictPanel";
 import { Pas13ChatPanel } from "@/components/Pas13ChatPanel";
-import { pas13Verdict } from "@shared/pas13Rules";
+import {
+  PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT,
+  pas13Verdict,
+  requiredAbsorbedJoules,
+  sineFromPas13Table,
+} from "@shared/pas13Rules";
 import { applicationAreaData } from "@shared/applicationAreas";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +40,88 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+// ─── PAS 13 energy helpers (shared-engine backed) ───────────────────────────
+//
+// These mirror worker/routes/calculations.ts (`computeCalculatorEnergy`,
+// `alignedMinRatedJoules`, `productAlignment`) line for line. Both sides call
+// the SAME shared rule engine (shared/pas13Rules.ts) — table sinΘ from
+// PAS 13:2017 §6.1, never Math.sin — so the calculator, the site survey and
+// the PAS 13 checker agree to the joule. The server recomputes on save and
+// the stored figure is authoritative; this copy is for instant display.
+type CalculatorSpeedUnit = "mph" | "kmh" | "ms";
+
+/** Calculator speed → km/h (the unit the shared engine takes). */
+function speedToKmh(speed: number, unit: CalculatorSpeedUnit): number {
+  const s = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  if (unit === "mph") return s * 1.609344;
+  if (unit === "ms") return s * 3.6;
+  return s;
+}
+
+/** Missing / ≤ 0 → 90° (worst case, conservative, same as pas13Verdict); > 90 → 90. */
+function normaliseImpactAngle(angleDeg: unknown): number {
+  const n = typeof angleDeg === "number" ? angleDeg : parseFloat(String(angleDeg ?? ""));
+  if (!Number.isFinite(n) || n <= 0) return 90;
+  return Math.min(90, n);
+}
+
+/**
+ * Tested-energy requirement: the minimum product rated (tested) energy for a
+ * PAS 13 "aligned" verdict. Margin = (rated − required) / rated ≥ 30 % ⇒
+ * rated ≥ required / 0.7.
+ */
+function alignedMinRatedJoules(requiredJ: number): number {
+  const req = Number.isFinite(requiredJ) ? Math.max(0, requiredJ) : 0;
+  return req / (1 - PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT / 100);
+}
+
+/** Per-product alignment using the rule engine's margin definition. */
+function productAlignment(
+  ratedJ: number | null | undefined,
+  requiredJ: number,
+): { safetyMarginPct: number; notAligned: boolean } {
+  const rated = typeof ratedJ === "number" && Number.isFinite(ratedJ) ? ratedJ : 0;
+  if (rated <= 0) return { safetyMarginPct: -100, notAligned: true };
+  const safetyMarginPct = ((rated - Math.max(0, requiredJ)) / rated) * 100;
+  return {
+    safetyMarginPct,
+    notAligned: safetyMarginPct < PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT,
+  };
+}
+
+/** Full energy picture for the calculator from raw (numeric) form inputs. */
+function computeCalculatorEnergy(input: {
+  vehicleMassKg: number;
+  loadMassKg?: number;
+  speed: number;
+  speedUnit: CalculatorSpeedUnit;
+  impactAngleDeg: number;
+}) {
+  const vehicleMassKg = Number.isFinite(input.vehicleMassKg) ? Math.max(0, input.vehicleMassKg) : 0;
+  const loadMassKg =
+    typeof input.loadMassKg === "number" && Number.isFinite(input.loadMassKg)
+      ? Math.max(0, input.loadMassKg)
+      : 0;
+  const speedKmh = speedToKmh(input.speed, input.speedUnit);
+  const impactAngleDeg = normaliseImpactAngle(input.impactAngleDeg);
+  const kineticEnergyJ = requiredAbsorbedJoules({
+    vehicleMassKg,
+    loadMassKg,
+    speedKmh,
+    approachAngleDeg: impactAngleDeg,
+  });
+  return {
+    totalMassKg: vehicleMassKg + loadMassKg,
+    speedKmh,
+    speedMs: speedKmh / 3.6,
+    impactAngleDeg,
+    sinTheta: sineFromPas13Table(impactAngleDeg),
+    kineticEnergyJ,
+    alignedMinRatedJ: alignedMinRatedJoules(kineticEnergyJ),
+    alignedMinSafetyMarginPct: PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT,
+  };
+}
 
 // Component to handle authenticated image loading
 function AuthenticatedImage({ src, alt, className, category }: { src: string; alt: string; className: string; category?: string }) {
@@ -217,14 +304,23 @@ function AuthenticatedImage({ src, alt, className, category }: { src: string; al
 interface CalculationResult {
   totalMass: number;
   speedMs: number;
+  /** Required absorbed energy (J) — PAS 13 §6.1, table sinΘ, vehicle + load. */
   kineticEnergy: number;
   riskLevel: string;
   riskDescription: string;
-  // PAS 13:2017 Compliance Fields
+  // PAS 13:2017 alignment fields
+  /** Tested-energy requirement is within the testable envelope. */
   pas13Compliant: boolean;
+  /** Tested-energy requirement (J): min. rated energy for the 30 % aligned margin. */
   pas13AdjustedEnergy?: number;
+  /** Geometric max practical angle from aisle width (Figure 17) — advisory only. */
   pas13MaxAngle?: number;
+  /** The aligned margin threshold applied (PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT). */
   pas13SafetyMargin?: number;
+  /** Angle the energy was computed at (after normalisation). */
+  impactAngleUsed?: number;
+  /** sinΘ from the PAS 13 §6.1 table at impactAngleUsed. */
+  sinTheta?: number;
 }
 
 interface CalculationInputs {
@@ -264,7 +360,6 @@ export function VehicleImpactCalculator() {
             
             // Save migrated state back to sessionStorage
             sessionStorage.setItem('impactCalculatorState', JSON.stringify(parsedState));
-            console.log('Migrated old calculator state to new format');
           }
           
           // Ensure selectedVehicleTypes exists and is an array
@@ -442,13 +537,6 @@ export function VehicleImpactCalculator() {
       const response = await fetch(`/api/products/recommendations/${result.kineticEnergy}`);
       if (!response.ok) throw new Error('Failed to fetch recommendations');
       const data = await response.json() as any[];
-      console.log('Recommendations API Response:', {
-        dataType: typeof data,
-        isArray: Array.isArray(data),
-        length: data?.length,
-        firstItem: data?.[0],
-        raw: data
-      });
       return data;
     },
     enabled: !!result?.kineticEnergy,
@@ -528,7 +616,6 @@ export function VehicleImpactCalculator() {
     try {
       const key = `uploads/${crypto.randomUUID()}`;
       const accessPath = `/api/objects/${key}`;
-      console.log("Upload parameters generated:", { accessPath });
       return {
         method: "PUT" as const,
         url: accessPath,
@@ -607,7 +694,6 @@ export function VehicleImpactCalculator() {
   };
 
   const calculateImpact = () => {
-    console.log('Starting impact calculation...');
     const { applicationArea, customApplicationArea, vehicleMass, loadMass, speed, speedUnit, impactAngle, aisleWidth, usePAS13 } = inputs;
 
     // Validate application area is provided
@@ -635,57 +721,32 @@ export function VehicleImpactCalculator() {
       return; // Don't calculate if any input is invalid
     }
 
-    // Convert speed to m/s
-    let speedMs = speedNum;
-    if (speedUnit === "mph") {
-      speedMs = speedNum * 0.447;
-    } else if (speedUnit === "kmh") {
-      speedMs = speedNum / 3.6;
-    }
+    // Shared PAS 13 engine: KE = ½ · (vehicle + load) · (v · sinΘ)² with the
+    // §6.1 table sinΘ. Identical arithmetic to the survey's computeAreaEnergyJ
+    // and the server's computeCalculatorEnergy (worker/routes/calculations.ts).
+    const energy = computeCalculatorEnergy({
+      vehicleMassKg: vehicleMassNum,
+      loadMassKg: loadMassNum,
+      speed: speedNum,
+      speedUnit,
+      impactAngleDeg: impactAngleNum,
+    });
+    const { totalMassKg: totalMass, speedMs, kineticEnergyJ: kineticEnergy } = energy;
 
-    // Calculate total mass
-    const totalMass = vehicleMassNum + loadMassNum;
+    // Tested-energy requirement: the rated (tested) joules a product needs to
+    // sit at or above the 30 % aligned margin. Products below this line are
+    // shown as "Not aligned" (greyed, not recommended) rather than hidden.
+    const pas13AdjustedEnergy = energy.alignedMinRatedJ;
+    const pas13SafetyMargin = energy.alignedMinSafetyMarginPct;
+    // Geometric max practical angle from the aisle width (Figure 17) is kept
+    // as an advisory note only — the energy is always computed at the
+    // entered angle (the conservative reading).
+    const pas13MaxAngle = usePAS13 ? calculatePAS13MaxAngle(aisleWidthNum) : undefined;
+    // Testable-envelope flag retained from the previous UI.
+    const pas13Compliant = pas13AdjustedEnergy <= 50000;
 
-    // PAS 13:2017 Compliance Calculations
-    let actualAngle = impactAngleNum;
-    let pas13MaxAngle: number | undefined;
-    let pas13AdjustedEnergy: number | undefined;
-    let pas13SafetyMargin: number | undefined;
-    let pas13Compliant = false;
-
-    if (usePAS13) {
-      // Calculate maximum angle per PAS 13:2017 Figure 17
-      pas13MaxAngle = calculatePAS13MaxAngle(aisleWidthNum);
-      
-      // Use the lesser of user input angle or PAS 13 maximum
-      actualAngle = Math.min(impactAngleNum, pas13MaxAngle);
-      
-      // PAS 13 specifies 45-degree impact for testing (Section 7.2.4)
-      const pas13TestAngle = Math.min(actualAngle, 45);
-      
-      // Calculate energy at PAS 13 test angle
-      const pas13AngleRad = (pas13TestAngle * Math.PI) / 180;
-      const pas13VelocityComponent = speedMs * Math.sin(pas13AngleRad);
-      pas13AdjustedEnergy = 0.5 * totalMass * Math.pow(pas13VelocityComponent, 2);
-      
-      // Apply PAS 13 safety margin (typically 20% as per industry practice)
-      pas13SafetyMargin = 20; // 20% safety margin
-      pas13AdjustedEnergy = pas13AdjustedEnergy * (1 + pas13SafetyMargin / 100);
-      
-      // Check compliance (energy must be within testable range per PAS 13)
-      pas13Compliant = pas13AdjustedEnergy <= 50000; // Maximum testable per PAS 13
-    }
-
-    // Calculate standard kinetic energy
-    const angleRad = (actualAngle * Math.PI) / 180;
-    const velocityComponent = speedMs * Math.sin(angleRad);
-    const kineticEnergy = 0.5 * totalMass * Math.pow(velocityComponent, 2);
-
-    // Use PAS 13 adjusted energy for risk assessment if enabled
-    const assessmentEnergy = usePAS13 && pas13AdjustedEnergy ? pas13AdjustedEnergy : kineticEnergy;
-
-    // Determine risk level
-    const { riskLevel, riskDescription } = getRiskAssessment(assessmentEnergy);
+    // Determine risk level from the required energy
+    const { riskLevel, riskDescription } = getRiskAssessment(kineticEnergy);
 
     const calculationResult: CalculationResult = {
       totalMass,
@@ -697,9 +758,10 @@ export function VehicleImpactCalculator() {
       pas13AdjustedEnergy,
       pas13MaxAngle,
       pas13SafetyMargin,
+      impactAngleUsed: energy.impactAngleDeg,
+      sinTheta: energy.sinTheta,
     };
 
-    console.log('Setting calculation result:', calculationResult);
     setResult(calculationResult);
     haptic.calculate();
 
@@ -713,7 +775,12 @@ export function VehicleImpactCalculator() {
       speed: speedNum.toString(),
       speedUnit,
       impactAngle: impactAngleNum.toString(),
-      kineticEnergy: kineticEnergy.toString(),
+      kineticEnergy: kineticEnergy.toFixed(2),
+      aisleWidth: Number.isFinite(aisleWidthNum) ? aisleWidthNum.toString() : undefined,
+      maxImpactAngle: pas13MaxAngle !== undefined ? pas13MaxAngle.toFixed(2) : undefined,
+      pas13AdjustedEnergy: pas13AdjustedEnergy.toFixed(2),
+      pas13SafetyMargin: pas13SafetyMargin.toFixed(2),
+      pas13Compliant,
     }, {
       onSuccess: async (response: any) => {
         const data = await response.json() as any;
@@ -1253,50 +1320,86 @@ export function VehicleImpactCalculator() {
                     <p>{typeof inputs.impactAngle === 'string' ? parseFloat(inputs.impactAngle) : inputs.impactAngle}°</p>
                   </div>
                   <div>
-                    <p className="font-semibold">Sin θ:</p>
-                    <p>{Math.sin(((typeof inputs.impactAngle === 'string' ? parseFloat(inputs.impactAngle) : inputs.impactAngle) * Math.PI) / 180).toFixed(3)}</p>
+                    <p className="font-semibold">Sin θ (PAS 13 table):</p>
+                    <p data-testid="result-sin-theta">
+                      {sineFromPas13Table(
+                        result.impactAngleUsed ?? normaliseImpactAngle(inputs.impactAngle),
+                      ).toFixed(3)}
+                    </p>
                   </div>
                 </div>
 
-                {/* PAS 13:2017 Alignment Results */}
-                {inputs.usePAS13 && result.pas13AdjustedEnergy !== undefined && (
-                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <p className="font-semibold text-blue-800 dark:text-blue-200">PAS 13:2017 alignment</p>
-                      {result.pas13Compliant && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+                {/* PAS 13:2017 alignment — tested-energy requirement and the
+                    30 % aligned margin line. Derived from result.kineticEnergy
+                    on render so a calculation restored from an older session
+                    still shows the current engine's figures. */}
+                {(() => {
+                  const testedEnergyRequirement = alignedMinRatedJoules(result.kineticEnergy);
+                  const withinTestable = testedEnergyRequirement <= 50000;
+                  const angleUsed = result.impactAngleUsed ?? normaliseImpactAngle(inputs.impactAngle);
+                  const exceedsGeometricMax =
+                    inputs.usePAS13 &&
+                    typeof result.pas13MaxAngle === "number" &&
+                    angleUsed > result.pas13MaxAngle + 0.05;
+                  return (
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" data-testid="pas13-alignment-block">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="font-semibold text-blue-800 dark:text-blue-200">PAS 13:2017 alignment</p>
+                        {withinTestable && (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="col-span-2">
+                          <p className="text-blue-700 dark:text-blue-300 font-medium">Tested energy requirement:</p>
+                          <p className="text-blue-800 dark:text-blue-200 font-bold text-lg" data-testid="result-tested-energy-requirement">
+                            {Math.round(testedEnergyRequirement).toLocaleString()} J
+                          </p>
+                          <p className="text-xs text-blue-700/80 dark:text-blue-300/80">
+                            Minimum product rated (tested) energy for a PAS 13 aligned verdict.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-blue-700 dark:text-blue-300 font-medium">Aligned margin line:</p>
+                          <p className="text-blue-800 dark:text-blue-200" data-testid="result-aligned-margin">
+                            ≥ {PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}% of rated energy
+                          </p>
+                        </div>
+                        {inputs.usePAS13 && typeof result.pas13MaxAngle === "number" && (
+                          <div>
+                            <p className="text-blue-700 dark:text-blue-300 font-medium">Max practical angle (aisle):</p>
+                            <p className="text-blue-800 dark:text-blue-200">{result.pas13MaxAngle.toFixed(1)}°</p>
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs text-blue-700/80 dark:text-blue-300/80">
+                        Required {Math.round(result.kineticEnergy).toLocaleString()} J ÷ (1 − {PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}%) = {Math.round(testedEnergyRequirement).toLocaleString()} J.
+                        Products rated below this line are shown as <span className="font-semibold">Not aligned</span> and are not recommended.
+                      </p>
+                      {exceedsGeometricMax && (
+                        <div className="mt-2 flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <p>
+                            Entered angle {angleUsed.toFixed(0)}° exceeds the geometric maximum for a {inputs.aisleWidth} m aisle
+                            ({result.pas13MaxAngle?.toFixed(1)}°). Energy is computed at the entered angle (conservative).
+                          </p>
+                        </div>
+                      )}
+                      {withinTestable ? (
+                        <div className="mt-3 flex items-center gap-2 text-green-700 dark:text-green-400">
+                          <CheckCircle className="h-4 w-4" />
+                          <p className="text-sm font-medium">Tested energy requirement is within the PAS 13 testable range</p>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                          <AlertTriangle className="h-4 w-4" />
+                          <p className="text-sm">Tested energy requirement exceeds the PAS 13 testable range</p>
+                        </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-blue-700 dark:text-blue-300 font-medium">Max Angle (PAS 13):</p>
-                        <p className="text-blue-800 dark:text-blue-200">{result.pas13MaxAngle?.toFixed(1)}°</p>
-                      </div>
-                      <div>
-                        <p className="text-blue-700 dark:text-blue-300 font-medium">Safety Margin:</p>
-                        <p className="text-blue-800 dark:text-blue-200">{result.pas13SafetyMargin}%</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-blue-700 dark:text-blue-300 font-medium">PAS 13 Adjusted Energy:</p>
-                        <p className="text-blue-800 dark:text-blue-200 font-bold text-lg">
-                          {Math.round(result.pas13AdjustedEnergy).toLocaleString()} J
-                        </p>
-                      </div>
-                    </div>
-                    {result.pas13Compliant ? (
-                      <div className="mt-3 flex items-center gap-2 text-green-700 dark:text-green-400">
-                        <CheckCircle className="h-4 w-4" />
-                        <p className="text-sm font-medium">Calculation aligns with PAS 13:2017 testable range</p>
-                      </div>
-                    ) : (
-                      <div className="mt-3 flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-                        <AlertTriangle className="h-4 w-4" />
-                        <p className="text-sm">Energy exceeds PAS 13 testable range</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
 
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
@@ -1378,12 +1481,7 @@ export function VehicleImpactCalculator() {
           typeof inputs.speed === "string"
             ? parseFloat(inputs.speed) || 0
             : inputs.speed;
-        const speedKmh =
-          inputs.speedUnit === "mph"
-            ? speedNum * 1.60934
-            : inputs.speedUnit === "ms"
-              ? speedNum * 3.6
-              : speedNum;
+        const speedKmh = speedToKmh(speedNum, inputs.speedUnit);
 
         const verdict = pas13Verdict({
           vehicleMassKg: vmKg,
@@ -1417,8 +1515,18 @@ export function VehicleImpactCalculator() {
               <div className="text-center py-4 text-red-500">
                 <p>Error loading recommendations. Please try again.</p>
               </div>
-            ) : recommendations && Array.isArray(recommendations) && recommendations.length > 0 ? (
+            ) : recommendations && Array.isArray(recommendations) && recommendations.length > 0 ? ((() => {
+              // Products come back from /api/products/recommendations with a
+              // rating ≥ the required energy. Split them on the 30 % aligned
+              // margin line: only aligned products are recommended / bulk-added;
+              // the rest stay visible, greyed, marked "Not aligned".
+              const alignedProducts = recommendations.filter(
+                (p: any) => !productAlignment(Number(p?.impactRating) || 0, result.kineticEnergy).notAligned,
+              );
+              const testedEnergyRequirement = alignedMinRatedJoules(result.kineticEnergy);
+              return (
               <div className="space-y-4">
+                {alignedProducts.length > 0 && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -1426,14 +1534,14 @@ export function VehicleImpactCalculator() {
                         Build Project from This Calculation
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        Add all {recommendations.length} recommended products to your project cart with impact calculation context
+                        Add all {alignedProducts.length} PAS 13 aligned products to your project cart with impact calculation context
                       </p>
                     </div>
                     <Button
                       onClick={async () => {
                         haptic.addToCart();
                         try {
-                          const items = recommendations.map((product: any) => ({
+                          const items = alignedProducts.map((product: any) => ({
                             productName: product.name,
                             quantity: 1,
                             pricingType: product.pricingType || 'per-unit',
@@ -1494,32 +1602,60 @@ export function VehicleImpactCalculator() {
                     </Button>
                   </div>
                 </div>
+                )}
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recommended products for {Math.floor(result.kineticEnergy).toLocaleString()}J impact:
+                  Products for a {Math.round(result.kineticEnergy).toLocaleString()} J impact
+                  (tested energy requirement {Math.round(testedEnergyRequirement).toLocaleString()} J at the {PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}% aligned margin):
                 </p>
+                {alignedProducts.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="no-aligned-products">
+                    No product reaches the {PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}% aligned margin for this impact. The products below are shown for reference only.
+                  </p>
+                )}
                 <div className="grid grid-cols-1 gap-4">
                   {recommendations.map((product: any) => {
-                    // Calculate individual safety margin for this product
-                    const productImpactRating = parseInt(product.impactRating) || 0;
-                    const requiredEnergy = Math.floor(result.kineticEnergy);
-                    const safetyMargin = productImpactRating > 0 
-                      ? Math.round(((productImpactRating - requiredEnergy) / requiredEnergy) * 100)
-                      : 0;
-                    
+                    // Per-product PAS 13 alignment — same margin definition as
+                    // pas13Verdict: (rated − required) / rated.
+                    const productImpactRating = Number(product.impactRating) || 0;
+                    const alignment = productAlignment(productImpactRating, result.kineticEnergy);
+                    const safetyMargin = Math.round(alignment.safetyMarginPct);
+                    const notAligned = alignment.notAligned;
+
                     return (
-                      <div key={product.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-white" data-testid={`recommendation-${product.id}`}>
-                        {/* Safety margin badge */}
-                        {safetyMargin > 0 && (
-                          <div className="mb-2">
+                      <div
+                        key={product.id}
+                        className={[
+                          "border rounded-lg p-4 transition-shadow",
+                          notAligned
+                            ? "bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 opacity-75"
+                            : "bg-white hover:shadow-md",
+                        ].join(" ")}
+                        data-testid={`recommendation-${product.id}`}
+                        data-pas13-aligned={notAligned ? "false" : "true"}
+                      >
+                        {/* Alignment badge */}
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {notAligned ? (
+                            <>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                Not aligned
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {productImpactRating > 0
+                                  ? `${safetyMargin}% margin — below the ${PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}% aligned line, not recommended`
+                                  : "No rated energy on file"}
+                              </span>
+                            </>
+                          ) : (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {safetyMargin}% safety margin
+                              {safetyMargin}% safety margin — PAS 13 aligned
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                         <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h4 className="font-semibold text-black">{product.name}</h4>
+                            <h4 className={notAligned ? "font-semibold text-gray-600 dark:text-gray-300" : "font-semibold text-black"}>{product.name}</h4>
                             {product.variantCount > 1 && (
                               <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded font-semibold">
                                 <Package className="w-3 h-3 inline mr-1" />
@@ -1633,7 +1769,8 @@ export function VehicleImpactCalculator() {
                 })}
                 </div>
               </div>
-            ) : (
+              );
+            })()) : (
               <p className="text-center text-gray-500 dark:text-gray-400 py-4">
                 No specific product recommendations available for this energy level.
               </p>
@@ -1809,21 +1946,41 @@ export function VehicleImpactCalculator() {
                 const ratedJoules = joulesForFamily(family);
                 const margin = safetyMargin(ratedJoules, result.kineticEnergy);
                 const marginPct = Math.round(margin * 100);
-                const isRecommended = calcRecommendedTier === tier;
+                // PAS 13 alignment on the shared engine's margin definition.
+                // A tier under the 30 % line is never promoted as
+                // "Recommended" — it stays visible, greyed, "Not aligned".
+                const tierNotAligned = productAlignment(ratedJoules, result.kineticEnergy).notAligned;
+                const isRecommended = calcRecommendedTier === tier && !tierNotAligned;
                 return (
                   <div
                     key={tier}
                     data-testid={`calc-tier-card-${tier}`}
+                    data-pas13-aligned={tierNotAligned ? "false" : "true"}
                     className={[
-                      "relative rounded-lg border p-4 bg-white dark:bg-gray-900 flex flex-col",
+                      "relative rounded-lg border p-4 flex flex-col",
+                      tierNotAligned
+                        ? "bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 opacity-75"
+                        : "bg-white dark:bg-gray-900",
                       isRecommended
                         ? "ring-2 ring-[#FFC72C] border-[#FFC72C]"
-                        : "border-gray-200 dark:border-gray-700",
+                        : tierNotAligned
+                          ? ""
+                          : "border-gray-200 dark:border-gray-700",
                     ].join(" ")}
                   >
                     {isRecommended && (
                       <div className="text-[10px] font-bold uppercase tracking-wider text-[#B8860B] mb-1">
                         Recommended
+                      </div>
+                    )}
+                    {tierNotAligned && (
+                      <div className="mb-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                          Not aligned
+                        </span>
+                        <span className="ml-1.5 text-[10px] text-gray-500">
+                          below {PAS13_ALIGNED_MIN_SAFETY_MARGIN_PCT}% PAS 13 margin
+                        </span>
                       </div>
                     )}
                     <div className="flex items-baseline gap-1.5 mb-1">
