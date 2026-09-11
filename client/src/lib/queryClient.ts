@@ -1,9 +1,32 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+/** Error thrown for non-2xx responses; carries the HTTP status so retry
+ *  and 401-handling logic can branch on it without parsing the message. */
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(`${status}: ${message}`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function httpStatusOf(err: unknown): number | undefined {
+  if (err && typeof err === "object" && typeof (err as { status?: unknown }).status === "number") {
+    return (err as { status: number }).status;
+  }
+  // Legacy errors constructed elsewhere as `new Error("401: ...")`.
+  if (err instanceof Error) {
+    const m = /^(\d{3}):/.exec(err.message);
+    if (m) return Number(m[1]);
+  }
+  return undefined;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    throw new ApiError(res.status, text);
   }
 }
 
@@ -24,10 +47,8 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
+export const getQueryFn =
+  <T,>({ on401: unauthorizedBehavior }: { on401: UnauthorizedBehavior }): QueryFunction<T> =>
   async ({ queryKey }) => {
     // Join the queryKey parts properly
     const url = queryKey.join("/") as string;
@@ -50,7 +71,8 @@ export const getQueryFn: <T>(options: {
       });
 
       if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-        return null;
+        // Callers opting into returnNull type their data as `T | null`.
+        return null as unknown as T;
       }
 
       await throwIfResNotOk(res);
@@ -67,14 +89,14 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutes cache
+      staleTime: 60_000, // 1 minute: dedupes across route changes without going stale for a session
       gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
       retry: (failureCount, error) => {
-        // Don't retry on 4xx errors (including 401 unauthorized)
-        if (error instanceof Error) {
-          const message = error.message;
-          if (message.startsWith('4')) return false;
-        }
+        // Never retry a 401 (it will not become authorised by waiting) or
+        // any other 4xx; retry transient failures at most twice.
+        const status = httpStatusOf(error);
+        if (status === 401) return false;
+        if (status !== undefined && status >= 400 && status < 500) return false;
         return failureCount < 2;
       },
       retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -90,7 +112,7 @@ queryClient.getQueryCache().subscribe((event) => {
   if (event.type === 'updated' && event.query.state.status === 'error') {
     const error = event.query.state.error;
     const queryKey = event.query.queryKey[0];
-    if (error instanceof Error && error.message.startsWith('401') && queryKey !== '/api/auth/user') {
+    if (httpStatusOf(error) === 401 && queryKey !== '/api/auth/user') {
       // Don't redirect if already on landing page (prevents infinite loop)
       if (window.location.pathname !== '/') {
         window.location.href = "/";

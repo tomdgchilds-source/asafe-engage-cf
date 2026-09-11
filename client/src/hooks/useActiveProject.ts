@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Project, CustomerCompany, ProjectContact } from "@shared/schema";
+import { useAuth } from "./useAuth";
 
 // Shape returned by GET /api/active-project: the Project row joined with
 // its CustomerCompany (may be null if a customer is not yet attached) and
@@ -21,8 +22,12 @@ export type ActiveProjectWithRelations =
  * OrderForm banner so there's no duplicate fetch.
  */
 export function useActiveProject() {
+  // /api/active-project is auth-only; never probe it for anonymous
+  // visitors (it would 401 and trip the global redirect-to-landing).
+  const { isAuthenticated } = useAuth();
   const { data, isLoading } = useQuery<ActiveProjectWithRelations>({
     queryKey: ["/api/active-project"],
+    enabled: isAuthenticated,
     // 30s matches ProjectSwitcher — long enough to dedupe across pages,
     // short enough that a switch is reflected promptly on nav.
     staleTime: 30_000,

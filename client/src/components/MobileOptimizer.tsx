@@ -8,11 +8,12 @@ export function MobileOptimizer() {
       document.documentElement.classList.add('ios-device');
     }
 
-    // Prefetch critical resources
+    // Prefetch the public catalogue only. /api/auth/user and /api/cart
+    // were removed: they 401 for logged-out visitors and duplicate the
+    // react-query fetches (a <link rel=prefetch> response is never
+    // reused by a credentialed fetch()).
     const prefetchLinks = [
-      '/api/auth/user',
       '/api/products',
-      '/api/cart'
     ];
 
     prefetchLinks.forEach(link => {

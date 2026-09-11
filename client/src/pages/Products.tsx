@@ -67,7 +67,7 @@ export default function Products() {
 
 
   // If we have a product ID, fetch individual product, otherwise fetch all products
-  const { data: products, isLoading, error } = useQuery({
+  const { data: products, isLoading, error } = useQuery<Product[]>({
     queryKey: productId ? ["/api/products", productId] : ["/api/products", selectedCategory, searchTerm],
     queryFn: async () => {
       if (productId) {
@@ -82,7 +82,7 @@ export default function Products() {
         
         const response = await fetch(`/api/products?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to fetch products');
-        return response.json();
+        return (await response.json()) as Product[];
       }
     },
     enabled: !productId, // Only run this query when not viewing individual product

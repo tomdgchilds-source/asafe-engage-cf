@@ -15,6 +15,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Sheet,
   SheetContent,
@@ -83,12 +84,15 @@ export function Pas13ChatPanel({
   const scrollEnd = useRef<HTMLDivElement>(null);
 
   // Rep gate — /api/pas13/me returns { isRep: boolean } when authed,
-  // 401 when anonymous. Use returnNull so the soft probe doesn't trip
-  // the queryClient global 401-handler (which would window.location="/"
-  // and redirect anonymous visitors off public pages like /calculator).
+  // 401 when anonymous. Only probe once /api/auth/user says we have a
+  // session (no 401 noise on public pages like /calculator); returnNull
+  // is kept as belt-and-braces so a lapsed session never trips the
+  // queryClient global 401-handler (which would window.location="/").
+  const { isAuthenticated } = useAuth();
   const { data: gate } = useQuery<{ isRep: boolean } | null>({
     queryKey: ["/api/pas13/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: isAuthenticated,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });

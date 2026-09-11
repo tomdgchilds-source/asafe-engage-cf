@@ -1,9 +1,36 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
+
+const clientPublicDir = path.resolve(import.meta.dirname, "client", "public");
+const clientOutDir = path.resolve(import.meta.dirname, "dist/client");
+
+/**
+ * Stamp the service worker with a build-time version. Vite copies
+ * client/public/sw.js into dist/client verbatim before closeBundle runs,
+ * so we re-read the source, substitute __SW_VERSION__ and overwrite the
+ * copied file. A new VERSION on every build means the SW's activate step
+ * drops the previous release's caches.
+ */
+function swVersion(): Plugin {
+  return {
+    name: "asafe-sw-version",
+    apply: "build",
+    closeBundle() {
+      const src = path.join(clientPublicDir, "sw.js");
+      const dest = path.join(clientOutDir, "sw.js");
+      if (!fs.existsSync(src)) return;
+      const version = Date.now().toString(36);
+      const out = fs.readFileSync(src, "utf8").replace(/__SW_VERSION__/g, version);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, out);
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), swVersion()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -13,7 +40,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/client"),
+    outDir: clientOutDir,
     emptyOutDir: true,
     chunkSizeWarningLimit: 600,
     rollupOptions: {

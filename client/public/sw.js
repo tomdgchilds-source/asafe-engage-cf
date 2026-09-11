@@ -18,7 +18,10 @@
  * Bumps the cache name on every release so old shells don't survive.
  */
 
-const VERSION = "v3-2026-04-30";
+// __SW_VERSION__ is replaced at build time by the swVersion plugin in
+// vite.config.ts (Date.now().toString(36)), so every deploy gets a fresh
+// cache namespace and old shells are evicted on activate.
+const VERSION = "__SW_VERSION__";
 const STATIC_CACHE = `asafe-static-${VERSION}`;
 const RUNTIME_CACHE = `asafe-runtime-${VERSION}`;
 const API_CACHE = `asafe-api-${VERSION}`;

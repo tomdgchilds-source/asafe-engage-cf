@@ -22,7 +22,6 @@ import {
   ShoppingCart,
   Info,
   HelpCircle,
-  Lightbulb,
   BarChart3,
   Target,
   FileCheck,
@@ -39,7 +38,9 @@ import {
   Video,
   Users,
   MessageCircle,
-  TrendingUp
+  TrendingUp,
+  PenTool,
+  Truck
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { CurrencySelector } from "@/components/CurrencySelector";
@@ -66,19 +67,23 @@ export function Layout({ children }: LayoutProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  // Storage key is versioned: the Sept 2026 regrouping renamed every
+  // section, so an old stored list would match nothing and every group
+  // would start collapsed. Fresh installs open Work + Start.
+  const EXPANDED_KEY = "expandedCategories.v2";
   const [expandedCategories, setExpandedCategories] = useState<string[]>(() => {
     // Persist to localStorage so the sidebar remembers which sections are open.
     try {
-      const stored = localStorage.getItem("expandedCategories");
+      const stored = localStorage.getItem(EXPANDED_KEY);
       if (stored) return JSON.parse(stored);
     } catch {}
-    return [];
+    return ["Work", "Start"];
   });
 
   // Sync expanded state to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("expandedCategories", JSON.stringify(expandedCategories));
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify(expandedCategories));
     } catch {}
   }, [expandedCategories]);
   
@@ -128,72 +133,87 @@ export function Layout({ children }: LayoutProps) {
     ? commSuggestions.length
     : 0;
 
-  const navigationCategories = useMemo(() => [
-    {
-      name: "Quick Access",
-      icon: Home,
-      items: [
-        { name: "Dashboard", href: "/", icon: Home, external: false },
-        { name: "Profile", href: "/profile", icon: User, external: false },
-        { name: "Project Cart", href: "/cart", icon: ShoppingCart, external: false },
-      ]
-    },
-    {
-      name: "Projects & Tools",
-      icon: Briefcase,
-      items: [
-        { name: "Start New Project", href: "/start-new-project", icon: Target, external: false },
-        // Solution Finder hidden in the Wave-1 cleanup (May 2026) until
-        // its recommender logic is properly built out — feedback session
-        // showed it surfaced wrong products and reps were ignoring it.
-        // Route + page kept alive so we can re-enable later without a
-        // redeploy of the lazy-load tree.
-        // { name: "Solution Finder", href: "/solution-finder", icon: Lightbulb, external: false },
-        { name: "Site Survey", href: "/site-survey", icon: ClipboardCheck, external: false },
-        { name: "Impact Calculator", href: "/calculator", icon: Calculator, external: false },
-        { name: "PAS 13 Alignment", href: "/pas13-compliance", icon: Shield, external: false },
-        { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false, badgeCount: commSuggestionsCount },
-        { name: "Installation Timeline", href: "/installation-timeline", icon: TrendingUp, external: false },
-        { name: "Install Teams", href: "/install-teams", icon: Users, external: false },
-      ]
-    },
-    {
-      name: "Products & Resources",
-      icon: Package,
-      items: [
-        { name: "Products", href: "/products", icon: Package, external: false },
-        { name: "Case Studies", href: "/case-studies", icon: FileText, external: false },
-        { name: "Resources", href: "/resources", icon: Download, external: false },
-        { name: "PAS 13 Videos", href: "https://youtube.com/playlist?list=PL0sD7WA0DgAPFKBTUeHfMIIWYI0z6KEXn&si=RII3MzaXu-0or1f9", icon: FileCheck, external: true },
-        { name: "Discovery Videos", href: "https://youtube.com/playlist?list=PL0sD7WA0DgAMH7v-4ujH3m9CABJvNYRCS&si=AYb8PIxWxd3TcvIL", icon: Compass, external: true },
-      ]
-    },
-    {
-      name: "Virtual Experience",
-      icon: Video,
-      items: [
-        { name: "Virtual Application Space", href: "https://www.asafe.com/ar-ae/virtual-a-safe/product-application-space/?utm_term=Vitual&utm_campaign=UK%20Marketing&utm_content=367233215&utm_medium=social&utm_source=linkedin&hss_channel=lcp-2416321", icon: Building, external: true },
-        { name: "Virtual Factory Tour", href: "https://www.asafe.com/ar-ae/virtual-a-safe/", icon: Factory, external: true },
-      ]
-    },
-    {
-      name: "Support & Info",
-      icon: HelpCircle,
-      items: [
-        { name: "Help Center", href: "/help", icon: BookOpen, external: false },
-        { name: "FAQs", href: "/faqs", icon: HelpCircle, external: false },
-        { name: "About", href: "/about", icon: Info, external: false },
-        { name: "Contact", href: "/contact", icon: Phone, external: false },
-      ]
-    },
-    {
-      name: "Administration",
-      icon: Shield,
-      items: [
-        { name: "Admin", href: "/admin", icon: Shield, external: false },
-      ]
+  // Sidebar visibility of the Administration group keys off the same
+  // `role` the server returns from /api/auth/user. The hard gate is still
+  // <AdminRoute> (which checks /api/admin/session); this only decides
+  // whether the link is shown.
+  const isAdmin = (user as any)?.role === "admin";
+
+  // Grouping mirrors how a rep actually works: Work (where things live),
+  // Start (the three real entry points), Tools (things you use mid-job),
+  // Delivery, Library, Support. Solution Finder is parked — no entry here.
+  const navigationCategories = useMemo(() => {
+    const groups = [
+      {
+        name: "Work",
+        icon: Briefcase,
+        items: [
+          { name: "Dashboard", href: "/", icon: Home, external: false },
+          { name: "Projects", href: "/projects", icon: Briefcase, external: false },
+          { name: "Project Cart", href: "/cart", icon: ShoppingCart, external: false },
+        ]
+      },
+      {
+        name: "Start",
+        icon: Target,
+        items: [
+          { name: "Site Survey", href: "/site-survey", icon: ClipboardCheck, external: false },
+          { name: "Layout Drawing", href: "/layout-drawings", icon: PenTool, external: false },
+          { name: "Browse Products", href: "/products", icon: Package, external: false },
+        ]
+      },
+      {
+        name: "Tools",
+        icon: Settings,
+        items: [
+          { name: "Impact Calculator", href: "/calculator", icon: Calculator, external: false },
+          { name: "PAS 13 Alignment", href: "/pas13-compliance", icon: Shield, external: false },
+          { name: "Calculations History", href: "/calculations-history", icon: BarChart3, external: false },
+        ]
+      },
+      {
+        name: "Delivery",
+        icon: Truck,
+        items: [
+          { name: "Installation Timeline", href: "/installation-timeline", icon: TrendingUp, external: false },
+          { name: "Install Teams", href: "/install-teams", icon: Users, external: false },
+          { name: "Communication Plan", href: "/communication-plan", icon: MessageCircle, external: false, badgeCount: commSuggestionsCount },
+        ]
+      },
+      {
+        name: "Library",
+        icon: Video,
+        items: [
+          { name: "Case Studies", href: "/case-studies", icon: FileText, external: false },
+          { name: "Resources", href: "/resources", icon: Download, external: false },
+          { name: "PAS 13 Videos", href: "https://youtube.com/playlist?list=PL0sD7WA0DgAPFKBTUeHfMIIWYI0z6KEXn&si=RII3MzaXu-0or1f9", icon: FileCheck, external: true },
+          { name: "Discovery Videos", href: "https://youtube.com/playlist?list=PL0sD7WA0DgAMH7v-4ujH3m9CABJvNYRCS&si=AYb8PIxWxd3TcvIL", icon: Compass, external: true },
+          { name: "Virtual Application Space", href: "https://www.asafe.com/ar-ae/virtual-a-safe/product-application-space/?utm_term=Vitual&utm_campaign=UK%20Marketing&utm_content=367233215&utm_medium=social&utm_source=linkedin&hss_channel=lcp-2416321", icon: Building, external: true },
+          { name: "Virtual Factory Tour", href: "https://www.asafe.com/ar-ae/virtual-a-safe/", icon: Factory, external: true },
+        ]
+      },
+      {
+        name: "Support",
+        icon: HelpCircle,
+        items: [
+          { name: "Help Center", href: "/help", icon: BookOpen, external: false },
+          { name: "FAQs", href: "/faqs", icon: HelpCircle, external: false },
+          { name: "About", href: "/about", icon: Info, external: false },
+          { name: "Contact", href: "/contact", icon: Phone, external: false },
+        ]
+      },
+    ];
+    if (isAdmin) {
+      groups.push({
+        name: "Administration",
+        icon: Shield,
+        items: [
+          { name: "Admin", href: "/admin", icon: Shield, external: false },
+        ]
+      });
     }
-  ], [commSuggestionsCount]);
+    return groups;
+  }, [commSuggestionsCount, isAdmin]);
 
   const toggleCategory = (categoryName: string) => {
     haptic.toggle();
@@ -354,9 +374,20 @@ export function Layout({ children }: LayoutProps) {
                       </div>
                     </nav>
                     
-                    {/* Footer with Logout */}
-                    <div className="border-t border-border p-6">
-                      <Button 
+                    {/* Footer with Profile + Logout */}
+                    <div className="border-t border-border p-6 space-y-2">
+                      <Button
+                        asChild
+                        variant="ghost"
+                        className="w-full justify-start hover:bg-[#FFC72C]/10"
+                        data-testid="mobile-profile"
+                      >
+                        <Link href="/profile" onClick={() => setIsSheetOpen(false)}>
+                          <User className="mr-2 h-4 w-4" />
+                          Profile
+                        </Link>
+                      </Button>
+                      <Button
                         variant="outline" 
                         onClick={() => {
                           handleLogout();
@@ -434,9 +465,12 @@ export function Layout({ children }: LayoutProps) {
                   </div>
                 )}
 
-                <span className="text-sm text-foreground font-medium" data-testid="user-welcome">
+                {/* Profile left the sidebar in the Sept 2026 regrouping;
+                     the welcome name is now the way in. */}
+                <Link href="/profile" className="text-sm text-foreground font-medium hover:text-primary transition-colors flex items-center gap-1" data-testid="user-welcome">
+                  <User className="h-4 w-4" />
                   Welcome, {(user as any)?.name || (user as any)?.email?.split('@')[0] || 'User'}
-                </span>
+                </Link>
 
                 {/* Recents — last 10 visited pages, per-browser localStorage. */}
                 <RecentsDropdown variant="desktop" />

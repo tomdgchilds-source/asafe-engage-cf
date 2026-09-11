@@ -162,7 +162,10 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
-    enabled: !!product.id,
+    // Only fetch once the modal is actually open. This component is mounted
+    // once per catalogue card, so an unconditional fetch here was one request
+    // per product family on every catalogue load (53 calls on /products).
+    enabled: open && !!product.id,
   });
   useEffect(() => {
     if (compatibleBasePlates.length > 0 && !selectedBasePlateCode) {
