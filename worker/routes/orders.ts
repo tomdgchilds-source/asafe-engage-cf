@@ -18,7 +18,7 @@ import {
   filenameFor as pas13ReportFilename,
   type ReportLineItem as Pas13ReportLineItem,
   type VehicleContextForReport,
-} from "../lib/pas13AlignmentReportPdf";
+} from "../lib/pdf/reports/pas13Statement";
 import {
   cartItemsToPricingLines,
   computeTotals,
@@ -808,7 +808,7 @@ orders.post("/orders", authMiddleware, async (c) => {
             storage,
             order as any,
           );
-          const built = buildPas13AlignmentReport({
+          const built = await buildPas13AlignmentReport({
             ...reportInput,
             appOrigin,
           });
@@ -932,7 +932,7 @@ orders.get("/orders/:id/pas13-report.pdf", authMiddleware, async (c) => {
       c.env.APP_URL ||
       `${new URL(c.req.url).origin}`;
 
-    const out = buildPas13AlignmentReport({
+    const out = await buildPas13AlignmentReport({
       ...report,
       appOrigin,
     });
