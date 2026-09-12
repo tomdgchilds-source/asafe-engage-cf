@@ -6,6 +6,7 @@
 //
 //   GET /api/orders/:id/documents/order-form.pdf?status=draft|issued
 //   GET /api/orders/:id/documents/proposal.pdf?status=draft|issued&surveyId=
+//   GET /api/site-surveys/:id/documents/risk-assessment.pdf?status=draft|issued
 //
 // Owner-or-admin gated. `status=issued` allocates a reference
 // (ASU-<kind>-<yymm>-<seq>), stores the PDF at documents/<kind>/<ref>-<rev>.pdf
@@ -26,7 +27,11 @@ import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { renderProposal } from "../lib/pdf/reports/proposal";
 import { renderOrderForm } from "../lib/pdf/reports/orderForm";
+import { renderRiskAssessment } from "../lib/pdf/reports/riskAssessment";
 import type { RenderedDocument } from "../lib/pdf/reports/proposal";
+
+/** What serveDocument needs from any rendered document (proposal, order form, risk assessment …). */
+type ServableDocument = Pick<RenderedDocument, "bytes" | "filename" | "status" | "reference" | "revision" | "objectKey">;
 
 const documents = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -34,7 +39,7 @@ function statusParam(raw: string | undefined): "DRAFT" | "ISSUED" {
   return String(raw ?? "").trim().toLowerCase() === "issued" ? "ISSUED" : "DRAFT";
 }
 
-function serveDocument(doc: RenderedDocument): Response {
+function serveDocument(doc: ServableDocument): Response {
   return new Response(doc.bytes, {
     status: 200,
     headers: {
@@ -62,6 +67,20 @@ async function gateOrder(c: { env: Env; get: (k: "user") => Variables["user"]; j
     if (user?.role !== "admin") return { error: c.json({ message: "Not authorized" }, 403) };
   }
   return { order, userId };
+}
+
+/** Owner-or-admin gate for a site survey. Returns the survey or a Response to send. */
+async function gateSurvey(c: { env: Env; get: (k: "user") => Variables["user"]; json: (b: unknown, s: 403 | 404) => Response }, surveyId: string) {
+  const db = getDb(c.env.DATABASE_URL);
+  const storage = createStorage(db);
+  const userId = c.get("user").claims.sub;
+  const survey = await storage.getSiteSurvey(surveyId);
+  if (!survey) return { error: c.json({ message: "Site survey not found" }, 404) };
+  if (survey.userId !== userId) {
+    const user = await storage.getUser(userId);
+    if (user?.role !== "admin") return { error: c.json({ message: "Not authorized" }, 403) };
+  }
+  return { survey, userId };
 }
 
 // ─── Public, token-gated order form ────────────────────────────────────────
@@ -161,6 +180,30 @@ documents.get("/orders/:id/documents/proposal.pdf", authMiddleware, async (c) =>
   } catch (error) {
     console.error("Error rendering proposal:", error);
     return c.json({ message: "Failed to render proposal" }, 500);
+  }
+});
+
+// ─── Impact Protection Risk Assessment (survey-backed) ─────────────────────
+//
+// ISSUED renders reserve ASU-RA-<yymm>-<seq> (revision stepping on
+// re-issue), store the PDF at documents/RA/<ref>-<rev>.pdf and record a
+// document_issues row keyed by survey_id. The object key lives on that row
+// only; site_surveys carries no risk_assessment_object_key column.
+
+documents.get("/site-surveys/:id/documents/risk-assessment.pdf", authMiddleware, async (c) => {
+  try {
+    const surveyId = c.req.param("id");
+    const gate = await gateSurvey(c, surveyId);
+    if ("error" in gate) return gate.error;
+    const rendered = await renderRiskAssessment(c.env, surveyId, {
+      status: statusParam(c.req.query("status")),
+      issuedBy: gate.userId,
+    });
+    if (!rendered) return c.json({ message: "Site survey not found" }, 404);
+    return serveDocument(rendered);
+  } catch (error) {
+    console.error("Error rendering risk assessment:", error);
+    return c.json({ message: "Failed to render risk assessment" }, 500);
   }
 });
 
