@@ -20,7 +20,11 @@ function product(over: Partial<RegisterProductRecommendation> = {}): RegisterPro
     productName: "iFlex Traffic Barrier",
     impactRating: 12000,
     imageUrl: null,
-    price: "850",
+    // Headline (shortest-SKU) price — deliberately different from the rate so a
+    // test that budgets off `price` for a per-metre product fails loudly.
+    price: "1200",
+    pricePerMetreAed: 850,
+    pricingType: "per-meter",
     category: "traffic-guardrails",
     safetyMarginPct: 40,
     pas13Verdict: "aligned",
@@ -98,24 +102,47 @@ describe("sortByPriorityRank", () => {
 });
 
 describe("budgetLineFor", () => {
-  it("multiplies run length by the top product rate (2 dp)", () => {
-    const line = budgetLineFor(area({ id: "a", recommendedLengthM: 12.5, topProduct: product({ price: "850.333" }) }));
-    expect(line).toEqual({ ratePerM: 850.33, lengthM: 12.5, totalAed: 10629.13 });
+  it("multiplies run length by the per-metre rate (2 dp), never the headline price", () => {
+    const line = budgetLineFor(
+      area({ id: "a", recommendedLengthM: 12.5, topProduct: product({ price: "9999", pricePerMetreAed: 850.333 }) }),
+    );
+    expect(line).toEqual({ pricingType: "per-meter", ratePerM: 850.33, lengthM: 12.5, totalAed: 10629.13 });
   });
-  it("is null without a product, rate, or length", () => {
+  it("is null for a per-metre product without a rate or a run length", () => {
     expect(budgetLineFor(area({ id: "a", topProduct: null }))).toBeNull();
-    expect(budgetLineFor(area({ id: "a", topProduct: product({ price: null }) }))).toBeNull();
-    expect(budgetLineFor(area({ id: "a", topProduct: product({ price: "junk" }) }))).toBeNull();
+    // Headline price present but no per-metre rate → no guessed figure.
+    expect(budgetLineFor(area({ id: "a", topProduct: product({ price: "850", pricePerMetreAed: null }) }))).toBeNull();
+    expect(budgetLineFor(area({ id: "a", topProduct: product({ pricePerMetreAed: 0 }) }))).toBeNull();
     expect(budgetLineFor(area({ id: "a", recommendedLengthM: null }))).toBeNull();
     expect(budgetLineFor(area({ id: "a", recommendedLengthM: 0 }))).toBeNull();
   });
+  it("budgets per-unit products (bollards, column guards) as price × 1, ignoring run length", () => {
+    const bollard = product({ productName: "Bollard", price: "300", pricePerMetreAed: null, pricingType: "per-unit" });
+    expect(budgetLineFor(area({ id: "a", recommendedLengthM: 12, topProduct: bollard }))).toEqual({
+      pricingType: "per-unit",
+      ratePerM: 300,
+      lengthM: 1,
+      totalAed: 300,
+    });
+    // No run length is fine for a per-unit product.
+    expect(budgetLineFor(area({ id: "b", recommendedLengthM: null, topProduct: bollard }))?.totalAed).toBe(300);
+  });
+  it("is null for a per-unit product without a usable price", () => {
+    expect(
+      budgetLineFor(area({ id: "a", topProduct: product({ price: null, pricePerMetreAed: null, pricingType: "per-unit" }) })),
+    ).toBeNull();
+    expect(
+      budgetLineFor(area({ id: "a", topProduct: product({ price: "junk", pricePerMetreAed: null, pricingType: "per-unit" }) })),
+    ).toBeNull();
+  });
   it("sums across the register, skipping rows without a line", () => {
     const total = registerBudgetTotalAed([
-      area({ id: "a", recommendedLengthM: 10, topProduct: product({ price: 100 }) }),
+      area({ id: "a", recommendedLengthM: 10, topProduct: product({ pricePerMetreAed: 100 }) }),
       area({ id: "b", topProduct: null }),
-      area({ id: "c", recommendedLengthM: 2.5, topProduct: product({ price: "40" }) }),
+      area({ id: "c", recommendedLengthM: 2.5, topProduct: product({ pricePerMetreAed: 40 }) }),
+      area({ id: "d", recommendedLengthM: 8, topProduct: product({ price: 250, pricePerMetreAed: null, pricingType: "per-unit" }) }),
     ]);
-    expect(total).toBe(1100);
+    expect(total).toBe(1350);
   });
 });
 
@@ -138,9 +165,15 @@ describe("buildOrderFormItems", () => {
   it("emits one line per ranked area with a top product, in register order", () => {
     const items = buildOrderFormItems(
       [
-        area({ id: "b", priorityRank: 2, zoneName: "Zone B", recommendedLengthM: null, topProduct: product({ productName: "Bollard", price: 300 }) }),
+        area({
+          id: "b",
+          priorityRank: 2,
+          zoneName: "Zone B",
+          recommendedLengthM: null,
+          topProduct: product({ productName: "Bollard", price: 300, pricePerMetreAed: null, pricingType: "per-unit" }),
+        }),
         area({ id: "none", priorityRank: 3, topProduct: null }),
-        area({ id: "a", priorityRank: 1, zoneName: "Zone A", recommendedLengthM: 12, topProduct: product({ price: "850" }) }),
+        area({ id: "a", priorityRank: 1, zoneName: "Zone A", recommendedLengthM: 12, topProduct: product({ price: "9999", pricePerMetreAed: 850 }) }),
       ],
       { facilityLocation: "Dubai" },
     );
@@ -161,6 +194,22 @@ describe("buildOrderFormItems", () => {
     expect(perUnit.quantity).toBe(1);
     expect(perUnit.productName).toBe("Bollard");
     expect(perUnit.totalPrice).toBe(300);
+  });
+  it("keeps per-unit products as one standard_item even when the area has a run length", () => {
+    const [item] = buildOrderFormItems(
+      [
+        area({
+          id: "a",
+          recommendedLengthM: 12,
+          topProduct: product({ productName: "Column Guard", price: "450", pricePerMetreAed: null, pricingType: "per-unit" }),
+        }),
+      ],
+      null,
+    );
+    expect(item.pricingType).toBe("standard_item");
+    expect(item.quantity).toBe(1);
+    expect(item.unitPrice).toBe(450);
+    expect(item.totalPrice).toBe(450);
   });
   it("prefers the stored area verdict over the product verdict in the note", () => {
     const [item] = buildOrderFormItems(

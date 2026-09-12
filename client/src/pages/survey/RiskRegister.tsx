@@ -254,7 +254,9 @@ export function RiskRegister({
                       <>
                         <div className="font-semibold">{formatAed(budget.totalAed)}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {budget.lengthM} m @ {formatAed(budget.ratePerM)}/m
+                          {budget.pricingType === "per-unit"
+                            ? `1 unit @ ${formatAed(budget.ratePerM)}`
+                            : `${budget.lengthM} m @ ${formatAed(budget.ratePerM)}/m`}
                         </div>
                       </>
                     ) : area.topProduct ? (

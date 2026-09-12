@@ -30,7 +30,12 @@ export interface RegisterProductRecommendation {
   productName: string;
   impactRating: number | null;
   imageUrl: string | null;
+  /** Headline price (shortest SKU for length families) — NOT a per-metre rate. */
   price: string | number | null;
+  /** AED per metre when the product is length-priced, else null. */
+  pricePerMetreAed: number | null;
+  /** "per-meter" → budget = pricePerMetreAed × run length; "per-unit" → price × 1. */
+  pricingType: "per-meter" | "per-unit";
   category: string | null;
   safetyMarginPct: number;
   pas13Verdict: Verdict;
@@ -172,32 +177,51 @@ export function sortByPriorityRank<T extends Pick<RegisterArea, "priorityRank" |
 }
 
 export interface BudgetLine {
-  /** AED per metre used for the line (the top product's stored rate). */
+  pricingType: "per-meter" | "per-unit";
+  /** Per-metre: AED/m (`pricePerMetreAed`). Per-unit: the unit price, one unit. */
   ratePerM: number;
+  /** Per-metre: the run length. Per-unit: 1. */
   lengthM: number;
   /** round2(ratePerM × lengthM) via shared/pricing. */
   totalAed: number;
 }
 
 /**
- * Budget line for a register row: `recommendedLengthM × top product rate`.
- * Null when the area has no top product, no positive rate, or no run length —
- * the table then shows a prompt instead of a guessed figure.
+ * Budget line for a register row.
+ *   per-meter → `pricePerMetreAed × recommendedLengthM` (null without a
+ *               positive rate or run length);
+ *   per-unit  → `price × 1` (bollards, column guards; null without a price).
+ * `products.price` is the headline (shortest-SKU) price, never a per-metre
+ * rate, so it is only ever multiplied by 1. Null → the table shows a prompt
+ * instead of a guessed figure.
  */
 export function budgetLineFor(
   area: Pick<RegisterArea, "topProduct" | "recommendedLengthM">,
 ): BudgetLine | null {
-  const ratePerM = round2(num(area.topProduct?.price));
-  const lengthM = num(area.recommendedLengthM);
-  if (ratePerM <= 0 || lengthM <= 0) return null;
+  const product = area.topProduct;
+  if (!product) return null;
+  if (product.pricingType === "per-meter") {
+    const ratePerM = round2(num(product.pricePerMetreAed));
+    const lengthM = num(area.recommendedLengthM);
+    if (ratePerM <= 0 || lengthM <= 0) return null;
+    const totalAed = lineTotalAed({
+      id: "budget",
+      unitPriceAed: ratePerM,
+      quantity: 1,
+      lengthMeters: lengthM,
+      pricingType: "per-meter",
+    });
+    return { pricingType: "per-meter", ratePerM, lengthM, totalAed };
+  }
+  const unitPrice = round2(num(product.price));
+  if (unitPrice <= 0) return null;
   const totalAed = lineTotalAed({
     id: "budget",
-    unitPriceAed: ratePerM,
+    unitPriceAed: unitPrice,
     quantity: 1,
-    lengthMeters: lengthM,
-    pricingType: "per-meter",
+    pricingType: "per-unit",
   });
-  return { ratePerM, lengthM, totalAed };
+  return { pricingType: "per-unit", ratePerM: unitPrice, lengthM: 1, totalAed };
 }
 
 /** Sum of every row's budget line (rows without one contribute 0). */
@@ -242,8 +266,9 @@ export interface OrderFormItem {
 }
 
 /**
- * Bulk-add lines for every ranked area with a top product. Areas with a run
- * length become per-metre lines (quantity = metres); the rest are one unit.
+ * Bulk-add lines for every ranked area with a top product. Per-metre products
+ * become `linear_meter` lines (unitPrice = AED/m, quantity = metres); per-unit
+ * products (bollards, column guards) become one `standard_item` at `price`.
  * Order follows the register (priority rank) so the cart reads top-down.
  */
 export function buildOrderFormItems(
@@ -254,10 +279,10 @@ export function buildOrderFormItems(
   for (const area of sortByPriorityRank(areas)) {
     const product = area.topProduct;
     if (!product) continue;
-    const unitPrice = round2(num(product.price));
+    const perMetre = product.pricingType === "per-meter";
+    const unitPrice = round2(num(perMetre ? product.pricePerMetreAed : product.price));
     const lengthM = num(area.recommendedLengthM);
-    const perMetre = lengthM > 0;
-    const quantity = perMetre ? lengthM : 1;
+    const quantity = perMetre && lengthM > 0 ? lengthM : 1;
     const verdict = area.pas13Verdict?.verdict ?? product.pas13Verdict;
     const rank = area.priorityRank ? `#${area.priorityRank} ` : "";
     items.push({

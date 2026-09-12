@@ -108,6 +108,8 @@ export interface RecommendableProduct {
   impactRating?: number | null;
   imageUrl?: string | null;
   price?: string | number | null;
+  /** Per-metre rate (AED/m) for length-priced families; absent for per-unit SKUs. */
+  basePricePerMeter?: string | number | null;
   category?: string | null;
   suitabilityData?: unknown;
   impactTestingData?: unknown;
@@ -119,7 +121,12 @@ export interface AreaProductRecommendation {
   productName: string;
   impactRating: number | null;
   imageUrl: string | null;
+  /** Headline price (shortest SKU for length families) — NOT a per-metre rate. */
   price: string | number | null;
+  /** AED per metre when the product is length-priced, else null. */
+  pricePerMetreAed: number | null;
+  /** "per-meter" when `pricePerMetreAed` is set (budget = rate × run length), else "per-unit". */
+  pricingType: "per-meter" | "per-unit";
   category: string | null;
   /** PAS 13 safety margin, (rated − required) / rated × 100. */
   safetyMarginPct: number;
@@ -140,6 +147,13 @@ function baseProductName(name: string): string {
     .replace(/\s*\d+L.*$/i, "")
     .replace(/\s+Plus$/i, " Plus")
     .trim();
+}
+
+/** Numeric per-metre rate from `products.basePricePerMeter`, or null when absent / junk. */
+function pricePerMetreOf(p: RecommendableProduct): number | null {
+  const raw = p.basePricePerMeter;
+  const n = typeof raw === "string" ? parseFloat(raw) : raw;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function isRackGuardName(name: string): boolean {
@@ -200,18 +214,23 @@ export function recommendProductsForArea(args: {
     p: RecommendableProduct,
     v: ReturnType<typeof pas13Verdict>,
     reason: string,
-  ): AreaProductRecommendation => ({
-    productId: p.id,
-    productName: p.name,
-    impactRating: p.impactRating ?? null,
-    imageUrl: p.imageUrl ?? null,
-    price: p.price ?? null,
-    category: p.category ?? null,
-    safetyMarginPct: v.details.safetyMarginPct,
-    pas13Verdict: v.verdict,
-    notAligned: v.verdict !== "aligned",
-    reason,
-  });
+  ): AreaProductRecommendation => {
+    const pricePerMetreAed = pricePerMetreOf(p);
+    return {
+      productId: p.id,
+      productName: p.name,
+      impactRating: p.impactRating ?? null,
+      imageUrl: p.imageUrl ?? null,
+      price: p.price ?? null,
+      pricePerMetreAed,
+      pricingType: pricePerMetreAed !== null ? "per-meter" : "per-unit",
+      category: p.category ?? null,
+      safetyMarginPct: v.details.safetyMarginPct,
+      pas13Verdict: v.verdict,
+      notAligned: v.verdict !== "aligned",
+      reason,
+    };
+  };
 
   const byFamily = new Map<string, AreaProductRecommendation>();
   for (const p of args.products) {
@@ -825,9 +844,29 @@ export function toRegisterPhoto(p: SurveyPhoto): RegisterPhoto {
   };
 }
 
+/**
+ * Stored `recommended_products` entries written before pricePerMetreAed /
+ * pricingType existed are back-filled: no stored per-metre rate → null and
+ * "per-unit" (the client then budgets `price × 1` rather than mis-multiplying
+ * the headline price by the run length).
+ */
+function normaliseStoredRecommendation(raw: unknown): AreaProductRecommendation {
+  const r = (raw ?? {}) as Partial<AreaProductRecommendation> & Record<string, unknown>;
+  const stored = r.pricePerMetreAed;
+  const n = typeof stored === "string" ? parseFloat(stored) : stored;
+  const pricePerMetreAed = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+  const pricingType: AreaProductRecommendation["pricingType"] =
+    r.pricingType === "per-meter" || r.pricingType === "per-unit"
+      ? r.pricingType
+      : pricePerMetreAed !== null
+        ? "per-meter"
+        : "per-unit";
+  return { ...(r as AreaProductRecommendation), pricePerMetreAed, pricingType };
+}
+
 export function toRegisterArea(area: SiteSurveyArea, photos: readonly SurveyPhoto[] = []): RegisterArea {
   const recommendedProducts = Array.isArray(area.recommendedProducts)
-    ? (area.recommendedProducts as AreaProductRecommendation[])
+    ? (area.recommendedProducts as unknown[]).map(normaliseStoredRecommendation)
     : [];
   const assessed = isAssessed(area);
   return {
