@@ -36,11 +36,10 @@ import {
   type Snag,
   type VerificationZone,
 } from "../lib/pdf/reports/installationVerification";
-import { renderDrawingSheet, familiesInDoc, type DrawingSheetBase, type RevisionRow } from "../lib/pdf/reports/drawingSheet";
-import { fetchImageBytes, sniffImage } from "../lib/pdf/images";
+import { renderDrawingSheetForDrawing, drawingSheetFileName } from "../lib/pdf/reports/drawingSheetLoader";
+import { fetchImageBytes } from "../lib/pdf/images";
 import { parseLayoutDoc, type LayoutDoc } from "../../shared/layout/doc";
 import { markupsToDoc } from "../../shared/layout/migrateMarkups";
-import { docBounds } from "../../shared/layout/geometry";
 
 const documentsPas13 = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -286,32 +285,16 @@ documentsPas13.get("/installations/:id/documents/verification.pdf", authMiddlewa
 });
 
 // ─── Drawing sheet ─────────────────────────────────────────────────────────
+// Base loading, title-block mapping and file naming live in
+// lib/pdf/reports/drawingSheetLoader.ts so this on-demand render and the
+// stored export (POST /api/layout-drawings/:id/export) stay identical.
 
-function revisionRows(v: unknown): RevisionRow[] {
-  if (!Array.isArray(v)) return [];
-  return v
-    .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
-    .map((r) => ({ rev: String(r.rev ?? ""), date: String(r.date ?? ""), notes: String(r.notes ?? "") }));
-}
-
+/** Read-only overlay: the saved document, else a transient migration of the legacy markups. */
 async function loadOverlay(storage: ReturnType<typeof createStorage>, drawing: LayoutDrawing): Promise<LayoutDoc> {
   const parsed = parseLayoutDoc(drawing.document);
   if (parsed) return parsed;
   const rows = await storage.getLayoutMarkups(drawing.id);
   return markupsToDoc(rows, drawing);
-}
-
-async function loadBase(env: Env, drawing: LayoutDrawing, overlay: LayoutDoc): Promise<DrawingSheetBase> {
-  if (!drawing.fileUrl || drawing.fileUrl === "blank-canvas") {
-    const b = docBounds(overlay);
-    return { kind: "blank", widthPx: b ? Math.max(1400, b.maxX * 1.05) : 1400, heightPx: b ? Math.max(990, b.maxY * 1.05) : 990 };
-  }
-  const bytes = await fetchImageBytes(env, drawing.fileUrl, { maxBytes: 30_000_000, timeoutMs: 10_000 });
-  if (!bytes) throw new Error(`Base drawing not readable: ${drawing.fileUrl}`);
-  const isPdf = drawing.fileType === "pdf" || (bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46);
-  if (isPdf) return { kind: "pdf", bytes };
-  if (sniffImage(bytes) === "unknown" && drawing.fileType !== "image") return { kind: "pdf", bytes };
-  return { kind: "image", bytes };
 }
 
 documentsPas13.get("/layout-drawings/:id/documents/sheet.pdf", authMiddleware, async (c) => {
@@ -325,27 +308,8 @@ documentsPas13.get("/layout-drawings/:id/documents/sheet.pdf", authMiddleware, a
     if (drawing.userId !== userId && user?.role !== "admin") return c.json({ message: "Not authorized" }, 403);
 
     const overlay = await loadOverlay(storage, drawing);
-    const base = await loadBase(c.env, drawing, overlay);
-    const initials = user ? `${(user.firstName ?? "")[0] ?? ""}${(user.lastName ?? "")[0] ?? ""}`.toUpperCase() : "";
-    const bytes = await renderDrawingSheet(c.env, {
-      base,
-      overlay,
-      legendFamilies: familiesInDoc(overlay),
-      titleBlock: {
-        dwgNumber: drawing.dwgNumber,
-        revision: drawing.revision,
-        date: drawing.drawingDate,
-        scale: drawing.drawingScale,
-        title: drawing.drawingTitle,
-        project: [drawing.projectName, drawing.company, drawing.location].filter(Boolean).join(" — "),
-        drawnBy: drawing.author || initials || undefined,
-        checkedBy: drawing.checkedBy,
-        revisionHistory: revisionRows(drawing.revisionHistory),
-        notes: drawing.notesSection,
-        status: statusFromQuery(c),
-      },
-    });
-    return pdfResponse(bytes, `${safeName(drawing.dwgNumber || drawing.fileName.replace(/\.[^.]+$/, "") || "drawing")}-sheet.pdf`);
+    const bytes = await renderDrawingSheetForDrawing(c.env, { drawing, overlay, user, status: statusFromQuery(c) });
+    return pdfResponse(bytes, drawingSheetFileName(drawing));
   } catch (error) {
     console.error("Error rendering drawing sheet:", error);
     return c.json({ message: "Failed to render drawing sheet" }, 500);

@@ -9,6 +9,9 @@ import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { parseLayoutDoc, type Calibration, type LayoutDoc } from "../../shared/layout/doc";
 import { markupsToDoc } from "../../shared/layout/migrateMarkups";
+import type { LayoutDrawing } from "../../shared/schema";
+import { putObject } from "./files";
+import { renderDrawingSheetForDrawing } from "../lib/pdf/reports/drawingSheetLoader";
 
 const layoutDrawings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -63,6 +66,45 @@ export function checkBaseVersion(baseVersion: unknown, currentVersion: number): 
     return { ok: false, status: 409, error: "Document has changed since baseVersion" };
   }
   return { ok: true, baseVersion };
+}
+
+// ─── Export helpers (pure, unit-tested in layoutDrawings.export.test.ts) ───
+
+/** R2 key for the vector export of `drawingId` rendered from `documentVersion`. */
+export function exportObjectKey(drawingId: string, documentVersion: number): string {
+  return `layout-exports/${drawingId}/v${documentVersion}.pdf`;
+}
+
+/** Public URL of a stored object (served by GET /api/objects/*). */
+export function objectUrl(objectKey: string): string {
+  return `/api/objects/${objectKey}`;
+}
+
+export interface ExportStatus {
+  objectKey: string;
+  url: string;
+  /** documentVersion the export was rendered from. */
+  version: number;
+  /** True when the document has been saved since this export was rendered. */
+  stale: boolean;
+}
+
+/**
+ * Export status from the drawing row's export columns, or null when the
+ * drawing has never been exported. Stale means the live documentVersion has
+ * moved past the version the stored PDF was rendered from.
+ */
+export function exportStatusFromDrawing(
+  drawing: Pick<LayoutDrawing, "exportObjectKey" | "exportVersion" | "documentVersion">,
+): ExportStatus | null {
+  if (!drawing.exportObjectKey) return null;
+  const version = drawing.exportVersion ?? 0;
+  return {
+    objectKey: drawing.exportObjectKey,
+    url: objectUrl(drawing.exportObjectKey),
+    version,
+    stale: version !== (drawing.documentVersion ?? 0),
+  };
 }
 
 // All layout drawing and markup routes require authentication
@@ -461,6 +503,67 @@ layoutDrawings.patch("/layout-drawings/:id", mutationRateLimit, async (c) => {
 // PHASE 4 DOCUMENT ROUTES (plan Task L4)
 // =============================================
 
+type LoadedDoc =
+  | { ok: true; document: LayoutDoc; version: number; migratedFromMarkups: boolean }
+  | { ok: false };
+
+/**
+ * Current document for a drawing, lazily migrated from the legacy markups
+ * (plan Task L0) when the column is still NULL. Shared by the document GET
+ * and the export POST so both see the same doc at the same version.
+ * `{ ok: false }` means a concurrent first GET / PUT won the migration race
+ * and the row still could not be re-read — the caller returns 409.
+ */
+async function ensureLayoutDoc(storage: ReturnType<typeof createStorage>, drawing: LayoutDrawing): Promise<LoadedDoc> {
+  const id = drawing.id;
+  const current = await storage.getLayoutDoc(id);
+  if (current?.document) {
+    return { ok: true, document: current.document, version: current.version, migratedFromMarkups: false };
+  }
+
+  // No document yet (or an unparseable one at version 0): build it from
+  // the legacy markups and the drawing's scale line.
+  const rows = await storage.getLayoutMarkups(id);
+  const doc: LayoutDoc = markupsToDoc(
+    rows.map((m) => ({
+      id: m.id,
+      layoutDrawingId: m.layoutDrawingId,
+      cartItemId: m.cartItemId,
+      productName: m.productName,
+      xPosition: m.xPosition,
+      yPosition: m.yPosition,
+      endX: m.endX,
+      endY: m.endY,
+      pathData: m.pathData,
+      comment: m.comment,
+      calculatedLength: m.calculatedLength,
+      deletedAt: m.deletedAt,
+    })),
+    {
+      id: drawing.id,
+      scale: drawing.scale,
+      scaleLine: drawing.scaleLine,
+      isScaleSet: drawing.isScaleSet,
+      vehicleTypeId: drawing.vehicleTypeId,
+      floorType: drawing.floorType,
+    },
+  );
+
+  const expected = current?.version ?? 0;
+  const saved = await storage.saveLayoutDoc(id, doc, expected, {
+    retireMarkups: rows.length > 0,
+  });
+  if (!saved) {
+    // Lost a race with a concurrent first GET / PUT — serve whatever won.
+    const again = await storage.getLayoutDoc(id);
+    if (again?.document) {
+      return { ok: true, document: again.document, version: again.version, migratedFromMarkups: false };
+    }
+    return { ok: false };
+  }
+  return { ok: true, document: doc, version: saved.version, migratedFromMarkups: true };
+}
+
 // GET /api/layout-drawings/:id/document
 // Returns { document: LayoutDoc, version: number, migratedFromMarkups: boolean }.
 // Lazy migration (plan Task L0): when `document` is NULL the drawing's
@@ -478,55 +581,80 @@ layoutDrawings.get("/layout-drawings/:id/document", async (c) => {
       return c.json({ error: "Layout drawing not found" }, 404);
     }
 
-    const current = await storage.getLayoutDoc(id);
-    if (current?.document) {
-      return c.json({ document: current.document, version: current.version, migratedFromMarkups: false });
-    }
-
-    // No document yet (or an unparseable one at version 0): build it from
-    // the legacy markups and the drawing's scale line.
-    const rows = await storage.getLayoutMarkups(id);
-    const doc: LayoutDoc = markupsToDoc(
-      rows.map((m) => ({
-        id: m.id,
-        layoutDrawingId: m.layoutDrawingId,
-        cartItemId: m.cartItemId,
-        productName: m.productName,
-        xPosition: m.xPosition,
-        yPosition: m.yPosition,
-        endX: m.endX,
-        endY: m.endY,
-        pathData: m.pathData,
-        comment: m.comment,
-        calculatedLength: m.calculatedLength,
-        deletedAt: m.deletedAt,
-      })),
-      {
-        id: drawing.id,
-        scale: drawing.scale,
-        scaleLine: drawing.scaleLine,
-        isScaleSet: drawing.isScaleSet,
-        vehicleTypeId: drawing.vehicleTypeId,
-        floorType: drawing.floorType,
-      },
-    );
-
-    const expected = current?.version ?? 0;
-    const saved = await storage.saveLayoutDoc(id, doc, expected, {
-      retireMarkups: rows.length > 0,
-    });
-    if (!saved) {
-      // Lost a race with a concurrent first GET / PUT — serve whatever won.
-      const again = await storage.getLayoutDoc(id);
-      if (again?.document) {
-        return c.json({ document: again.document, version: again.version, migratedFromMarkups: false });
-      }
+    const loaded = await ensureLayoutDoc(storage, drawing);
+    if (!loaded.ok) {
       return c.json({ error: "Document migration conflict, retry" }, 409);
     }
-    return c.json({ document: doc, version: saved.version, migratedFromMarkups: true });
+    return c.json({ document: loaded.document, version: loaded.version, migratedFromMarkups: loaded.migratedFromMarkups });
   } catch (error) {
     console.error("Error fetching layout document:", error);
     return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// GET /api/layout-drawings/:id/export
+// Current stored export: { objectKey, url, version, stale } where `stale`
+// is exportVersion !== documentVersion. 404 when never exported.
+layoutDrawings.get("/layout-drawings/:id/export", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const drawing = await storage.getLayoutDrawing(c.req.param("id"));
+    if (!drawing || drawing.userId !== userId) {
+      return c.json({ error: "Layout drawing not found" }, 404);
+    }
+    const status = exportStatusFromDrawing(drawing);
+    if (!status) {
+      return c.json({ error: "Drawing has not been exported yet" }, 404);
+    }
+    return c.json(status);
+  } catch (error) {
+    console.error("Error fetching layout export status:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+// POST /api/layout-drawings/:id/export
+// Renders the A3 vector sheet (base + LayoutDoc overlay + legend + title
+// block) for the drawing's current document, stores it at
+// layout-exports/<drawingId>/v<documentVersion>.pdf, records the key and
+// version on the row, and returns { objectKey, url, version, stale: false }.
+// Optional `?status=draft` renders with the DRAFT watermark.
+layoutDrawings.post("/layout-drawings/:id/export", mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const id = c.req.param("id");
+    const drawing = await storage.getLayoutDrawing(id);
+    if (!drawing || drawing.userId !== userId) {
+      return c.json({ error: "Layout drawing not found" }, 404);
+    }
+
+    const loaded = await ensureLayoutDoc(storage, drawing);
+    if (!loaded.ok) {
+      return c.json({ error: "Document migration conflict, retry" }, 409);
+    }
+
+    const user = await storage.getUser(userId);
+    const status = (c.req.query("status") || "").toLowerCase() === "draft" ? "DRAFT" : "ISSUED";
+    const bytes = await renderDrawingSheetForDrawing(c.env, {
+      drawing,
+      overlay: loaded.document,
+      user,
+      status,
+    });
+
+    const objectKey = exportObjectKey(id, loaded.version);
+    await putObject(c.env, objectKey, bytes, "application/pdf");
+    await storage.setLayoutExport(id, objectKey, loaded.version);
+
+    const result: ExportStatus = { objectKey, url: objectUrl(objectKey), version: loaded.version, stale: false };
+    return c.json(result);
+  } catch (error) {
+    console.error("Error exporting layout drawing:", error);
+    return c.json({ error: "Failed to export layout drawing" }, 500);
   }
 });
 

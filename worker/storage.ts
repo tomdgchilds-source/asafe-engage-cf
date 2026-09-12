@@ -526,6 +526,9 @@ export interface IStorage {
   // matches the row.
   getLayoutDoc(id: string): Promise<{ document: LayoutDoc | null; version: number } | undefined>;
   saveLayoutDoc(id: string, doc: LayoutDoc, expectedVersion: number, opts?: SaveLayoutDocOptions): Promise<{ version: number } | undefined>;
+  // Record the stored vector export (R2 key + the documentVersion it was
+  // rendered from). Export is stale when exportVersion !== documentVersion.
+  setLayoutExport(id: string, objectKey: string, version: number): Promise<void>;
   
   // Layout Markup operations
   getLayoutMarkups(layoutDrawingId: string): Promise<LayoutMarkup[]>;
@@ -3296,6 +3299,21 @@ export class DatabaseStorage implements IStorage {
         ));
     }
     return { version: updated.documentVersion };
+  }
+
+  /**
+   * Point the drawing at its latest stored PDF export. `version` is the
+   * documentVersion the sheet was rendered from; readers compare it with the
+   * live documentVersion to decide whether the export is stale.
+   */
+  async setLayoutExport(id: string, objectKey: string, version: number): Promise<void> {
+    await this.db
+      .update(layoutDrawings)
+      .set({ exportObjectKey: objectKey, exportVersion: version, updatedAt: new Date() })
+      .where(and(
+        eq(layoutDrawings.id, id),
+        isNull(layoutDrawings.deletedAt)
+      ));
   }
 
   // Layout Markup operations
