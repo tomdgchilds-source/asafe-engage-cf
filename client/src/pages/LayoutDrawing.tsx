@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Package, ShoppingCart, PenTool, FileImage, Upload, MoreHorizontal, Copy, Loader2 } from "lucide-react";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
-import { LayoutMarkupEditor } from "@/components/layout-markup";
+import { LayoutEditor } from "@/components/layout-editor";
 import { Pas13ChatPanel } from "@/components/Pas13ChatPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -141,13 +141,6 @@ export default function LayoutDrawing() {
     const currentProjectId = (copySource as any)?.projectId ?? activeProject?.id ?? null;
     return p.id !== currentProjectId;
   });
-
-  // Transform cart items for the markup editor
-  const cartItemsForEditor = cartItems.map(item => ({
-    id: item.id,
-    productName: item.productName || 'Unknown Product',
-    quantity: item.quantity || 1,
-  }));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -347,10 +340,10 @@ export default function LayoutDrawing() {
                       <p className="mb-2">How to mark barriers:</p>
                       <ol className="list-decimal list-inside space-y-1 text-xs">
                         <li>Upload or select a floor plan</li>
-                        <li>Click the pen icon to enter draw mode</li>
-                        <li>Draw lines where barriers should be placed</li>
-                        <li>Select the product from your cart</li>
-                        <li>Add any notes or specifications</li>
+                        <li>Calibrate the scale (two taps on a known length)</li>
+                        <li>Pick a product family and draw barrier runs</li>
+                        <li>Place bollards and guards with the stamp tool</li>
+                        <li>Transfer the derived quantities to your cart</li>
                       </ol>
                     </div>
                   </div>
@@ -361,13 +354,12 @@ export default function LayoutDrawing() {
         </div>
       </div>
 
-      {/* Markup Editor Modal */}
+      {/* Layout editor (Phase 4) — full-screen dialog over the page */}
       {selectedDrawing && (
-        <LayoutMarkupEditor
+        <LayoutEditor
           isOpen={isMarkupEditorOpen}
           onClose={handleCloseEditor}
           drawing={selectedDrawing}
-          cartItems={cartItemsForEditor}
         />
       )}
 

@@ -20,7 +20,7 @@ import { SpendMoreSaveMoreDiscount } from "@/components/SpendMoreSaveMoreDiscoun
 import { ServiceCareModal } from "@/components/ServiceCareModal";
 import { CreateOrderModal } from "@/components/CreateOrderModal";
 import { LayoutDrawingUpload } from "@/components/LayoutDrawingUpload";
-import { LayoutMarkupEditor } from "@/components/layout-markup";
+import { LayoutEditor } from "@/components/layout-editor";
 import { CaseStudySelector } from "@/components/CaseStudySelector";
 import { CompanyLogoFinder } from "@/components/CompanyLogoFinder";
 import { LinkedInSocialReciprocitySimple } from "@/components/LinkedInSocialReciprocitySimple";
@@ -1534,11 +1534,10 @@ export function Cart() {
         linkedInDiscountData={linkedInDiscountData}
       />
 
-      <LayoutMarkupEditor
+      <LayoutEditor
         isOpen={isMarkupEditorOpen}
         onClose={handleMarkupEditorClose}
         drawing={selectedLayoutDrawing}
-        cartItems={cartItems}
       />
 
       <DiscountTermsModal
