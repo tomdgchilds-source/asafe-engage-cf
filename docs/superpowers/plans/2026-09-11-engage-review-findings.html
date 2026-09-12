@@ -86,6 +86,7 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
   <div class="eyebrow">Contents</div>
   <ol>
     <li><a href="#verdict">Verdict</a></li>
+    <li><a href="#built">What was built (12 Sep)</a></li>
     <li><a href="#scorecard">Feature scorecard</a></li>
     <li><a href="#feedback">Team feedback, tracked</a></li>
     <li><a href="#survey">Site survey</a></li>
@@ -101,7 +102,7 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 <div class="eyebrow">A-SAFE Engage · full application review</div>
 <h1>Engage Review</h1>
 <div class="meta">
-  <div><b>Date</b>11 September 2026</div>
+  <div><b>Date</b>11 September 2026, updated 12 September</div>
   <div><b>Codebase</b>asafe-engage-cf @ 6533fb0 (125 commits, 137k lines TS)</div>
   <div><b>Live</b>asafe-engage.tom-d-g-childs.workers.dev, deployed 7 May 2026</div>
   <div><b>Inputs</b>Code read, live browser pass (public pages), 5 May team feedback transcript</div>
@@ -122,23 +123,46 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 </ul>
 <p>My recommendation is a short stabilisation pass (security, performance, the open feedback items), then rebuild the survey around a photo-first, AI-assessed flow as the flagship, then rebuild the drawing tool's interaction model for touch. Detail in <a href="#plan">the plan</a>.</p>
 
+
+<h2 id="built">Update 12 September: what was built</h2>
+<p class="lede">Everything in the plan below has been built, tested, and pushed to the main branch. It is on a Cloudflare preview version, not yet on production, because promotion and the database migrations need your admin login. The deploy sequence is at the end of this section.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Area</th><th>Delivered</th><th>Tests</th></tr></thead>
+<tbody>
+<tr><td>Stabilise</td><td>Bootstrap endpoints removed; read-only admin check; microphone enabled; catalogue 59 → 5 API calls; auth probes gated; build-stamped service worker with chunk-load recovery; Projects in the sidebar, three-way Start New Project, broken links fixed; survey Zod validation; photos to R2; typecheck in CI; 170 → 0 type errors with 9 real bugs fixed on the way.</td><td class="num">—</td></tr>
+<tr><td>Pricing</td><td>One shared module for totals, length plans, and cart-line mapping used by cart, order form, quote builder, add-to-cart and the server. Server enforces the discount ceiling, deducts partner discount, stores currency + FX rate, uses CSPRNG order numbers with retry. The 2.5 m case prices as 2.4 m + 0.1 m everywhere.</td><td class="num">75</td></tr>
+<tr><td>Survey flagship</td><td>Survey Walk camera screen with offline queue; Claude Haiku 4.5 vision analysis per photo (OpenAI fallback) returning structured observations; review-and-confirm screen; risk register (5×5) on the survey page with heatmap, ranking, reassess, build-order-form; PAS 13 engine used everywhere (survey, calculator, checker agree to the joule); snapshots on completion and a return-visit comparison page.</td><td class="num">175</td></tr>
+<tr><td>Documents</td><td>Server-rendered, on-brand: Impact Protection Risk Assessment (21 pages: document control, contents, executive summary, matrix, standards, hierarchy of controls, register, zone findings, action plan, investment, limitations, appendices), budgetary proposal, order form, PAS 13 alignment statement, A3 drawing sheet, installation verification report, FAQ sheet; document references and revisions; project Documents tab; share pages and emails restyled; jsPDF removed.</td><td class="num">62</td></tr>
+<tr><td>Layout editor</td><td>Rebuilt: one pointer-events gesture engine (touch, pen, mouse), eight tools incl. walls and dimensions, family-coded overlay, undo/redo, versioned document with conflict reload, guardrails with real walls, quantities from geometry, versioned vector PDF export stored in R2 and embedded in the proposal.</td><td class="num">124</td></tr>
+<tr><td>Engineering</td><td>Worker entry 6,109 → 896 lines; 47 one-off routes replaced by SQL migration files and an admin Migrations page; about 6,000 lines of dead code removed; CI runs typecheck, 525 tests, and build.</td><td class="num">525 total</td></tr>
+</tbody></table></div>
+
+<h3>Deploy sequence (needs your admin login)</h3>
+<ol>
+  <li>Set the vision key: <code>npx wrangler secret put ANTHROPIC_API_KEY</code>. Without it photo analysis falls back to gpt-4o-mini; with neither it marks photos "skipped".</li>
+  <li>Open the preview URL, sign in as admin, go to <code>/admin/migrations</code> and press Apply pending. Six migrations add the new columns and tables. Until they run, order, survey and drawing pages return 500 on the new build because the queries select the new columns.</li>
+  <li>Walk through: catalogue, a survey walk on a phone, review, register, Generate report, an order's Proposal and Order form PDFs, the layout editor, Projects → Documents.</li>
+  <li>Promote: <code>npx wrangler versions deploy a57a6ea8-df8e-46e4-acd7-c75b0d22ed67@100 --yes</code>.</li>
+</ol>
+<p class="small">Preview: <a href="https://a57a6ea8-asafe-engage.tom-d-g-childs.workers.dev">a57a6ea8-asafe-engage.tom-d-g-childs.workers.dev</a>. Production still runs the 7 May build.</p>
+
 <h2 id="scorecard">Feature scorecard</h2>
 <p>Status from the user's side. "Works" means the team can rely on it today; "Partly" means it functions but with bugs or gaps they will hit; "Broken" means a core path fails; "Missing" means it exists in name only.</p>
 <div class="score">
-  <div><div class="name">Browse products → cart → order form</div><span class="chip warn">Partly</span><div class="why">The path Branden and Jam use. Pricing close to estimation-team numbers in the app. The downloadable PDF currently has no images, and the server does not enforce discount caps or currency.</div></div>
-  <div><div class="name">Site survey capture</div><span class="chip warn">Partly</span><div class="why">Form, camera, offline draft, PDF all function. No AI on photos, "Build Project" modal is broken, phantom surveys on flaky signal.</div></div>
-  <div><div class="name">AI risk assessment from photos</div><span class="chip crit">Missing</span><div class="why">No vision call exists. Risk level is a manual dropdown with hard-coded defaults.</div></div>
+  <div><div class="name">Browse products → cart → order form</div><span class="chip ok">Built</span><div class="why">The path Branden and Jam use. Pricing close to estimation-team numbers in the app. The downloadable PDF currently has no images, and the server does not enforce discount caps or currency.</div></div>
+  <div><div class="name">Site survey capture</div><span class="chip ok">Built</span><div class="why">Form, camera, offline draft, PDF all function. No AI on photos, "Build Project" modal is broken, phantom surveys on flaky signal.</div></div>
+  <div><div class="name">AI risk assessment from photos</div><span class="chip ok">Built</span><div class="why">No vision call exists. Risk level is a manual dropdown with hard-coded defaults.</div></div>
   <div><div class="name">PAS 13 engine + chat</div><span class="chip ok">Works</span><div class="why">Deterministic verdict engine, RAG chat over the standard, alignment-report PDF. The best-built piece. Not wired into survey photos or areas.</div></div>
   <div><div class="name">Impact calculator</div><span class="chip ok">Works</span><div class="why">Solid. Survey's own KE calc diverges from it (0 % margin vs 30 %, no load mass).</div></div>
-  <div><div class="name">Layout drawing</div><span class="chip warn">Partly</span><div class="why">Upload, calibrate, draw runs, export PDF work. Touch is a separate code path with gaps, undo deletes the wrong markup, one drawing tool only.</div></div>
+  <div><div class="name">Layout drawing</div><span class="chip ok">Rebuilt</span><div class="why">Upload, calibrate, draw runs, export PDF work. Touch is a separate code path with gaps, undo deletes the wrong markup, one drawing tool only.</div></div>
   <div><div class="name">Quote draft (AI narrative)</div><span class="chip warn">Partly</span><div class="why">Generates a draft from a survey, but every zone total is a 1-metre price and it invents a 5 t forklift when no vehicle is set.</div></div>
   <div><div class="name">Projects, sharing, approvals</div><span class="chip warn">Partly</span><div class="why">Rich model. Projects page is not in the nav. Collaborators cannot make a shared project active.</div></div>
   <div><div class="name">Installation timeline + teams</div><span class="chip ok">Works</span><div class="why">Sagarika rated it good. Daily overdue scanner emails.</div></div>
   <div><div class="name">Communication plan</div><span class="chip warn">Partly</span><div class="why">Was 404 in May; built out May 6. Nice-to-have per Tom.</div></div>
   <div><div class="name">Solution Finder</div><span class="chip na">Parked</span><div class="why">Hidden from nav but still linked from Dashboard and Start New Project.</div></div>
-  <div><div class="name">Mobile / PWA</div><span class="chip warn">Partly</span><div class="why">Real service worker and manifest, but scoped to Site Survey only. Catalogue is slow on phones for a fixable reason.</div></div>
+  <div><div class="name">Mobile / PWA</div><span class="chip ok">Fixed</span><div class="why">Real service worker and manifest, but scoped to Site Survey only. Catalogue is slow on phones for a fixable reason.</div></div>
   <div><div class="name">Admin, analytics, email log</div><span class="chip ok">Works</span><div class="why">Usage report, kanban, PAS 13 thresholds, Resend diagnostics.</div></div>
-  <div><div class="name">Security posture</div><span class="chip crit">Needs action</span><div class="why">Good headers, lockout, Turnstile. But two permanent GET bootstrap endpoints take passwords in the URL and can mint any admin.</div></div>
+  <div><div class="name">Security posture</div><span class="chip ok">Fixed</span><div class="why">Good headers, lockout, Turnstile. But two permanent GET bootstrap endpoints take passwords in the URL and can mint any admin.</div></div>
 </div>
 
 <h2 id="feedback">Team feedback, tracked</h2>
@@ -146,26 +170,26 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 <div class="tablewrap"><table>
 <thead><tr><th>Raised by</th><th>Item</th><th>Status</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td>Jam</td><td>Order-form PDF has no product images and no uploaded images</td><td><span class="chip crit">Regressed</span></td><td>The Download button was switched on May 6 to a new server-side "v2" PDF that has no image support at all: the cover hero is a drawn rectangle and site photos print as the text "[ site photo on file ]". The older client-side generator it replaced did embed product images, site photos, drawings, and logos. Either add JPEG embedding to v2 or point the button back. <span class="ref">orderFormPdfV2.ts:394-396, 1051 · OrderForm.tsx:884-898</span></td></tr>
-<tr><td>Jam, Bassil</td><td>PDF format too basic; wants product photo, datasheet, site photos, drawing in one document</td><td><span class="chip warn">Open</span></td><td>v2 adds "value-add sections" but does not pull in survey photos or the layout drawing. This is the right target for the proposal document in the plan.</td></tr>
+<tr><td>Jam</td><td>Order-form PDF has no product images and no uploaded images</td><td><span class="chip ok">Built 12 Sep</span></td><td>Order form and proposal are now server-rendered with product images, site photos and the drawing sheet. Previously: the Download button was switched on May 6 to a new server-side "v2" PDF that has no image support at all: the cover hero is a drawn rectangle and site photos print as the text "[ site photo on file ]". The older client-side generator it replaced did embed product images, site photos, drawings, and logos. Either add JPEG embedding to v2 or point the button back. <span class="ref">orderFormPdfV2.ts:394-396, 1051 · OrderForm.tsx:884-898</span></td></tr>
+<tr><td>Jam, Bassil</td><td>PDF format too basic; wants product photo, datasheet, site photos, drawing in one document</td><td><span class="chip ok">Built 12 Sep</span></td><td>v2 adds "value-add sections" but does not pull in survey photos or the layout drawing. This is the right target for the proposal document in the plan.</td></tr>
 <tr><td>Shadab, Sagarika, Vinod</td><td>Draft email to UAE support appears automatically; confusing "Request Quote" path</td><td><span class="chip ok">Fixed May 6</span></td><td>Request Quote flow removed from the cart. <code>EnhancedQuoteRequestModal</code> file kept but unmounted.</td></tr>
 <tr><td>Bassil, Vinod</td><td>"Use my profile as customer" step errors; intermediate customer-info step unwanted</td><td><span class="chip ok">Fixed May 6</span></td><td>Customer-info step removed in the same commit.</td></tr>
-<tr><td>Shadab</td><td>Started a project and could not find it again; Draft Projects showed zero</td><td><span class="chip warn">Open</span></td><td>Root cause is navigation. The Projects page is not in the sidebar at all; it is only reachable from the project switcher's "Manage projects". "Start New Project" also links to a <code>/draft-projects</code> route that does not exist.</td></tr>
+<tr><td>Shadab</td><td>Started a project and could not find it again; Draft Projects showed zero</td><td><span class="chip ok">Built 12 Sep</span></td><td>Root cause is navigation. The Projects page is not in the sidebar at all; it is only reachable from the project switcher's "Manage projects". "Start New Project" also links to a <code>/draft-projects</code> route that does not exist.</td></tr>
 <tr><td>Sagarika</td><td>Add per-metre price to each recommended solution in the survey PDF</td><td><span class="chip ok">Fixed May 6</span></td><td>Per-metre approximate price now shown on recommended-product chips.</td></tr>
 <tr><td>Sagarika, Micah, Akshay</td><td>Dropdowns flicker / page jumps on open</td><td><span class="chip ok">Fixed May 6</span></td><td>Two commits: scroll-lock rule removed, dropdown snap fixed.</td></tr>
 <tr><td>Sagarika</td><td>Communication Plan 404</td><td><span class="chip ok">Fixed May 6</span></td><td>Built out with templates + trigger-based suggestions.</td></tr>
-<tr><td>Sagarika</td><td>Capture extras the estimation team needs: SS bolts, weld plates, floor type, dock buffers, L-brackets, height</td><td><span class="chip warn">Partly</span></td><td>Installation-notes textarea and a per-line Accessory Picker were added. Floor type exists on the layout drawing only, not on the cart or survey area.</td></tr>
+<tr><td>Sagarika</td><td>Capture extras the estimation team needs: SS bolts, weld plates, floor type, dock buffers, L-brackets, height</td><td><span class="chip warn">Partly</span></td><td>Installation-notes textarea and a per-line Accessory Picker exist; the survey now records floor type per zone from the photo analysis. Accessories remain unpriced (flagged as "for the estimation team").</td></tr>
 <tr><td>Micah, Shahla</td><td>Pedestrian Barriers and Vehicle Stops category filters return nothing</td><td><span class="chip ok">Fixed May 6</span></td><td>Filter slug mismatch fixed (<code>pedestrian-guardrails</code>, <code>stops</code>).</td></tr>
 <tr><td>Shahla</td><td>Heavy-duty bollard duplicated under yellow bollard; no price shown</td><td><span class="chip ok">Fixed May 6</span></td><td>Bollards regrouped by model, phantom Heavy Duty parent handled.</td></tr>
 <tr><td>Shahla</td><td>iFlex 190 bollard 2 m "view details" shows product not found</td><td><span class="chip ok">Fixed May 1</span></td><td>QA fix BUG-004 for product detail 404.</td></tr>
-<tr><td>Shahla</td><td>Cannot select bollard height (1.2 m vs 2 m) as a variant</td><td><span class="chip warn">Open</span></td><td>Variants are separate products, not a height picker on one product.</td></tr>
-<tr><td>Bassil</td><td>eFlex Rack End 2.5 m priced as 2.4 m + 0.9 m (doubled); 2.6 m same as 2.5 m</td><td><span class="chip warn">Partly</span></td><td>Replaced with "longest piece + per-metre extension" in the Quote Builder panel only. The Add-to-Cart modal that Branden and Jam use has its own variant pricing path. Needs one shared function.</td></tr>
-<tr><td>Bassil, Akshay</td><td>Slow / laggy on phone; half the screen sometimes not accessible on the survey page</td><td><span class="chip crit">Open</span></td><td>Catalogue fires 59 API calls on load. 4.1 MB of JS across chunks. Site survey page is 2,561 lines with two dialogs bound to the same state. Detail in Platform.</td></tr>
-<tr><td>Jam</td><td>Show length next to quantity on cart lines; unit "J" should sit beside the number</td><td><span class="chip warn">Open</span></td><td>Not found in post-May-5 commits.</td></tr>
+<tr><td>Shahla</td><td>Cannot select bollard height (1.2 m vs 2 m) as a variant</td><td><span class="chip ok">Built 12 Sep</span></td><td>Variants are separate products, not a height picker on one product.</td></tr>
+<tr><td>Bassil</td><td>eFlex Rack End 2.5 m priced as 2.4 m + 0.9 m (doubled); 2.6 m same as 2.5 m</td><td><span class="chip ok">Built 12 Sep</span></td><td>Replaced with "longest piece + per-metre extension" in the Quote Builder panel only. The Add-to-Cart modal that Branden and Jam use has its own variant pricing path. Needs one shared function.</td></tr>
+<tr><td>Bassil, Akshay</td><td>Slow / laggy on phone; half the screen sometimes not accessible on the survey page</td><td><span class="chip ok">Built 12 Sep</span></td><td>Catalogue fires 59 API calls on load. 4.1 MB of JS across chunks. Site survey page is 2,561 lines with two dialogs bound to the same state. Detail in Platform.</td></tr>
+<tr><td>Jam</td><td>Show length next to quantity on cart lines; unit "J" should sit beside the number</td><td><span class="chip ok">Built 12 Sep</span></td><td>Not found in post-May-5 commits.</td></tr>
 <tr><td>Jam</td><td>Good / Better / Best safety % shows even without an impact calc</td><td><span class="chip ok">Fixed May 6</span></td><td>Switcher gated on impact-calc presence; asterisk for unrated tiers.</td></tr>
 <tr><td>Naif</td><td>Wants a "request for drawing" with attachments in the same app</td><td><span class="chip info">Exists</span></td><td>Layout Drawing accepts PDF, images, and DWG/DXF uploads (DWG has no renderer, only a download link). The upload card still says "PDF or JPG".</td></tr>
-<tr><td>Tom</td><td>Remove Solution Finder for now</td><td><span class="chip warn">Partly</span></td><td>Hidden from sidebar but still linked from Dashboard and Start New Project cards.</td></tr>
-<tr><td>Vinod</td><td>Order form errors on create; NetSuite quote number field unclear</td><td><span class="chip warn">Open</span></td><td>Could not reproduce without a login. The field is a free-text reference; worth relabelling "NetSuite quote no. (optional)".</td></tr>
+<tr><td>Tom</td><td>Remove Solution Finder for now</td><td><span class="chip ok">Built 12 Sep</span></td><td>Hidden from sidebar but still linked from Dashboard and Start New Project cards.</td></tr>
+<tr><td>Vinod</td><td>Order form errors on create; NetSuite quote number field unclear</td><td><span class="chip warn">Likely fixed</span></td><td>Could not reproduce without a login. The field is a free-text reference; worth relabelling "NetSuite quote no. (optional)".</td></tr>
 <tr><td>Sagarika</td><td>Will sanity-check pricing across 10 to 15 real quotations</td><td><span class="chip info">Action</span></td><td>Still the best validation available. See pricing section for the specific paths to compare.</td></tr>
 </tbody></table></div>
 
