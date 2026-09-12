@@ -46,6 +46,7 @@ const StartNewProject = lazy(() => import("@/pages/StartNewProject"));
 const Projects = lazy(() => import("@/pages/Projects"));
 const SiteSurvey = lazy(() => import("@/pages/SiteSurvey"));
 const SurveyWalk = lazy(() => import("@/pages/survey/SurveyWalk"));
+const SurveyCompare = lazy(() => import("@/pages/survey/SurveyCompare"));
 const HapticTestPage = lazy(() => import("@/pages/HapticTestPage"));
 const PAS13ComplianceChecker = lazy(() => import("@/pages/PAS13ComplianceChecker").then(m => ({ default: m.PAS13ComplianceChecker })));
 const CommunicationPlan = lazy(() => import("@/pages/CommunicationPlan"));
@@ -155,6 +156,7 @@ function Router() {
         {/* Camera-first on-site capture (Phase 3). Registered before the bare
             /site-survey route is irrelevant for wouter, but kept adjacent. */}
         <Route path="/site-survey/:id/walk" component={SurveyWalk} />
+        <Route path="/site-survey/:id/compare" component={SurveyCompare} />
         <Route path="/layout-drawings" component={LayoutDrawing} />
         {/* Alias so either singular or plural URL resolves to the same page */}
         <Route path="/layout-drawing" component={LayoutDrawing} />

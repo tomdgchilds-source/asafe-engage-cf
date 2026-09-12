@@ -45,6 +45,14 @@ import {
   type VehicleClass,
 } from "@shared/risk/riskRegister";
 import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
+import {
+  buildSnapshot,
+  compareSnapshots,
+  summariseComparison,
+  type ComparisonSummary,
+  type SurveySnapshot,
+  type ZoneComparison,
+} from "@shared/survey";
 
 const siteSurveys = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -904,13 +912,109 @@ export function recommendedActionFor(
   return `Install ${topProduct.productName}${run}.${when}`;
 }
 
+// ---------------------------------------------------------------------------
+// Snapshots and return visits (Task S7) — pure helpers, tested in
+// siteSurveys.compare.test.ts
+// ---------------------------------------------------------------------------
+
+/** Minimal structural mirror of the survey row the compare helpers read. */
+export interface CompareSurveyRow {
+  id: string;
+  title: string;
+  status: string;
+  snapshot?: unknown;
+  updatedAt?: Date | string | null;
+}
+
+export interface CompareVisit {
+  id: string;
+  title: string;
+  /** ISO-8601; absent for a current survey that is still in progress. */
+  completedAt?: string;
+}
+
+export interface CompareResponse {
+  previous: CompareVisit & { completedAt: string };
+  current: CompareVisit;
+  rows: ZoneComparison[];
+  summary: ComparisonSummary;
+}
+
+/**
+ * Type guard for the `site_surveys.snapshot` jsonb. Rejects anything that
+ * is not a SurveySnapshot-shaped object so a partial or hand-edited column
+ * never reaches `compareSnapshots`.
+ */
+export function isSurveySnapshot(value: unknown): value is SurveySnapshot {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  if (typeof v.surveyId !== "string" || typeof v.completedAt !== "string") return false;
+  if (!Array.isArray(v.areas)) return false;
+  return v.areas.every((a) => {
+    if (!a || typeof a !== "object") return false;
+    const r = a as Record<string, unknown>;
+    return (
+      typeof r.zoneName === "string" &&
+      typeof r.riskLevel === "string" &&
+      typeof r.score === "number" &&
+      typeof r.priorityRank === "number" &&
+      Array.isArray(r.photoKeys)
+    );
+  });
+}
+
+type SnapshotAreaInput = Parameters<typeof buildSnapshot>[1][number];
+type SnapshotPhotoInput = Parameters<typeof buildSnapshot>[2][number];
+
+/**
+ * The snapshot to treat as "now" for a survey: the frozen one when the
+ * survey is completed and carries a valid snapshot, else a live build from
+ * its current areas and photos (so an in-progress return visit can be
+ * compared as it is walked).
+ */
+export function resolveCurrentSnapshot(
+  survey: CompareSurveyRow,
+  areas: readonly SnapshotAreaInput[],
+  photos: readonly SnapshotPhotoInput[],
+): { snapshot: SurveySnapshot; frozen: boolean } {
+  if (survey.status === "completed" && isSurveySnapshot(survey.snapshot)) {
+    return { snapshot: survey.snapshot, frozen: true };
+  }
+  return { snapshot: buildSnapshot({ id: survey.id }, areas, photos), frozen: false };
+}
+
+/**
+ * Assemble the `GET /api/site-surveys/:id/compare` payload. Returns null when
+ * the previous survey has no usable snapshot (the route answers 404).
+ */
+export function buildCompareResponse(
+  previous: CompareSurveyRow,
+  current: CompareSurveyRow,
+  currentAreas: readonly SnapshotAreaInput[],
+  currentPhotos: readonly SnapshotPhotoInput[],
+): CompareResponse | null {
+  if (!isSurveySnapshot(previous.snapshot)) return null;
+  const before = previous.snapshot;
+  const { snapshot: after, frozen } = resolveCurrentSnapshot(current, currentAreas, currentPhotos);
+  const rows = compareSnapshots(before, after);
+  const currentVisit: CompareVisit = { id: current.id, title: current.title };
+  if (frozen) currentVisit.completedAt = after.completedAt;
+  return {
+    previous: { id: previous.id, title: previous.title, completedAt: before.completedAt },
+    current: currentVisit,
+    rows,
+    summary: summariseComparison(rows),
+  };
+}
+
 // =============================================
 // REQUEST BODY SCHEMAS
 // =============================================
 // Server-owned columns (id, userId, siteSurveyId, createdAt, updatedAt) are
 // never accepted from the client; the handlers set them explicitly.
 
-const surveyCreateSchema = insertSiteSurveySchema.omit({ userId: true });
+// `snapshot` is written only by the complete handler (Task S7).
+const surveyCreateSchema = insertSiteSurveySchema.omit({ userId: true, snapshot: true });
 const surveyUpdateSchema = surveyCreateSchema.partial();
 const areaCreateSchema = insertSiteSurveyAreaSchema.omit({ siteSurveyId: true });
 const areaUpdateSchema = areaCreateSchema.partial();
@@ -984,6 +1088,14 @@ siteSurveys.post("/site-surveys", heavyMutationRateLimit, async (c) => {
     }
     const body = parsed.data;
 
+    // Return visit (Task S7): the previous survey must be one of the caller's own.
+    if (body.previousSurveyId) {
+      const previous = await storage.getSiteSurvey(body.previousSurveyId);
+      if (!previous || previous.userId !== userId) {
+        return c.json({ message: "Previous survey not found" }, 400);
+      }
+    }
+
     const survey = await storage.createSiteSurvey({ ...body, userId });
 
     // Fire-and-forget activity log
@@ -1052,9 +1164,16 @@ siteSurveys.post("/site-surveys/:id/complete", mutationRateLimit, async (c) => {
       completedSurvey = await storage.updateSiteSurvey(surveyId, { overallRiskLevel });
     }
 
-    // HOOK (Task S7): build the frozen SurveySnapshot from `areas` + linked
-    // survey_photos here and persist it with
-    // storage.updateSiteSurvey(surveyId, { snapshot }) before responding.
+    // Freeze the SurveySnapshot (Task S7) so a return visit can be compared
+    // against exactly what was reported today.
+    const photos = await db
+      .select()
+      .from(surveyPhotosTable)
+      .where(eq(surveyPhotosTable.siteSurveyId, surveyId));
+    const snapshot = buildSnapshot({ id: surveyId }, areas, photos, {
+      completedAt: completedSurvey.updatedAt ?? new Date(),
+    });
+    completedSurvey = await storage.updateSiteSurvey(surveyId, { snapshot });
 
     return c.json(completedSurvey);
   } catch (error) {
@@ -1570,6 +1689,43 @@ siteSurveys.get("/site-surveys/:id/register", async (c) => {
   } catch (error) {
     console.error("Error fetching risk register:", error);
     return c.json({ message: "Failed to fetch risk register" }, 500);
+  }
+});
+
+// GET /api/site-surveys/:id/compare — return-visit comparison (Task S7).
+// 404 when the survey has no previous_survey_id or the previous survey has
+// no frozen snapshot. `current` is the stored snapshot when completed, else
+// a live build of the current areas so the comparison works mid-walk.
+siteSurveys.get("/site-surveys/:id/compare", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const surveyId = c.req.param("id");
+    const survey = await storage.getSiteSurvey(surveyId);
+    if (!survey || survey.userId !== userId) {
+      return c.json({ error: "Site survey not found" }, 404);
+    }
+    if (!survey.previousSurveyId) {
+      return c.json({ error: "Survey has no previous visit to compare against" }, 404);
+    }
+    const previous = await storage.getSiteSurvey(survey.previousSurveyId);
+    if (!previous || previous.userId !== userId || !isSurveySnapshot(previous.snapshot)) {
+      return c.json({ error: "Previous survey has no snapshot" }, 404);
+    }
+
+    const [areas, photos] = await Promise.all([
+      storage.getSiteSurveyAreas(surveyId),
+      db.select().from(surveyPhotosTable).where(eq(surveyPhotosTable.siteSurveyId, surveyId)),
+    ]);
+    const payload = buildCompareResponse(previous, survey, areas, photos);
+    if (!payload) {
+      return c.json({ error: "Previous survey has no snapshot" }, 404);
+    }
+    return c.json(payload);
+  } catch (error) {
+    console.error("Error comparing site surveys:", error);
+    return c.json({ message: "Failed to compare site surveys" }, 500);
   }
 });
 
