@@ -53,6 +53,7 @@ import { scanCommSuggestions } from "./scheduled/commSuggestionsScanner";
 import migrations from "./routes/migrations";
 import surveyPhotos from "./routes/surveyPhotos";
 import documentsPas13 from "./routes/documentsPas13";
+import documentRegister from "./routes/documentRegister";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -136,6 +137,7 @@ app.route("/api", documents);
 app.route("/api", migrations);
 app.route("/api", surveyPhotos);
 app.route("/api", documentsPas13);
+app.route("/api", documentRegister);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

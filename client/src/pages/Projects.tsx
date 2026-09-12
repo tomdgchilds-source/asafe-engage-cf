@@ -69,6 +69,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { QuoteDraftDrawer, type QuoteDraftPayload } from "@/components/QuoteDraftDrawer";
+import { DocumentsTab } from "./projects/DocumentsTab";
 import type {
   Project,
   CustomerCompany,
@@ -856,6 +857,10 @@ function ProjectDetailPane({
             <Users className="h-3.5 w-3.5 mr-1" />
             Team
           </TabsTrigger>
+          <TabsTrigger value="documents" data-testid="tab-documents">
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            Documents
+          </TabsTrigger>
           <TabsTrigger value="activity" data-testid="tab-activity">
             Activity
           </TabsTrigger>
@@ -978,6 +983,11 @@ function ProjectDetailPane({
         </TabsContent>
 
         {/* Activity tab — customer audit trail (views + approvals) */}
+        {/* Documents tab */}
+        <TabsContent value="documents" className="mt-4">
+          <DocumentsTab projectId={projectId} />
+        </TabsContent>
+
         <TabsContent value="activity" className="mt-4">
           <ActivitySection projectId={projectId} />
         </TabsContent>

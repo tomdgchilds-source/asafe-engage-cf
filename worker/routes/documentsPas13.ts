@@ -34,6 +34,7 @@ import {
   type CheckStatus,
   type ChecklistRow,
   type Snag,
+  type VerificationInput,
   type VerificationZone,
 } from "../lib/pdf/reports/installationVerification";
 import { renderDrawingSheetForDrawing, drawingSheetFileName } from "../lib/pdf/reports/drawingSheetLoader";
@@ -143,141 +144,170 @@ function imageText(entry: unknown): string {
     .toLowerCase();
 }
 
+export interface VerificationBuildOptions {
+  status: "DRAFT" | "ISSUED";
+  preparedBy?: string;
+}
+
+export interface BuiltVerification {
+  input: VerificationInput;
+  install: typeof installations.$inferSelect;
+  order: typeof orders.$inferSelect | null;
+}
+
+/**
+ * Load an installation and map it (phases, milestones, teams, the order's
+ * zones and photos) onto the verification renderer's input. Null when the
+ * installation does not exist. Shared by the on-demand GET below and the
+ * project document register's issue path (routes/documentRegister.ts), so
+ * a preview and an issued revision are built from identical data.
+ */
+export async function buildVerificationInput(
+  env: Env,
+  db: ReturnType<typeof getDb>,
+  id: string,
+  opts: VerificationBuildOptions,
+): Promise<BuiltVerification | null> {
+  const [install] = await db.select().from(installations).where(eq(installations.id, id)).limit(1);
+  if (!install) return null;
+
+  const phases = await db
+    .select()
+    .from(installationPhases)
+    .where(eq(installationPhases.installationId, id))
+    .orderBy(asc(installationPhases.orderIndex));
+  const phaseIds = phases.map((p) => p.id);
+  const milestones = phaseIds.length
+    ? await db.select().from(installationMilestones).where(inArray(installationMilestones.phaseId, phaseIds))
+    : [];
+  const assignments = await db.select().from(installationAssignments).where(eq(installationAssignments.installationId, id));
+  const teamIds = Array.from(new Set([...assignments.map((a) => a.teamId), ...(phases.map((p) => p.assignedTeamId).filter(Boolean) as string[])]));
+  const teams = teamIds.length ? await db.select().from(installTeams).where(inArray(installTeams.id, teamIds)) : [];
+  const teamName = (tid: string | null | undefined) => teams.find((t) => t.id === tid)?.name ?? null;
+
+  let order: typeof orders.$inferSelect | null = null;
+  if (install.orderId) {
+    const [o] = await db.select().from(orders).where(and(eq(orders.id, install.orderId))).limit(1);
+    order = o ?? null;
+  }
+
+  // Zones: the order's application areas, else one zone for the whole job.
+  const areas = Array.isArray(order?.applicationAreas) ? (order!.applicationAreas as Array<Record<string, unknown>>) : [];
+  const items = Array.isArray(order?.items) ? (order!.items as Array<Record<string, unknown>>) : [];
+  const uploaded = Array.isArray(order?.uploadedImages) ? (order!.uploadedImages as unknown[]) : [];
+  const milestoneLite: MilestoneLite[] = milestones.map((m) => ({ name: m.name, completed: m.completed, date: m.date }));
+  const checklist = checklistFromMilestones(milestoneLite);
+
+  const zoneDefs: Array<{ name: string; location?: string; proposalRef: string | null }> = areas.length
+    ? areas.map((a, i) => ({
+        name: (typeof a.operatingZone === "string" && a.operatingZone) || `Zone ${i + 1}`,
+        location: typeof a.description === "string" ? a.description : undefined,
+        proposalRef: typeof a.operationalZoneImageUrl === "string" ? a.operationalZoneImageUrl : null,
+      }))
+    : [{ name: install.title, location: install.location ?? undefined, proposalRef: null }];
+
+  const zones: VerificationZone[] = [];
+  for (const z of zoneDefs) {
+    const zoneKey = z.name.toLowerCase();
+    const products = items
+      .filter((it) => {
+        const loc = `${it.installationLocation ?? ""} ${it.applicationArea ?? ""}`.toLowerCase();
+        return areas.length === 0 || loc.includes(zoneKey);
+      })
+      .map((it) => {
+        const qty = typeof it.quantity === "number" ? ` × ${it.quantity}` : "";
+        return `${String(it.productName ?? "Product")}${qty}`;
+      });
+    const installedEntry = uploaded.find((u) => {
+      const t = imageText(u);
+      return /install/.test(t) && (areas.length === 0 || t.includes(zoneKey));
+    });
+    const proposalPhoto = z.proposalRef ? await fetchImageBytes(env, z.proposalRef) : null;
+    const installedRef = installedEntry ? imageRef(installedEntry) : null;
+    const asInstalledPhoto = installedRef ? await fetchImageBytes(env, installedRef) : null;
+    zones.push({
+      name: z.name,
+      location: z.location,
+      products,
+      proposalPhoto,
+      asInstalledPhoto,
+      checklist: checklist.map((r) => ({ ...r })),
+    });
+  }
+
+  // Snags: delayed / on-hold phases and milestones left open in finished phases.
+  const snags: Snag[] = [];
+  let n = 1;
+  for (const p of phases) {
+    if (p.status === "delayed" || p.status === "on_hold") {
+      snags.push({
+        ref: `S${n++}`,
+        zone: p.name,
+        description: p.notes?.trim() || `${p.name} phase is ${p.status.replace("_", " ")}`,
+        severity: p.status === "delayed" ? "major" : "minor",
+        owner: teamName(p.assignedTeamId) ?? "A-SAFE UAE projects",
+        due: p.endDate ? p.endDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : undefined,
+        status: "open",
+      });
+    }
+    for (const m of milestones.filter((m) => m.phaseId === p.id && !m.completed)) {
+      if (p.status !== "completed" && !(m.date && m.date.getTime() < Date.now())) continue;
+      snags.push({
+        ref: `S${n++}`,
+        zone: p.name,
+        description: m.description?.trim() || `${m.name} not completed`,
+        severity: "minor",
+        owner: teamName(p.assignedTeamId) ?? "A-SAFE UAE projects",
+        due: m.date ? m.date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : undefined,
+        status: "open",
+      });
+    }
+  }
+
+  const input: VerificationInput = {
+    status: opts.status,
+    installation: {
+      title: install.title,
+      customerName: install.customerName,
+      location: install.location,
+      contactName: install.contactName,
+      complexity: install.complexity,
+      status: install.status,
+      progress: install.progress,
+      plannedStart: install.plannedStart,
+      plannedEnd: install.plannedEnd,
+      actualStart: install.actualStart,
+      actualEnd: install.actualEnd,
+      notes: install.notes,
+    },
+    order: order ? { orderNumber: order.orderNumber, projectName: order.projectName } : null,
+    phases: phases.map((p) => ({
+      name: p.name,
+      status: p.status,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      progress: p.progress,
+      team: teamName(p.assignedTeamId),
+    })),
+    zones,
+    snags,
+    installTeam: teamName(assignments[0]?.teamId) ?? teamName(phases.find((p) => p.assignedTeamId)?.assignedTeamId),
+    preparedBy: opts.preparedBy,
+  };
+  return { input, install, order };
+}
+
 documentsPas13.get("/installations/:id/documents/verification.pdf", authMiddleware, async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);
     const userId = c.get("user").claims.sub;
-    const id = c.req.param("id");
-    const [install] = await db.select().from(installations).where(eq(installations.id, id)).limit(1);
-    if (!install) return c.json({ message: "Installation not found" }, 404);
-
-    const phases = await db
-      .select()
-      .from(installationPhases)
-      .where(eq(installationPhases.installationId, id))
-      .orderBy(asc(installationPhases.orderIndex));
-    const phaseIds = phases.map((p) => p.id);
-    const milestones = phaseIds.length
-      ? await db.select().from(installationMilestones).where(inArray(installationMilestones.phaseId, phaseIds))
-      : [];
-    const assignments = await db.select().from(installationAssignments).where(eq(installationAssignments.installationId, id));
-    const teamIds = Array.from(new Set([...assignments.map((a) => a.teamId), ...(phases.map((p) => p.assignedTeamId).filter(Boolean) as string[])]));
-    const teams = teamIds.length ? await db.select().from(installTeams).where(inArray(installTeams.id, teamIds)) : [];
-    const teamName = (tid: string | null | undefined) => teams.find((t) => t.id === tid)?.name ?? null;
-
-    let order: typeof orders.$inferSelect | null = null;
-    if (install.orderId) {
-      const [o] = await db.select().from(orders).where(and(eq(orders.id, install.orderId))).limit(1);
-      order = o ?? null;
-    }
-
-    // Zones: the order's application areas, else one zone for the whole job.
-    const areas = Array.isArray(order?.applicationAreas) ? (order!.applicationAreas as Array<Record<string, unknown>>) : [];
-    const items = Array.isArray(order?.items) ? (order!.items as Array<Record<string, unknown>>) : [];
-    const uploaded = Array.isArray(order?.uploadedImages) ? (order!.uploadedImages as unknown[]) : [];
-    const milestoneLite: MilestoneLite[] = milestones.map((m) => ({ name: m.name, completed: m.completed, date: m.date }));
-    const checklist = checklistFromMilestones(milestoneLite);
-
-    const zoneDefs: Array<{ name: string; location?: string; proposalRef: string | null }> = areas.length
-      ? areas.map((a, i) => ({
-          name: (typeof a.operatingZone === "string" && a.operatingZone) || `Zone ${i + 1}`,
-          location: typeof a.description === "string" ? a.description : undefined,
-          proposalRef: typeof a.operationalZoneImageUrl === "string" ? a.operationalZoneImageUrl : null,
-        }))
-      : [{ name: install.title, location: install.location ?? undefined, proposalRef: null }];
-
-    const zones: VerificationZone[] = [];
-    for (const z of zoneDefs) {
-      const zoneKey = z.name.toLowerCase();
-      const products = items
-        .filter((it) => {
-          const loc = `${it.installationLocation ?? ""} ${it.applicationArea ?? ""}`.toLowerCase();
-          return areas.length === 0 || loc.includes(zoneKey);
-        })
-        .map((it) => {
-          const qty = typeof it.quantity === "number" ? ` × ${it.quantity}` : "";
-          return `${String(it.productName ?? "Product")}${qty}`;
-        });
-      const installedEntry = uploaded.find((u) => {
-        const t = imageText(u);
-        return /install/.test(t) && (areas.length === 0 || t.includes(zoneKey));
-      });
-      const proposalPhoto = z.proposalRef ? await fetchImageBytes(c.env, z.proposalRef) : null;
-      const installedRef = installedEntry ? imageRef(installedEntry) : null;
-      const asInstalledPhoto = installedRef ? await fetchImageBytes(c.env, installedRef) : null;
-      zones.push({
-        name: z.name,
-        location: z.location,
-        products,
-        proposalPhoto,
-        asInstalledPhoto,
-        checklist: checklist.map((r) => ({ ...r })),
-      });
-    }
-
-    // Snags: delayed / on-hold phases and milestones left open in finished phases.
-    const snags: Snag[] = [];
-    let n = 1;
-    for (const p of phases) {
-      if (p.status === "delayed" || p.status === "on_hold") {
-        snags.push({
-          ref: `S${n++}`,
-          zone: p.name,
-          description: p.notes?.trim() || `${p.name} phase is ${p.status.replace("_", " ")}`,
-          severity: p.status === "delayed" ? "major" : "minor",
-          owner: teamName(p.assignedTeamId) ?? "A-SAFE UAE projects",
-          due: p.endDate ? p.endDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : undefined,
-          status: "open",
-        });
-      }
-      for (const m of milestones.filter((m) => m.phaseId === p.id && !m.completed)) {
-        if (p.status !== "completed" && !(m.date && m.date.getTime() < Date.now())) continue;
-        snags.push({
-          ref: `S${n++}`,
-          zone: p.name,
-          description: m.description?.trim() || `${m.name} not completed`,
-          severity: "minor",
-          owner: teamName(p.assignedTeamId) ?? "A-SAFE UAE projects",
-          due: m.date ? m.date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : undefined,
-          status: "open",
-        });
-      }
-    }
-
     const user = await storage.getUser(userId);
     const preparedBy = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined : undefined;
-    const bytes = await renderInstallationVerification(c.env, {
-      status: statusFromQuery(c),
-      installation: {
-        title: install.title,
-        customerName: install.customerName,
-        location: install.location,
-        contactName: install.contactName,
-        complexity: install.complexity,
-        status: install.status,
-        progress: install.progress,
-        plannedStart: install.plannedStart,
-        plannedEnd: install.plannedEnd,
-        actualStart: install.actualStart,
-        actualEnd: install.actualEnd,
-        notes: install.notes,
-      },
-      order: order ? { orderNumber: order.orderNumber, projectName: order.projectName } : null,
-      phases: phases.map((p) => ({
-        name: p.name,
-        status: p.status,
-        startDate: p.startDate,
-        endDate: p.endDate,
-        progress: p.progress,
-        team: teamName(p.assignedTeamId),
-      })),
-      zones,
-      snags,
-      installTeam: teamName(assignments[0]?.teamId) ?? teamName(phases.find((p) => p.assignedTeamId)?.assignedTeamId),
-      preparedBy,
-    });
-    return pdfResponse(bytes, `Installation_Verification-${safeName(order?.orderNumber ?? install.id.slice(0, 8))}.pdf`);
+    const built = await buildVerificationInput(c.env, db, c.req.param("id"), { status: statusFromQuery(c), preparedBy });
+    if (!built) return c.json({ message: "Installation not found" }, 404);
+    const bytes = await renderInstallationVerification(c.env, built.input);
+    return pdfResponse(bytes, `Installation_Verification-${safeName(built.order?.orderNumber ?? built.install.id.slice(0, 8))}.pdf`);
   } catch (error) {
     console.error("Error rendering installation verification report:", error);
     return c.json({ message: "Failed to render installation verification report" }, 500);
@@ -290,7 +320,7 @@ documentsPas13.get("/installations/:id/documents/verification.pdf", authMiddlewa
 // stored export (POST /api/layout-drawings/:id/export) stay identical.
 
 /** Read-only overlay: the saved document, else a transient migration of the legacy markups. */
-async function loadOverlay(storage: ReturnType<typeof createStorage>, drawing: LayoutDrawing): Promise<LayoutDoc> {
+export async function loadOverlay(storage: ReturnType<typeof createStorage>, drawing: LayoutDrawing): Promise<LayoutDoc> {
   const parsed = parseLayoutDoc(drawing.document);
   if (parsed) return parsed;
   const rows = await storage.getLayoutMarkups(drawing.id);
