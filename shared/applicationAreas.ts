@@ -6,7 +6,7 @@
 // vehicles a surveyor would typically expect in that zone.
 //
 // Consumed by client/src/pages/SiteSurvey.tsx, client/src/components/
-// VehicleImpactCalculator.tsx and client/src/utils/siteSurveyPdfGenerator.ts
+// VehicleImpactCalculator.tsx and the server-side risk assessment report
 // (previously three drifting local copies).
 //
 // `defaultRiskLevel` and `suggestedVehicles` are surveyor-on-tablet

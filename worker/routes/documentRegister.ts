@@ -54,6 +54,7 @@ import {
 import { DOCUMENT_KINDS, isDocumentKind, type DocumentKind } from "../../shared/documents/refs";
 import { renderProposal } from "../lib/pdf/reports/proposal";
 import { renderOrderForm } from "../lib/pdf/reports/orderForm";
+import { renderRiskAssessment } from "../lib/pdf/reports/riskAssessment";
 import { renderPas13Statement } from "../lib/pdf/reports/pas13Statement";
 import { renderInstallationVerification } from "../lib/pdf/reports/installationVerification";
 import { renderDrawingSheet } from "../lib/pdf/reports/drawingSheet";
@@ -424,10 +425,12 @@ documentRegister.post("/projects/:id/documents/:kind/issue", authMiddleware, mut
       case "RA": {
         const survey = scope.surveys.find((s) => s.id === body.surveyId);
         if (!survey) return c.json({ message: "surveyId must name a survey on this project" }, 400);
-        // The risk-assessment renderer (Task PD2) is being landed alongside
-        // this register; until its module exists here there is nothing to
-        // call. The draft preview URL already points at its route.
-        return c.json({ message: "Issuing the Impact Protection Risk Assessment is not wired up yet. Use the draft preview." }, 501);
+        subjectLabel = `survey ${survey.title}`;
+        const rendered = await renderRiskAssessment(c.env, survey.id, { status: "ISSUED", issuedBy: userId });
+        if (!rendered?.objectKey) return c.json({ message: "Survey not found" }, 404);
+        objectKey = rendered.objectKey;
+        await stampIssueSubject(c.env, objectKey, { projectId: project.id });
+        break;
       }
       case "DS": {
         const drawing = scope.drawings.find((d) => d.id === body.drawingId);

@@ -32,7 +32,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { InfoPopover } from '@/components/ui/info-popover';
-import { generateSiteSurveyPdf } from '@/utils/siteSurveyPdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { ObjectUploader } from '@/components/ObjectUploader';
@@ -680,44 +679,12 @@ export default function SiteSurvey() {
   };
 
   // Handle PDF download
+  // Legacy button: the client-side jsPDF report was retired in favour of the
+  // server-rendered Impact Protection Risk Assessment (same document the
+  // "Generate report" action opens).
   const handleDownloadPdf = async (survey: any) => {
     if (!survey) return;
-    
-    setGeneratingPdf(true);
-    try {
-      // Fetch the areas for this survey if not already loaded
-      const areasResponse = await fetch(`/api/site-surveys/${survey.id}/areas`, {
-        credentials: 'include'
-      });
-      
-      // Fetch user profile data for the Assessment Conducted By section
-      const profileResponse = await fetch('/api/auth/profile', {
-        credentials: 'include'
-      });
-      
-      if (areasResponse.ok && profileResponse.ok) {
-        const areas = (await areasResponse.json()) as Parameters<typeof generateSiteSurveyPdf>[1];
-        const userProfile = (await profileResponse.json()) as Parameters<typeof generateSiteSurveyPdf>[2];
-        await generateSiteSurveyPdf(survey, areas, userProfile);
-        haptic.success();
-        toast({
-          title: 'PDF Generated',
-          description: 'Your site survey report has been downloaded successfully.'
-        });
-      } else {
-        throw new Error('Failed to fetch survey data');
-      }
-    } catch (error) {
-      console.error('Failed to generate PDF:', error);
-      haptic.error();
-      toast({
-        title: 'PDF Generation Failed',
-        description: 'There was an error generating the PDF report. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setGeneratingPdf(false);
-    }
+    await handleGenerateReport(survey.id);
   };
   
   // Fetch previous impact calculations
