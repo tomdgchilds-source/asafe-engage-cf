@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { ClipboardCheck, MapPin, Camera, AlertTriangle, FileText, Plus, Edit, Trash2, Upload, ShoppingCart, Download, Shield, AlertCircle, History, Search, Clock, ChevronDown, CheckCircle } from 'lucide-react';
+import { ClipboardCheck, MapPin, Camera, AlertTriangle, FileText, Plus, Edit, Trash2, Upload, ShoppingCart, Download, Shield, AlertCircle, History, Search, Clock, ChevronDown, CheckCircle, Footprints, Images, FileDown, Loader2, RotateCcw } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
   DropdownMenu,
@@ -49,6 +49,22 @@ import { CameraPhotoCapture } from '@/components/CameraPhotoCapture';
 import { VoiceNoteButton } from '@/components/VoiceNoteButton';
 import { QuoteDraftDrawer, type QuoteDraftPayload } from '@/components/QuoteDraftDrawer';
 import { applicationAreaData } from '@shared/applicationAreas';
+import { Switch } from '@/components/ui/switch';
+import { RiskRegister, LevelChip } from '@/pages/survey/RiskRegister';
+import { RiskHeatmap } from '@/pages/survey/RiskHeatmap';
+import { useSurveyPhotos } from '@/pages/survey/useSurveyPhotos';
+import {
+  useSurveyRegister,
+  useReassessArea,
+  hasRegisterData,
+  countUnlinkedAnalysed,
+  buildOrderFormItems,
+  registerBudgetTotalAed,
+  formatAed,
+  returnVisitCandidates,
+  uniqueZoneNames,
+  zoneNamesFromSnapshot,
+} from '@/pages/survey/useSurveyRegister';
 
 // Shape of the draft carried by useOfflineSurvey — mirrors the in-dialog
 // `newSurvey` form state so an offline user can resume creation on reconnect.
@@ -62,6 +78,8 @@ type NewSurveyDraft = {
   requestedByEmail: string;
   requestedByMobile: string;
   companyLogoUrl: string;
+  /** Task S7: completed survey this one is a return visit to ('' = none). */
+  previousSurveyId: string;
 };
 
 const EMPTY_SURVEY_DRAFT: NewSurveyDraft = {
@@ -74,6 +92,7 @@ const EMPTY_SURVEY_DRAFT: NewSurveyDraft = {
   requestedByEmail: '',
   requestedByMobile: '',
   companyLogoUrl: '',
+  previousSurveyId: '',
 };
 
 // Application areas from the impact calculator with risk & benefit data
@@ -431,6 +450,121 @@ export default function SiteSurvey() {
   const [showBuildProjectModal, setShowBuildProjectModal] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
+  // Phase 3 (Task S5): risk register view of the selected survey.
+  const [legacyView, setLegacyView] = useState(false);
+  const [expandedAreaId, setExpandedAreaId] = useState<string | null>(null);
+  const [showOrderFormConfirm, setShowOrderFormConfirm] = useState(false);
+  const [buildingOrderForm, setBuildingOrderForm] = useState(false);
+  const [openingReport, setOpeningReport] = useState(false);
+  const { data: register, isLoading: registerLoading } = useSurveyRegister(selectedSurvey?.id);
+  const { data: surveyPhotos } = useSurveyPhotos(selectedSurvey?.id, { poll: false });
+  const reassessArea = useReassessArea(selectedSurvey?.id);
+  const registerAreas = register?.areas ?? [];
+  const registerReady = hasRegisterData(registerAreas);
+  const unlinkedPhotoCount = countUnlinkedAnalysed(surveyPhotos);
+  const orderFormItems = useMemo(
+    () => buildOrderFormItems(registerAreas, selectedSurvey),
+    [registerAreas, selectedSurvey],
+  );
+  const registerBudget = useMemo(() => registerBudgetTotalAed(registerAreas), [registerAreas]);
+
+  // Surveys without register data (manual areas, null riskScore) open in the
+  // legacy card view; everything else opens on the register.
+  useEffect(() => {
+    if (!selectedSurvey?.id || !register) return;
+    setLegacyView(!hasRegisterData(register.areas) && register.areas.length > 0);
+    setExpandedAreaId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSurvey?.id, register?.surveyId]);
+
+  const handleReassess = (areaId: string) => {
+    haptic.select();
+    reassessArea.mutate(areaId, {
+      onSuccess: (area) => {
+        haptic.success();
+        toast({
+          title: 'Zone reassessed',
+          description: area.riskScore != null
+            ? `${area.zoneName}: score ${area.riskScore} (${area.riskLevel}), rank #${area.priorityRank ?? '—'}.`
+            : `${area.zoneName} reassessed.`,
+        });
+      },
+      onError: () => {
+        haptic.error();
+        toast({ title: 'Reassess failed', description: 'Could not re-run the assessment for this zone.', variant: 'destructive' });
+      },
+    });
+  };
+
+  // "Generate report" — the server-rendered risk assessment PDF (Phase 3d,
+  // documents route). Open a tab synchronously so popup blockers allow it,
+  // then fetch; a 404 means the route has not shipped yet.
+  const handleGenerateReport = async (surveyId: string) => {
+    const url = `/api/site-surveys/${encodeURIComponent(surveyId)}/documents/risk-assessment.pdf?status=draft`;
+    const win = window.open('', '_blank');
+    setOpeningReport(true);
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (res.status === 404) {
+        win?.close();
+        toast({ title: 'Report not available yet', description: 'The risk assessment report generator is still being built.', variant: 'destructive' });
+        return;
+      }
+      if (!res.ok) {
+        win?.close();
+        throw new Error(`report ${res.status}`);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (win) {
+        win.location.href = objectUrl;
+      } else {
+        window.open(objectUrl, '_blank');
+      }
+      haptic.success();
+    } catch (e: any) {
+      haptic.error();
+      toast({ title: 'Report failed', description: e?.message || 'Could not generate the report.', variant: 'destructive' });
+    } finally {
+      setOpeningReport(false);
+    }
+  };
+
+  // "Build order form" — bulk-add every ranked zone's top product (with its
+  // run length) through the existing cart bulk-add flow, then go to the cart.
+  const handleBuildOrderForm = async () => {
+    if (!selectedSurvey?.id || orderFormItems.length === 0) return;
+    setBuildingOrderForm(true);
+    try {
+      const res = await apiRequest('/api/cart/bulk-add', 'POST', {
+        items: orderFormItems,
+        projectInfo: {
+          company: selectedSurvey.facilityName,
+          location: selectedSurvey.facilityLocation,
+          projectDescription: `Site Survey: ${selectedSurvey.title} - ${selectedSurvey.description || ''}`,
+          companyLogoUrl: selectedSurvey.companyLogoUrl || '',
+          siteSurveyId: selectedSurvey.id,
+          siteSurveyTitle: selectedSurvey.title,
+        },
+        autoSaveExisting: true,
+      });
+      const result = (await res.json()) as { message?: string; itemsAdded?: number; skipped?: string[] };
+      haptic.success();
+      toast({
+        title: 'Order form started',
+        description: result.message || `${result.itemsAdded ?? orderFormItems.length} lines added to your project cart.`,
+      });
+      setShowOrderFormConfirm(false);
+      setTimeout(() => navigate('/cart'), 600);
+    } catch (error) {
+      console.error('Error building order form:', error);
+      haptic.error();
+      toast({ title: 'Error', description: 'Failed to add the recommended barriers to the cart.', variant: 'destructive' });
+    } finally {
+      setBuildingOrderForm(false);
+    }
+  };
+
   // Quote-draft drawer state — wired to POST /api/quote/draft.
   const [quoteDrawerOpen, setQuoteDrawerOpen] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState<QuoteDraftPayload | null>(null);
@@ -517,6 +651,26 @@ export default function SiteSurvey() {
       });
     }
   });
+
+  // Deep link from the review screen (Task S3): /site-survey?open=<id>
+  // opens that survey through the normal open path (which also bumps
+  // lastViewed), then strips the param so a refresh does not reopen it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const openId = params.get('open');
+      if (!openId) return;
+      fetchSurveyMutation.mutate(openId);
+      params.delete('open');
+      const rest = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+    } catch {
+      /* ignore parse errors — non-blocking */
+    }
+    // Run once on mount; fetchSurveyMutation is stable for the page's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle survey selection
   const handleSelectSurvey = (survey: any) => {
@@ -645,6 +799,26 @@ export default function SiteSurvey() {
     queryKey: ['/api/site-surveys', selectedSurvey?.id, 'areas'],
     enabled: !!selectedSurvey
   });
+
+  // Return visit (Task S7, client side): completed surveys for the same
+  // customer, and the zone names of the one picked (snapshot first, else
+  // its areas) so the new survey starts with the same zones.
+  const returnVisitOptions = useMemo(
+    () => returnVisitCandidates((surveys as any[]) ?? [], newSurvey.facilityName),
+    [surveys, newSurvey.facilityName],
+  );
+  const previousSurvey = useMemo(
+    () => ((surveys as any[]) ?? []).find((s: any) => s.id === newSurvey.previousSurveyId) ?? null,
+    [surveys, newSurvey.previousSurveyId],
+  );
+  const { data: previousSurveyAreas } = useQuery<any[]>({
+    queryKey: ['/api/site-surveys', newSurvey.previousSurveyId, 'areas'],
+    enabled: !!newSurvey.previousSurveyId && zoneNamesFromSnapshot(previousSurvey?.snapshot).length === 0,
+  });
+  const returnVisitZoneNames = useMemo(() => {
+    const fromSnapshot = zoneNamesFromSnapshot(previousSurvey?.snapshot);
+    return fromSnapshot.length > 0 ? fromSnapshot : uniqueZoneNames(previousSurveyAreas);
+  }, [previousSurvey, previousSurveyAreas]);
 
   // Create survey mutation
   const createSurveyMutation = useMutation({
@@ -792,8 +966,15 @@ export default function SiteSurvey() {
 
   const handleCreateSurvey = () => {
     haptic.formSubmit();
-    // Include all fields including the requested by information
-    createSurveyMutation.mutate(newSurvey);
+    // Include all fields including the requested by information. A return
+    // visit (Task S7) carries previousSurveyId plus the zone names to
+    // pre-create; a fresh survey sends neither.
+    const { previousSurveyId, ...fields } = newSurvey;
+    createSurveyMutation.mutate(
+      previousSurveyId
+        ? { ...fields, previousSurveyId, zoneNames: returnVisitZoneNames }
+        : fields,
+    );
   };
 
   const handleEditArea = (area: any) => {
@@ -1040,6 +1221,62 @@ export default function SiteSurvey() {
                   data-testid="input-facility-name"
                 />
               </div>
+
+              {/* Return visit picker (Task S7) — only completed surveys are
+                  offered; when a facility name is typed the list narrows to
+                  that customer. Picking one pre-fills the facility details
+                  and carries its zone names into the new survey. */}
+              {returnVisitOptions.length > 0 && (
+                <div>
+                  <Label htmlFor="previousSurveyId">Return visit to…</Label>
+                  <Select
+                    value={newSurvey.previousSurveyId || 'none'}
+                    onValueChange={(value) => {
+                      haptic.select();
+                      if (value === 'none') {
+                        setNewSurveyAndDraft({ ...newSurvey, previousSurveyId: '' });
+                        return;
+                      }
+                      const prev = returnVisitOptions.find((s: any) => s.id === value);
+                      setNewSurveyAndDraft({
+                        ...newSurvey,
+                        previousSurveyId: value,
+                        title: newSurvey.title.trim() ? newSurvey.title : `Return visit – ${prev?.title ?? ''}`.trim(),
+                        facilityName: newSurvey.facilityName.trim() ? newSurvey.facilityName : (prev?.facilityName ?? ''),
+                        facilityLocation: newSurvey.facilityLocation.trim() ? newSurvey.facilityLocation : (prev?.facilityLocation ?? ''),
+                        companyLogoUrl: newSurvey.companyLogoUrl.trim() ? newSurvey.companyLogoUrl : (prev?.companyLogoUrl ?? ''),
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="previousSurveyId" className="min-h-[44px]" data-testid="select-previous-survey">
+                      <SelectValue placeholder="Not a return visit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="py-3">Not a return visit</SelectItem>
+                      {returnVisitOptions.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id} className="py-3">
+                          {s.title} · {s.facilityName}
+                          {s.surveyDate ? ` · ${format(new Date(s.surveyDate), 'd MMM yyyy')}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {newSurvey.previousSurveyId && (
+                    <div className="mt-2 text-xs text-muted-foreground" data-testid="return-visit-zones">
+                      {returnVisitZoneNames.length > 0 ? (
+                        <>
+                          <span className="mr-1 inline-flex items-center gap-1"><RotateCcw className="h-3 w-3" aria-hidden />Zones carried over:</span>
+                          {returnVisitZoneNames.map((z) => (
+                            <span key={z} className="mr-1 inline-block rounded-full border px-2 py-0.5">{z}</span>
+                          ))}
+                        </>
+                      ) : (
+                        'Previous survey has no zones to carry over.'
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Company logo picker — same inline grid-of-suggestions
                   component used by NewProjectDialog. The old
@@ -1317,54 +1554,67 @@ export default function SiteSurvey() {
                       Completed
                     </Badge>
                   )}
-                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => handleDownloadPdf(selectedSurvey)}
-                      disabled={generatingPdf}
-                      data-testid="button-download-survey-pdf"
-                    >
-                      {generatingPdf ? (
-                        <>Generating PDF...</>
-                      ) : (
-                        <>
-                          <Download className="h-4 w-4 mr-1" />
-                          Download PDF Report
-                        </>
-                      )}
-                    </Button>
-                    {surveyAreas && Array.isArray(surveyAreas) && surveyAreas.some((area: any) => area.recommendedProducts?.length > 0) && (
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    {selectedSurvey?.status !== 'completed' && (
                       <Button
                         size="sm"
                         className="bg-[#FFC72C] hover:bg-[#F0B800] text-black w-full sm:w-auto"
                         onClick={() => {
-                          haptic.modalOpen();
-                          setShowBuildProjectModal(true);
+                          haptic.select();
+                          navigate(`/site-survey/${selectedSurvey.id}/walk`);
                         }}
-                        data-testid="button-build-project"
+                        data-testid="button-continue-walk"
                       >
-                        <ShoppingCart className="h-4 w-4 mr-1" />
-                        Build Project
+                        <Footprints className="h-4 w-4 mr-1" />
+                        {(register?.summary.photos ?? 0) > 0 ? 'Continue walk' : 'Start walk'}
                       </Button>
                     )}
-                    {/* Quoting AI assistant — composes a complete quote PDF
-                        from this survey via POST /api/quote/draft. */}
-                    {selectedSurvey?.id && surveyAreas && Array.isArray(surveyAreas) && surveyAreas.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        haptic.select();
+                        navigate(`/site-survey/${selectedSurvey.id}/review`);
+                      }}
+                      data-testid="button-review-photos"
+                    >
+                      <Images className="h-4 w-4 mr-1" />
+                      Review photos
+                      {unlinkedPhotoCount > 0 && (
+                        <Badge className="ml-1.5 h-5 min-w-5 justify-center rounded-full bg-[#FFC72C] px-1.5 text-[11px] text-black hover:bg-[#FFC72C]" data-testid="badge-unlinked-photos">
+                          {unlinkedPhotoCount}
+                        </Badge>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        haptic.select();
+                        handleGenerateReport(selectedSurvey.id);
+                      }}
+                      disabled={openingReport}
+                      data-testid="button-generate-report"
+                    >
+                      {openingReport ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
+                      Generate report
+                    </Button>
+                    {orderFormItems.length > 0 && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full sm:w-auto border-[#FFC72C] text-black hover:bg-[#FFF7DC]"
+                        className="w-full sm:w-auto border-[#FFC72C] hover:bg-[#FFF7DC] dark:hover:bg-[#FFC72C]/10"
                         onClick={() => {
                           haptic.modalOpen();
-                          handleGenerateQuote(selectedSurvey.id);
+                          setShowOrderFormConfirm(true);
                         }}
-                        disabled={quoteGenerating}
-                        data-testid="button-generate-quote-draft-survey"
+                        data-testid="button-build-order-form"
                       >
-                        <FileText className="h-4 w-4 mr-1" />
-                        {quoteGenerating ? 'Generating…' : 'Generate Quote Draft'}
+                        <ShoppingCart className="h-4 w-4 mr-1" />
+                        Build order form
+                        <span className="ml-1 text-xs text-muted-foreground">({orderFormItems.length})</span>
                       </Button>
                     )}
                     {selectedSurvey?.status === 'draft' && surveyAreas && Array.isArray(surveyAreas) && surveyAreas.length > 0 && (
@@ -1383,22 +1633,91 @@ export default function SiteSurvey() {
                         {completeSurveyMutation.isPending ? 'Completing...' : 'Complete Survey'}
                       </Button>
                     )}
+                    {/* Legacy client-side PDF and the Build Project modal stay
+                        reachable from the legacy view. "Generate Quote Draft"
+                        was removed from the toolbar (handleGenerateQuote and
+                        the drawer remain wired for /api/quote/draft). */}
+                    {legacyView && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full sm:w-auto"
+                          onClick={() => handleDownloadPdf(selectedSurvey)}
+                          disabled={generatingPdf}
+                          data-testid="button-download-survey-pdf"
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          {generatingPdf ? 'Generating PDF...' : 'Download PDF Report'}
+                        </Button>
+                        {surveyAreas && Array.isArray(surveyAreas) && surveyAreas.some((area: any) => area.recommendedProducts?.length > 0) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full sm:w-auto"
+                            onClick={() => {
+                              haptic.modalOpen();
+                              setShowBuildProjectModal(true);
+                            }}
+                            data-testid="button-build-project"
+                          >
+                            <ShoppingCart className="h-4 w-4 mr-1" />
+                            Build Project
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                {/* Summary strip (Task S5): areas, photos, overall level, highest-priority zone */}
+                <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-4" data-testid="survey-summary-strip">
                   <div>
-                    <p className="text-muted-foreground">Areas Reviewed</p>
-                    <p className="text-2xl font-bold">{selectedSurvey?.totalAreasReviewed || 0}</p>
+                    <p className="text-xs text-muted-foreground">Areas</p>
+                    <p className="text-2xl font-bold tabular-nums">{register?.summary.total ?? (surveyAreas as any[])?.length ?? 0}</p>
+                    {register && register.summary.unassessed > 0 && (
+                      <p className="text-[11px] text-muted-foreground">{register.summary.unassessed} unscored</p>
+                    )}
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Impact Analysis</p>
-                    <p className="text-2xl font-bold">{selectedSurvey?.totalImpactCalculations || 0}</p>
+                    <p className="text-xs text-muted-foreground">Photos</p>
+                    <p className="text-2xl font-bold tabular-nums">{surveyPhotos?.length ?? register?.summary.photos ?? 0}</p>
+                    {unlinkedPhotoCount > 0 && (
+                      <p className="text-[11px] text-muted-foreground">{unlinkedPhotoCount} to review</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Overall level</p>
+                    <div className="mt-1">
+                      <LevelChip level={register?.summary.overallRiskLevel ?? selectedSurvey?.overallRiskLevel ?? null} bands={register?.bands} size="md" />
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Highest priority</p>
+                    {register?.summary.highestPriorityZone ? (
+                      <button
+                        type="button"
+                        className="mt-1 max-w-full truncate text-left font-semibold underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setLegacyView(false);
+                          setExpandedAreaId(register.summary.highestPriorityAreaId);
+                        }}
+                        title={register.summary.highestPriorityZone}
+                        data-testid="button-highest-priority-zone"
+                      >
+                        {register.summary.highestPriorityZone}
+                      </button>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">—</p>
+                    )}
+                    {registerBudget > 0 && (
+                      <p className="text-[11px] text-muted-foreground">Budget {formatAed(registerBudget)}</p>
+                    )}
                   </div>
                 </div>
                 
-                {/* Risk Level Breakdown */}
-                {selectedSurvey?.riskBreakdown && (
+                {/* Risk Level Breakdown (legacy survey fields) */}
+                {legacyView && selectedSurvey?.riskBreakdown && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-muted-foreground">Impact Risk Analysis</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1430,8 +1749,8 @@ export default function SiteSurvey() {
                   </div>
                 )}
                 
-                {/* Condition Breakdown */}
-                {selectedSurvey?.conditionBreakdown && (
+                {/* Condition Breakdown (legacy survey fields) */}
+                {legacyView && selectedSurvey?.conditionBreakdown && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-muted-foreground">Condition Analysis</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1463,27 +1782,118 @@ export default function SiteSurvey() {
                   </div>
                 )}
               </div>
-              {selectedSurvey?.status !== 'completed' && (
-                <Dialog open={showAreaDialog} onOpenChange={(open) => {
-                  if (open) haptic.modalOpen();
-                  setShowAreaDialog(open);
-                }}>
-                  <DialogTrigger asChild>
-                    <Button className="min-h-[44px] w-full sm:w-auto" data-testid="button-add-area">
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Area of Concern
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
-              )}
               {selectedSurvey?.status === 'completed' && (
                 <p className="text-sm text-muted-foreground italic">This survey has been completed and is read-only.</p>
               )}
             </div>
 
-            {/* Areas of Concern */}
+            {/* Register / legacy toggle. Surveys without register data
+                (manual areas, null riskScore) default to the legacy cards. */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold">{legacyView ? 'Areas of Concern' : 'Risk register'}</h3>
+              <div className="flex items-center gap-3">
+                {selectedSurvey?.status !== 'completed' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="min-h-[36px]"
+                    onClick={() => {
+                      haptic.modalOpen();
+                      setShowAreaDialog(true);
+                    }}
+                    data-testid="button-add-area"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add area
+                  </Button>
+                )}
+                {(!registerReady || legacyView) && (
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Switch checked={legacyView} onCheckedChange={setLegacyView} aria-label="Legacy view" data-testid="switch-legacy-view" />
+                    Legacy view
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {!legacyView && (
+              <div className="space-y-4" data-testid="risk-register-section">
+                {registerLoading && !register ? (
+                  <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Loading risk register…
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Likelihood × severity</CardTitle>
+                          <CardDescription>
+                            {register?.summary.assessed ?? 0} of {register?.summary.total ?? 0} areas scored
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <RiskHeatmap
+                            matrix={register?.matrix}
+                            bands={register?.bands}
+                            highlight={registerAreas.find((a) => a.id === expandedAreaId) ?? null}
+                            onCellClick={(l, sev) => {
+                              const hit = registerAreas.find((a) => a.likelihood === l && a.severity === sev);
+                              if (hit) {
+                                haptic.select();
+                                setExpandedAreaId(hit.id);
+                              }
+                            }}
+                          />
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">By level</CardTitle>
+                          <CardDescription>Action timescales from the register bands</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {(register?.bands ?? []).slice().reverse().map((band) => {
+                              const count = register?.summary.byLevel[band.level] ?? 0;
+                              return (
+                                <li key={band.level} className="flex items-center justify-between gap-3 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <LevelChip level={band.level} bands={register?.bands} />
+                                    <span className="text-xs text-muted-foreground">{band.actionTimescale}</span>
+                                  </div>
+                                  <span className="font-semibold tabular-nums">{count}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                          {!registerReady && (
+                            <p className="mt-4 text-xs text-muted-foreground">
+                              No zones have been scored yet. Walk the site and review the analysed photos, or reassess an existing area.
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <RiskRegister
+                      areas={registerAreas}
+                      bands={register?.bands}
+                      readOnly={selectedSurvey?.status === 'completed'}
+                      onReassess={handleReassess}
+                      reassessingId={reassessArea.isPending ? reassessArea.variables ?? null : null}
+                      expandedId={expandedAreaId}
+                      onExpandedChange={setExpandedAreaId}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Areas of Concern (legacy cards) */}
+            {legacyView && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Areas of Concern</h3>
               <div className="space-y-4">
                 {(surveyAreas as any[])?.map((area: any) => (
                   <Card
@@ -1824,9 +2234,52 @@ export default function SiteSurvey() {
                 )}
               </div>
             </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Build order form confirmation (Task S5) */}
+      <AlertDialog open={showOrderFormConfirm} onOpenChange={setShowOrderFormConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Build order form</AlertDialogTitle>
+            <AlertDialogDescription>
+              Adds the top recommended barrier for each of the {orderFormItems.length} ranked zone{orderFormItems.length === 1 ? '' : 's'} to your project cart, with run lengths where entered
+              {registerBudget > 0 ? ` (budget ${formatAed(registerBudget)})` : ''}. Anything already in the cart is saved as a draft first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm" data-testid="order-form-preview">
+            {orderFormItems.map((item, i) => (
+              <li key={`${item.zoneName}-${i}`} className="flex justify-between gap-3">
+                <span className="truncate">
+                  <span className="text-muted-foreground">{item.zoneName} · </span>
+                  {item.productName}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {item.pricingType === 'linear_meter' ? `${item.quantity} m` : `× ${item.quantity}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={buildingOrderForm}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#FFC72C] text-black hover:bg-[#F0B800]"
+              disabled={buildingOrderForm}
+              onClick={(e) => {
+                e.preventDefault();
+                haptic.formSubmit();
+                handleBuildOrderForm();
+              }}
+              data-testid="button-confirm-order-form"
+            >
+              {buildingOrderForm ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ShoppingCart className="h-4 w-4 mr-1" />}
+              Add to project cart
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Add Area Dialog */}
       <Dialog open={showAreaDialog} onOpenChange={(open) => {
