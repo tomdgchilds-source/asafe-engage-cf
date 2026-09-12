@@ -4,7 +4,8 @@
 // Budgetary proposal (ASU-PR-<yymm>-<seq>), A4 portrait:
 //   1 cover · 2 letter · 3 solution summary by zone · 4 scope of supply ·
 //   5 installation and site requirements · 6 commercial terms ·
-//   7 product cards · 8 drawing (when an image layout exists) · 9 acceptance
+//   7 product cards · 8 drawing (vector export on A4 landscape, else the
+//   image layout; skipped when neither exists) · 9 acceptance
 //
 // Three layers so other renderers and tests can reuse the pieces:
 //   buildProposalModel(bundle)        pure: OrderBundle → ProposalModel
@@ -17,11 +18,12 @@
 // partner and complexity inputs. Never a third formula.
 // ────────────────────────────────────────────────────────────────────────────
 
+import { PDFDocument, PageSizes, type PDFEmbeddedPage } from "pdf-lib";
 import type { Env } from "../../../types";
 import { createDoc, addPage, finalize, mm, current, contentWidth, type Doc, type Page } from "../doc";
 import { heading, body, small, label, bullets, drawText } from "../text";
 import { coverPage, documentControl, table, kpiTiles, productCard, photo, calloutBox, signOffBlock, letterTab, type SignOffParty } from "../blocks";
-import { C, TYPE, RISK_LABELS, type RiskLevel } from "../theme";
+import { C, LAYOUT, TYPE, RISK_LABELS, type RiskLevel } from "../theme";
 import {
   computeTotals,
   cartItemsToPricingLines,
@@ -810,13 +812,132 @@ export async function drawProductAppendix(doc: Doc, model: ProposalModel): Promi
   return page;
 }
 
-/** Drawing page when the layout drawing is an image. */
+/** Caption under an embedded vector export: "Layout drawing DWGAE002882 Rev 02 — export v3". */
+export function drawingExportCaption(d: Pick<LayoutDrawingInfo, "dwgNumber" | "revision" | "exportVersion">): string {
+  const name = ["Layout drawing", d.dwgNumber ?? "", d.revision ? `Rev ${d.revision}` : ""].filter(Boolean).join(" ");
+  return `${name} — export v${d.exportVersion ?? 0}`;
+}
+
+/** True when the drawing has been saved since its export was rendered. */
+export function drawingExportIsStale(d: Pick<LayoutDrawingInfo, "exportVersion" | "documentVersion">): boolean {
+  return (d.exportVersion ?? 0) !== (d.documentVersion ?? 0);
+}
+
+export const DRAWING_EXPORT_STALE_NOTE = "Drawing export is older than the latest edits";
+
+/**
+ * A4 landscape page in the house style. `doc.ts` only knows A4 portrait and
+ * A3 landscape and is owned elsewhere, so the page is assembled here with the
+ * same margins, header text and footer contract `addPage` uses; `finalize`
+ * draws the footer and DRAFT watermark from `page.width` / `page.height`.
+ */
+function addLandscapeA4Page(doc: Doc): Page {
+  const [width, height] = [PageSizes.A4[1], PageSizes.A4[0]];
+  const pdfPage = doc.pdf.addPage([width, height]);
+  const m = mm(LAYOUT.marginMm);
+  const page: Page = {
+    page: pdfPage,
+    cursorY: height - m,
+    margin: { l: m, r: m, t: m, b: m },
+    number: doc.pages.length + 1,
+    size: "A4",
+    width,
+    height,
+    header: true,
+    footer: true,
+    doc,
+  };
+  doc.pages.push(page);
+  doc.current = page;
+  // Same header as doc.ts draws: docType in caps, grey60, tracked, right-aligned on the baseline.
+  const text = doc.meta.docType.toUpperCase();
+  const size = TYPE.label.size;
+  const font = doc.fonts.regular;
+  const tracking = size * TYPE.label.tracking;
+  const textW = font.widthOfTextAtSize(text, size) + tracking * Math.max(0, text.length - 1);
+  let x = width - m - textW;
+  const y = height - mm(LAYOUT.headerFromTopMm);
+  for (const ch of text) {
+    pdfPage.drawText(ch, { x, y, size, font, color: C.grey60 });
+    x += font.widthOfTextAtSize(ch, size) + tracking;
+  }
+  return page;
+}
+
+/** First page of the stored vector export, embedded into this document; null when it cannot be read. */
+async function embedExportPage(doc: Doc, bytes: Uint8Array): Promise<PDFEmbeddedPage | null> {
+  try {
+    const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    if (src.getPageCount() === 0) return null;
+    return await doc.pdf.embedPage(src.getPage(0));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drawing page from the drawing's vector export: one A4 landscape page with
+ * the export's first page scaled to fit, a caption, and a stale note when
+ * the drawing has been edited since the export. Null when the export bytes
+ * cannot be embedded so the caller can fall back to the raster.
+ */
+async function drawExportedDrawingPage(doc: Doc, d: LayoutDrawingInfo): Promise<Page | null> {
+  if (!d.exportBytes) return null;
+  const embedded = await embedExportPage(doc, d.exportBytes);
+  if (!embedded) return null;
+
+  const page = addLandscapeA4Page(doc);
+  heading(page, 1, "Layout drawing");
+  const stale = drawingExportIsStale(d);
+  const captionH = TYPE.small.lead + (stale ? TYPE.small.lead : 0) + mm(1.5);
+  const areaW = contentWidth(page);
+  const areaH = page.cursorY - page.margin.b - captionH - mm(3);
+  const s = Math.min(areaW / embedded.width, areaH / embedded.height);
+  const w = embedded.width * s;
+  const h = embedded.height * s;
+  const x = page.margin.l + (areaW - w) / 2;
+  const top = page.cursorY;
+  page.page.drawPage(embedded, { x, y: top - h, width: w, height: h });
+  page.page.drawRectangle({ x, y: top - h, width: w, height: h, borderColor: C.grey20, borderWidth: 0.5 });
+
+  let y = top - h - mm(1.5);
+  drawText(page, `${drawingExportCaption(d)}. Not to scale. Post positions confirmed on the approved drawing before manufacture.`, {
+    x: page.margin.l,
+    y,
+    size: TYPE.small.size,
+    font: doc.fonts.regular,
+    color: C.grey60,
+    lineHeight: TYPE.small.lead,
+  });
+  y -= TYPE.small.lead;
+  if (stale) {
+    drawText(page, DRAWING_EXPORT_STALE_NOTE, {
+      x: page.margin.l,
+      y,
+      size: TYPE.small.size,
+      font: doc.fonts.regular,
+      color: C.red,
+      lineHeight: TYPE.small.lead,
+    });
+    y -= TYPE.small.lead;
+  }
+  page.cursorY = y - mm(3);
+  return page;
+}
+
+/**
+ * Drawing page: the stored vector export when the drawing has one (A4
+ * landscape), else the image layout embedded as a raster, else nothing.
+ */
 export async function drawDrawingPage(doc: Doc, model: ProposalModel): Promise<Page | null> {
-  if (!model.drawing?.bytes) return null;
+  const d = model.drawing;
+  if (!d) return null;
+  const exported = await drawExportedDrawingPage(doc, d);
+  if (exported) return exported;
+  if (!d.bytes) return null;
   let page = addPage(doc);
   heading(page, 1, "Layout drawing");
   page = current(doc);
-  const d = model.drawing;
   const cap = [d.dwgNumber ? `Drawing ${d.dwgNumber}` : "Layout drawing", d.revision ? `Rev ${d.revision}` : "", d.title ?? ""].filter(Boolean).join(" · ");
   ({ page } = await photo(doc, page, d.bytes, {
     maxW: contentWidth(page),

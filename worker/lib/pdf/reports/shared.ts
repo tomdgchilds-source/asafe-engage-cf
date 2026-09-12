@@ -13,7 +13,7 @@
 // pure model built from one) so tests can hand them an in-memory fixture.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { neon } from "@neondatabase/serverless";
 import type { Env } from "../../../types";
 import { getDb } from "../../../db";
@@ -38,7 +38,7 @@ import {
   yymmFor,
   type DocumentKind,
 } from "../../../../shared/documents/refs";
-import { fetchImageBytes } from "../images";
+import { fetchImageBytes, fetchObjectBytes } from "../images";
 
 // ─── People ────────────────────────────────────────────────────────────────
 
@@ -313,7 +313,16 @@ export interface LayoutDrawingInfo {
   dwgNumber: string | null;
   revision: string | null;
   title: string | null;
+  /** Raster bytes of an image-type drawing; the fallback when no vector export exists. */
   bytes: Uint8Array | null;
+  /** Server-side vector export (`layout-exports/…` A3 PDF in R2), when the drawing has one. */
+  exportObjectKey?: string | null;
+  /** documentVersion the export was rendered from. */
+  exportVersion?: number | null;
+  /** Live documentVersion; the export is stale when it differs from exportVersion. */
+  documentVersion?: number | null;
+  /** The export PDF's bytes when it could be fetched; the renderer prefers these over `bytes`. */
+  exportBytes?: Uint8Array | null;
 }
 
 export interface OrderBundle {
@@ -354,20 +363,26 @@ async function findSurveyIdForOrder(storage: ReturnType<typeof createStorage>, o
 }
 
 async function loadLayoutDrawing(env: Env, db: ReturnType<typeof getDb>, id: string | null | undefined, project: Project | null): Promise<LayoutDrawingInfo | null> {
+  const isImageType = (r: LayoutDrawing) => /^(image|png|jpe?g)$/i.test(r.fileType);
   let row: LayoutDrawing | undefined;
   if (id) {
     [row] = await db.select().from(layoutDrawings).where(eq(layoutDrawings.id, id)).limit(1);
   } else if (project) {
-    [row] = await db
+    // Most recent drawing with a vector export wins (any base type); else the
+    // most recent image-type drawing, which we can still embed as a raster.
+    const recent = await db
       .select()
       .from(layoutDrawings)
-      .where(and(eq(layoutDrawings.projectId, project.id), inArray(layoutDrawings.fileType, ["image", "png", "jpg", "jpeg"])))
+      .where(and(eq(layoutDrawings.projectId, project.id), isNull(layoutDrawings.deletedAt)))
       .orderBy(desc(layoutDrawings.updatedAt))
-      .limit(1);
+      .limit(25);
+    row = recent.find((r) => !!r.exportObjectKey) ?? recent.find(isImageType);
   }
   if (!row || row.deletedAt) return null;
-  const isImage = /^(image|png|jpe?g)$/i.test(row.fileType) && row.fileUrl !== "blank-canvas";
-  const bytes = isImage ? await fetchImageBytes(env, row.fileUrl) : null;
+  const exportBytes = row.exportObjectKey ? await fetchObjectBytes(env, row.exportObjectKey) : null;
+  const isImage = isImageType(row) && row.fileUrl !== "blank-canvas";
+  // The raster is only needed as a fallback; skip the fetch when the export loaded.
+  const bytes = isImage && !exportBytes ? await fetchImageBytes(env, row.fileUrl) : null;
   return {
     id: row.id,
     fileType: row.fileType,
@@ -376,6 +391,10 @@ async function loadLayoutDrawing(env: Env, db: ReturnType<typeof getDb>, id: str
     revision: row.revision ?? null,
     title: row.drawingTitle ?? row.projectName ?? null,
     bytes,
+    exportObjectKey: row.exportObjectKey ?? null,
+    exportVersion: row.exportVersion ?? null,
+    documentVersion: row.documentVersion ?? 0,
+    exportBytes,
   };
 }
 

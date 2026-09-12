@@ -8,6 +8,10 @@
 //                                 (https://webcdn.asafe.com/…) and data URLs.
 //                                 Never throws; null on timeout / too large /
 //                                 disallowed host.
+//   fetchObjectBytes(env, key) → bytes for any stored object by its R2 / KV
+//                                 key (e.g. a `layout-exports/…` vector PDF).
+//                                 Same store path as above, no image
+//                                 sniffing; never throws.
 //   embedImage(doc, bytes)     → { image, width, height } for JPEG / PNG by
 //                                 magic-byte sniffing; null for WebP / HEIC /
 //                                 anything else so the caller can draw a
@@ -57,6 +61,29 @@ export async function fetchImageBytes(
       return remoteBytes(url, timeoutMs, maxBytes);
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stored, non-image objects (vector PDF exports) are larger than photos. */
+const OBJECT_MAX_BYTES = 25_000_000;
+
+/**
+ * Bytes of a stored object by key (R2 direct, FILES_STORE KV fallback).
+ * Accepts a bare key or an `/api/objects/<key>` path. Null when missing,
+ * over `maxBytes`, or on any store error.
+ */
+export async function fetchObjectBytes(
+  env: Env,
+  key: string,
+  opts: Pick<FetchImageOptions, "maxBytes"> = {},
+): Promise<Uint8Array | null> {
+  const maxBytes = opts.maxBytes ?? OBJECT_MAX_BYTES;
+  const bare = key.startsWith(OBJECTS_PREFIX) ? key.slice(OBJECTS_PREFIX.length) : key;
+  if (!bare) return null;
+  try {
+    return await storedObjectBytes(env, decodeURIComponent(bare), maxBytes);
   } catch {
     return null;
   }

@@ -5,7 +5,17 @@ import { PDFDocument } from "pdf-lib";
 import { computeTotals, cartItemsToPricingLines, normaliseComplexity } from "../../../../shared/pricing";
 import { decodeBase64 } from "../assets";
 import { SAMPLE_PHOTO_JPEG_B64 } from "../samplePhoto";
-import { buildProposalModel, renderProposalModel, quoteDraftToProposalModel, totalsForOrder, type RenderMeta } from "./proposal";
+import { PDFName, PDFRawStream, PDFArray, PDFStream, decodePDFRawStream, rgb, type PDFPage } from "pdf-lib";
+import {
+  buildProposalModel,
+  renderProposalModel,
+  quoteDraftToProposalModel,
+  totalsForOrder,
+  drawingExportCaption,
+  drawingExportIsStale,
+  DRAWING_EXPORT_STALE_NOTE,
+  type RenderMeta,
+} from "./proposal";
 import { renderOrderFormModel } from "./orderForm";
 import type { OrderBundle, ProductInfo, SurveyBundle } from "./shared";
 
@@ -57,7 +67,40 @@ function surveyBundle(): SurveyBundle {
   };
 }
 
-function bundle(opts: { snapshot?: boolean; survey?: boolean; drawing?: boolean } = {}): OrderBundle {
+/** One-page A3 landscape "vector export" fixture: a framed rectangle and a title, as the layout export route would store. */
+let exportFixture: Uint8Array | null = null;
+async function exportPdfBytes(): Promise<Uint8Array> {
+  if (exportFixture) return exportFixture;
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([1190.55, 841.89]);
+  page.drawRectangle({ x: 40, y: 40, width: 1110, height: 760, borderWidth: 2, borderColor: rgb(0, 0, 0) });
+  page.drawRectangle({ x: 200, y: 300, width: 600, height: 40, color: rgb(1, 0.85, 0) });
+  page.drawText("DWGAE002882 Rev 02 — fixture export", { x: 60, y: 60, size: 18 });
+  exportFixture = await pdf.save();
+  return exportFixture;
+}
+
+/** Text drawn on a page: every hex string operand in its content streams, decoded (Helvetica/WinAnsi maps ASCII 1:1). */
+function pageText(pdf: PDFDocument, page: PDFPage): string {
+  const contents = page.node.get(PDFName.of("Contents"));
+  const refs = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
+  let out = "";
+  for (const ref of refs) {
+    const stream = pdf.context.lookup(ref);
+    if (!(stream instanceof PDFStream)) continue;
+    const bytes = stream instanceof PDFRawStream ? decodePDFRawStream(stream).decode() : stream.getContents();
+    const raw = new TextDecoder("latin1").decode(bytes);
+    for (const m of raw.matchAll(/<([0-9A-Fa-f]+)>/g)) {
+      const hex = m[1];
+      let s = "";
+      for (let i = 0; i + 1 < hex.length; i += 2) s += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+      out += `${s}\n`;
+    }
+  }
+  return out;
+}
+
+function bundle(opts: { snapshot?: boolean; survey?: boolean; drawing?: boolean; exportBytes?: Uint8Array; exportStale?: boolean } = {}): OrderBundle {
   const order = {
     id: "o1",
     userId: "u1",
@@ -100,7 +143,20 @@ function bundle(opts: { snapshot?: boolean; survey?: boolean; drawing?: boolean 
       ["iFlex Single Traffic", product("iFlex Single Traffic", "iFlex", 17000, onePx())],
       ["Bollard Bumper", product("Bollard Bumper", "Bollards", 11000, onePx())],
     ]),
-    layoutDrawing: opts.drawing ? { id: "ld1", fileType: "image", fileUrl: "/api/objects/x.jpg", dwgNumber: "DWGAE002882", revision: "02", title: "A-SAFE barrier proposal", bytes: decodeBase64(SAMPLE_PHOTO_JPEG_B64) } : null,
+    layoutDrawing: opts.drawing
+      ? {
+          id: "ld1",
+          fileType: "image",
+          fileUrl: "/api/objects/x.jpg",
+          dwgNumber: "DWGAE002882",
+          revision: "02",
+          title: "A-SAFE barrier proposal",
+          bytes: decodeBase64(SAMPLE_PHOTO_JPEG_B64),
+          ...(opts.exportBytes
+            ? { exportObjectKey: "layout-exports/ld1/v3.pdf", exportVersion: 3, documentVersion: opts.exportStale ? 5 : 3, exportBytes: opts.exportBytes }
+            : {}),
+        }
+      : null,
     appOrigin: "https://engage.example",
   };
 }
@@ -179,6 +235,38 @@ describe("renderProposalModel", () => {
     const a = await load(withDrawing, "proposal-draft-drawing.pdf");
     const b = await PDFDocument.load(without);
     expect(a.getPageCount()).toBe(b.getPageCount() + 1);
+  });
+
+  it("prefers the vector export: adds exactly one A4 landscape page carrying the export and its caption", async () => {
+    const exportBytes = await exportPdfBytes();
+    const withExport = await renderProposalModel(buildProposalModel(bundle({ drawing: true, exportBytes })), meta("DRAFT"));
+    const without = await renderProposalModel(buildProposalModel(bundle()), meta("DRAFT"));
+    const a = await load(withExport, "proposal-draft-export.pdf");
+    const b = await PDFDocument.load(without);
+    expect(a.getPageCount()).toBe(b.getPageCount() + 1);
+    const landscape = a.getPages().filter((p) => p.getWidth() > p.getHeight());
+    expect(landscape).toHaveLength(1);
+    expect(Math.round(landscape[0].getWidth())).toBe(842);
+    expect(Math.round(landscape[0].getHeight())).toBe(595);
+    // The export is embedded as a form XObject on that page, not rasterised.
+    const xobjects = landscape[0].node.Resources()?.lookup(PDFName.of("XObject"));
+    expect(String(xobjects)).toMatch(/EmbeddedPdfPage/);
+    const text = pageText(a, landscape[0]);
+    expect(text).toContain("Layout drawing DWGAE002882 Rev 02");
+    expect(text).toContain("export v3");
+    expect(text).not.toContain(DRAWING_EXPORT_STALE_NOTE);
+    expect(drawingExportCaption({ dwgNumber: "DWGAE002882", revision: "02", exportVersion: 3 })).toBe("Layout drawing DWGAE002882 Rev 02 — export v3");
+    expect(drawingExportIsStale({ exportVersion: 3, documentVersion: 3 })).toBe(false);
+  });
+
+  it("prints the stale note on the export page when export_version lags document_version", async () => {
+    const exportBytes = await exportPdfBytes();
+    const bytes = await renderProposalModel(buildProposalModel(bundle({ drawing: true, exportBytes, exportStale: true })), meta("ISSUED"));
+    const pdf = await load(bytes, "proposal-issued-export-stale.pdf");
+    const landscape = pdf.getPages().filter((p) => p.getWidth() > p.getHeight());
+    expect(landscape).toHaveLength(1);
+    expect(pageText(pdf, landscape[0])).toContain(DRAWING_EXPORT_STALE_NOTE);
+    expect(drawingExportIsStale({ exportVersion: 3, documentVersion: 5 })).toBe(true);
   });
 
   it("renders a rep quote draft through the same model", async () => {
