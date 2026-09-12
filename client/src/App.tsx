@@ -47,6 +47,7 @@ const Projects = lazy(() => import("@/pages/Projects"));
 const SiteSurvey = lazy(() => import("@/pages/SiteSurvey"));
 const SurveyWalk = lazy(() => import("@/pages/survey/SurveyWalk"));
 const SurveyCompare = lazy(() => import("@/pages/survey/SurveyCompare"));
+const SurveyReview = lazy(() => import("@/pages/survey/SurveyReview"));
 const HapticTestPage = lazy(() => import("@/pages/HapticTestPage"));
 const PAS13ComplianceChecker = lazy(() => import("@/pages/PAS13ComplianceChecker").then(m => ({ default: m.PAS13ComplianceChecker })));
 const CommunicationPlan = lazy(() => import("@/pages/CommunicationPlan"));
@@ -157,6 +158,7 @@ function Router() {
             /site-survey route is irrelevant for wouter, but kept adjacent. */}
         <Route path="/site-survey/:id/walk" component={SurveyWalk} />
         <Route path="/site-survey/:id/compare" component={SurveyCompare} />
+        <Route path="/site-survey/:id/review" component={SurveyReview} />
         <Route path="/layout-drawings" component={LayoutDrawing} />
         {/* Alias so either singular or plural URL resolves to the same page */}
         <Route path="/layout-drawing" component={LayoutDrawing} />
