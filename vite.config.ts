@@ -81,7 +81,6 @@ export default defineConfig({
           "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod", "zod-validation-error"],
           "vendor-motion": ["framer-motion"],
           "vendor-charts": ["recharts"],
-          "vendor-pdf-gen": ["jspdf", "html2canvas"],
           "vendor-pdf-viewer": ["react-pdf"],
           "vendor-uppy": [
             "@uppy/core",
