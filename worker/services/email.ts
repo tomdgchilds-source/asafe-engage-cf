@@ -190,6 +190,208 @@ export async function sendEmail(
 }
 
 // ──────────────────────────────────────────────
+// Email design system — ONE base layout for every template.
+//
+// Mirrors worker/lib/pdf/theme.ts and client/src/styles/document.css so the
+// PDFs, the share pages and the emails read as one system:
+//   - black header band (#1D1D1B) with the yellow strapline logo, document
+//     type in grey caps on the right, a 4 px yellow rule beneath;
+//   - bold uppercase title in black, optional document reference line;
+//   - left-aligned body, Helvetica / Arial stack, 14 px / 1.55;
+//   - yellow header bars on tables, yellow CTA buttons with black bold caps;
+//   - grey8 footer with the A-SAFE UAE office block.
+// Inline styles only — no <style> blocks, external CSS or web fonts, so it
+// survives Outlook, Gmail, Apple Mail and mobile clients. The logo is the
+// only image; its alt text renders in yellow when images are blocked.
+// ──────────────────────────────────────────────
+const DEFAULT_APP_URL = "https://asafe-engage.tom-d-g-childs.workers.dev";
+
+const EMAIL_COLOUR = {
+  yellow: "#FFC72C",
+  black: "#1D1D1B",
+  white: "#FFFFFF",
+  grey90: "#333331",
+  grey60: "#6E6E6B",
+  grey40: "#A3A3A0",
+  grey20: "#D9D9D6",
+  grey8: "#F2F2F0",
+  red: "#E94B5F",
+  teal: "#66C9BA",
+} as const;
+
+const EMAIL_FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+/** Base paragraph style — append overrides after it. */
+const EMAIL_P_STYLE = `margin:0 0 12px 0;font-family:${EMAIL_FONT};font-size:14px;line-height:1.55;color:${EMAIL_COLOUR.black};text-align:left;`;
+const EMAIL_SMALL_STYLE = `margin:0;font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${EMAIL_COLOUR.grey60};text-align:left;`;
+
+/** The A-SAFE UAE office block used in every footer. */
+const EMAIL_OFFICE_BLOCK_HTML = `<strong style="color:${EMAIL_COLOUR.black};">A-SAFE UAE</strong> &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park<br>Tel: +971 (4) 8842 422 &nbsp;|&nbsp; <a href="mailto:sales@asafe.ae" style="color:${EMAIL_COLOUR.grey60};">sales@asafe.ae</a> &nbsp;|&nbsp; <a href="https://www.asafe.com" style="color:${EMAIL_COLOUR.grey60};">www.asafe.com</a>`;
+
+interface EmailLayoutOptions {
+  /** Document type in the header band, rendered in grey caps (e.g. "Order confirmation"). */
+  docType: string;
+  /** Headline under the band, rendered bold uppercase. */
+  title: string;
+  /** Optional document reference line under the title (e.g. "ASU-OF-2609-0012 · Rev A"). */
+  reference?: string;
+  /** Block-level HTML for the body. Callers escape their own values. */
+  bodyHtml: string;
+  /** Hidden preview text some clients show next to the subject. */
+  preheader?: string;
+  /** Extra footer lines (already escaped HTML), e.g. link expiry or reply-to guidance. */
+  footerNoteHtml?: string;
+  /** Base URL used to resolve the logo. Defaults to the production Worker. */
+  appUrl?: string | null;
+  /** Content width in px. Default 600. */
+  width?: number;
+}
+
+/** Wrap a template body in the shared A-SAFE email chrome. */
+function renderEmailLayout(o: EmailLayoutOptions): string {
+  const width = o.width ?? 600;
+  const base = (o.appUrl || DEFAULT_APP_URL).replace(/\/+$/, "");
+  const logoUrl = `${base}/brand/logo-strapline-primary.png`;
+  const preheader = o.preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${EMAIL_COLOUR.grey8};">${escapeHtml(o.preheader)}</div>`
+    : "";
+  const reference = o.reference
+    ? `<p style="margin:6px 0 0 0;font-family:${EMAIL_FONT};font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:${EMAIL_COLOUR.grey60};">${escapeHtml(o.reference)}</p>`
+    : "";
+  const footerNote = o.footerNoteHtml
+    ? `<p style="margin:0 0 10px 0;font-family:${EMAIL_FONT};font-size:11px;line-height:1.5;color:${EMAIL_COLOUR.grey60};">${o.footerNoteHtml}</p>`
+    : "";
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(o.title)}</title></head>
+<body style="margin:0;padding:0;background-color:${EMAIL_COLOUR.grey20};font-family:${EMAIL_FONT};color:${EMAIL_COLOUR.black};">
+  ${preheader}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLOUR.grey20};padding:24px 0;">
+    <tr><td align="center" style="padding:0 12px;">
+      <table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width:${width}px;max-width:100%;background-color:${EMAIL_COLOUR.white};">
+        <!-- Header band -->
+        <tr>
+          <td style="background-color:${EMAIL_COLOUR.black};padding:22px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="middle" style="font-family:${EMAIL_FONT};">
+                  <img src="${escapeAttr(logoUrl)}" alt="A-SAFE" width="150" style="display:block;width:150px;max-width:150px;height:auto;border:0;font-family:${EMAIL_FONT};font-size:20px;font-weight:bold;color:${EMAIL_COLOUR.yellow};">
+                </td>
+                <td align="right" valign="middle" style="font-family:${EMAIL_FONT};font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:${EMAIL_COLOUR.grey40};text-align:right;">
+                  ${escapeHtml(o.docType)}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Yellow rule -->
+        <tr><td style="background-color:${EMAIL_COLOUR.yellow};height:4px;line-height:4px;font-size:4px;">&nbsp;</td></tr>
+        <!-- Title -->
+        <tr>
+          <td style="padding:28px 28px 8px 28px;">
+            <h1 style="margin:0;font-family:${EMAIL_FONT};font-size:20px;line-height:1.2;font-weight:bold;text-transform:uppercase;color:${EMAIL_COLOUR.black};text-align:left;">${escapeHtml(o.title)}</h1>
+            ${reference}
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:12px 28px 28px 28px;font-family:${EMAIL_FONT};font-size:14px;line-height:1.55;color:${EMAIL_COLOUR.black};text-align:left;">
+            ${o.bodyHtml}
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 28px 20px 28px;background-color:${EMAIL_COLOUR.grey8};border-top:1px solid ${EMAIL_COLOUR.grey20};font-family:${EMAIL_FONT};font-size:11px;line-height:1.5;color:${EMAIL_COLOUR.grey60};text-align:left;">
+            ${footerNote}
+            <p style="margin:0;">${EMAIL_OFFICE_BLOCK_HTML}</p>
+            <p style="margin:8px 0 0 0;">Sent by A-SAFE Engage on behalf of A-SAFE UAE.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/** Body paragraph. `html` is already escaped by the caller. */
+function emailParagraph(html: string, extraStyle = ""): string {
+  return `<p style="${EMAIL_P_STYLE}${extraStyle}">${html}</p>`;
+}
+
+/** Small grey note. */
+function emailSmall(html: string, extraStyle = ""): string {
+  return `<p style="${EMAIL_SMALL_STYLE}${extraStyle}">${html}</p>`;
+}
+
+/** CTA button: black bold caps on yellow (or white on black), square corners. */
+function emailButton(href: string, label: string, variant: "yellow" | "black" = "yellow"): string {
+  const bg = variant === "black" ? EMAIL_COLOUR.black : EMAIL_COLOUR.yellow;
+  const fg = variant === "black" ? EMAIL_COLOUR.white : EMAIL_COLOUR.black;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px 0;">
+      <tr><td style="background-color:${bg};">
+        <a href="${escapeAttr(href)}" style="display:inline-block;padding:14px 26px;font-family:${EMAIL_FONT};font-size:13px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:${fg};text-decoration:none;">${escapeHtml(label)}</a>
+      </td></tr>
+    </table>`;
+}
+
+/** Text link styled the document way (black, underlined). */
+function emailLink(href: string, label?: string): string {
+  return `<a href="${escapeAttr(href)}" style="color:${EMAIL_COLOUR.black};text-decoration:underline;">${escapeHtml(label ?? href)}</a>`;
+}
+
+/**
+ * Key / value table with a yellow header bar (internal-form style).
+ * Values are HTML the caller has already escaped.
+ */
+function emailKvTable(caption: string, rows: Array<[label: string, valueHtml: string]>): string {
+  const body = rows
+    .map(([label, value], i) => {
+      const zebra = i % 2 ? `background-color:${EMAIL_COLOUR.grey8};` : "";
+      return `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid ${EMAIL_COLOUR.grey20};font-family:${EMAIL_FONT};font-size:13px;color:${EMAIL_COLOUR.grey60};width:40%;text-align:left;${zebra}">${escapeHtml(label)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid ${EMAIL_COLOUR.grey20};font-family:${EMAIL_FONT};font-size:14px;font-weight:bold;color:${EMAIL_COLOUR.black};text-align:left;${zebra}">${value}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;border-collapse:collapse;">
+      <tr><th colspan="2" align="left" style="background-color:${EMAIL_COLOUR.yellow};padding:9px 12px;font-family:${EMAIL_FONT};font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:${EMAIL_COLOUR.black};text-align:left;">${escapeHtml(caption)}</th></tr>
+      ${body}
+    </table>`;
+}
+
+/** Section heading inside the body: bold caps with a short yellow underline. */
+function emailHeading(text: string): string {
+  return `<p style="margin:22px 0 4px 0;font-family:${EMAIL_FONT};font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:${EMAIL_COLOUR.black};text-align:left;">${escapeHtml(text)}</p>
+    <div style="width:64px;height:2px;background-color:${EMAIL_COLOUR.yellow};margin:0 0 12px 0;font-size:2px;line-height:2px;">&nbsp;</div>`;
+}
+
+/** Left-ruled callout. Tone follows the secondary-palette rule: status only. */
+function emailCallout(
+  innerHtml: string,
+  tone: "yellow" | "grey" | "red" | "teal" | "black" = "grey",
+): string {
+  const rule =
+    tone === "yellow"
+      ? EMAIL_COLOUR.yellow
+      : tone === "red"
+        ? EMAIL_COLOUR.red
+        : tone === "teal"
+          ? EMAIL_COLOUR.teal
+          : tone === "black"
+            ? EMAIL_COLOUR.black
+            : EMAIL_COLOUR.grey40;
+  const bg =
+    tone === "yellow"
+      ? "#FFF8E1"
+      : tone === "red"
+        ? "#FDEEF0"
+        : tone === "teal"
+          ? "#EEF9F6"
+          : EMAIL_COLOUR.grey8;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 16px 0;">
+      <tr><td style="padding:14px 16px;background-color:${bg};border-left:4px solid ${rule};font-family:${EMAIL_FONT};font-size:14px;line-height:1.55;color:${EMAIL_COLOUR.black};text-align:left;">${innerHtml}</td></tr>
+    </table>`;
+}
+
+// ──────────────────────────────────────────────
 // Order-specific email helpers
 // ──────────────────────────────────────────────
 
@@ -258,74 +460,49 @@ export async function sendOrderConfirmationEmail(
   // as the rule engine ("aligned" / "borderline" / "not aligned"; never
   // "compliant"). When attachment failed but URL is available, the link
   // takes its place; when both are absent, the block is dropped.
+  const appUrl = env.APP_URL || DEFAULT_APP_URL;
+  const itemsLabel = `${itemCount} item${itemCount !== 1 ? "s" : ""}`;
+  const indicativeNote = emailSmall(
+    "Indicative — verify with A-SAFE engineering for procurement.",
+    "margin-top:8px;",
+  );
   const pas13Block = pas13ReportPdf
-    ? `
-        <div style="margin-top: 16px; padding: 16px; background-color: #fff8e1; border-left: 4px solid #FFC72C; border-radius: 4px;">
-          <p style="margin: 0 0 4px 0; font-weight: bold;">PAS 13 Alignment Report attached</p>
-          <p style="margin: 0; color: #555; font-size: 13px;">
-            Aggregate verdict: <strong>${pas13ReportPdf.aggregateLabel}</strong>.
-            ${
-              pas13ReportUrl
-                ? `Re-download anytime: <a href="${pas13ReportUrl}" style="color: #1a1a2e;">${pas13ReportUrl}</a>`
-                : ""
-            }
-          </p>
-          <p style="margin: 8px 0 0 0; color: #666; font-size: 11px; font-style: italic;">
-            Indicative — verify with A-SAFE engineering for procurement.
-          </p>
-        </div>
-      `
+    ? emailCallout(
+        `<p style="${EMAIL_P_STYLE}margin:0 0 4px 0;"><strong>PAS 13 Alignment Report attached</strong></p>
+         <p style="${EMAIL_P_STYLE}margin:0;">Aggregate verdict: <strong>${escapeHtml(pas13ReportPdf.aggregateLabel)}</strong>.${
+           pas13ReportUrl ? ` Re-download anytime: ${emailLink(pas13ReportUrl)}` : ""
+         }</p>
+         ${indicativeNote}`,
+        "yellow",
+      )
     : pas13ReportUrl
-      ? `
-        <div style="margin-top: 16px; padding: 16px; background-color: #fff8e1; border-left: 4px solid #FFC72C; border-radius: 4px;">
-          <p style="margin: 0 0 4px 0; font-weight: bold;">PAS 13 Alignment Report</p>
-          <p style="margin: 0; color: #555; font-size: 13px;">
-            Download from your order page: <a href="${pas13ReportUrl}" style="color: #1a1a2e;">${pas13ReportUrl}</a>
-          </p>
-          <p style="margin: 8px 0 0 0; color: #666; font-size: 11px; font-style: italic;">
-            Indicative — verify with A-SAFE engineering for procurement.
-          </p>
-        </div>
-      `
+      ? emailCallout(
+          `<p style="${EMAIL_P_STYLE}margin:0 0 4px 0;"><strong>PAS 13 Alignment Report</strong></p>
+           <p style="${EMAIL_P_STYLE}margin:0;">Download from your order page: ${emailLink(pas13ReportUrl)}</p>
+           ${indicativeNote}`,
+          "yellow",
+        )
       : "";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #FFC72C; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; color: #000;">Order Confirmed</h1>
-      </div>
-      <div style="padding: 24px; background-color: #ffffff;">
-        <p>Thank you for your order!</p>
-        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Order Number</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${orderNumber}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Items</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${itemCount} item${itemCount !== 1 ? "s" : ""}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Total Amount</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${totalAmount}</td>
-          </tr>
-        </table>
-        <p>Your order has been submitted for review. Our team will review it and get back to you shortly.</p>
-        ${pas13Block}
-        <p style="margin-top: 24px;">
-          <a href="${env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/orders"
-             style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            View Your Orders
-          </a>
-        </p>
-      </div>
-      <div style="padding: 16px; text-align: center; background-color: #f9f9f9; border-top: 3px solid #FFC72C;">
-        <p style="margin: 0 0 4px 0; font-weight: bold; color: #FFC72C; font-size: 13px;">www.asafe.com</p>
-        <p style="margin: 0; color: #888; font-size: 11px;">A-SAFE  |  Office 220, Building A5, Dubai South Business Park</p>
-        <p style="margin: 4px 0 0 0; color: #888; font-size: 11px;">Tel: +971 (4) 8842 422  |  sales@asafe.ae</p>
-      </div>
-    </div>
-  `;
+  const html = renderEmailLayout({
+    docType: "Order confirmation",
+    title: "Order confirmed",
+    reference: `Order ${orderNumber}`,
+    preheader: `Order ${orderNumber} received — ${itemsLabel}, ${totalAmount}.`,
+    appUrl,
+    bodyHtml: [
+      emailParagraph(
+        "Thank you for your order. It has been submitted for review and the A-SAFE team will come back to you shortly.",
+      ),
+      emailKvTable("Order summary", [
+        ["Order number", escapeHtml(orderNumber)],
+        ["Items", escapeHtml(itemsLabel)],
+        ["Total amount", escapeHtml(totalAmount)],
+      ]),
+      pas13Block,
+      emailButton(`${appUrl}/orders`, "View your orders"),
+    ].join("\n"),
+  });
 
   // When we have no attachment, fall back to the simple sendEmail() helper.
   if (!pas13ReportPdf) {
@@ -447,45 +624,24 @@ export async function sendOrderSubmittedNotification(
   }
 
   const subject = `New Order Submitted - ${orderNumber}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #1a1a2e; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; color: #FFC72C;">New Order Submitted</h1>
-      </div>
-      <div style="padding: 24px; background-color: #ffffff;">
-        <p>A new order has been submitted for review.</p>
-        <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Order Number</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${orderNumber}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Customer</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${customerName}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${customerEmail}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Total Amount</td>
-            <td style="padding: 8px; border-bottom: 1px solid #eee;">${totalAmount}</td>
-          </tr>
-        </table>
-        <p style="margin-top: 24px;">
-          <a href="${env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/admin/orders"
-             style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            Review Order
-          </a>
-        </p>
-      </div>
-      <div style="padding: 16px; text-align: center; background-color: #f9f9f9; border-top: 3px solid #FFC72C;">
-        <p style="margin: 0 0 4px 0; font-weight: bold; color: #FFC72C; font-size: 13px;">www.asafe.com</p>
-        <p style="margin: 0; color: #888; font-size: 11px;">A-SAFE  |  Office 220, Building A5, Dubai South Business Park</p>
-        <p style="margin: 4px 0 0 0; color: #888; font-size: 11px;">Tel: +971 (4) 8842 422  |  sales@asafe.ae</p>
-      </div>
-    </div>
-  `;
+  const appUrl = env.APP_URL || DEFAULT_APP_URL;
+  const html = renderEmailLayout({
+    docType: "Internal notification",
+    title: "New order submitted",
+    reference: `Order ${orderNumber}`,
+    preheader: `${customerName} submitted order ${orderNumber} — ${totalAmount}.`,
+    appUrl,
+    bodyHtml: [
+      emailParagraph("A new order has been submitted for review."),
+      emailKvTable("Order at a glance", [
+        ["Order number", escapeHtml(orderNumber)],
+        ["Customer", escapeHtml(customerName)],
+        ["Email", emailLink(`mailto:${customerEmail}`, customerEmail)],
+        ["Total amount", escapeHtml(totalAmount)],
+      ]),
+      emailButton(`${appUrl}/admin/orders`, "Review order", "black"),
+    ].join("\n"),
+  });
 
   await Promise.all(recipients.map((email: string) => sendEmail(env, email, subject, html)));
 }
@@ -570,114 +726,50 @@ export async function sendApprovalRequestEmail(
 
   const subject = `[Action needed] Approve order ${displayOrderNumber} for ${clientCompany} — ${sectionLabel.toLowerCase()} sign-off`;
 
-  // Brand palette (inline only — email clients routinely strip <style>)
-  //   #FFC72C  A-SAFE yellow
-  //   #1a1a2e  near-black header accent (used in admin notification)
-  //   #f9f9f9  footer grey
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <!-- Header strip: A-SAFE yellow, optional customer logo on the right -->
-        <tr>
-          <td style="background-color:#FFC72C;padding:20px 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="font-size:18px;font-weight:bold;color:#1a1a2e;letter-spacing:0.5px;">A-SAFE</td>
-                <td align="right" style="font-size:12px;font-weight:bold;color:#1a1a2e;letter-spacing:1px;">
-                  ${
-                    clientCompanyLogoUrl
-                      ? `<img src="${escapeAttr(clientCompanyLogoUrl)}" alt="${escapeAttr(clientCompany)}" style="max-height:32px;vertical-align:middle;margin-right:12px;">`
-                      : ""
-                  }
-                  ORDER APPROVAL REQUESTED
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Opening line -->
-        <tr>
-          <td style="padding:24px;font-size:15px;line-height:1.5;color:#1a1a2e;">
-            <p style="margin:0 0 12px 0;">${greeting},</p>
-            <p style="margin:0;">
-              ${escapeHtml(salesContact.name)} at A-SAFE has prepared order
-              <strong>${escapeHtml(displayOrderNumber)}</strong> for
-              <strong>${escapeHtml(clientCompany)}</strong> and is requesting
-              your <strong>${sectionLabel.toLowerCase()}</strong> approval.
-            </p>
-          </td>
-        </tr>
-
-        <!-- Order-at-a-glance card -->
-        <tr>
-          <td style="padding:0 24px 24px 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e4e4e7;border-radius:6px;">
-              <tr><td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#6b6b77;">Order #</td>
-                  <td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:14px;text-align:right;font-weight:600;">${escapeHtml(displayOrderNumber)}</td></tr>
-              <tr><td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#6b6b77;">Client</td>
-                  <td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:14px;text-align:right;font-weight:600;">${escapeHtml(clientCompany)}</td></tr>
-              <tr><td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#6b6b77;">Total</td>
-                  <td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:14px;text-align:right;font-weight:600;">${escapeHtml(grandTotal)}</td></tr>
-              <tr><td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:13px;color:#6b6b77;">Currency</td>
-                  <td style="padding:12px 16px;border-bottom:1px solid #e4e4e7;font-size:14px;text-align:right;font-weight:600;">${escapeHtml(currency)}</td></tr>
-              <tr><td style="padding:12px 16px;font-size:13px;color:#6b6b77;">Section for your sign-off</td>
-                  <td style="padding:12px 16px;font-size:14px;text-align:right;font-weight:600;">${sectionLabel}</td></tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Primary CTA -->
-        <tr>
-          <td align="center" style="padding:0 24px 12px 24px;">
-            <a href="${escapeAttr(approvalUrl)}"
-               style="display:inline-block;background-color:#FFC72C;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 28px;border-radius:6px;">
-              Review &amp; approve order &rarr;
-            </a>
-          </td>
-        </tr>
-
-        <!-- Secondary: download PDF -->
-        ${
-          pdfDownloadUrl
-            ? `<tr>
-                 <td align="center" style="padding:0 24px 24px 24px;">
-                   <a href="${escapeAttr(pdfDownloadUrl)}" style="color:#1a1a2e;font-size:13px;text-decoration:underline;">Download the PDF</a>
-                 </td>
-               </tr>`
-            : ""
-        }
-
-        <!-- Sales rep contact block -->
-        <tr>
-          <td style="padding:0 24px 24px 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9f9fb;border-radius:6px;">
-              <tr><td style="padding:16px;font-size:13px;color:#1a1a2e;line-height:1.5;">
-                <div style="font-weight:bold;margin-bottom:4px;">Questions? Reach out to your A-SAFE contact:</div>
-                <div>${escapeHtml(salesContact.name)}${salesContact.jobRole ? ` · <span style="color:#555;">${escapeHtml(salesContact.jobRole)}</span>` : ""}</div>
-                <div><a href="mailto:${escapeAttr(salesContact.email)}" style="color:#1a1a2e;">${escapeHtml(salesContact.email)}</a></div>
-                ${salesContact.phone ? `<div>${escapeHtml(salesContact.phone)}</div>` : ""}
-              </td></tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="padding:16px 24px;background-color:#f9f9f9;border-top:3px solid #FFC72C;font-size:11px;color:#888;line-height:1.5;">
-            <div>This link expires on <strong>${escapeHtml(expiresDisplay)}</strong> and can only be used once.</div>
-            <div>If you weren't expecting this email, please contact <a href="mailto:${escapeAttr(salesContact.email)}" style="color:#888;">${escapeHtml(salesContact.email)}</a>.</div>
-            <div style="margin-top:8px;color:#FFC72C;font-weight:bold;">www.asafe.com</div>
-            <div>A-SAFE &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park &nbsp;|&nbsp; Tel: +971 (4) 8842 422</div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+  // Shared layout (black band, yellow rule, grey footer). The client's logo,
+  // when supplied, sits in the body above the greeting rather than on the
+  // black band — the band is reserved for the A-SAFE mark.
+  const clientLogoRow = clientCompanyLogoUrl
+    ? `<p style="${EMAIL_P_STYLE}margin:0 0 16px 0;"><img src="${escapeAttr(clientCompanyLogoUrl)}" alt="${escapeAttr(clientCompany)}" style="display:block;max-height:40px;height:auto;width:auto;border:0;"></p>`
+    : "";
+  const html = renderEmailLayout({
+    docType: `Order approval · ${sectionLabel}`,
+    title: `${sectionLabel} sign-off requested`,
+    reference: `Order ${displayOrderNumber} · ${clientCompany}`,
+    preheader: `${salesContact.name} is requesting your ${sectionLabel.toLowerCase()} approval for order ${displayOrderNumber}.`,
+    appUrl: env.APP_URL,
+    footerNoteHtml: `This link expires on <strong>${escapeHtml(expiresDisplay)}</strong> and can only be used once. If you weren't expecting this email, please contact <a href="mailto:${escapeAttr(salesContact.email)}" style="color:${EMAIL_COLOUR.grey60};">${escapeHtml(salesContact.email)}</a>.`,
+    bodyHtml: [
+      clientLogoRow,
+      emailParagraph(`${greeting},`),
+      emailParagraph(
+        `${escapeHtml(salesContact.name)} at A-SAFE has prepared order <strong>${escapeHtml(displayOrderNumber)}</strong> for <strong>${escapeHtml(clientCompany)}</strong> and is requesting your <strong>${sectionLabel.toLowerCase()}</strong> approval.`,
+      ),
+      emailKvTable("Order at a glance", [
+        ["Order number", escapeHtml(displayOrderNumber)],
+        ["Client", escapeHtml(clientCompany)],
+        [
+          "Total",
+          `${escapeHtml(grandTotal)} <span style="font-weight:normal;color:${EMAIL_COLOUR.grey60};">${escapeHtml(currency)}</span>`,
+        ],
+        ["Section for your sign-off", sectionLabel],
+      ]),
+      emailParagraph(
+        "<strong>Review the order and record your decision using the secure link below.</strong>",
+      ),
+      emailButton(approvalUrl, "Review and approve order"),
+      pdfDownloadUrl
+        ? emailSmall(
+            `Prefer a copy for your records? ${emailLink(pdfDownloadUrl, "Download the order form (PDF)")}`,
+            "margin:0 0 16px 0;",
+          )
+        : "",
+      emailHeading("Your A-SAFE contact"),
+      emailParagraph(
+        `<strong>${escapeHtml(salesContact.name)}</strong>${salesContact.jobRole ? ` · ${escapeHtml(salesContact.jobRole)}` : ""}<br>${emailLink(`mailto:${salesContact.email}`, salesContact.email)}${salesContact.phone ? `<br>${escapeHtml(salesContact.phone)}` : ""}`,
+      ),
+    ].join("\n"),
+  });
 
   // Plain-text fallback — Resend accepts both and many compliance/spam
   // filters downrank HTML-only messages. Keep it informative; this is what
@@ -863,74 +955,37 @@ export async function sendOrderPdfEmail(
 
   const subject = `Your A-SAFE quote: ${displayCompany || orderRef}`;
 
-  // HTML body — A-SAFE yellow CTA template, mirrors the approval email style
-  // so customer-facing messages feel coherent.
-  const shareUrlHtml = shareUrl
-    ? `
-      <tr>
-        <td align="center" style="padding: 0 24px 24px 24px;">
-          <a href="${escapeAttr(shareUrl)}" style="display:inline-block;background-color:#FFC72C;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 28px;border-radius:6px;">
-            View your order online &rarr;
-          </a>
-        </td>
-      </tr>`
-    : "";
+  // HTML body — shared A-SAFE layout so customer-facing messages feel
+  // coherent with the approval email, the share pages and the PDFs.
+  const shareUrlHtml = shareUrl ? emailButton(shareUrl, "View your order online") : "";
 
-  const signatureBlock = displayRepName || displayRepEmail
-    ? `
-      <tr>
-        <td style="padding:0 24px 24px 24px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9f9fb;border-radius:6px;">
-            <tr><td style="padding:16px;font-size:13px;color:#1a1a2e;line-height:1.5;">
-              <div style="font-weight:bold;margin-bottom:4px;">Your A-SAFE contact:</div>
-              ${displayRepName ? `<div>${escapeHtml(displayRepName)}</div>` : ""}
-              ${displayRepEmail ? `<div><a href="mailto:${escapeAttr(displayRepEmail)}" style="color:#1a1a2e;">${escapeHtml(displayRepEmail)}</a></div>` : ""}
-            </td></tr>
-          </table>
-        </td>
-      </tr>`
-    : "";
+  const signatureBlock =
+    displayRepName || displayRepEmail
+      ? emailHeading("Your A-SAFE contact") +
+        emailParagraph(
+          `${displayRepName ? `<strong>${escapeHtml(displayRepName)}</strong>` : ""}${
+            displayRepName && displayRepEmail ? "<br>" : ""
+          }${displayRepEmail ? emailLink(`mailto:${displayRepEmail}`, displayRepEmail) : ""}`,
+        )
+      : "";
 
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr>
-          <td style="background-color:#FFC72C;padding:20px 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="font-size:18px;font-weight:bold;color:#1a1a2e;letter-spacing:0.5px;">A-SAFE</td>
-                <td align="right" style="font-size:12px;font-weight:bold;color:#1a1a2e;letter-spacing:1px;">YOUR QUOTE</td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px;font-size:15px;line-height:1.5;color:#1a1a2e;">
-            <p style="margin:0 0 12px 0;">${displayGreetingName ? `Hi ${escapeHtml(displayGreetingName)},` : "Hello,"}</p>
-            <p style="margin:0 0 8px 0;">
-              Please find attached your A-SAFE quote${displayCompany ? ` for <strong>${escapeHtml(displayCompany)}</strong>` : ""}.
-            </p>
-            <p style="margin:0;">
-              Order reference: <strong>${escapeHtml(orderRef)}</strong>. The attached PDF
-              contains the full breakdown — line items, delivery, installation, and terms.
-            </p>
-          </td>
-        </tr>
-        ${shareUrlHtml}
-        ${signatureBlock}
-        <tr>
-          <td style="padding:16px 24px;background-color:#f9f9f9;border-top:3px solid #FFC72C;font-size:11px;color:#888;line-height:1.5;">
-            <div style="color:#FFC72C;font-weight:bold;">www.asafe.com</div>
-            <div>A-SAFE &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park &nbsp;|&nbsp; Tel: +971 (4) 8842 422</div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+  const html = renderEmailLayout({
+    docType: "Budgetary quotation",
+    title: "Your A-SAFE quote",
+    reference: `Order ${orderRef}${displayCompany ? ` · ${displayCompany}` : ""}`,
+    preheader: `Your A-SAFE quote${displayCompany ? ` for ${displayCompany}` : ""} is attached (${orderRef}).`,
+    bodyHtml: [
+      emailParagraph(displayGreetingName ? `Hi ${escapeHtml(displayGreetingName)},` : "Hello,"),
+      emailParagraph(
+        `Please find attached your A-SAFE quote${displayCompany ? ` for <strong>${escapeHtml(displayCompany)}</strong>` : ""}.`,
+      ),
+      emailParagraph(
+        `Order reference: <strong>${escapeHtml(orderRef)}</strong>. The attached PDF contains the full breakdown — line items, delivery, installation and terms. Prices exclude VAT unless stated otherwise.`,
+      ),
+      shareUrlHtml,
+      signatureBlock,
+    ].join("\n"),
+  });
 
   // Plain-text fallback — some corporate mail clients downrank HTML-only
   // messages and vision-impaired recipients lean on this.
@@ -1001,32 +1056,26 @@ export async function sendOrderRejectionEmail(
   { to, orderNumber, reason }: OrderRejectionParams,
 ): Promise<boolean> {
   const subject = `Order Update - ${orderNumber} | A-SAFE Engage`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #dc2626; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; color: #fff;">Order Requires Revision</h1>
-      </div>
-      <div style="padding: 24px; background-color: #ffffff;">
-        <p>Your order <strong>${orderNumber}</strong> has been reviewed and requires changes before it can be processed.</p>
-        <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0;">
-          <p style="margin: 0; font-weight: bold;">Reason:</p>
-          <p style="margin: 8px 0 0 0;">${reason}</p>
-        </div>
-        <p>Please review the feedback and resubmit your order.</p>
-        <p style="margin-top: 24px;">
-          <a href="${env.APP_URL || "https://asafe-engage.tom-d-g-childs.workers.dev"}/orders"
-             style="background-color: #FFC72C; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            View Your Orders
-          </a>
-        </p>
-      </div>
-      <div style="padding: 16px; text-align: center; background-color: #f9f9f9; border-top: 3px solid #FFC72C;">
-        <p style="margin: 0 0 4px 0; font-weight: bold; color: #FFC72C; font-size: 13px;">www.asafe.com</p>
-        <p style="margin: 0; color: #888; font-size: 11px;">A-SAFE  |  Office 220, Building A5, Dubai South Business Park</p>
-        <p style="margin: 4px 0 0 0; color: #888; font-size: 11px;">Tel: +971 (4) 8842 422  |  sales@asafe.ae</p>
-      </div>
-    </div>
-  `;
+  const appUrl = env.APP_URL || DEFAULT_APP_URL;
+  const html = renderEmailLayout({
+    docType: "Order update",
+    title: "Order requires revision",
+    reference: `Order ${orderNumber}`,
+    preheader: `Order ${orderNumber} has been reviewed and requires changes before it can proceed.`,
+    appUrl,
+    bodyHtml: [
+      emailParagraph(
+        `Your order <strong>${escapeHtml(orderNumber)}</strong> has been reviewed and requires changes before it can be processed.`,
+      ),
+      emailCallout(
+        `<p style="${EMAIL_P_STYLE}margin:0 0 4px 0;"><strong>Reason</strong></p>
+         <p style="${EMAIL_P_STYLE}margin:0;">${escapeHtml(reason).replace(/\n/g, "<br>")}</p>`,
+        "red",
+      ),
+      emailParagraph("<strong>Please review the feedback and resubmit your order.</strong>"),
+      emailButton(`${appUrl}/orders`, "View your orders"),
+    ].join("\n"),
+  });
   return sendEmail(env, to, subject, html);
 }
 
@@ -1197,23 +1246,17 @@ export async function sendInstallTeamVideoDigest(
     .filter(Boolean)
     .join("");
   const groundWorksBlock = groundWorksLines
-    ? `
-      <tr>
-        <td style="padding:0 24px 16px 24px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff7e0;border-left:3px solid #FFC72C;border-radius:4px;">
-            <tr><td style="padding:14px 16px;font-size:13px;color:#1a1a2e;line-height:1.5;">
-              <div style="font-weight:bold;margin-bottom:6px;">Site prep at a glance</div>
-              <ul style="margin:0;padding-left:18px;">${groundWorksLines}</ul>
-            </td></tr>
-          </table>
-        </td>
-      </tr>
-    `
+    ? emailCallout(
+        `<p style="${EMAIL_P_STYLE}margin:0 0 6px 0;"><strong>Site prep at a glance</strong></p>
+         <ul style="margin:0;padding-left:18px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:${EMAIL_COLOUR.black};">${groundWorksLines}</ul>`,
+        "yellow",
+      )
     : "";
 
-  // Per-product video grid. Each card is a 2-col table row (thumbnail + title)
-  // — corporate clients (Outlook 2016) hate flexbox/grid, but nested tables
-  // render reliably. YouTube hotlinks; no embeds (most clients block them).
+  // Per-product video list under a yellow table-header bar. Each card is a
+  // 2-col table row (thumbnail + title) — corporate clients (Outlook 2016)
+  // hate flexbox/grid, but nested tables render reliably. YouTube hotlinks;
+  // no embeds (most clients block them).
   const productSections = groupsWithVideos
     .map((g) => {
       const videoCards = g.videos
@@ -1229,24 +1272,22 @@ export async function sendInstallTeamVideoDigest(
           const desc = v.description ? truncate(v.description.split("\n")[0] || "", 110) : "";
           return `
             <tr>
-              <td style="padding:8px 0;">
+              <td style="padding:10px 0;border-bottom:1px solid ${EMAIL_COLOUR.grey20};">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td width="160" valign="top" style="padding-right:14px;">
                       <a href="${escapeAttr(link)}" style="text-decoration:none;display:block;">
                         ${
                           thumb
-                            ? `<img src="${escapeAttr(thumb)}" alt="${escapeAttr(title)}" width="160" style="display:block;width:160px;max-width:160px;height:auto;border-radius:4px;border:1px solid #e4e4e7;">`
-                            : `<div style="width:160px;height:90px;background-color:#1a1a2e;color:#FFC72C;border-radius:4px;text-align:center;line-height:90px;font-weight:bold;font-size:12px;">WATCH</div>`
+                            ? `<img src="${escapeAttr(thumb)}" alt="${escapeAttr(title)}" width="160" style="display:block;width:160px;max-width:160px;height:auto;border:1px solid ${EMAIL_COLOUR.grey20};">`
+                            : `<div style="width:160px;height:90px;background-color:${EMAIL_COLOUR.black};color:${EMAIL_COLOUR.yellow};text-align:center;line-height:90px;font-family:${EMAIL_FONT};font-weight:bold;font-size:12px;letter-spacing:1px;">WATCH</div>`
                         }
                       </a>
                     </td>
-                    <td valign="top" style="font-size:14px;color:#1a1a2e;line-height:1.4;">
-                      <a href="${escapeAttr(link)}" style="color:#1a1a2e;font-weight:bold;text-decoration:none;">${escapeHtml(title)}</a>
-                      ${desc ? `<div style="font-size:12px;color:#6b6b77;margin-top:4px;line-height:1.5;">${escapeHtml(desc)}</div>` : ""}
-                      <div style="margin-top:6px;">
-                        <a href="${escapeAttr(link)}" style="font-size:12px;color:#1a1a2e;text-decoration:underline;">Watch on YouTube &rarr;</a>
-                      </div>
+                    <td valign="top" style="font-family:${EMAIL_FONT};font-size:14px;color:${EMAIL_COLOUR.black};line-height:1.4;text-align:left;">
+                      <a href="${escapeAttr(link)}" style="color:${EMAIL_COLOUR.black};font-weight:bold;text-decoration:none;">${escapeHtml(title)}</a>
+                      ${desc ? `<div style="font-size:12px;color:${EMAIL_COLOUR.grey60};margin-top:4px;line-height:1.5;">${escapeHtml(desc)}</div>` : ""}
+                      <div style="margin-top:6px;font-size:12px;">${emailLink(link, "Watch on YouTube")}</div>
                     </td>
                   </tr>
                 </table>
@@ -1257,73 +1298,39 @@ export async function sendInstallTeamVideoDigest(
         .join("");
 
       return `
-        <tr>
-          <td style="padding:8px 24px 4px 24px;">
-            <div style="font-size:13px;font-weight:bold;color:#FFC72C;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e4e4e7;padding-bottom:6px;margin-bottom:4px;">
-              ${escapeHtml(g.productName)} <span style="color:#6b6b77;font-weight:normal;text-transform:none;letter-spacing:0;">· ${g.videos.length} video${g.videos.length !== 1 ? "s" : ""}</span>
-            </div>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${videoCards}</table>
-          </td>
-        </tr>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;border-collapse:collapse;">
+          <tr><th align="left" style="background-color:${EMAIL_COLOUR.yellow};padding:9px 12px;font-family:${EMAIL_FONT};font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:${EMAIL_COLOUR.black};text-align:left;">${escapeHtml(g.productName)} <span style="font-weight:normal;letter-spacing:0;text-transform:none;color:${EMAIL_COLOUR.grey90};">· ${g.videos.length} video${g.videos.length !== 1 ? "s" : ""}</span></th></tr>
+          ${videoCards}
+        </table>
       `;
     })
     .join("");
 
   const ctaBlock = installationUrl
-    ? `
-      <tr>
-        <td align="center" style="padding:16px 24px 24px 24px;">
-          <a href="${escapeAttr(installationUrl)}"
-             style="display:inline-block;background-color:#FFC72C;color:#1a1a2e;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 24px;border-radius:6px;">
-            Open install in A-SAFE Engage &rarr;
-          </a>
-        </td>
-      </tr>
-    `
+    ? emailButton(installationUrl, "Open install in A-SAFE Engage")
     : "";
 
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr>
-          <td style="background-color:#FFC72C;padding:20px 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="font-size:18px;font-weight:bold;color:#1a1a2e;letter-spacing:0.5px;">A-SAFE</td>
-                <td align="right" style="font-size:12px;font-weight:bold;color:#1a1a2e;letter-spacing:1px;">WATCH BEFORE SITE VISIT</td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 24px 12px 24px;font-size:15px;line-height:1.55;color:#1a1a2e;">
-            <p style="margin:0 0 10px 0;">${greeting},</p>
-            <p style="margin:0 0 8px 0;">${teamLine}</p>
-            <p style="margin:0;">
-              Below are the per-product Installation Videos for
-              <strong>${escapeHtml(installationTitle)}</strong>${installationLocation ? ` (${escapeHtml(installationLocation)})` : ""}${
-                scheduledAt ? `, scheduled for <strong>${escapeHtml(scheduledAt)}</strong>` : ""
-              }. Spend ten minutes on these before you arrive on site — saves a "where do I start?" call.
-            </p>
-          </td>
-        </tr>
-        ${groundWorksBlock}
-        ${productSections}
-        ${ctaBlock}
-        <tr>
-          <td style="padding:16px 24px;background-color:#f9f9f9;border-top:3px solid #FFC72C;font-size:11px;color:#888;line-height:1.5;">
-            <div style="color:#FFC72C;font-weight:bold;">www.asafe.com</div>
-            <div>A-SAFE &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park &nbsp;|&nbsp; Tel: +971 (4) 8842 422</div>
-            <div style="margin-top:6px;">If you weren't expecting this, contact <a href="mailto:sales@asafe.ae" style="color:#888;">sales@asafe.ae</a>.</div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+  const html = renderEmailLayout({
+    docType: "Installation pack",
+    title: "Watch before site visit",
+    reference: `${installationTitle}${installationLocation ? ` · ${installationLocation}` : ""}`,
+    preheader: `${groupsWithVideos.length} product${groupsWithVideos.length !== 1 ? "s" : ""}, ${videoCount} video${videoCount !== 1 ? "s" : ""} to watch before ${installationTitle}.`,
+    appUrl: env.APP_URL,
+    width: 640,
+    footerNoteHtml: `If you weren't expecting this, contact <a href="mailto:sales@asafe.ae" style="color:${EMAIL_COLOUR.grey60};">sales@asafe.ae</a>.`,
+    bodyHtml: [
+      emailParagraph(`${greeting},`),
+      emailParagraph(teamLine),
+      emailParagraph(
+        `Below are the per-product Installation Videos for <strong>${escapeHtml(installationTitle)}</strong>${installationLocation ? ` (${escapeHtml(installationLocation)})` : ""}${
+          scheduledAt ? `, scheduled for <strong>${escapeHtml(scheduledAt)}</strong>` : ""
+        }. <strong>Spend ten minutes on these before you arrive on site</strong> — it saves a "where do I start?" call.`,
+      ),
+      groundWorksBlock,
+      productSections,
+      ctaBlock,
+    ].join("\n"),
+  });
 
   // Plain-text fallback — corporate spam filters downrank HTML-only mail.
   const textLines: string[] = [];

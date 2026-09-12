@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -15,15 +7,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertCircle,
   CheckCircle2,
-  FileText,
   Mail,
   ShieldCheck,
   Loader2,
   Download,
+  Printer,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import "@/styles/document.css";
 
 /**
  * External-approver landing page.
@@ -34,6 +31,16 @@ import {
  * queryClient.ts and bounce an external approver back to the marketing site.
  * All network calls use raw fetch with `credentials: "omit"` so no session
  * cookie is ever sent and the backend treats us as fully anonymous.
+ *
+ * Rendered as a consultancy document (client/src/styles/document.css):
+ *   - Black header band, yellow strapline logo, safety-halo motif, stamp
+ *     (Awaiting sign-off / Approved / Rejected)
+ *   - Document-control strip (order · section · sent to · valid until)
+ *   - 1  Your details (name, job title, mobile, comments)
+ *   - 2  Next step (route to another approver or self-approve the next
+ *        section)
+ *   - Approve / Reject actions; reject confirms in a dialog
+ *   - Grey footer with the A-SAFE UAE office block
  */
 
 type Section = "technical" | "commercial" | "marketing";
@@ -43,8 +50,11 @@ interface TokenInfo {
   reason?: string;
   orderId?: string;
   orderNumber?: string;
+  customOrderNumber?: string | null;
   section?: Section;
   /** Masked recipient address the email was sent to (e.g. b***@dnata.ae). */
+  expectedEmailMasked?: string;
+  /** Older field name for the masked address — kept so both shapes render. */
   expectedEmail?: string;
   expiresAt?: string;
   /** Optional fields the backend may surface for richer UI. */
@@ -71,6 +81,8 @@ type SubmitState =
       wasMarketing?: boolean;
     };
 
+type Outcome = "approved" | "rejected" | null;
+
 const SECTION_LABEL: Record<Section, string> = {
   technical: "Technical sign-off",
   commercial: "Commercial sign-off",
@@ -82,6 +94,9 @@ const NEXT_SECTION: Record<Section, Section | null> = {
   commercial: "marketing",
   marketing: null,
 };
+
+const LOGO_PRIMARY = "/brand/logo-strapline-primary.png";
+const SALES_EMAIL = "sales@asafe.ae";
 
 // Simple RFC-5322-lite check. We intentionally avoid a big regex here: the
 // backend is the source of truth for deliverability; this is just to stop
@@ -95,9 +110,73 @@ function isLikelyEmail(v: string): boolean {
   return dot > at + 1 && dot < s.length - 1;
 }
 
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+type PdfResult = "ok" | "not_available";
+
+/**
+ * Fetch a server-rendered document (Phase 3D PD3 route) and hand it to the
+ * browser as a download. Resolves "not_available" on 404 — the renderer is
+ * still being rolled out — so the caller can point the approver at
+ * Print / Save as PDF instead. Any other failure throws. `credentials:
+ * "omit"` keeps this page fully anonymous (see the header comment).
+ */
+async function downloadServerPdf(url: string, filename: string): Promise<PdfResult> {
+  const res = await fetch(url, { credentials: "omit", headers: { Accept: "application/pdf" } });
+  if (res.status === 404) return "not_available";
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!(res.headers.get("content-type") || "").toLowerCase().includes("pdf")) {
+    return "not_available";
+  }
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  return "ok";
+}
+
+/**
+ * Order-form PDF URL. The PD3 route is order-scoped
+ * (`/api/orders/:id/documents/order-form.pdf`); the approver proves
+ * possession of the magic link with `?token=` since this page never sends
+ * a session cookie.
+ */
+function orderFormPdfUrl(orderId: string, token: string): string {
+  return `/api/orders/${encodeURIComponent(orderId)}/documents/order-form.pdf?token=${encodeURIComponent(token)}`;
+}
+
+function DocFooter({ meta }: { meta: string }) {
+  return (
+    <footer className="doc-footer">
+      <div className="doc-footer__brand">
+        <span className="doc-footer__halo" aria-hidden="true" />
+        <p className="doc-footer__office">
+          <strong>A-SAFE UAE</strong> · Office 220, Building A5, Dubai South Business Park
+          <br />
+          Tel: +971 (4) 8842 422 · <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a> ·
+          www.asafe.com
+        </p>
+      </div>
+      <p className="doc-footer__meta">{meta}</p>
+    </footer>
+  );
+}
+
 export default function ApprovalLanding() {
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  // Lifted so the header stamp can reflect the decision the body records.
+  const [outcome, setOutcome] = useState<Outcome>(null);
 
   // Validate the token once on mount. We re-run the effect only when the
   // token in the URL actually changes (the self-approve-next flow replaces
@@ -109,6 +188,7 @@ export default function ApprovalLanding() {
       return;
     }
     setState({ kind: "loading" });
+    setOutcome(null);
     fetch(`/api/approval-tokens/${encodeURIComponent(token)}`, {
       credentials: "omit",
       headers: { Accept: "application/json" },
@@ -148,74 +228,150 @@ export default function ApprovalLanding() {
     };
   }, [token]);
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="border-b bg-white dark:bg-gray-950">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <img
-              src="/asafe-logo.jpeg"
-              alt="A-SAFE"
-              className="h-8 w-auto"
-            />
-            <div>
-              <p className="text-sm font-semibold leading-tight">A-SAFE Engage</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Order approval requested
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="hidden sm:inline-flex">
-            <ShieldCheck className="mr-1 h-3 w-3" /> Secure link
-          </Badge>
-        </div>
-      </header>
+  const info = state.kind === "ready" ? state.token : null;
+  const section = (info?.section ?? "technical") as Section;
+  const orderLabel = info?.customOrderNumber || info?.orderNumber || info?.orderId || null;
+  const client = info?.clientName || info?.customerCompany || null;
+  const sentTo = info?.expectedEmailMasked || info?.expectedEmail || null;
+  const expiresLabel = formatDate(info?.expiresAt);
 
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
-        {state.kind === "loading" && <LoadingPanel />}
-        {state.kind === "error" && <InvalidPanel reason={state.reason} />}
-        {state.kind === "ready" && (
-          <ApprovalBody token={token!} info={state.token} />
+  const stamp =
+    outcome === "approved"
+      ? "Approved"
+      : outcome === "rejected"
+        ? "Rejected"
+        : state.kind === "error"
+          ? "Link unavailable"
+          : "Awaiting sign-off";
+  const stampClass =
+    outcome === "rejected" || state.kind === "error"
+      ? "doc-header__stamp doc-header__stamp--white"
+      : "doc-header__stamp";
+
+  const footerMeta = orderLabel
+    ? `Order ${orderLabel} · ${SECTION_LABEL[section]}`
+    : "A-SAFE Engage · Order approval";
+
+  return (
+    <div className="document-host">
+      <div className="document-toolbar doc-no-print">
+        <span
+          className="doc-chip doc-chip--black"
+          style={{ height: 44, padding: "0 14px" }}
+          title="Single-use secure approval link"
+        >
+          <ShieldCheck aria-hidden="true" /> Secure link
+        </span>
+        <button
+          type="button"
+          className="doc-btn doc-btn--secondary"
+          onClick={() => window.print()}
+          data-testid="button-print-approval"
+        >
+          <Printer aria-hidden="true" />
+          Print / Save as PDF
+        </button>
+      </div>
+
+      <article className="document-shell" data-testid="approval-document">
+        {/* Header band */}
+        <header className="doc-header">
+          <div className="doc-header__top">
+            <img className="doc-header__logo" src={LOGO_PRIMARY} alt="A-SAFE" />
+            <p className="doc-header__type">
+              Order approval · {info ? SECTION_LABEL[section] : "Sign-off"}
+            </p>
+          </div>
+          <h1 className="doc-header__title">
+            {orderLabel ? `Order ${orderLabel}` : "Order approval"}
+          </h1>
+          {client && <p className="doc-header__subtitle">{client}</p>}
+          <span className={stampClass} data-testid="document-stamp">
+            {stamp}
+          </span>
+        </header>
+
+        {/* Document control */}
+        {info && (
+          <div className="doc-control" data-testid="document-control">
+            <div className="doc-control__cell">
+              <span className="doc-control__label">Reference</span>
+              <span className="doc-control__value">{orderLabel || "—"}</span>
+            </div>
+            <div className="doc-control__cell">
+              <span className="doc-control__label">Section</span>
+              <span className="doc-control__value">{SECTION_LABEL[section]}</span>
+            </div>
+            {client && (
+              <div className="doc-control__cell">
+                <span className="doc-control__label">Client</span>
+                <span className="doc-control__value">{client}</span>
+              </div>
+            )}
+            {sentTo && (
+              <div className="doc-control__cell">
+                <span className="doc-control__label">Sent to</span>
+                <span className="doc-control__value">{sentTo}</span>
+              </div>
+            )}
+            {expiresLabel && (
+              <div className="doc-control__cell">
+                <span className="doc-control__label">Link valid until</span>
+                <span className="doc-control__value">{expiresLabel}</span>
+              </div>
+            )}
+          </div>
         )}
-      </main>
+
+        <div className="doc-body">
+          {state.kind === "loading" && <LoadingPanel />}
+          {state.kind === "error" && <InvalidPanel reason={state.reason} />}
+          {state.kind === "ready" && (
+            <ApprovalBody
+              token={token!}
+              info={state.token}
+              onOutcome={setOutcome}
+            />
+          )}
+        </div>
+
+        <DocFooter meta={footerMeta} />
+      </article>
     </div>
   );
 }
 
 function LoadingPanel() {
   return (
-    <Card>
-      <CardContent className="flex items-center justify-center gap-3 py-16 text-gray-600 dark:text-gray-300">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        <span>Validating approval link…</span>
-      </CardContent>
-    </Card>
+    <div className="doc-loading" style={{ padding: "24px 0" }}>
+      <Loader2 aria-hidden="true" />
+      <span>Validating approval link…</span>
+    </div>
   );
 }
 
 function InvalidPanel({ reason }: { reason: string }) {
   return (
-    <Card className="border-red-200 dark:border-red-900/50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
-          <AlertCircle className="h-5 w-5" /> Approval link unavailable
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <p className="text-gray-700 dark:text-gray-300">{reason}</p>
-        <Separator />
-        <p className="text-gray-600 dark:text-gray-400">
-          Please contact your A-SAFE sales representative to have a new link
-          issued.
+    <section className="doc-section">
+      <div className="doc-callout doc-callout--red">
+        <p className="doc-callout__title">
+          <AlertCircle
+            aria-hidden="true"
+            style={{ width: 14, height: 14, verticalAlign: "-2px", marginRight: 6 }}
+          />
+          Approval link unavailable
         </p>
-        <a
-          href="mailto:sales@asafe.ae"
-          className="inline-flex h-11 min-h-[44px] items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-        >
-          <Mail className="h-4 w-4" /> sales@asafe.ae
+        <p className="doc-p">{reason}</p>
+      </div>
+      <p className="doc-p">
+        Please contact your A-SAFE sales representative to have a new link issued.
+      </p>
+      <div className="doc-actions">
+        <a href={`mailto:${SALES_EMAIL}`} className="doc-btn doc-btn--secondary">
+          <Mail aria-hidden="true" /> {SALES_EMAIL}
         </a>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -224,9 +380,20 @@ function InvalidPanel({ reason }: { reason: string }) {
  * a stable, non-optional `info` object and we don't have to thread nullable
  * fields through every helper.
  */
-function ApprovalBody({ token, info }: { token: string; info: TokenInfo }) {
+function ApprovalBody({
+  token,
+  info,
+  onOutcome,
+}: {
+  token: string;
+  info: TokenInfo;
+  onOutcome: (o: Outcome) => void;
+}) {
   const section = (info.section ?? "technical") as Section;
   const nextSection = NEXT_SECTION[section];
+  // The app's <Toaster /> is mounted at the App root, above the auth gate,
+  // so it is available on this anonymous route.
+  const { toast } = useToast();
 
   // Approval-form state. We keep all of it in the component — a dedicated
   // form lib would be overkill for six fields and would pull our bundle
@@ -320,13 +487,14 @@ function ApprovalBody({ token, info }: { token: string; info: TokenInfo }) {
         nextEmail: routing === "other" ? nextEmail.trim() : undefined,
         wasMarketing: section === "marketing",
       });
+      onOutcome("approved");
     } catch (err: unknown) {
       setSubmit({ kind: "idle" });
-      // Surface the error inline via a soft toast-equivalent; we can't use
-      // the app's Toaster here because it's outside the <Toaster/> root for
-      // this route (and we don't want to pull the auth-aware layout).
-      // eslint-disable-next-line no-alert
-      alert(err instanceof Error ? err.message : "Approval failed.");
+      toast({
+        title: "Approval failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -359,10 +527,14 @@ function ApprovalBody({ token, info }: { token: string; info: TokenInfo }) {
       }
       setShowReject(false);
       setSubmit({ kind: "rejected" });
+      onOutcome("rejected");
     } catch (err: unknown) {
       setSubmit({ kind: "idle" });
-      // eslint-disable-next-line no-alert
-      alert(err instanceof Error ? err.message : "Rejection failed.");
+      toast({
+        title: "Rejection failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -373,217 +545,220 @@ function ApprovalBody({ token, info }: { token: string; info: TokenInfo }) {
     return <RejectedPanel />;
   }
 
-  const expiresLabel = info.expiresAt
-    ? new Date(info.expiresAt).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : null;
+  const submitting = submit.kind === "submitting";
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="h-5 w-5" />
-            Order {info.orderNumber || info.orderId}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-          <Labeled label="Section">
-            <span className="font-medium">{SECTION_LABEL[section]}</span>
-          </Labeled>
-          {(info.clientName || info.customerCompany) && (
-            <Labeled label="Client">
-              {info.clientName || info.customerCompany}
-            </Labeled>
-          )}
-          {info.expectedEmail && (
-            <Labeled label="Sent to">{info.expectedEmail}</Labeled>
-          )}
-          {expiresLabel && (
-            <Labeled label="Link valid until">{expiresLabel}</Labeled>
-          )}
-        </CardContent>
-      </Card>
+    <>
+      <p className="doc-p doc-section__lead" style={{ marginBottom: 28 }}>
+        A-SAFE has prepared order{" "}
+        <strong>{info.customOrderNumber || info.orderNumber || info.orderId}</strong>
+        {info.clientName || info.customerCompany ? (
+          <>
+            {" "}
+            for <strong>{info.clientName || info.customerCompany}</strong>
+          </>
+        ) : null}{" "}
+        and is requesting your <strong>{SECTION_LABEL[section].toLowerCase()}</strong>.
+        Complete your details below, then approve or reject the order.
+      </p>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Your details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-signed-by">Full name</Label>
-              <Input
-                id="ap-signed-by"
-                value={signedBy}
-                onChange={(e) => setSignedBy(e.target.value)}
-                autoComplete="name"
-                className="h-11"
-                placeholder="Jane Smith"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-job-title">Job title</Label>
-              <Input
-                id="ap-job-title"
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                autoComplete="organization-title"
-                className="h-11"
-                placeholder="Operations Director"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="ap-mobile">
-                Mobile <span className="text-gray-400">(optional)</span>
-              </Label>
-              <Input
-                id="ap-mobile"
-                type="tel"
-                inputMode="tel"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                autoComplete="tel"
-                className="h-11"
-                placeholder="+971 50 123 4567"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="ap-comments">
-                Comments <span className="text-gray-400">(optional)</span>
-              </Label>
-              <Textarea
-                id="ap-comments"
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                rows={3}
-                className="resize-none"
-                placeholder="Anything the next approver or A-SAFE should know."
-              />
-            </div>
+      {/* 1 · Your details */}
+      <section className="doc-section" data-testid="section-your-details">
+        <h2 className="doc-h2">1 · Your details</h2>
+        <div className="doc-form">
+          <div className="doc-field">
+            <label htmlFor="ap-signed-by">Full name</label>
+            <input
+              id="ap-signed-by"
+              className="doc-input"
+              value={signedBy}
+              onChange={(e) => setSignedBy(e.target.value)}
+              autoComplete="name"
+              placeholder="Jane Smith"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="doc-field">
+            <label htmlFor="ap-job-title">Job title</label>
+            <input
+              id="ap-job-title"
+              className="doc-input"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              autoComplete="organization-title"
+              placeholder="Operations Director"
+            />
+          </div>
+          <div className="doc-field span-2">
+            <label htmlFor="ap-mobile">
+              Mobile <span className="optional">(optional)</span>
+            </label>
+            <input
+              id="ap-mobile"
+              className="doc-input"
+              type="tel"
+              inputMode="tel"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              autoComplete="tel"
+              placeholder="+971 50 123 4567"
+            />
+          </div>
+          <div className="doc-field span-2">
+            <label htmlFor="ap-comments">
+              Comments <span className="optional">(optional)</span>
+            </label>
+            <textarea
+              id="ap-comments"
+              className="doc-textarea"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={3}
+              placeholder="Anything the next approver or A-SAFE should know."
+            />
+          </div>
+        </div>
+      </section>
 
+      {/* 2 · Next step */}
       {nextSection && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Next step: {SECTION_LABEL[nextSection]}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <RadioGroup
-              value={routing}
-              onValueChange={(v) => setRouting(v as "other" | "self")}
-              className="gap-3"
+        <section className="doc-section" data-testid="section-next-step">
+          <h2 className="doc-h2">2 · Next step: {SECTION_LABEL[nextSection]}</h2>
+          <div role="radiogroup" aria-label="Next approver">
+            <label
+              htmlFor="ap-route-other"
+              className={`doc-option${routing === "other" ? " doc-option--selected" : ""}`}
             >
-              <label
-                htmlFor="ap-route-other"
-                className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-accent"
-              >
-                <RadioGroupItem
-                  id="ap-route-other"
-                  value="other"
-                  className="mt-1"
-                />
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">
-                    Send to a different person
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    We&apos;ll email them a secure approval link after you
-                    approve.
-                  </p>
-                </div>
-              </label>
-              <label
-                htmlFor="ap-route-self"
-                className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-accent"
-              >
-                <RadioGroupItem
-                  id="ap-route-self"
-                  value="self"
-                  className="mt-1"
-                />
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">
-                    I have authority for {SECTION_LABEL[nextSection]} too
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    You&apos;ll be taken straight to the next section after
-                    approving.
-                  </p>
-                </div>
-              </label>
-            </RadioGroup>
+              <input
+                type="radio"
+                id="ap-route-other"
+                name="ap-routing"
+                value="other"
+                checked={routing === "other"}
+                onChange={() => setRouting("other")}
+              />
+              <span>
+                <p className="doc-option__title">Send to a different person</p>
+                <p className="doc-option__hint">
+                  We&apos;ll email them a secure approval link after you approve.
+                </p>
+              </span>
+            </label>
+            <label
+              htmlFor="ap-route-self"
+              className={`doc-option${routing === "self" ? " doc-option--selected" : ""}`}
+            >
+              <input
+                type="radio"
+                id="ap-route-self"
+                name="ap-routing"
+                value="self"
+                checked={routing === "self"}
+                onChange={() => setRouting("self")}
+              />
+              <span>
+                <p className="doc-option__title">
+                  I have authority for {SECTION_LABEL[nextSection]} too
+                </p>
+                <p className="doc-option__hint">
+                  You&apos;ll be taken straight to the next section after approving.
+                </p>
+              </span>
+            </label>
+          </div>
 
-            {routing === "other" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="ap-next-email">Email</Label>
-                  <Input
-                    id="ap-next-email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    value={nextEmail}
-                    onChange={(e) => setNextEmail(e.target.value)}
-                    className="h-11"
-                    placeholder="name@company.com"
-                  />
-                  {nextEmail && !isLikelyEmail(nextEmail) && (
-                    <p className="text-xs text-red-600">
-                      Please enter a valid email address.
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="ap-next-name">
-                    Name <span className="text-gray-400">(optional)</span>
-                  </Label>
-                  <Input
-                    id="ap-next-name"
-                    value={nextName}
-                    onChange={(e) => setNextName(e.target.value)}
-                    className="h-11"
-                    placeholder="Helps personalise the email"
-                  />
-                </div>
+          {routing === "other" && (
+            <div className="doc-form" style={{ marginTop: 14 }}>
+              <div className="doc-field span-2">
+                <label htmlFor="ap-next-email">Email</label>
+                <input
+                  id="ap-next-email"
+                  className="doc-input"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={nextEmail}
+                  onChange={(e) => setNextEmail(e.target.value)}
+                  placeholder="name@company.com"
+                />
+                {nextEmail && !isLikelyEmail(nextEmail) && (
+                  <p className="doc-field__error">Please enter a valid email address.</p>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="doc-field span-2">
+                <label htmlFor="ap-next-name">
+                  Name <span className="optional">(optional)</span>
+                </label>
+                <input
+                  id="ap-next-name"
+                  className="doc-input"
+                  value={nextName}
+                  onChange={(e) => setNextName(e.target.value)}
+                  placeholder="Helps personalise the email"
+                />
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Button
-          onClick={submitApprove}
-          disabled={!canApprove || submit.kind === "submitting"}
-          className="h-12 flex-1 bg-green-600 text-base font-semibold text-white hover:bg-green-700"
-        >
-          {submit.kind === "submitting" ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting…
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="mr-2 h-5 w-5" /> Approve
-            </>
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowReject(true)}
-          disabled={submit.kind === "submitting"}
-          className="h-12 flex-1 border-red-300 text-base font-semibold text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-900 dark:text-red-300"
-        >
-          Reject
-        </Button>
-      </div>
+      {/* Decision */}
+      <section className="doc-section doc-no-print" data-testid="section-decision">
+        <h2 className="doc-h2">{nextSection ? "3" : "2"} · Your decision</h2>
+        <div className="doc-actions" style={{ marginTop: 0 }}>
+          <button
+            type="button"
+            className="doc-btn doc-btn--grow"
+            onClick={submitApprove}
+            disabled={!canApprove || submitting}
+            data-testid="button-approve"
+          >
+            {submitting ? (
+              <>
+                <Loader2 aria-hidden="true" className="animate-spin" /> Submitting…
+              </>
+            ) : (
+              <>
+                <CheckCircle2 aria-hidden="true" /> Approve
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="doc-btn doc-btn--danger doc-btn--grow"
+            onClick={() => setShowReject(true)}
+            disabled={submitting}
+            data-testid="button-reject"
+          >
+            Reject
+          </button>
+        </div>
+        {!canApprove && (
+          <p className="doc-small" style={{ marginTop: 10 }}>
+            Enter your full name and job title
+            {nextSection && routing === "other" ? " and the next approver's email" : ""} to
+            enable Approve.
+          </p>
+        )}
+      </section>
+
+      {/* Printed copy: physical sign-off in place of the on-screen buttons. */}
+      <section className="doc-section doc-print-only">
+        <h2 className="doc-h2">{SECTION_LABEL[section]}</h2>
+        <div className="doc-signoff">
+          <div className="doc-signoff__box">
+            <span className="doc-label">Approved by</span>
+            <div className="doc-signoff__line">Name and signature</div>
+          </div>
+          <div className="doc-signoff__box">
+            <span className="doc-label">Position</span>
+            <div className="doc-signoff__line">Job title</div>
+          </div>
+          <div className="doc-signoff__box">
+            <span className="doc-label">Date</span>
+            <div className="doc-signoff__line">DD / MM / YYYY</div>
+          </div>
+        </div>
+      </section>
 
       <Dialog open={showReject} onOpenChange={setShowReject}>
         <DialogContent className="sm:max-w-md">
@@ -632,24 +807,7 @@ function ApprovalBody({ token, info }: { token: string; info: TokenInfo }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Labeled({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        {label}
-      </p>
-      <div className="text-sm text-gray-900 dark:text-gray-100">{children}</div>
-    </div>
+    </>
   );
 }
 
@@ -662,85 +820,34 @@ function ApprovedPanel({
   orderId?: string;
   token?: string;
 }) {
-  // PDF is generated CLIENT-SIDE here so the anonymous magic-link user
-  // doesn't need a login. We fetch the full order data via the public
-  // token-scoped endpoint (same possession-of-token auth), then run the
-  // existing jsPDF-based generator that the authed order page uses.
+  // PDF: the server-rendered order form (Phase 3D PD3 route). The signed
+  // copy the approver downloads is byte-identical to the rep's.
+  const { toast } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
   const downloadPdf = async () => {
-    if (!token || pdfBusy) return;
+    if (!token || !orderId || pdfBusy) return;
     setPdfBusy(true);
     try {
-      const res = await fetch(
-        `/api/approval-tokens/${encodeURIComponent(token)}/order-data`,
-        { credentials: "omit" },
+      const result = await downloadServerPdf(
+        orderFormPdfUrl(orderId, token),
+        `A-SAFE_Order_${orderId}.pdf`,
       );
-      const data = (await res.json()) as {
-        valid?: boolean;
-        order?: Record<string, any>;
-        preparedBy?: {
-          name?: string;
-          email?: string;
-          phone?: string;
-          jobTitle?: string;
-          jobRole?: string;
-          company?: string;
-        };
-      };
-      if (!res.ok || !data?.valid || !data?.order) {
-        alert("PDF couldn't be generated — the approval link may have expired. Please contact sales@asafe.ae.");
-        return;
+      if (result === "ok") {
+        toast({ title: "PDF downloaded" });
+      } else {
+        toast({
+          title: "PDF not available yet",
+          description:
+            "The signed order form is still being prepared. Use Print / Save as PDF in the meantime.",
+        });
       }
-      // Lazy-load the generator so we don't pull 500KB into the landing
-      // page for users who never hit "Download".
-      const { generateOrderFormPDF } = await import(
-        "@/utils/orderFormPdfGenerator"
-      );
-      const o = data.order as any;
-      const currency = o.currency || "AED";
-      const fmt = (n: number) =>
-        `${currency} ${Math.round(Number(n || 0)).toLocaleString("en")}`;
-      await generateOrderFormPDF(
-        {
-          orderNumber: o.orderNumber,
-          customOrderNumber: o.customOrderNumber,
-          customerName: o.customerName,
-          customerJobTitle: o.customerJobTitle,
-          customerCompany: o.customerCompany,
-          customerMobile: o.customerMobile,
-          customerEmail: o.customerEmail,
-          companyLogoUrl: o.companyLogoUrl,
-          orderDate: o.orderDate,
-          items: o.items,
-          servicePackage: o.servicePackage,
-          discountOptions: o.discountOptions,
-          totalAmount: o.totalAmount,
-          currency,
-          technicalSignature: o.technicalSignature,
-          commercialSignature: o.commercialSignature,
-          marketingSignature: o.marketingSignature,
-          reciprocalCommitments: o.reciprocalCommitments,
-          uploadedImages: o.uploadedImages,
-          layoutDrawingId: o.layoutDrawingId,
-          nextApproverEmails: o.nextApproverEmails,
-          user: data.preparedBy
-            ? {
-                firstName: (data.preparedBy.name || "").split(" ")[0],
-                lastName: (data.preparedBy.name || "").split(" ").slice(1).join(" "),
-                email: data.preparedBy.email,
-                phone: data.preparedBy.phone,
-                jobTitle: data.preparedBy.jobTitle,
-                jobRole: data.preparedBy.jobRole,
-                company: data.preparedBy.company,
-              }
-            : undefined,
-          isForUser: o.isForUser,
-        } as any,
-        fmt,
-      );
     } catch (e) {
       console.error("PDF download failed", e);
-      alert("Sorry, the PDF couldn't be generated. Please contact sales@asafe.ae.");
+      toast({
+        title: "Could not download PDF",
+        description: `${e instanceof Error ? e.message : "Please try again"}. If this persists, contact ${SALES_EMAIL}.`,
+        variant: "destructive",
+      });
     } finally {
       setPdfBusy(false);
     }
@@ -748,74 +855,82 @@ function ApprovedPanel({
 
   if (state.wasMarketing) {
     return (
-      <Card className="border-green-200 dark:border-green-900/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
-            <CheckCircle2 className="h-5 w-5" /> Order fully approved
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <p>
-            Thank you. All three approvals are complete and A-SAFE will now
-            process this order.
+      <section className="doc-section" data-testid="panel-fully-approved">
+        <div className="doc-callout doc-callout--teal">
+          <p className="doc-callout__title">
+            <CheckCircle2
+              aria-hidden="true"
+              style={{ width: 14, height: 14, verticalAlign: "-2px", marginRight: 6 }}
+            />
+            Order fully approved
           </p>
-          {orderId && token && (
+          <p className="doc-p">
+            Thank you. All three approvals are complete and A-SAFE will now process this
+            order.
+          </p>
+        </div>
+        {orderId && token && (
+          <div className="doc-actions doc-no-print">
             <button
               type="button"
               onClick={downloadPdf}
               disabled={pdfBusy}
-              className="inline-flex h-11 min-h-[44px] items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent disabled:opacity-60"
+              className="doc-btn"
               data-testid="download-signed-order-pdf"
             >
-              <Download className="h-4 w-4" />
+              {pdfBusy ? (
+                <Loader2 aria-hidden="true" className="animate-spin" />
+              ) : (
+                <Download aria-hidden="true" />
+              )}
               {pdfBusy ? "Generating PDF…" : "Download signed order (PDF)"}
             </button>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </section>
     );
   }
   return (
-    <Card className="border-green-200 dark:border-green-900/50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
-          <CheckCircle2 className="h-5 w-5" /> Approval recorded
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
+    <section className="doc-section" data-testid="panel-approved">
+      <div className="doc-callout doc-callout--teal">
+        <p className="doc-callout__title">
+          <CheckCircle2
+            aria-hidden="true"
+            style={{ width: 14, height: 14, verticalAlign: "-2px", marginRight: 6 }}
+          />
+          Approval recorded
+        </p>
         {state.nextEmail ? (
-          <p>
-            Thanks! We&apos;ve emailed <strong>{state.nextEmail}</strong> — they
-            will complete the next step.
+          <p className="doc-p">
+            Thanks. We&apos;ve emailed <strong>{state.nextEmail}</strong> — they will complete
+            the next step.
           </p>
         ) : (
-          <p>Thanks — the next approver has been notified.</p>
+          <p className="doc-p">Thanks — the next approver has been notified.</p>
         )}
-        <p className="text-gray-600 dark:text-gray-400">
-          You can safely close this window.
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="doc-small">You can safely close this window.</p>
+    </section>
   );
 }
 
 function RejectedPanel() {
   return (
-    <Card className="border-red-200 dark:border-red-900/50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
-          <AlertCircle className="h-5 w-5" /> Rejection recorded
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <p>
-          We&apos;ve recorded your rejection and notified the A-SAFE sales team
-          along with previous approvers.
+    <section className="doc-section" data-testid="panel-rejected">
+      <div className="doc-callout doc-callout--red">
+        <p className="doc-callout__title">
+          <AlertCircle
+            aria-hidden="true"
+            style={{ width: 14, height: 14, verticalAlign: "-2px", marginRight: 6 }}
+          />
+          Rejection recorded
         </p>
-        <p className="text-gray-600 dark:text-gray-400">
-          You can safely close this window.
+        <p className="doc-p">
+          We&apos;ve recorded your rejection and notified the A-SAFE sales team along with
+          previous approvers.
         </p>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="doc-small">You can safely close this window.</p>
+    </section>
   );
 }

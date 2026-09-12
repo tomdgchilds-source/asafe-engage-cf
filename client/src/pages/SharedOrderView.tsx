@@ -1,21 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Download, Mail, Building, MapPin, FileText } from "lucide-react";
+import { Download, Mail, Printer, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { generateOrderFormPDF } from "@/utils/orderFormPdfGenerator";
+import "@/styles/document.css";
 
 // ──────────────────────────────────────────────
 // /share/order/:token — public, anonymous read-only order view.
 //
 // Backend gate: GET /api/public/orders/:token. 404 → link was never valid
 // (or was revoked); 410 → the link expired. Both render a friendly
-// branded "link expired" card with a mailto fallback to quotes@asafe.ae.
+// branded "link expired" document with a mailto fallback to quotes@asafe.ae.
+//
+// Rendered as a consultancy document (client/src/styles/document.css):
+//   - Black header band, yellow strapline logo, safety-halo motif, stamp
+//   - Document-control strip (reference · order no · revision · date · for)
+//   - 1  Customer and project
+//   - 2  Scope of supply — yellow-header line tables per zone
+//   - 3  Commercial summary — subtotal / delivery / installation / total
+//   - 4  Approval status — technical / commercial / marketing chips
+//        (print: sign-off boxes)
+//   - 5  Terms
+//   - Grey footer with the A-SAFE UAE office block
+// "Download PDF" fetches the server-rendered order form (Phase 3D PD3
+// route) and toasts when the route is not live yet; "Print / Save as PDF"
+// uses the print stylesheet in document.css.
 // ──────────────────────────────────────────────
 interface PublicOrder {
   isPublicView: true;
+  /** Internal order id — surfaced by the public endpoint once the PD3 document routes land. */
+  orderId?: string | null;
   orderNumber: string;
   customOrderNumber?: string | null;
   customerCompany?: string | null;
@@ -52,10 +65,26 @@ type LoadState =
   | { kind: "error"; message: string };
 
 const CURRENCY_FALLBACK = "AED";
+const LOGO_PRIMARY = "/brand/logo-strapline-primary.png";
+const CONTACT_EMAIL = "quotes@asafe.ae";
+const DOC_TYPE = "Order form · Scope of supply";
+
+const APPROVAL_SECTIONS: Array<{ key: "technical" | "commercial" | "marketing"; label: string }> = [
+  { key: "technical", label: "Technical sign-off" },
+  { key: "commercial", label: "Commercial sign-off" },
+  { key: "marketing", label: "Marketing sign-off" },
+];
 
 function formatCurrency(value: number | null | undefined, currency: string): string {
   if (value == null || !Number.isFinite(value)) return `${currency} 0.00`;
   return `${currency} ${Number(value).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function groupItemsByZone(items: any[]): Array<{ zone: string; items: any[] }> {
@@ -70,11 +99,102 @@ function groupItemsByZone(items: any[]): Array<{ zone: string; items: any[] }> {
   return Array.from(buckets.entries()).map(([zone, items]) => ({ zone, items }));
 }
 
+type PdfResult = "ok" | "not_available";
+
+/**
+ * Fetch a server-rendered document (Phase 3D PD3 route) and hand it to the
+ * browser as a download. Resolves "not_available" on 404 — the renderer is
+ * still being rolled out — so the caller can point the customer at
+ * Print / Save as PDF instead. Any other failure throws.
+ */
+async function downloadServerPdf(url: string, filename: string): Promise<PdfResult> {
+  const res = await fetch(url, { headers: { Accept: "application/pdf" } });
+  if (res.status === 404) return "not_available";
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!(res.headers.get("content-type") || "").toLowerCase().includes("pdf")) {
+    return "not_available";
+  }
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  return "ok";
+}
+
+/**
+ * Order-form PDF URL. The PD3 route is order-scoped
+ * (`/api/orders/:id/documents/order-form.pdf`); the anonymous customer
+ * proves possession of the share link with `?token=`. Until the public
+ * endpoint surfaces `orderId`, fall back to the token-scoped public path.
+ */
+function orderFormPdfUrl(orderId: string | null | undefined, token: string): string {
+  const t = encodeURIComponent(token);
+  return orderId
+    ? `/api/orders/${encodeURIComponent(orderId)}/documents/order-form.pdf?token=${t}`
+    : `/api/public/orders/${t}/documents/order-form.pdf`;
+}
+
+function DocFooter({ meta, note }: { meta: string; note?: string | null }) {
+  return (
+    <footer className="doc-footer">
+      <div className="doc-footer__brand">
+        <span className="doc-footer__halo" aria-hidden="true" />
+        <p className="doc-footer__office">
+          <strong>A-SAFE UAE</strong> · Office 220, Building A5, Dubai South Business Park
+          <br />
+          Tel: +971 (4) 8842 422 ·{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> · www.asafe.com
+        </p>
+      </div>
+      <p className="doc-footer__meta">
+        {meta}
+        {note ? (
+          <>
+            <br />
+            {note}
+          </>
+        ) : null}
+      </p>
+    </footer>
+  );
+}
+
+/** Narrow document used for the expired / not-found / error / loading states. */
+function NoticeDocument({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="document-host">
+      <article className="document-shell document-shell--narrow">
+        <header className="doc-header">
+          <div className="doc-header__top">
+            <img className="doc-header__logo" src={LOGO_PRIMARY} alt="A-SAFE" />
+            <p className="doc-header__type">Order form</p>
+          </div>
+          <h1 className="doc-header__title">{title}</h1>
+        </header>
+        <div className="doc-body">{children}</div>
+        <DocFooter meta="A-SAFE Engage · Order form" />
+      </article>
+    </div>
+  );
+}
+
 export default function SharedOrderView() {
   const [, params] = useRoute("/share/order/:token");
   const token = params?.token;
   const { toast } = useToast();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,48 +232,39 @@ export default function SharedOrderView() {
 
   const currency = state.kind === "ok" ? state.order.currency || CURRENCY_FALLBACK : CURRENCY_FALLBACK;
 
+  // Hooks must run unconditionally — group before any early return.
+  const zones = useMemo(
+    () => (state.kind === "ok" ? groupItemsByZone(state.order.items || []) : []),
+    [state],
+  );
+
   const downloadPDF = async () => {
-    if (state.kind !== "ok") return;
+    if (state.kind !== "ok" || pdfBusy || !token) return;
     const order = state.order;
+    const filename = `A-SAFE_Order_${order.customOrderNumber || order.orderNumber}.pdf`;
+    setPdfBusy(true);
     try {
-      // Build a PDF payload compatible with generateOrderFormPDF using only
-      // the sanitised fields the API returned. Missing fields are harmless
-      // (the generator tolerates undefined sections).
-      const pdfData: any = {
-        orderNumber: order.orderNumber,
-        customOrderNumber: order.customOrderNumber || undefined,
-        customerName: order.customerName || undefined,
-        customerCompany: order.customerCompany || undefined,
-        orderDate: order.orderDate || new Date().toISOString(),
-        items: order.items || [],
-        servicePackage: order.servicePackage,
-        companyLogoUrl: order.companyLogoUrl || undefined,
-        totalAmount: Number(order.totalAmount) || order.grandTotal || 0,
-        currency: order.currency || CURRENCY_FALLBACK,
-        subtotal: order.subtotal || 0,
-        discountAmount: 0,
-        servicePackageCost: 0,
-        deliveryCharge: order.deliveryCharge || 0,
-        installationCharge: order.installationCharge || 0,
-        installationComplexity: order.installationComplexity || "standard",
-        grandTotal: order.grandTotal || 0,
-        layoutMarkups: order.layoutMarkups,
-        uploadedImages: order.uploadedImages,
-        reciprocalCommitments: order.reciprocalCommitments,
-        // Flag the generator this is a public share view — internal code
-        // paths that read this flag skip signature / internal blocks.
-        isPublicView: true,
-      };
-      const orderFormatPrice = (v: number) => formatCurrency(v, order.currency || CURRENCY_FALLBACK);
-      await generateOrderFormPDF(pdfData, orderFormatPrice);
-      toast({ title: "PDF downloaded", description: `Order ${order.orderNumber}` });
+      // The server renders the same bytes the rep downloads, so the
+      // customer's copy and the rep's copy never drift.
+      const result = await downloadServerPdf(orderFormPdfUrl(order.orderId, token), filename);
+      if (result === "ok") {
+        toast({ title: "PDF downloaded", description: `Order ${order.orderNumber}` });
+      } else {
+        toast({
+          title: "PDF not available yet",
+          description:
+            "The order form PDF is still being prepared. Use Print / Save as PDF in the meantime.",
+        });
+      }
     } catch (err) {
-      console.error("Public PDF generation failed:", err);
+      console.error("Public PDF download failed:", err);
       toast({
-        title: "Could not generate PDF",
+        title: "Could not download PDF",
         description: err instanceof Error ? err.message : "Please try again",
         variant: "destructive",
       });
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -165,171 +276,196 @@ export default function SharedOrderView() {
         ? "The share link for this order is no longer valid."
         : "We couldn't find an order for this link. It may have been revoked.";
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="flex justify-center mb-2">
-              <img src="/asafe-logo.jpeg" alt="A-SAFE" className="h-10" />
-            </div>
-            <CardTitle className="text-center text-xl">{title}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-sm text-gray-600">{desc}</p>
-            <p className="text-sm text-gray-600">
-              Your A-SAFE contact can re-issue a fresh link.
-            </p>
-            <a
-              href="mailto:quotes@asafe.ae"
-              className="inline-flex items-center gap-2 bg-[#FFC72C] text-black px-4 py-2 rounded-md font-semibold hover:bg-yellow-300 transition-colors"
-            >
-              <Mail className="h-4 w-4" />
-              Contact quotes@asafe.ae
-            </a>
-          </CardContent>
-        </Card>
-      </div>
+      <NoticeDocument title={title}>
+        <p className="doc-p">{desc}</p>
+        <p className="doc-p">Your A-SAFE contact can re-issue a fresh link.</p>
+        <div className="doc-actions">
+          <a href={`mailto:${CONTACT_EMAIL}`} className="doc-btn">
+            <Mail aria-hidden="true" />
+            Contact {CONTACT_EMAIL}
+          </a>
+        </div>
+      </NoticeDocument>
     );
   }
 
   // ─── Error state ────────────────────────────────────────────────────
   if (state.kind === "error") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Something went wrong</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center text-sm text-gray-600">
-            {state.message}. Please retry or contact{" "}
-            <a href="mailto:quotes@asafe.ae" className="underline">
-              quotes@asafe.ae
-            </a>
-            .
-          </CardContent>
-        </Card>
-      </div>
+      <NoticeDocument title="Something went wrong">
+        <p className="doc-p">
+          {state.message}. Please retry or contact{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+        </p>
+      </NoticeDocument>
     );
   }
 
   if (state.kind === "loading") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500 text-sm">Loading order…</div>
-      </div>
+      <NoticeDocument title="Order form">
+        <div className="doc-loading" style={{ padding: 0 }}>
+          <Loader2 aria-hidden="true" />
+          Loading order…
+        </div>
+      </NoticeDocument>
     );
   }
 
   // ─── OK state ──────────────────────────────────────────────────────
   const order = state.order;
-  const zones = useMemo(() => groupItemsByZone(order.items || []), [order.items]);
-  const expiryStr = order.shareTokenExpiresAt
-    ? new Date(order.shareTokenExpiresAt).toLocaleDateString()
-    : null;
+  const expiryStr = formatDate(order.shareTokenExpiresAt);
+  const orderDateStr = formatDate(order.orderDate) ?? formatDate(new Date()) ?? "";
+  const reference = order.customOrderNumber || order.orderNumber;
+  const approvals = order.approvalStatus || {};
+  const allApproved = APPROVAL_SECTIONS.every((s) => approvals[s.key] === "approved");
+  const stamp = allApproved ? "Approved" : "Issued for approval";
+  const title = order.customerCompany || `Order ${order.orderNumber}`;
+  const subtitleParts = [order.projectName, order.projectLocation].filter(Boolean) as string[];
+  const discountPct = order.reciprocalCommitments?.totalDiscountPercent || 0;
+  const footerMeta = `${reference} · Rev A · ${orderDateStr}`;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
-        <Card>
-          <CardHeader className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <img src="/asafe-logo.jpeg" alt="A-SAFE" className="h-10" />
+    <div className="document-host">
+      <div className="document-toolbar doc-no-print">
+        <button
+          type="button"
+          className="doc-btn doc-btn--secondary"
+          onClick={() => window.print()}
+          data-testid="button-print-order"
+        >
+          <Printer aria-hidden="true" />
+          Print / Save as PDF
+        </button>
+        <button
+          type="button"
+          className="doc-btn"
+          onClick={downloadPDF}
+          disabled={pdfBusy}
+          data-testid="button-public-download-pdf"
+        >
+          {pdfBusy ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Download aria-hidden="true" />
+          )}
+          {pdfBusy ? "Preparing PDF…" : "Download PDF"}
+        </button>
+      </div>
+
+      <article className="document-shell" data-testid="shared-order-document">
+        {/* Header band */}
+        <header className="doc-header">
+          <div className="doc-header__top">
+            <img className="doc-header__logo" src={LOGO_PRIMARY} alt="A-SAFE" />
+            <p className="doc-header__type">{DOC_TYPE}</p>
+          </div>
+          <h1 className="doc-header__title">{title}</h1>
+          {subtitleParts.length > 0 && (
+            <p className="doc-header__subtitle">{subtitleParts.join(" · ")}</p>
+          )}
+          <span className="doc-header__stamp" data-testid="document-stamp">
+            {stamp}
+          </span>
+        </header>
+
+        {/* Document control */}
+        <div className="doc-control" data-testid="document-control">
+          <div className="doc-control__cell">
+            <span className="doc-control__label">Reference</span>
+            <span className="doc-control__value">{reference}</span>
+          </div>
+          {order.customOrderNumber && order.customOrderNumber !== order.orderNumber && (
+            <div className="doc-control__cell">
+              <span className="doc-control__label">Order no.</span>
+              <span className="doc-control__value">{order.orderNumber}</span>
             </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">
+          )}
+          <div className="doc-control__cell">
+            <span className="doc-control__label">Revision</span>
+            <span className="doc-control__value">A</span>
+          </div>
+          <div className="doc-control__cell">
+            <span className="doc-control__label">Date</span>
+            <span className="doc-control__value">{orderDateStr}</span>
+          </div>
+          <div className="doc-control__cell">
+            <span className="doc-control__label">Prepared for</span>
+            <span className="doc-control__value">
+              {order.customerName || order.customerCompany || "—"}
+            </span>
+          </div>
+          <div className="doc-control__cell">
+            <span className="doc-control__label">Currency</span>
+            <span className="doc-control__value">{currency} · ex VAT</span>
+          </div>
+        </div>
+
+        <div className="doc-body">
+          {/* 1 · Customer and project */}
+          <section className="doc-section" data-testid="section-customer">
+            <h2 className="doc-h2">1 · Customer and project</h2>
+            <div className="doc-kv">
+              {order.customerName && (
+                <div className="doc-kv__item">
+                  <span className="doc-label">Contact</span>
+                  <p className="doc-kv__value">
+                    <strong>{order.customerName}</strong>
+                  </p>
+                </div>
+              )}
               {order.customerCompany && (
-                <div className="text-xl text-gray-800 mb-1">
-                  <Building className="h-5 w-5 inline mr-2" />
-                  {order.customerCompany}
+                <div className="doc-kv__item">
+                  <span className="doc-label">Company</span>
+                  <p className="doc-kv__value">{order.customerCompany}</p>
+                </div>
+              )}
+              {order.projectName && (
+                <div className="doc-kv__item">
+                  <span className="doc-label">Project</span>
+                  <p className="doc-kv__value">{order.projectName}</p>
                 </div>
               )}
               {order.projectLocation && (
-                <div className="text-lg text-gray-700 mb-1">
-                  <MapPin className="h-4 w-4 inline mr-2" />
-                  {order.projectLocation}
+                <div className="doc-kv__item">
+                  <span className="doc-label">Site</span>
+                  <p className="doc-kv__value">{order.projectLocation}</p>
                 </div>
               )}
-              {order.projectDescription && (
-                <div className="text-base text-gray-600 mb-2 font-normal">
-                  <FileText className="h-4 w-4 inline mr-2" />
-                  {order.projectDescription}
-                </div>
-              )}
-              <div className="text-lg text-yellow-600 border-t border-gray-200 pt-2 mt-2">
-                ORDER FORM
-              </div>
-            </CardTitle>
-
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 gap-4">
-              <div className="flex flex-col items-center sm:items-start gap-2 w-full sm:w-auto">
-                <div className="flex flex-col gap-1">
-                  <Badge variant="outline" className="text-base px-3 py-1">
-                    Order #{order.orderNumber}
-                  </Badge>
-                  {order.customOrderNumber && (
-                    <Badge variant="secondary" className="text-sm px-3 py-1">
-                      A-SAFE Ref: {order.customOrderNumber}
-                    </Badge>
-                  )}
-                </div>
-                {order.orderDate && (
-                  <div className="text-sm text-gray-600">
-                    Created: {new Date(order.orderDate).toLocaleDateString()}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 justify-center sm:justify-end w-full sm:w-auto">
-                <Button
-                  onClick={downloadPDF}
-                  className="bg-[#FFC72C] hover:bg-yellow-300 text-black font-semibold"
-                  data-testid="button-public-download-pdf"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
-              </div>
             </div>
-          </CardHeader>
-        </Card>
+            {order.projectDescription && (
+              <>
+                <hr className="doc-rule" />
+                <p className="doc-p">{order.projectDescription}</p>
+              </>
+            )}
+          </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm text-gray-700">
-            {order.customerName && <div><strong>{order.customerName}</strong></div>}
-            {order.customerCompany && <div>{order.customerCompany}</div>}
-            {order.projectName && <div>Project: {order.projectName}</div>}
-          </CardContent>
-        </Card>
-
-        {zones.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Line items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          {/* 2 · Scope of supply */}
+          {zones.length > 0 && (
+            <section className="doc-section" data-testid="section-scope-of-supply">
+              <h2 className="doc-h2">2 · Scope of supply</h2>
               {zones.map(({ zone, items }) => (
                 <div key={zone}>
-                  <div className="text-sm font-semibold text-gray-700 mb-2">{zone}</div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <p className="doc-table-title">{zone}</p>
+                  <div className="doc-table-wrap">
+                    <table className="doc-table">
                       <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 pr-2">Product</th>
-                          <th className="text-right py-2 px-2">Qty</th>
-                          <th className="text-right py-2 px-2">Unit price</th>
-                          <th className="text-right py-2 pl-2">Total</th>
+                        <tr>
+                          <th>Item</th>
+                          <th className="num">Qty</th>
+                          <th className="num">Unit price</th>
+                          <th className="num">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item: any, idx: number) => (
-                          <tr key={idx} className="border-b last:border-b-0">
-                            <td className="py-2 pr-2">{item.productName || item.name}</td>
-                            <td className="py-2 px-2 text-right">{item.quantity || 1}</td>
-                            <td className="py-2 px-2 text-right">
-                              {formatCurrency(Number(item.unitPrice), currency)}
-                            </td>
-                            <td className="py-2 pl-2 text-right font-medium">
-                              {formatCurrency(Number(item.totalPrice), currency)}
+                          <tr key={idx}>
+                            <td>{item.productName || item.name}</td>
+                            <td className="num">{item.quantity || 1}</td>
+                            <td className="num">{formatCurrency(Number(item.unitPrice), currency)}</td>
+                            <td className="num">
+                              <strong>{formatCurrency(Number(item.totalPrice), currency)}</strong>
                             </td>
                           </tr>
                         ))}
@@ -338,64 +474,97 @@ export default function SharedOrderView() {
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        )}
+            </section>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Subtotal</span>
-              <span>{formatCurrency(order.subtotal, currency)}</span>
-            </div>
-            {(order.deliveryCharge || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Delivery</span>
-                <span>{formatCurrency(order.deliveryCharge, currency)}</span>
-              </div>
+          {/* 3 · Commercial summary */}
+          <section className="doc-section" data-testid="section-commercial-summary">
+            <h2 className="doc-h2">3 · Commercial summary</h2>
+            <table className="doc-totals">
+              <tbody>
+                <tr>
+                  <td className="muted">Subtotal</td>
+                  <td>{formatCurrency(order.subtotal, currency)}</td>
+                </tr>
+                {(order.deliveryCharge || 0) > 0 && (
+                  <tr>
+                    <td className="muted">Delivery</td>
+                    <td>{formatCurrency(order.deliveryCharge, currency)}</td>
+                  </tr>
+                )}
+                {(order.installationCharge || 0) > 0 && (
+                  <tr>
+                    <td className="muted">
+                      Installation ({order.installationComplexity || "standard"})
+                    </td>
+                    <td>{formatCurrency(order.installationCharge, currency)}</td>
+                  </tr>
+                )}
+                <tr className="grand">
+                  <td>Total ex VAT</td>
+                  <td>{formatCurrency(order.grandTotal, currency)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {discountPct > 0 && (
+              <p className="doc-small" style={{ marginTop: 10 }}>
+                Reciprocal value commitments applied: {discountPct} %.
+              </p>
             )}
-            {(order.installationCharge || 0) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Installation ({order.installationComplexity || "standard"})</span>
-                <span>{formatCurrency(order.installationCharge, currency)}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t pt-2 mt-2 font-bold text-base">
-              <span>Grand total</span>
-              <span>{formatCurrency(order.grandTotal, currency)}</span>
+          </section>
+
+          {/* 4 · Approval status */}
+          <section className="doc-section" data-testid="section-approval-status">
+            <h2 className="doc-h2">4 · Approval status</h2>
+            <div className="doc-chips">
+              {APPROVAL_SECTIONS.map((s) => {
+                const approved = approvals[s.key] === "approved";
+                return (
+                  <span
+                    key={s.key}
+                    className={`doc-chip ${approved ? "doc-chip--low" : "doc-chip--outline"}`}
+                    data-testid={`approval-chip-${s.key}`}
+                  >
+                    {approved && <CheckCircle2 aria-hidden="true" />}
+                    {s.label}: {approved ? "Approved" : "Pending"}
+                  </span>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+            <div className="doc-print-only">
+              <div className="doc-signoff" style={{ marginTop: 16 }}>
+                {APPROVAL_SECTIONS.map((s) => (
+                  <div className="doc-signoff__box" key={s.key}>
+                    <span className="doc-label">{s.label}</span>
+                    <div className="doc-signoff__line">
+                      {approvals[s.key] === "approved" ? "Approved" : "Name, signature and date"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Terms</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-gray-700 space-y-2">
-            <p>
-              Prices in {currency} and exclude VAT unless otherwise stated. Delivery and
-              installation charges are calculated on the order subtotal.
+          {/* 5 · Terms */}
+          <section className="doc-section" data-testid="section-terms">
+            <h2 className="doc-h2">5 · Terms</h2>
+            <p className="doc-p">
+              Prices are in {currency} and exclude VAT unless otherwise stated. Delivery and
+              installation charges are calculated on the order subtotal. This order form is
+              budgetary and <strong>valid for 30 days</strong> from the date of issue.
             </p>
-            <p>
-              For any questions on this quote, please reach out to your A-SAFE contact or
-              email{" "}
-              <a href="mailto:quotes@asafe.ae" className="underline">
-                quotes@asafe.ae
-              </a>
-              .
+            <p className="doc-p">
+              For any questions on this quote, contact your A-SAFE representative or email{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
             </p>
-          </CardContent>
-        </Card>
+          </section>
+        </div>
 
-        {expiryStr && (
-          <div className="text-center text-xs text-gray-500">
-            This link expires on {expiryStr}.
-          </div>
-        )}
-      </div>
+        <DocFooter
+          meta={footerMeta}
+          note={expiryStr ? `This link expires on ${expiryStr}.` : null}
+        />
+      </article>
     </div>
   );
 }

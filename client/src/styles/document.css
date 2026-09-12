@@ -1,0 +1,1055 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   document.css — the customer-facing "consultancy document" surface.
+
+   Used ONLY by the three public pages (SharedProjectView, SharedOrderView,
+   ApprovalLanding). It mirrors worker/lib/pdf/theme.ts so what the customer
+   sees on screen, in print and in the PDFs reads as one system.
+
+   Rules encoded here (2023 A-SAFE Brand Guidelines):
+     - Yellow (#FFC72C) is the only accent. The secondary palette is for
+       risk / status chips only — never headlines or body copy.
+     - Headlines bold, uppercase, black or white. Body regular, left-aligned.
+     - Emphasis by weight only; colour is reserved for links and status.
+     - The document body is ALWAYS white paper with black ink, whatever the
+       host theme. Only the surround (.document-host) follows light / dark.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.document-host {
+  /* Brand tokens — kept on the host so the shell and every child can use them. */
+  --doc-yellow: #ffc72c;
+  --doc-black: #1d1d1b;
+  --doc-white: #ffffff;
+  --doc-grey90: #333331;
+  --doc-grey60: #6e6e6b;
+  --doc-grey40: #a3a3a0;
+  --doc-grey20: #d9d9d6;
+  --doc-grey8: #f2f2f0;
+  --doc-red: #e94b5f;
+  --doc-orange: #f88d2a;
+  --doc-teal: #66c9ba;
+  --doc-blue: #92c0e9;
+  --doc-halo-on-black: #343432; /* 90 % black */
+  --doc-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  min-height: 100vh;
+  padding: 24px 12px 48px;
+  background: var(--doc-grey8);
+  color: var(--doc-black);
+  font-family: var(--doc-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Host surround follows the app theme; the paper inside does not. */
+.dark .document-host {
+  background: #232321;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .document-host {
+    background: #232321;
+  }
+}
+
+.document-toolbar {
+  max-width: 880px;
+  margin: 0 auto 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.document-shell {
+  position: relative;
+  max-width: 880px;
+  margin: 0 auto;
+  background: var(--doc-white);
+  color: var(--doc-black);
+  font-family: var(--doc-font);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 12px 40px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+.document-shell--narrow {
+  max-width: 560px;
+}
+.document-shell * {
+  box-sizing: border-box;
+}
+.document-shell a {
+  color: var(--doc-black);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.document-shell strong {
+  font-weight: 700;
+}
+
+/* ─── Header band ──────────────────────────────────────────────────────── */
+.doc-header {
+  position: relative;
+  background: var(--doc-black);
+  color: var(--doc-white);
+  padding: 28px 40px 32px;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Partial safety-halo motif: ring + "A" chevron, 90 % black, cropped to the
+   bottom-right corner. Geometry mirrors drawHalo() in worker/lib/pdf/assets.ts. */
+.doc-header::after {
+  content: "";
+  position: absolute;
+  right: -70px;
+  bottom: -120px;
+  width: 320px;
+  height: 352px;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 220'%3E%3Cg fill='none' stroke='%23343432' stroke-width='32' stroke-linejoin='round'%3E%3Cpath d='M 39.4 74.2 A 84 84 0 1 0 -39.4 74.2'/%3E%3Cpath d='M -60 116 L 0 -8.5 L 60 116'/%3E%3C/g%3E%3C/svg%3E");
+}
+.doc-header > * {
+  position: relative;
+  z-index: 1;
+}
+.doc-header__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.doc-header__logo {
+  display: block;
+  height: 46px;
+  width: auto;
+  max-width: 100%;
+}
+.doc-header__type {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--doc-grey40);
+  text-align: right;
+}
+.doc-header__title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--doc-white);
+  letter-spacing: 0.01em;
+}
+.doc-header__subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--doc-grey20);
+}
+.doc-header__stamp {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 5px 10px;
+  border: 2px solid var(--doc-yellow);
+  color: var(--doc-yellow);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.doc-header__stamp--white {
+  border-color: var(--doc-white);
+  color: var(--doc-white);
+}
+
+/* ─── Document control strip ───────────────────────────────────────────── */
+.doc-control {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  border-top: 4px solid var(--doc-yellow);
+  border-bottom: 1px solid var(--doc-grey20);
+  background: var(--doc-grey8);
+}
+.doc-control__cell {
+  padding: 12px 16px;
+  border-right: 1px solid var(--doc-grey20);
+  min-width: 0;
+}
+.doc-control__cell:last-child {
+  border-right: 0;
+}
+.doc-control__label {
+  display: block;
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--doc-grey60);
+}
+.doc-control__value {
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--doc-black);
+  overflow-wrap: anywhere;
+}
+
+/* ─── Body ─────────────────────────────────────────────────────────────── */
+.doc-body {
+  padding: 36px 40px 40px;
+}
+.doc-section {
+  margin: 0 0 36px;
+  break-inside: avoid-page;
+}
+.doc-section:last-child {
+  margin-bottom: 0;
+}
+.doc-section__lead {
+  margin: 0 0 14px;
+}
+.doc-h1 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--doc-black);
+}
+.doc-h2 {
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  position: relative;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--doc-black);
+}
+.doc-h2::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 90px; /* 24 mm */
+  height: 2px;
+  background: var(--doc-yellow);
+}
+.doc-h3 {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--doc-black);
+}
+.doc-h3:first-child {
+  margin-top: 0;
+}
+.doc-p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+  color: var(--doc-black);
+}
+.doc-p:last-child {
+  margin-bottom: 0;
+}
+.doc-small {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--doc-grey60);
+}
+.doc-label {
+  display: block;
+  margin: 0 0 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--doc-grey60);
+}
+.doc-rule {
+  border: 0;
+  border-top: 1px solid var(--doc-grey20);
+  margin: 16px 0;
+}
+.doc-list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.doc-list li {
+  margin: 0 0 4px;
+}
+
+/* Key / value grid (customer block, order-at-a-glance) */
+.doc-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 24px;
+  margin: 0;
+}
+.doc-kv__item {
+  min-width: 0;
+}
+.doc-kv__value {
+  margin: 0;
+  font-size: 14px;
+  color: var(--doc-black);
+  overflow-wrap: anywhere;
+}
+
+/* ─── KPI tiles ────────────────────────────────────────────────────────── */
+.doc-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.doc-kpi {
+  position: relative;
+  padding: 12px 14px 12px 18px;
+  border: 1px solid var(--doc-grey20);
+  background: var(--doc-white);
+  min-width: 0;
+}
+.doc-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--doc-grey20);
+}
+.doc-kpi--low::before { background: var(--doc-teal); }
+.doc-kpi--medium::before { background: var(--doc-yellow); }
+.doc-kpi--high::before { background: var(--doc-orange); }
+.doc-kpi--critical::before { background: var(--doc-red); }
+.doc-kpi--black::before { background: var(--doc-black); }
+.doc-kpi__value {
+  display: block;
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--doc-black);
+}
+.doc-kpi__sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--doc-grey60);
+}
+
+/* ─── Tables ───────────────────────────────────────────────────────────── */
+.doc-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.doc-table thead th {
+  background: var(--doc-yellow);
+  color: var(--doc-black);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 9px 10px;
+  border: 0;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+.doc-table tbody td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--doc-grey20);
+  vertical-align: top;
+  color: var(--doc-black);
+}
+.doc-table--zebra tbody tr:nth-child(even) td {
+  background: var(--doc-grey8);
+}
+.doc-table tfoot td {
+  padding: 9px 10px;
+  font-weight: 700;
+  border-top: 2px solid var(--doc-black);
+}
+.doc-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.doc-table .muted {
+  color: var(--doc-grey60);
+  font-size: 12px;
+}
+.doc-table-title {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--doc-black);
+}
+.doc-table-title:first-child {
+  margin-top: 0;
+}
+
+/* Totals summary (subtotal / delivery / installation / grand total) */
+.doc-totals {
+  width: 100%;
+  max-width: 380px;
+  margin-left: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.doc-totals td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--doc-grey20);
+}
+.doc-totals td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.doc-totals tr.grand td {
+  padding-top: 10px;
+  border-bottom: 0;
+  border-top: 2px solid var(--doc-black);
+  font-size: 15px;
+  font-weight: 700;
+}
+.doc-totals td.muted {
+  color: var(--doc-grey60);
+}
+
+/* ─── Chips (risk / status) — RISK_COLOURS from theme.ts ───────────────── */
+.doc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--doc-black);
+  background: var(--doc-grey20);
+  vertical-align: middle;
+}
+.doc-chip svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.doc-chip--low { background: var(--doc-teal); }
+.doc-chip--medium { background: var(--doc-yellow); }
+.doc-chip--high { background: var(--doc-orange); }
+.doc-chip--critical { background: var(--doc-red); color: var(--doc-white); }
+.doc-chip--black { background: var(--doc-black); color: var(--doc-white); }
+.doc-chip--blue { background: var(--doc-blue); }
+.doc-chip--grey { background: var(--doc-grey20); color: var(--doc-grey90); }
+.doc-chip--outline {
+  background: transparent;
+  color: var(--doc-grey60);
+  box-shadow: inset 0 0 0 1px var(--doc-grey40);
+}
+.doc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ─── Callouts ─────────────────────────────────────────────────────────── */
+.doc-callout {
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  border-left: 4px solid var(--doc-grey40);
+  background: var(--doc-grey8);
+  color: var(--doc-black);
+}
+.doc-callout--yellow {
+  border-left-color: var(--doc-yellow);
+  background: #fff8e1;
+}
+.doc-callout--black {
+  border-left-color: var(--doc-black);
+  background: var(--doc-black);
+  color: var(--doc-white);
+}
+.doc-callout--black .doc-p,
+.doc-callout--black .doc-callout__title {
+  color: var(--doc-white);
+}
+.doc-callout--black .doc-small,
+.doc-callout--black a {
+  color: var(--doc-grey20);
+}
+.doc-callout--teal {
+  border-left-color: var(--doc-teal);
+  background: #eef9f6;
+}
+.doc-callout--red {
+  border-left-color: var(--doc-red);
+  background: #fdeef0;
+}
+.doc-callout__title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.doc-callout .doc-p:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Figures ──────────────────────────────────────────────────────────── */
+.doc-figure {
+  margin: 0 0 16px;
+  break-inside: avoid-page;
+}
+.doc-figure__frame {
+  border: 1px solid var(--doc-grey20);
+  background: var(--doc-grey8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+.doc-figure__frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.doc-figure__caption {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--doc-grey60);
+}
+.doc-figure__caption strong {
+  color: var(--doc-black);
+}
+
+/* ─── Forms ────────────────────────────────────────────────────────────── */
+.doc-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 20px;
+  margin: 0 0 16px;
+}
+.doc-form .span-2 {
+  grid-column: 1 / -1;
+}
+.doc-field {
+  min-width: 0;
+}
+.doc-field label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--doc-grey90);
+}
+.doc-field label .optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--doc-grey60);
+}
+.doc-input,
+.doc-textarea {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--doc-black);
+  background: var(--doc-white);
+  border: 1px solid var(--doc-grey40);
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.doc-input::placeholder,
+.doc-textarea::placeholder {
+  color: var(--doc-grey40);
+}
+.doc-input:focus,
+.doc-textarea:focus {
+  border-color: var(--doc-black);
+  box-shadow: 0 0 0 2px var(--doc-yellow);
+}
+.doc-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+.doc-field__error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--doc-red);
+}
+
+.doc-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--doc-grey20);
+  background: var(--doc-white);
+  cursor: pointer;
+  margin: 0 0 8px;
+}
+.doc-option:hover {
+  border-color: var(--doc-grey40);
+}
+.doc-option--selected {
+  border-color: var(--doc-black);
+  box-shadow: inset 0 0 0 1px var(--doc-black);
+}
+.doc-option input[type="radio"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--doc-black);
+}
+.doc-option__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--doc-black);
+}
+.doc-option__hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--doc-grey60);
+}
+
+/* ─── Buttons ──────────────────────────────────────────────────────────── */
+.doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+.doc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--doc-black);
+  background: var(--doc-yellow);
+  border: 2px solid var(--doc-yellow);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.doc-btn:hover {
+  background: #ffd45c;
+  border-color: #ffd45c;
+}
+.doc-btn:focus-visible {
+  outline: 2px solid var(--doc-black);
+  outline-offset: 2px;
+}
+.doc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.doc-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.doc-btn--secondary {
+  background: transparent;
+  border-color: var(--doc-black);
+  color: var(--doc-black);
+}
+.doc-btn--secondary:hover {
+  background: var(--doc-grey8);
+  border-color: var(--doc-black);
+}
+.doc-btn--black {
+  background: var(--doc-black);
+  border-color: var(--doc-black);
+  color: var(--doc-white);
+}
+.doc-btn--black:hover {
+  background: var(--doc-grey90);
+  border-color: var(--doc-grey90);
+}
+.doc-btn--danger {
+  background: transparent;
+  border-color: var(--doc-red);
+  color: var(--doc-red);
+}
+.doc-btn--danger:hover {
+  background: #fdeef0;
+  border-color: var(--doc-red);
+}
+.doc-btn--grow {
+  flex: 1 1 200px;
+}
+/* Toolbar buttons sit on the host surround, not the paper — keep them
+   legible on both light and dark hosts. */
+.document-toolbar .doc-btn--secondary {
+  background: var(--doc-white);
+}
+
+/* ─── Sign-off block (print) ───────────────────────────────────────────── */
+.doc-signoff {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 8px 0 0;
+}
+.doc-signoff__box {
+  border: 1px solid var(--doc-grey20);
+  padding: 12px 14px 18px;
+  min-height: 110px;
+}
+.doc-signoff__line {
+  margin-top: 40px;
+  border-top: 1px solid var(--doc-black);
+  padding-top: 4px;
+  font-size: 11px;
+  color: var(--doc-grey60);
+}
+
+/* ─── Footer ───────────────────────────────────────────────────────────── */
+.doc-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 18px 40px 22px;
+  border-top: 1px solid var(--doc-grey20);
+  background: var(--doc-grey8);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--doc-grey60);
+}
+.doc-footer__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.doc-footer__halo {
+  flex: none;
+  width: 22px;
+  height: 24px;
+  margin-top: 1px;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-108 -108 216 236'%3E%3Cg fill='none' stroke='%23FFC72C' stroke-width='32' stroke-linejoin='round'%3E%3Cpath d='M 39.4 74.2 A 84 84 0 1 0 -39.4 74.2'/%3E%3Cpath d='M -60 116 L 0 -8.5 L 60 116'/%3E%3C/g%3E%3C/svg%3E");
+}
+.doc-footer__office {
+  margin: 0;
+}
+.doc-footer__office strong {
+  color: var(--doc-black);
+}
+.doc-footer__meta {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.doc-footer a {
+  color: var(--doc-grey60);
+}
+
+/* ─── Loading / status panels inside the shell ─────────────────────────── */
+.doc-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 40px;
+  color: var(--doc-grey60);
+  font-size: 14px;
+}
+.doc-loading svg {
+  width: 18px;
+  height: 18px;
+  animation: doc-spin 0.9s linear infinite;
+}
+@keyframes doc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Visibility helpers */
+.doc-print-only {
+  display: none;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .document-host {
+    padding: 12px 0 32px;
+  }
+  .doc-header {
+    padding: 22px 20px 26px;
+  }
+  .doc-header__top {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .doc-header__type {
+    text-align: left;
+  }
+  .doc-header__title {
+    font-size: 20px;
+  }
+  .doc-body {
+    padding: 24px 20px 28px;
+  }
+  .doc-footer {
+    padding: 16px 20px 20px;
+  }
+  .doc-footer__meta {
+    text-align: left;
+  }
+  .document-toolbar {
+    padding: 0 12px;
+  }
+}
+
+/* ─── Dark host: the paper stays white ─────────────────────────────────
+   index.css carries blanket app-chrome rules for the dark theme, e.g.
+   `.dark h1 { color: #fff !important }`, `.dark th { background: #121212
+   !important }`, `.dark input { … !important }` and
+   `.dark button[type="button"]:not(…)×4 { … !important }`. The document
+   must ignore all of them: it is always white paper with black ink.
+
+   Every selector below is prefixed `.dark .document-host` and carries two
+   `:not(#doc-never)` guards. Each guard adds an id's weight, so these rules
+   out-specify the widest blanket rule ((0,6,1)) without editing index.css.
+   Values mirror the normal-mode rules above — change both together. */
+
+/* Headings and labels: index.css forces white / light grey text. */
+.dark .document-host :is(h1, h2, h3, h4, h5, h6):not(#doc-never):not(#doc-never),
+.dark .document-host label:not(#doc-never):not(#doc-never) {
+  color: inherit !important;
+}
+.dark .document-host .doc-field label:not(#doc-never):not(#doc-never) {
+  color: var(--doc-grey90) !important;
+}
+
+/* Tables: index.css paints table / th / td / tr dark. */
+.dark .document-host table:not(#doc-never):not(#doc-never) {
+  background-color: transparent !important;
+}
+.dark .document-host tbody tr:not(#doc-never):not(#doc-never),
+.dark .document-host tbody tr:not(#doc-never):not(#doc-never):hover {
+  background-color: transparent !important;
+  border-color: var(--doc-grey20) !important;
+}
+.dark .document-host th:not(#doc-never):not(#doc-never) {
+  background-color: var(--doc-yellow) !important;
+  color: var(--doc-black) !important;
+  border-color: transparent !important;
+}
+.dark .document-host td:not(#doc-never):not(#doc-never) {
+  color: inherit !important;
+  border-color: var(--doc-grey20) !important;
+}
+.dark .document-host td.muted:not(#doc-never):not(#doc-never) {
+  color: var(--doc-grey60) !important;
+}
+.dark .document-host .doc-table tfoot td:not(#doc-never):not(#doc-never),
+.dark .document-host .doc-totals tr.grand td:not(#doc-never):not(#doc-never) {
+  border-top-color: var(--doc-black) !important;
+}
+
+/* Form fields: index.css gives every input a dark fill and white text. */
+.dark .document-host .doc-input:not(#doc-never):not(#doc-never),
+.dark .document-host .doc-textarea:not(#doc-never):not(#doc-never) {
+  background-color: var(--doc-white) !important;
+  color: var(--doc-black) !important;
+  border-color: var(--doc-grey40) !important;
+  box-shadow: none !important;
+}
+.dark .document-host .doc-input:not(#doc-never):not(#doc-never):focus,
+.dark .document-host .doc-textarea:not(#doc-never):not(#doc-never):focus {
+  background-color: var(--doc-white) !important;
+  border-color: var(--doc-black) !important;
+  box-shadow: 0 0 0 2px var(--doc-yellow) !important;
+  outline: none !important;
+}
+.dark .document-host .doc-input:not(#doc-never):not(#doc-never)::placeholder,
+.dark .document-host .doc-textarea:not(#doc-never):not(#doc-never)::placeholder {
+  color: var(--doc-grey40) !important;
+}
+.dark .document-host .doc-input:not(#doc-never):not(#doc-never):disabled,
+.dark .document-host .doc-textarea:not(#doc-never):not(#doc-never):disabled {
+  background-color: var(--doc-grey8) !important;
+  color: var(--doc-grey60) !important;
+}
+.dark .document-host .doc-option input[type="radio"]:not(#doc-never):not(#doc-never) {
+  background-color: transparent !important;
+  border-color: var(--doc-grey40) !important;
+}
+
+/* Buttons: index.css repaints every button[type="button"] dark grey.
+   Base first, then variants, then hover / toolbar / disabled — later rules
+   at equal specificity win, so keep this order. */
+.dark .document-host .doc-btn:not(#doc-never):not(#doc-never) {
+  background-color: var(--doc-yellow) !important;
+  border-color: var(--doc-yellow) !important;
+  color: var(--doc-black) !important;
+}
+.dark .document-host .doc-btn--secondary:not(#doc-never):not(#doc-never) {
+  background-color: transparent !important;
+  border-color: var(--doc-black) !important;
+  color: var(--doc-black) !important;
+}
+.dark .document-host .doc-btn--black:not(#doc-never):not(#doc-never) {
+  background-color: var(--doc-black) !important;
+  border-color: var(--doc-black) !important;
+  color: var(--doc-white) !important;
+}
+.dark .document-host .doc-btn--danger:not(#doc-never):not(#doc-never) {
+  background-color: transparent !important;
+  border-color: var(--doc-red) !important;
+  color: var(--doc-red) !important;
+}
+.dark .document-host .doc-btn:not(#doc-never):not(#doc-never):hover {
+  background-color: #ffd45c !important;
+  border-color: #ffd45c !important;
+}
+.dark .document-host .doc-btn--secondary:not(#doc-never):not(#doc-never):hover {
+  background-color: var(--doc-grey8) !important;
+  border-color: var(--doc-black) !important;
+}
+.dark .document-host .doc-btn--black:not(#doc-never):not(#doc-never):hover {
+  background-color: var(--doc-grey90) !important;
+  border-color: var(--doc-grey90) !important;
+}
+.dark .document-host .doc-btn--danger:not(#doc-never):not(#doc-never):hover {
+  background-color: #fdeef0 !important;
+  border-color: var(--doc-red) !important;
+}
+.dark .document-host .document-toolbar .doc-btn--secondary:not(#doc-never):not(#doc-never) {
+  background-color: var(--doc-white) !important;
+}
+.dark .document-host .document-toolbar .doc-btn--secondary:not(#doc-never):not(#doc-never):hover {
+  background-color: var(--doc-grey8) !important;
+}
+.dark .document-host .doc-btn:not(#doc-never):not(#doc-never):disabled {
+  opacity: 0.55 !important;
+}
+
+/* ─── Print: "Print / Save as PDF" from the browser ────────────────────── */
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  .document-host {
+    min-height: 0;
+    padding: 0;
+    background: #ffffff !important;
+  }
+  .document-toolbar,
+  .doc-no-print {
+    display: none !important;
+  }
+  .doc-print-only {
+    display: block;
+  }
+  .document-shell {
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    overflow: visible;
+    font-size: 11pt;
+  }
+  .doc-header,
+  .doc-header::after,
+  .doc-control,
+  .doc-table thead th,
+  .doc-chip,
+  .doc-kpi::before,
+  .doc-callout,
+  .doc-footer,
+  .doc-header__stamp,
+  .doc-btn {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .doc-header {
+    padding: 22px 28px 26px;
+  }
+  .doc-body {
+    padding: 22px 28px 26px;
+  }
+  .doc-footer {
+    padding: 14px 28px 16px;
+  }
+  .doc-section,
+  .doc-figure,
+  .doc-kpi,
+  .doc-callout,
+  .doc-signoff__box,
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .doc-table thead {
+    display: table-header-group;
+  }
+  .doc-table-wrap {
+    overflow: visible;
+  }
+  .doc-figure__frame img {
+    max-height: 170mm;
+  }
+  .document-shell a {
+    text-decoration: none;
+  }
+  .doc-input,
+  .doc-textarea {
+    border-color: var(--doc-grey40);
+  }
+}
