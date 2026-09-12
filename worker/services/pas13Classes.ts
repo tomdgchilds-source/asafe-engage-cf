@@ -67,6 +67,88 @@ function dbRowToRule(row: {
   };
 }
 
+/** Row shape returned by GET /api/admin/pas13-vehicle-classes and
+ *  GET /api/pas13/vehicle-classes (camelCase, NULL max = open-ended). */
+export interface Pas13VehicleClassApiRow {
+  id: string;
+  classCode: string;
+  massMinKg: number;
+  massMaxKg: number | null;
+  speedMinKmh: number;
+  speedMaxKmh: number | null;
+  description: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface Pas13VehicleClassListPayload {
+  rows: Pas13VehicleClassApiRow[];
+  bootstrapNeeded?: boolean;
+  message?: string;
+}
+
+/**
+ * Read-only list of the current pas13_vehicle_classes rows in the exact
+ * payload shape the admin GET returns. No DDL, no writes. Throws on DB
+ * error so callers can decide how to surface it; returns
+ * `{ rows: [], bootstrapNeeded: true }` when the table has not been
+ * created yet.
+ */
+export async function listPas13VehicleClasses(
+  env: Env,
+): Promise<Pas13VehicleClassListPayload> {
+  if (!env.DATABASE_URL) throw new Error("DATABASE_URL not configured");
+  const { neon } = await import("@neondatabase/serverless");
+  const sqlClient = neon(env.DATABASE_URL);
+
+  const tableExists = (await sqlClient`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_name = 'pas13_vehicle_classes'
+    ) AS exists
+  `) as Array<{ exists: boolean }>;
+  if (!tableExists[0]?.exists) {
+    return {
+      rows: [],
+      bootstrapNeeded: true,
+      message:
+        "pas13_vehicle_classes table not yet created — apply pending migrations at /admin/migrations first.",
+    };
+  }
+
+  const rows = (await sqlClient`
+    SELECT id, class_code, mass_min_kg, mass_max_kg,
+           speed_min_kmh, speed_max_kmh, description,
+           updated_at, updated_by
+    FROM pas13_vehicle_classes
+    ORDER BY mass_min_kg ASC, class_code ASC
+  `) as Array<{
+    id: string;
+    class_code: string;
+    mass_min_kg: number;
+    mass_max_kg: number | null;
+    speed_min_kmh: number;
+    speed_max_kmh: number | null;
+    description: string;
+    updated_at: string | null;
+    updated_by: string | null;
+  }>;
+
+  return {
+    rows: rows.map((r) => ({
+      id: r.id,
+      classCode: r.class_code,
+      massMinKg: r.mass_min_kg,
+      massMaxKg: r.mass_max_kg,
+      speedMinKmh: r.speed_min_kmh,
+      speedMaxKmh: r.speed_max_kmh,
+      description: r.description,
+      updatedAt: r.updated_at,
+      updatedBy: r.updated_by,
+    })),
+  };
+}
+
 async function fetchAndApply(env: Env): Promise<void> {
   if (!env.DATABASE_URL) return; // soft-fail: keep seed defaults
   const { neon } = await import("@neondatabase/serverless");

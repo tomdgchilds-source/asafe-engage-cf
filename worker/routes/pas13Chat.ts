@@ -32,7 +32,10 @@ import {
   PAS13_INDICATIVE_FOOTNOTE,
 } from "../../shared/pas13Rules";
 import { pas13Cite } from "../../shared/pas13Citations";
-import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
+import {
+  ensurePas13ClassesLoaded,
+  listPas13VehicleClasses,
+} from "../services/pas13Classes";
 import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
 
 const pas13Chat = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -627,6 +630,19 @@ async function requireRep(
 pas13Chat.get("/pas13/me", authMiddleware, async (c) => {
   const gate = await requireRep(c);
   return c.json({ isRep: gate.ok });
+});
+
+// GET /api/pas13/vehicle-classes — read-only copy of the admin
+// GET /api/admin/pas13-vehicle-classes payload for any signed-in user, so
+// the survey review screen can show the live T1–T4 mass/speed bands
+// instead of the seed table. No writes; admin endpoints unchanged.
+pas13Chat.get("/pas13/vehicle-classes", authMiddleware, async (c) => {
+  try {
+    return c.json(await listPas13VehicleClasses(c.env));
+  } catch (e: any) {
+    console.error("pas13/vehicle-classes GET failed:", e);
+    return c.json({ message: e?.message || String(e) }, 500);
+  }
 });
 
 // GET /api/pas13/health — checks the corpus is reachable from this isolate.

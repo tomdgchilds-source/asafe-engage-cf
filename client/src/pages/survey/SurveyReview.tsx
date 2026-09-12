@@ -56,8 +56,8 @@ function usePas13ClassTable(): readonly VehicleClassRow[] {
     staleTime: 10 * 60_000,
     retry: false,
     queryFn: async () => {
-      // Admin-only endpoint: a 403 (or any failure) simply keeps the seed table.
-      const res = await fetch("/api/admin/pas13-vehicle-classes", { credentials: "include" });
+      // Any failure (403/500/network) simply keeps the seed table.
+      const res = await fetch("/api/pas13/vehicle-classes", { credentials: "include" });
       if (!res.ok) return PAS13_VEHICLE_CLASS_TABLE;
       const json = (await res.json()) as { rows?: AdminClassRow[] };
       const rows = (json.rows ?? []).map<VehicleClassRow>((r) => ({
