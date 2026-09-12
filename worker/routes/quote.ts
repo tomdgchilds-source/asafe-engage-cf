@@ -49,16 +49,119 @@ import {
 } from "../../shared/pas13Rules";
 import { ensurePas13ClassesLoaded } from "../services/pas13Classes";
 import { pas13Cite, type Pas13Citation } from "../../shared/pas13Citations";
-import {
-  buildQuoteDraftPdf,
-  filenameFor as quotePdfFilename,
-  dedupeCitations,
-  type QuoteDraftPdfInput,
-  type QuoteZoneForPdf,
-  type QuoteLineItemForPdf,
-} from "../lib/quoteDraftPdf";
+import { quoteDraftToProposalModel, renderProposalModel } from "../lib/pdf/reports/proposal";
+import { loadProductsByName, personFromUser } from "../lib/pdf/reports/shared";
 import { withOpenAiRetry, OpenAiHttpError } from "../lib/retryOpenAi";
 import { INSTALL_RATES, normaliseComplexity, round2 } from "../../shared/pricing";
+
+// ─── Draft payload shapes ──────────────────────────────────────────────────
+//
+// The quote draft JSON persisted in quote_drafts.draft_json. The PDF is the
+// Phase 3D budgetary proposal rendered from this payload
+// (worker/lib/pdf/reports/proposal.ts, quoteDraftToProposalModel), always
+// as a DRAFT so the rep-review watermark is on every page.
+
+export interface QuoteZoneForPdf {
+  name: string;
+  designVehicle: {
+    name: string;
+    massKg: number;
+    speedKmh: number;
+    pas13Class: string;
+  } | null;
+  selectedProductName: string;
+  selectedProductSku: string | null;
+  quantityOrLengthMeters: number;
+  pricingMode: "per_length" | "per_unit";
+  unitPriceAed: number;
+  extendedAed: number;
+  pas13Verdict: Verdict;
+  rationale: string;
+  citedSections: string[];
+}
+
+export interface QuoteLineItemForPdf {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  quantityOrLengthMeters: number;
+  pricingMode: "per_length" | "per_unit";
+  unitPriceAed: number;
+  extendedAed: number;
+  /** Set when the line item was assembled without a unit price (sparse
+   * accessory data). Renders as "Price on application". */
+  priceMissing?: boolean;
+}
+
+export interface QuoteTotalsForPdf {
+  subtotalAed: number;
+  serviceCareAed?: number;
+  serviceCareLabel?: string;
+  vatAed?: number;
+  vatPct?: number;
+  grandTotalAed: number;
+}
+
+function quotePdfFilename(quoteId: string): string {
+  const safe = quoteId.replace(/[^A-Za-z0-9._-]+/g, "_");
+  return `Quote_Draft-${safe}.pdf`;
+}
+
+/** Sort + dedupe citations across zones for the draft's reference list. */
+export function dedupeCitations(citations: Pas13Citation[]): Pas13Citation[] {
+  const seen = new Map<string, Pas13Citation>();
+  for (const c of citations) {
+    if (!seen.has(c.section)) seen.set(c.section, c);
+  }
+  // Always thread §6.1, §5.10, §5.9 — same as the alignment statement.
+  for (const id of ["6.1", "5.10", "5.9"]) {
+    if (!seen.has(id)) {
+      const c = pas13Cite(id);
+      if (c) seen.set(id, c);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => sectionSortKey(a.section).localeCompare(sectionSortKey(b.section)));
+}
+
+function sectionSortKey(section: string): string {
+  if (/^[A-Z]$/.test(section)) return `Z${section}`;
+  return section
+    .split(".")
+    .map((p) => (Number.isFinite(parseInt(p, 10)) ? p.padStart(3, "0") : p))
+    .join(".");
+}
+
+/** Render the draft payload as a DRAFT proposal PDF with product images. */
+async function renderQuoteDraftPdf(
+  env: Env,
+  storage: ReturnType<typeof createStorage>,
+  args: {
+    quoteId: string;
+    generatedAt: Date;
+    repUserId: string | null;
+    customerCompany?: string | null;
+    customerName?: string | null;
+    projectName?: string | null;
+    projectLocation?: string | null;
+    zones: QuoteZoneForPdf[];
+    lineItems: QuoteLineItemForPdf[];
+    totals: QuoteTotalsForPdf;
+    notes?: string | null;
+  },
+): Promise<{ pdf: Uint8Array; filename: string }> {
+  const [products, rep] = await Promise.all([
+    loadProductsByName(env, storage, args.lineItems.map((li) => li.productName)).catch(() => new Map()),
+    args.repUserId ? storage.getUser(args.repUserId).catch(() => undefined) : Promise.resolve(undefined),
+  ]);
+  const model = quoteDraftToProposalModel({ ...args, preparedBy: rep ? personFromUser(rep) : null, products });
+  const pdf = await renderProposalModel(model, {
+    status: "DRAFT",
+    reference: "DRAFT",
+    revision: "A",
+    issuedOn: args.generatedAt,
+  });
+  return { pdf, filename: quotePdfFilename(args.quoteId) };
+}
 
 const quote = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -355,13 +458,14 @@ quote.post("/quote/draft", authMiddleware, mutationRateLimit, async (c) => {
 
     // Build the PDF
     const appOrigin = c.env.APP_URL || `${new URL(c.req.url).origin}`;
-    const pdfInput: QuoteDraftPdfInput = {
+    const pdfOut = await renderQuoteDraftPdf(c.env, storage, {
       quoteId,
       generatedAt,
-      customerCompany: customerCompany ?? undefined,
-      customerName: customerName ?? undefined,
-      projectName: projectName ?? undefined,
-      projectLocation: projectLocation ?? undefined,
+      repUserId: userId,
+      customerCompany,
+      customerName,
+      projectName,
+      projectLocation,
       zones: zonesOut
         .filter((z) => !!z.selectedOption)
         .map<QuoteZoneForPdf>((z) => {
@@ -389,11 +493,8 @@ quote.post("/quote/draft", authMiddleware, mutationRateLimit, async (c) => {
         vatPct,
         grandTotalAed,
       },
-      aggregatePas13Verdict: aggregateVerdict,
       notes,
-      appOrigin,
-    };
-    const pdfOut = buildQuoteDraftPdf(pdfInput);
+    });
 
     // R2 upload — best-effort. PDF stays generatable on the fly even if R2
     // upload fails so the GET endpoint won't 404.
@@ -527,9 +628,12 @@ quote.get("/quote/:id/quote.pdf", async (c) => {
     if (!pdfBytes) {
       const draft = row.draft_json as any;
       const appOrigin = c.env.APP_URL || `${new URL(c.req.url).origin}`;
-      const out = buildQuoteDraftPdf({
+      const db = getDb(c.env.DATABASE_URL);
+      const storage = createStorage(db);
+      const out = await renderQuoteDraftPdf(c.env, storage, {
         quoteId,
         generatedAt: new Date(draft.createdAt || row.created_at),
+        repUserId: row.rep_user_id,
         customerCompany: draft.customerCompany,
         customerName: draft.customerName,
         projectName: draft.projectName,
@@ -547,15 +651,11 @@ quote.get("/quote/:id/quote.pdf", async (c) => {
             extendedAed: z.selectedOption.estimatedAedTotal,
             pas13Verdict: z.selectedOption.pas13Verdict.verdict,
             rationale: z.selectedOption.rationale,
-            citedSections: (z.selectedOption.pas13Verdict.citations || []).map(
-              (c2: any) => c2.section,
-            ),
+            citedSections: (z.selectedOption.pas13Verdict.citations || []).map((c2: any) => c2.section),
           })),
         lineItems: draft.lineItems,
         totals: draft.totals,
-        aggregatePas13Verdict: draft.aggregatePas13Verdict,
         notes: draft.notes,
-        appOrigin,
       });
       pdfBytes = out.pdf;
     }

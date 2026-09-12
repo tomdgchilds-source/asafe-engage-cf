@@ -47,10 +47,12 @@ import recommendBarriers from "./routes/recommendBarriers";
 import quote from "./routes/quote";
 import communication from "./routes/communication";
 import orderForm from "./routes/orderForm";
+import documents from "./routes/documents";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 import { scanCommSuggestions } from "./scheduled/commSuggestionsScanner";
 import migrations from "./routes/migrations";
 import surveyPhotos from "./routes/surveyPhotos";
+import documentsPas13 from "./routes/documentsPas13";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -130,8 +132,10 @@ app.route("/api", recommendBarriers);
 app.route("/api", quote);
 app.route("/api", communication);
 app.route("/api", orderForm);
+app.route("/api", documents);
 app.route("/api", migrations);
 app.route("/api", surveyPhotos);
+app.route("/api", documentsPas13);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

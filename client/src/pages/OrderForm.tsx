@@ -87,7 +87,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useActiveProject } from "@/hooks/useActiveProject";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { generateOrderFormPDF } from "@/utils/orderFormPdfGenerator";
 import { useLocation } from "wouter";
 import { ShareOrderModal } from "@/components/ShareOrderModal";
 
@@ -239,7 +238,6 @@ export function OrderForm() {
   // Controls the optional 2-3 page "About A-SAFE" brand appendix on the
   // generated PDF. Off by default so standard quotes don't ship ten pages
   // of marketing; flip it on for premium / first-time customers.
-  const [includeBrandOverview, setIncludeBrandOverview] = useState(false);
   const technicalCanvasRef = useRef<HTMLCanvasElement>(null);
   const commercialCanvasRef = useRef<HTMLCanvasElement>(null);
   const marketingCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -963,216 +961,49 @@ export function OrderForm() {
     });
   };
 
-  // Text-only download path — fetches the server-rendered PDF built by
-  // worker/lib/orderFormPdfV2.ts (via GET /api/orders/:id/order-form.pdf).
-  // The server builder cannot embed images (no product photos, site
-  // photos, drawings or logos), which was the sales team's top complaint
-  // after it briefly became the default on 6 May. It is fast and works
-  // without a browser canvas, so it stays available behind a secondary
-  // "Download (text-only, fast)" link. The main Download button uses the
-  // client-side, image-capable `downloadPDF` below.
-  const downloadPdfTextOnly = async () => {
+  // Customer documents are rendered server-side by worker/lib/pdf/reports
+  // (proposal.ts / orderForm.ts) from the same order data and pricing
+  // module the page shows, so the PDF and the screen can never disagree.
+  //   order-form → GET /api/orders/:id/documents/order-form.pdf
+  //   proposal   → GET /api/orders/:id/documents/proposal.pdf
+  // Both render a DRAFT-watermarked copy by default; `issued` allocates an
+  // ASU reference, stores the PDF and records it in the document register.
+  type DocumentKind = "order-form" | "proposal";
+  const fetchDocument = async (kind: DocumentKind, status: "draft" | "issued" = "draft"): Promise<Blob> => {
+    if (!orderData) throw new Error("Order data not available");
+    const res = await fetch(`/api/orders/${orderData.id}/documents/${kind}.pdf?status=${status}`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    return res.blob();
+  };
+
+  const downloadDocument = async (kind: DocumentKind, status: "draft" | "issued" = "draft") => {
     if (!orderData) {
       haptic.error();
-      toast({
-        title: "Error",
-        description: "Order data not available",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Order data not available", variant: "destructive" });
       return;
     }
+    const label = kind === "proposal" ? "Proposal" : "Order form";
     try {
-      const res = await fetch(`/api/orders/${orderData.id}/order-form.pdf`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
-      }
-      const blob = await res.blob();
+      const blob = await fetchDocument(kind, status);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const refNum = orderData.orderNumber || `ENG_${orderData.id.slice(0, 8)}`;
+      const refNum = orderData.customOrderNumber || orderData.orderNumber || orderData.id.slice(0, 8);
       a.href = url;
-      a.download = `A-SAFE_Order_Form-${refNum}.pdf`;
+      a.download = `A-SAFE_${label.replace(" ", "_")}-${refNum}${status === "draft" ? "-DRAFT" : ""}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
       haptic.success();
-      toast({
-        title: "PDF downloaded",
-        description: `${refNum} (text-only) saved to your downloads folder.`,
-      });
+      toast({ title: `${label} downloaded`, description: `${refNum} saved to your downloads folder.` });
     } catch (err: any) {
-      console.error("Text-only PDF download failed:", err);
+      console.error(`${label} download failed:`, err);
       haptic.error();
       toast({
         title: "Download failed",
-        description:
-          err?.message ||
-          "Couldn't generate the order form PDF. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Main download path — client-side jsPDF generator
-  // (client/src/utils/orderFormPdfGenerator.ts). This is the image-capable
-  // build: product imagery, site photos, layout drawing snapshot, customer
-  // and A-SAFE logos. Also feeds the email-attachment flow via
-  // `generatePdfBase64`, which intercepts the final save().
-  const downloadPDF = async (
-    opts: { includeBrandOverview?: boolean } = {},
-  ) => {
-    if (!orderData) {
-      haptic.error();
-      toast({
-        title: "Error",
-        description: "Order data not available",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Order summary values — the same computeTotals result that drives the
-      // on-page Order Summary (see `orderTotals`).
-      const subtotal = orderTotals.goodsAed;
-      const reciprocalDiscountPercentage = orderTotals.reciprocalPercent;
-      const partnerDiscountPercent = orderTotals.partnerPercent;
-      const linkedInDiscountAmount = orderTotals.linkedInDiscountAmount;
-      const discountAmount = orderTotals.discountAed;
-      const servicePackageCost = orderTotals.servicePackageAed;
-      const deliveryCharge = orderTotals.deliveryAed;
-      const installationCharge = orderTotals.installAed;
-      const grandTotal = orderTotals.subtotalAed;
-      
-      // Prepare customer data
-      const customer = orderData.isForUser && orderData.user ? {
-        name: `${orderData.user.firstName || ''} ${orderData.user.lastName || ''}`.trim(),
-        jobTitle: orderData.user.jobTitle,
-        company: orderData.user.company,
-        mobile: orderData.user.phone,
-        email: orderData.user.email,
-      } : {
-        name: orderData.customerName,
-        jobTitle: orderData.customerJobTitle,
-        company: orderData.customerCompany,
-        mobile: orderData.customerMobile,
-        email: orderData.customerEmail,
-      };
-      
-      // Prepare PDF data with complete user profile information
-      const pdfData = {
-        orderNumber: orderData.orderNumber,
-        customerName: customer.name,
-        customerJobTitle: customer.jobTitle,
-        customerCompany: customer.company,
-        customerMobile: customer.mobile,
-        customerEmail: customer.email,
-        orderDate: orderData.createdAt,
-        items: orderData.items,
-        servicePackage: orderData.servicePackage,
-        // Pull customer logo from cart project info so it renders on cover + header
-        companyLogoUrl: orderData.companyLogoUrl || cartProjectInfo?.companyLogoUrl || undefined,
-        discountOptions: orderData.discountOptions?.map((opt: any) => 
-          Array.isArray(discountOptions) ? discountOptions.find((d: any) => d.id === opt)?.title || opt : opt
-        ),
-        // Pass full discount details for comprehensive display in PDF
-        discountDetails: orderData.discountOptions?.filter((opt: any) => 
-          typeof opt === 'object' && opt.id
-        ),
-        partnerDiscountCode: (orderData as any).partnerDiscountCode,
-        partnerDiscountPercent: partnerDiscountPercent,
-        partnerDiscountAmount: orderTotals.partnerDiscountAed,
-        reciprocalDiscountAmount: orderTotals.reciprocalDiscountAed,
-        linkedInDiscountAmount: linkedInDiscountAmount,
-        linkedInDiscountData: (orderData as any).linkedInDiscountData,
-        totalAmount: orderData.totalAmount,
-        currency: orderData.currency, // Use the currency from order data
-        technicalSignature: orderData.technicalSignature,
-        commercialSignature: orderData.commercialSignature,
-        // Passed through so the PDF stamps "Approved by X on Y" on the
-        // Marketing section when it has been signed in the live view.
-        marketingSignature: orderData.marketingSignature,
-        impactCalculation: orderData.impactCalculation,
-        layoutDrawings: orderLayoutDrawings, // Add layout drawings with markups
-        subtotal,
-        discountAmount,
-        servicePackageCost,
-        deliveryCharge,
-        installationCharge,
-        installationComplexity: orderData.installationComplexity || 'standard',
-        grandTotal,
-        // Pass complete user profile data including profile image
-        user: userProfile ? {
-          ...orderData.user,
-          firstName: userProfile.firstName || orderData.user?.firstName,
-          lastName: userProfile.lastName || orderData.user?.lastName,
-          email: userProfile.email || orderData.user?.email,
-          phone: userProfile.phone || orderData.user?.phone,
-          jobTitle: userProfile.jobTitle || orderData.user?.jobTitle,
-          company: userProfile.company || orderData.user?.company,
-          department: userProfile.department || orderData.user?.department,
-          profileImageUrl: userProfile.profileImageUrl || orderData.user?.profileImageUrl,
-        } : orderData.user,
-        isForUser: orderData.isForUser, // Pass isForUser flag
-        // ── Extras the new PDF generator needs so it can render the
-        // consulting-style document with product images, site photos,
-        // layout drawing, and reciprocal commitment details ──
-        customOrderNumber: orderData.customOrderNumber || customOrderNumber,
-        uploadedImages: orderData.uploadedImages,
-        layoutDrawingId: orderData.layoutDrawingId,
-        // Installation notes for the estimation team. Orders don't carry a
-        // projectId FK, so mirror the server's soft-join: prefer a direct
-        // field on the order if the API ever adds one, else use the active
-        // project's notes when it is (or is not contradicted by) the
-        // order's project name.
-        installationNotes:
-          (orderData as any).installationNotes ||
-          (activeProject &&
-          (!(orderData as any).projectName ||
-            (orderData as any).projectName === activeProject.name)
-            ? (activeProject as any).installationNotes
-            : undefined) ||
-          undefined,
-        reciprocalCommitments: orderData.reciprocalCommitments,
-        // Drawing ref — prefer an explicit field on the order, fall back to
-        // the linked layout drawing's dwgNumber, then its filename. This
-        // surfaces the CAD reference on the cover without needing a schema
-        // change before the broader product/price rollout.
-        drawingRef:
-          (orderData as any).drawingRef ||
-          orderLayoutDrawings?.[0]?.dwgNumber ||
-          orderLayoutDrawings?.[0]?.fileName?.replace(/\.[^.]+$/, "") ||
-          undefined,
-        // Opt-in brand appendix. Off by default. Set via
-        // orderData.includeBrandOverview OR by passing ?brand=1 in the
-        // URL (for quick demo PDFs).
-        includeBrandOverview:
-          !!opts.includeBrandOverview ||
-          !!(orderData as any).includeBrandOverview ||
-          new URLSearchParams(window.location.search).get("brand") === "1",
-      };
-      
-      // Generate PDF with order-specific currency formatting
-      const orderFormatPrice = (value: number) => {
-        // Use order's currency, not the current context currency
-        return formatPrice(value, orderData.currency);
-      };
-      await generateOrderFormPDF(pdfData as any, orderFormatPrice);
-      
-      haptic.save();
-      toast({
-        title: "PDF Downloaded",
-        description: `Order form ${orderData.orderNumber} has been downloaded`,
-      });
-    } catch (error: any) {
-      console.error("PDF generation error:", error);
-      haptic.error();
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to generate PDF. Please try again.",
+        description: err?.message || `Couldn't generate the ${label.toLowerCase()} PDF. Please try again.`,
         variant: "destructive",
       });
     }
@@ -1314,52 +1145,17 @@ export function OrderForm() {
     }
   };
 
-  // Generate a PDF of the current order and return the base64 bytes (no
-  // data-URI prefix). Mirrors `downloadPDF` but uses pdf.output("datauristring")
-  // to capture bytes in-memory instead of calling pdf.save().
-  //
-  // Implementation: the server-owned jsPDF generator always triggers a
-  // file save. The simplest non-invasive hook is to intercept the save
-  // path: we monkey-patch `jsPDF.prototype.save` to capture the pdf's
-  // datauristring, run the generator, then restore the prototype. No
-  // change to the generator itself required.
+  // Order-form PDF bytes as base64 (no data-URI prefix) for the
+  // email-to-customer attachment. Same server render as the download.
   const generatePdfBase64 = async (): Promise<string> => {
-    if (!orderData) throw new Error("Order data not available");
-
-    // Dynamic import so the generator's bundle only loads when needed.
-    const mod = await import("@/utils/orderFormPdfGenerator");
-    const jsPdfMod = await import("jspdf");
-    const jsPDF = (jsPdfMod as any).default || (jsPdfMod as any).jsPDF;
-
-    // Rebuild the same pdfData the Download path uses. We can't hoist this
-    // because `downloadPDF` has a lot of local helpers; instead we run the
-    // full downloadPDF pipeline but intercept the final save().
-    let capturedDataUri: string | null = null;
-    const originalSave = jsPDF.prototype.save;
-    // Replace save with a no-op that captures the payload. We only need to
-    // intercept once — the generator calls save exactly once at the end.
-    jsPDF.prototype.save = function patchedSave(this: any) {
-      try {
-        capturedDataUri = this.output("datauristring");
-      } catch (err) {
-        console.error("PDF capture failed:", err);
-      }
-      // Do NOT call the original save — suppressing it is the point.
-      return this;
-    };
-
-    try {
-      await downloadPDF({ includeBrandOverview });
-    } finally {
-      jsPDF.prototype.save = originalSave;
+    const blob = await fetchDocument("order-form");
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < buf.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + chunk)));
     }
-
-    if (!capturedDataUri) throw new Error("PDF capture failed");
-    // Strip the "data:application/pdf;base64," prefix; what remains is the
-    // base64 payload Resend will accept verbatim as the attachment content.
-    const idx = (capturedDataUri as string).indexOf(",");
-    const base64 = idx >= 0 ? (capturedDataUri as string).slice(idx + 1) : (capturedDataUri as string);
-    return base64;
+    return btoa(binary);
   };
 
   const sendEmailToCustomer = async () => {
@@ -2139,27 +1935,25 @@ export function OrderForm() {
                   Share
                 </Button>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Main download: client-side, image-capable generator
-                      (product images, site photos, drawings, logos). */}
+                  {/* Server-rendered A-SAFE documents (worker/lib/pdf/reports). */}
                   <Button
-                    onClick={() => downloadPDF()}
+                    onClick={() => downloadDocument("order-form")}
                     variant="outline"
                     size="sm"
                     data-testid="button-download-pdf"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download PDF
+                    Order form
                   </Button>
-                  {/* Secondary: server-rendered v2 build. No images, but
-                      fast and canvas-free — kept so nothing is lost. */}
-                  <button
-                    type="button"
-                    onClick={downloadPdfTextOnly}
-                    data-testid="link-download-pdf-text-only"
-                    className="text-xs text-gray-500 dark:text-gray-400 underline underline-offset-2 hover:text-gray-800 dark:hover:text-gray-200"
+                  <Button
+                    onClick={() => downloadDocument("proposal")}
+                    variant="outline"
+                    size="sm"
+                    data-testid="button-download-proposal"
                   >
-                    Download (text-only, fast)
-                  </button>
+                    <Download className="h-4 w-4 mr-2" />
+                    Proposal
+                  </Button>
                 </div>
                 {/* Lifecycle v2: email the PDF to the customer. Opens a
                     tiny dialog rather than navigating away so the user

@@ -370,14 +370,13 @@ jsPDF.API.save = function (this: any, _filename?: string, _options?: any) {
 // 5. Load generators. Deferred import so every shim above is in place
 //    before the generator module evaluates.
 // ─────────────────────────────────────────────────────────────────────────
-const orderFormModule = await import(
-  "../client/src/utils/orderFormPdfGenerator.ts"
-);
+// The order-form generator moved server-side (worker/lib/pdf/reports/
+// proposal.ts + orderForm.ts, covered by proposal.test.ts); only the
+// site-survey jsPDF generator is exercised here now.
 const siteSurveyModule = await import(
   "../client/src/utils/siteSurveyPdfGenerator.ts"
 );
 
-const { generateOrderFormPDF } = orderFormModule as typeof import("../client/src/utils/orderFormPdfGenerator.ts");
 const { generateSiteSurveyPdf } = siteSurveyModule as typeof import("../client/src/utils/siteSurveyPdfGenerator.ts");
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -762,54 +761,6 @@ console.warn = (...args: any[]) => {
   originalWarn(...args);
 };
 
-async function runOrder(
-  label: string,
-  orderData: any,
-  outPath: string,
-): Promise<RunReport> {
-  warningsBuffer.length = 0;
-  CURRENT_OUTPUT_PATH = outPath;
-  let pageCount: number | null = null;
-  let capturedPdf: any = null;
-
-  // Shim to capture the jsPDF instance so we can read its page count after
-  // generation completes. Wrap API.save once more per-run.
-  const previousSave = jsPDF.API.save;
-  jsPDF.API.save = function (this: any, _filename?: string, _options?: any) {
-    capturedPdf = this;
-    pageCount = this.getNumberOfPages ? this.getNumberOfPages() : null;
-    return previousSave.call(this, _filename, _options);
-  };
-
-  try {
-    await generateOrderFormPDF(orderData, (v: number) =>
-      `AED ${Math.round(v).toLocaleString("en-US")}`,
-    );
-    const size = statSync(outPath).size;
-    return {
-      label,
-      output: outPath,
-      ok: true,
-      pageCount,
-      sizeKb: +(size / 1024).toFixed(1),
-      warnings: [...warningsBuffer],
-    };
-  } catch (err: any) {
-    console.error(`\n[RUN ${label}] FAILED:`, err);
-    return {
-      label,
-      output: outPath,
-      ok: false,
-      pageCount,
-      sizeKb: existsSync(outPath) ? +(statSync(outPath).size / 1024).toFixed(1) : null,
-      error: err?.stack || err?.message || String(err),
-      warnings: [...warningsBuffer],
-    };
-  } finally {
-    jsPDF.API.save = previousSave;
-  }
-}
-
 async function runSurvey(
   label: string,
   survey: any,
@@ -864,50 +815,6 @@ async function runSurvey(
 const reports: RunReport[] = [];
 
 console.log("── A-SAFE PDF Generator Harness ──────────────────────────────");
-
-// Run A
-reports.push(
-  await runOrder(
-    "A",
-    buildBaseOrder(ORDER_A_ITEMS, { orderNumber: "ORD-A-MIN" }),
-    "/tmp/test-order-A.pdf",
-  ),
-);
-
-// Run B
-reports.push(
-  await runOrder(
-    "B",
-    buildBaseOrder(ORDER_B_ITEMS, { orderNumber: "ORD-B-SIX" }),
-    "/tmp/test-order-B.pdf",
-  ),
-);
-
-// Run C — B + brand overview
-reports.push(
-  await runOrder(
-    "C",
-    buildBaseOrder(ORDER_B_ITEMS, {
-      orderNumber: "ORD-C-BRAND",
-      includeBrandOverview: true,
-    }),
-    "/tmp/test-order-C.pdf",
-  ),
-);
-
-// Run D — C + photos + layout drawing
-reports.push(
-  await runOrder(
-    "D",
-    buildBaseOrder(ORDER_B_ITEMS, {
-      orderNumber: "ORD-D-FULL",
-      includeBrandOverview: true,
-      uploadedImages: UPLOADED_PHOTOS,
-      layoutDrawingId: "mock-layout-xyz",
-    }),
-    "/tmp/test-order-D.pdf",
-  ),
-);
 
 // Run E — survey 4 areas
 reports.push(
