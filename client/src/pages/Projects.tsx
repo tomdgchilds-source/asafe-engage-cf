@@ -70,6 +70,7 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { QuoteDraftDrawer, type QuoteDraftPayload } from "@/components/QuoteDraftDrawer";
 import { DocumentsTab } from "./projects/DocumentsTab";
+import { DrawingExportStatus } from "./projects/DrawingExportStatus";
 import type {
   Project,
   CustomerCompany,
@@ -954,6 +955,8 @@ function ProjectDetailPane({
               </div>
             </CardContent>
           </Card>
+
+          <LayoutDrawingsCard projectId={projectId} />
 
           <Card>
             <CardContent className="p-4">
@@ -2340,6 +2343,91 @@ function AddCollaboratorModal({
   );
 }
 
+// ─── Layout drawings ────────────────────────────────────────────────
+// Lists the project's layout drawings with the server-side A3 sheet
+// export status (Phase 4 Task L5). The list endpoint also returns
+// project_id IS NULL orphans for a scoped query, so we filter to this
+// project client-side. Opening/editing a drawing still happens on the
+// Layout Drawings page; here the rep just sees whether the exported
+// sheet is current and can re-export or open it.
+
+type ProjectLayoutDrawing = {
+  id: string;
+  projectId: string | null;
+  fileName: string;
+  fileType: string;
+  documentVersion: number | null;
+  updatedAt: string | null;
+  createdAt: string | null;
+};
+
+function LayoutDrawingsCard({ projectId }: { projectId: string }) {
+  const { data, isLoading, isError } = useQuery<ProjectLayoutDrawing[]>({
+    queryKey: [`/api/layout-drawings?projectId=${encodeURIComponent(projectId)}`],
+  });
+
+  const drawings = (data ?? []).filter((d) => d.projectId === projectId);
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold text-foreground">
+            Layout drawings
+          </div>
+          <Button asChild size="sm" variant="ghost" className="h-7">
+            <a href="/layout-drawings" data-testid="link-layout-drawings-page">
+              Open editor
+            </a>
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : isError ? (
+          <p className="text-sm text-muted-foreground">
+            Couldn't load layout drawings. Refresh the page to try again.
+          </p>
+        ) : drawings.length === 0 ? (
+          <p className="text-xs text-muted-foreground" data-testid="drawings-empty">
+            No layout drawings on this project yet. Upload one from the
+            Layout Drawings page to export an A3 sheet.
+          </p>
+        ) : (
+          <ul className="divide-y" data-testid="drawings-list">
+            {drawings.map((d) => {
+              const when = d.updatedAt ?? d.createdAt;
+              return (
+                <li
+                  key={d.id}
+                  className="py-3 first:pt-0 last:pb-0 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                  data-testid={`drawing-row-${d.id}`}
+                >
+                  <div className="min-w-0 flex items-start gap-2">
+                    <FileText className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{d.fileName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {d.fileType?.toUpperCase()}
+                        {typeof d.documentVersion === "number" && ` · v${d.documentVersion}`}
+                        {when &&
+                          ` · updated ${formatDistanceToNow(new Date(when), { addSuffix: true })}`}
+                      </div>
+                    </div>
+                  </div>
+                  <DrawingExportStatus drawingId={d.id} className="md:justify-end" />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Activity / customer audit timeline ─────────────────────────────
 // Renders the unified view + approval log for a project. The endpoint
 // returns events newest-first; we render them as a vertical timeline.
@@ -2349,7 +2437,7 @@ function AddCollaboratorModal({
 
 type ProjectActivityEvent = {
   id: string;
-  eventType: "view" | "approved" | "changes_requested";
+  eventType: "view" | "approved" | "changes_requested" | "document_issued";
   createdAt: string | null;
   approverName: string | null;
   approverEmail: string | null;
@@ -2379,6 +2467,15 @@ const ACTIVITY_META: Record<
     Icon: MessageSquare,
     bg: "bg-amber-100 dark:bg-amber-900/30",
     fg: "text-amber-700 dark:text-amber-300",
+  },
+  // Written by the document register when a rep issues a revision
+  // (worker/routes/documentRegister.ts). Neutral tone: it's an internal
+  // action, not a customer decision.
+  document_issued: {
+    label: "Document issued",
+    Icon: FileText,
+    bg: "bg-muted",
+    fg: "text-muted-foreground",
   },
 };
 

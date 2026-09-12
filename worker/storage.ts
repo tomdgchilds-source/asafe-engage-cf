@@ -397,7 +397,7 @@ export interface IStorage {
   getProjectViewStats(projectId: string): Promise<{ views: number; lastViewedAt: Date | null }>;
   getProjectActivity(projectId: string): Promise<Array<{
     id: string;
-    eventType: "view" | "approved" | "changes_requested";
+    eventType: "view" | "approved" | "changes_requested" | "document_issued";
     createdAt: Date | null;
     approverName: string | null;
     approverEmail: string | null;
@@ -2650,7 +2650,7 @@ export class DatabaseStorage implements IStorage {
   // "what the customer did", not two siloed lists.
   async getProjectActivity(projectId: string): Promise<Array<{
     id: string;
-    eventType: "view" | "approved" | "changes_requested";
+    eventType: "view" | "approved" | "changes_requested" | "document_issued";
     createdAt: Date | null;
     approverName: string | null;
     approverEmail: string | null;
@@ -2691,9 +2691,14 @@ export class DatabaseStorage implements IStorage {
       })),
       ...approvals.map((a) => ({
         id: a.id,
+        // "document_issued" rows come from the document register (a rep
+        // issuing a revision); anything else non-approved is a customer
+        // change request.
         eventType: (a.decision === "approved"
           ? "approved"
-          : "changes_requested") as "approved" | "changes_requested",
+          : a.decision === "document_issued"
+            ? "document_issued"
+            : "changes_requested") as "approved" | "changes_requested" | "document_issued",
         createdAt: a.createdAt ?? null,
         approverName: a.approverName ?? null,
         approverEmail: a.approverEmail ?? null,
