@@ -54,7 +54,6 @@ const STATIC_ROUTES: Record<string, RouteMeta> = {
   "/install-teams": { title: "Install Teams", icon: Users },
   "/layout-drawing": { title: "Layout Drawing", icon: FileCheck },
   "/layout-drawings": { title: "Layout Drawings", icon: FileCheck },
-  "/solution-finder": { title: "Solution Finder", icon: Compass },
   "/products": { title: "Products", icon: Package },
   "/case-studies": { title: "Case Studies", icon: FileText },
   "/resources": { title: "Resources", icon: FileText },

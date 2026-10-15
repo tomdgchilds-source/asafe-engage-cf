@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  BookOpen, Search, Rocket, Calculator, Target, ClipboardCheck, PenTool,
+  BookOpen, Search, Rocket, Calculator, ClipboardCheck, PenTool,
   ShieldCheck, Package, ShoppingCart, FileText, BookMarked, Download,
   History, MessageCircle, Calendar, User, Sparkles, ArrowRight, ChevronRight,
   CheckCircle2, Info, Lightbulb, AlertTriangle,
@@ -158,33 +158,6 @@ const HELP_TOPICS: HelpTopic[] = [
         tips: [
           "A PAS 13 compliant result still needs correct installation — attach the Installation Guides from Resources.",
           "Export the compliance summary as a PDF to share with procurement teams.",
-        ],
-      },
-    ],
-  },
-
-  // ─── Solution Finder ─────────────────────────────────────────────
-  {
-    id: "solution-finder",
-    title: "Solution Finder",
-    icon: Target,
-    summary: "Industry + workplace-led recommendations without needing the calculator.",
-    route: "/solution-finder",
-    sections: [
-      {
-        heading: "When to use it",
-        body:
-          "When the customer knows their industry and workplace type but hasn't shared vehicle specs yet — the Solution Finder suggests a starting product set based on typical scenarios.",
-      },
-      {
-        heading: "Step-by-step",
-        body: "",
-        steps: [
-          "Choose your industry (Logistics, Manufacturing, Food & Beverage, etc.).",
-          "Choose the workplace type (Warehouse, Production Floor, Loading Dock, etc.).",
-          "Optionally add vehicles for more targeted suggestions.",
-          "Review the recommended products + case studies.",
-          "Click through to the full Impact Calculator to fine-tune.",
         ],
       },
     ],

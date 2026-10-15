@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,11 +12,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InfoPopover } from '@/components/ui/info-popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/useAuth';
-import { User, Building, Phone, Mail, MapPin, Briefcase, Camera, Upload, History, FileText, Calendar, ExternalLink, Eye, Edit3, Video, Clock } from 'lucide-react';
+import { User, Building, Phone, Mail, MapPin, Briefcase, Camera, Upload, History, FileText, Calendar, ExternalLink, Eye, Edit3, Video, Clock, AlertTriangle, Trash2 } from 'lucide-react';
 import { ProfileImageUpload } from '@/components/ProfileImageUpload';
 import { RecentActivity } from '@/components/RecentActivity';
 
@@ -40,6 +51,9 @@ export default function Profile() {
   const haptic = useHapticFeedback();
   const [profileImage, setProfileImage] = useState<string>('');
   const [isEditExpanded, setIsEditExpanded] = useState(false);
+  const [, setLocation] = useLocation();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['/api/auth/profile'],
@@ -141,6 +155,49 @@ export default function Profile() {
   const onSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
   };
+
+  // DELETE /api/me/account — soft-delete (anonymise + deactivate) and sign out.
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/me/account', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      let payload: { success?: boolean; message?: string } | null = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      if (!response.ok) {
+        throw new Error(payload?.message || `Failed to delete account (${response.status})`);
+      }
+      return payload;
+    },
+    onSuccess: (payload) => {
+      haptic.save();
+      setDeleteDialogOpen(false);
+      setDeleteConfirmText('');
+      queryClient.clear();
+      toast({
+        title: 'Account Deleted',
+        description:
+          payload?.message ||
+          'Your account has been anonymised and you have been signed out.',
+      });
+      setLocation('/');
+    },
+    onError: (error: any) => {
+      haptic.error();
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to delete account. Please try again later.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const canConfirmDelete = deleteConfirmText.trim() === 'DELETE';
 
   if (authLoading || isLoading) {
     return (
@@ -550,6 +607,93 @@ export default function Profile() {
             </CardContent>
           </Card>
         </div>
+
+          {/* Danger zone */}
+          <Card className="mt-4 sm:mt-6 border-red-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>
+                Permanently remove your personal details from A-SAFE ENGAGE
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p>
+                    Deleting your account anonymises your profile — your email, name, phone number,
+                    job title and profile picture are removed and the account is deactivated so it can
+                    no longer sign in. You will be signed out immediately.
+                  </p>
+                  <p>
+                    Orders, projects and quote requests you created are kept for audit purposes and
+                    are purged 90 days after deletion. This action cannot be undone.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  className="flex-shrink-0"
+                  onClick={() => {
+                    setDeleteConfirmText('');
+                    setDeleteDialogOpen(true);
+                  }}
+                  data-testid="button-delete-account"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Account
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <AlertDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              if (deleteAccountMutation.isPending) return;
+              setDeleteDialogOpen(open);
+              if (!open) setDeleteConfirmText('');
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This anonymises your profile, deactivates the account and signs you out. Orders and
+                  project data are retained for audit and purged after 90 days. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="delete-account-confirm">
+                  Type <span className="font-mono font-semibold">DELETE</span> to confirm
+                </Label>
+                <Input
+                  id="delete-account-confirm"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  autoComplete="off"
+                  disabled={deleteAccountMutation.isPending}
+                  data-testid="input-delete-account-confirm"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteAccountMutation.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={!canConfirmDelete || deleteAccountMutation.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    deleteAccountMutation.mutate();
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  data-testid="button-confirm-delete-account"
+                >
+                  {deleteAccountMutation.isPending ? 'Deleting...' : 'Delete Account'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
       </div>
     </div>
   );
