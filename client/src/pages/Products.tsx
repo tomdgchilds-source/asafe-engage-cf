@@ -7,12 +7,13 @@ import { activityService } from "@/services/activityService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Package, Zap, ArrowLeft, ExternalLink, ChevronLeft, Download, ShoppingCart, FileText, Truck, Shield, Info, Camera, Play, Car, SlidersHorizontal, GitCompare, X } from "lucide-react";
+import { Search, Filter, Package, Zap, ArrowLeft, ExternalLink, ChevronLeft, Download, ShoppingCart, FileText, Truck, Shield, Info, Camera, Play, Car, SlidersHorizontal, GitCompare, X, PackagePlus } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { GroupedProductCard } from "@/components/GroupedProductCard";
 import { HeightRestrictorKitCard } from "@/components/HeightRestrictorKitCard";
 import { EnhancedQuoteRequestModal } from "@/components/EnhancedQuoteRequestModal";
 import { AddToCartModal } from "@/components/AddToCartModal";
+import { CustomItemDialog } from "@/components/CustomItemDialog";
 import { ProductComparison } from "@/components/ProductComparison";
 import { ProductSuitabilityBlock } from "@/components/ProductSuitabilityBlock";
 import { ProductMaintenanceBlock } from "@/components/ProductMaintenanceBlock";
@@ -62,6 +63,8 @@ export default function Products() {
   
   // Get authenticated user data for quote requests
   const { user } = useAuth();
+  // "Can't find what you need?" card at the end of the grid → CustomItemDialog.
+  const [customItemOpen, setCustomItemOpen] = useState(false);
   const { formatPrice } = useCurrency();
   const haptic = useHapticFeedback();
 
@@ -859,7 +862,34 @@ export default function Products() {
                         );
                       }
                     })}
+
+                    {/* Last card: custom line for client-specific needs. */}
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          haptic.select();
+                          setCustomItemOpen(true);
+                        }}
+                        className="h-full w-full min-h-[14rem] rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-700 bg-violet-50/60 dark:bg-violet-900/10 hover:bg-violet-100/70 dark:hover:bg-violet-900/20 hover:border-violet-400 transition-colors flex flex-col items-center justify-center text-center gap-3 p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                        data-testid="card-add-custom-item"
+                      >
+                        <span className="h-12 w-12 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+                          <PackagePlus className="h-6 w-6 text-violet-700 dark:text-violet-300" />
+                        </span>
+                        <span className="text-base font-semibold text-gray-900 dark:text-white">
+                          Can't find what you need?
+                        </span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Add a custom item with an indicative price for this client.
+                        </span>
+                        <span className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                          Add a custom item →
+                        </span>
+                      </button>
+                    </div>
                   </div>
+                  <CustomItemDialog open={customItemOpen} onOpenChange={setCustomItemOpen} />
                 </>
               );
             })()}

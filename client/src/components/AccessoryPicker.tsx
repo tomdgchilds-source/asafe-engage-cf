@@ -14,9 +14,17 @@
 // "Apply to all matching" copies the current line's accessories to
 // every other cart line in the same product category — useful when an
 // entire dock area shares the SS bolt + tile-floor combo.
+//
+// Priced accessories (Oct 2026): on top of the structured fields, the
+// picker lists the price-list accessories that apply to this product
+// (GET /api/accessory-prices) with their indicative price, a quantity
+// stepper and a running subtotal. Selections persist as
+// `accessoryLines` via PATCH /api/cart/:id/accessories; the server
+// expands them into extra pricing lines so the cart totals pick them
+// up without a second accessory total here.
 
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -32,7 +40,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, Wrench, Copy, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Wrench, Copy, CheckCircle2, Minus, Plus, Tag } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import {
+  type AccessoryLine,
+  type AccessoryPriceOption,
+  type CartLineContext,
+  type DraftAccessoryLine,
+  accessoriesSubtotal,
+  accessoryLineFromOption,
+  applicableAccessoryOptions,
+  effectiveAccessoryQuantity,
+  formatAccessoryPrice,
+  formatAed,
+  savableAccessoryLines,
+  unitNoun,
+  unitSuffix,
+} from "@/lib/customItems";
 import {
   type CartAccessories,
   type DockBufferType,
@@ -57,6 +81,26 @@ interface AccessoryPickerProps {
   // like CartAccessories — the server may persist `null` when the rep
   // clears every field.
   initialValue: CartAccessories | null | undefined;
+  // Priced accessory selections stored on the cart row (jsonb, may be
+  // null). Each line mirrors a price-list option plus a quantity.
+  accessoryLines?: AccessoryLine[] | null;
+  // Quantity / pricing type of the parent line, used to pre-fill per_post
+  // and per_metre quantities with the same formula the server applies.
+  lineContext?: CartLineContext;
+}
+
+/** Small amber "TBC" chip shown wherever a selected accessory has no price. */
+export function TbcChip({ className = "", testId }: { className?: string; testId?: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[10px] px-1.5 py-0 border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-700 ${className}`}
+      title="At least one accessory price is to be confirmed by estimation"
+      data-testid={testId}
+    >
+      TBC
+    </Badge>
+  );
 }
 
 export function AccessoryPicker({
@@ -64,9 +108,16 @@ export function AccessoryPicker({
   category,
   productName,
   initialValue,
+  accessoryLines,
+  lineContext,
 }: AccessoryPickerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { formatPrice, selectedCurrency } = useCurrency();
+  // Indicative accessory prices are AED to 2 dp; other display currencies
+  // go through the shared converter like every other figure in the app.
+  const money = (aed: number) => (selectedCurrency === "AED" ? formatAed(aed) : formatPrice(aed));
+  const ctx: CartLineContext = lineContext ?? {};
 
   const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState<CartAccessories>(() => ({
@@ -128,6 +179,89 @@ export function AccessoryPicker({
     };
   }, []);
 
+  // ── Priced accessories ───────────────────────────────────────────────
+  // Price list from the Worker. A failed fetch (endpoint not deployed
+  // yet, network) just hides the priced section — the structured fields
+  // below keep working.
+  const pricesQuery = useQuery<{ items: AccessoryPriceOption[] }>({
+    queryKey: ["/api/accessory-prices"],
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const options = useMemo(
+    () =>
+      applicableAccessoryOptions(pricesQuery.data?.items, {
+        productName,
+        category,
+        accessoryLines,
+      }),
+    [pricesQuery.data, productName, category, accessoryLines],
+  );
+
+  const [lines, setLines] = useState<DraftAccessoryLine[]>(() => accessoryLines ?? []);
+  const lastLinesRef = useRef<string>(JSON.stringify(accessoryLines ?? []));
+  useEffect(() => {
+    const incoming = JSON.stringify(accessoryLines ?? []);
+    if (incoming !== lastLinesRef.current) {
+      lastLinesRef.current = incoming;
+      setLines(accessoryLines ?? []);
+    }
+  }, [accessoryLines]);
+
+  const linesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linesMutation = useMutation({
+    mutationFn: async (next: DraftAccessoryLine[]) => {
+      // The server re-prices every code against the live list and rejects
+      // retired ones, so those are dropped from the body here.
+      return apiRequest(`/api/cart/${itemId}/accessories`, "PATCH", {
+        accessoryLines: savableAccessoryLines(next, pricesQuery.data?.items),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Couldn't save accessory prices",
+        description: error?.message || "Try again in a moment.",
+        variant: "destructive",
+      });
+    },
+  });
+  const queueLinesSave = (next: DraftAccessoryLine[]) => {
+    if (linesDebounceRef.current) clearTimeout(linesDebounceRef.current);
+    linesDebounceRef.current = setTimeout(() => {
+      linesMutation.mutate(next);
+      linesDebounceRef.current = null;
+    }, 500);
+  };
+  useEffect(() => {
+    return () => {
+      if (linesDebounceRef.current) clearTimeout(linesDebounceRef.current);
+    };
+  }, []);
+
+  const setLinesAndSave = (next: DraftAccessoryLine[]) => {
+    setLines(next);
+    queueLinesSave(next);
+  };
+  const toggleOption = (option: AccessoryPriceOption, on: boolean) => {
+    if (on) {
+      if (lines.some((l) => l.code === option.code)) return;
+      setLinesAndSave([...lines, accessoryLineFromOption(option, ctx)]);
+    } else {
+      setLinesAndSave(lines.filter((l) => l.code !== option.code));
+    }
+  };
+  const setLineQuantity = (code: string, quantity: number) => {
+    const q = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+    setLinesAndSave(lines.map((l) => (l.code === code ? { ...l, quantity: q } : l)));
+  };
+  const stepFor = (unit: AccessoryLine["unit"]) => (unit === "per_metre" ? 0.5 : 1);
+
+  const subtotal = accessoriesSubtotal(lines, ctx);
+  const hasPricedSection = options.length > 0;
+
   function patch<K extends keyof CartAccessories>(
     key: K,
     next: CartAccessories[K]
@@ -160,13 +294,25 @@ export function AccessoryPicker({
         return rowKey === matchKey;
       });
       if (targets.length === 0) return { copied: 0 };
+      // Per-post quantities depend on each target's own run length, so
+      // they are stripped and the server fills them per line.
+      const copiedLines = savableAccessoryLines(lines, pricesQuery.data?.items).map((l) =>
+        l.unit === "per_post" ? { ...l, quantity: undefined } : l,
+      );
       await Promise.all(
-        targets.map((t) =>
+        targets.flatMap((t) => [
           apiRequest("/api/cart/items", "PATCH", {
             id: t.id,
             accessories: value,
-          })
-        )
+          }),
+          ...(copiedLines.length > 0
+            ? [
+                apiRequest(`/api/cart/${t.id}/accessories`, "PATCH", {
+                  accessoryLines: copiedLines,
+                }),
+              ]
+            : []),
+        ])
       );
       return { copied: targets.length };
     },
@@ -189,7 +335,7 @@ export function AccessoryPicker({
     },
   });
 
-  const isConfigured = hasAnyAccessories(value);
+  const isConfigured = hasAnyAccessories(value) || lines.length > 0;
 
   return (
     <div className="md:col-span-12">
@@ -217,15 +363,162 @@ export function AccessoryPicker({
               </span>
             )}
           </div>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-500" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-500" />
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {subtotal.totalAed > 0 && (
+              <span
+                className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap"
+                data-testid={`accessory-subtotal-collapsed-${itemId}`}
+              >
+                + {money(subtotal.totalAed)}
+              </span>
+            )}
+            {subtotal.hasTbc && <TbcChip testId={`accessory-tbc-collapsed-${itemId}`} />}
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-500" />
+            )}
+          </div>
         </button>
 
         {expanded && (
           <div className="px-3 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Priced accessories from the price list */}
+            {hasPricedSection && (
+              <div className="md:col-span-2 rounded-md border border-blue-200/70 dark:border-blue-900/40 bg-white/60 dark:bg-gray-900/30">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100 dark:border-blue-900/30">
+                  <Tag className="h-3.5 w-3.5 text-blue-700 dark:text-blue-300" />
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                    Priced accessories
+                  </span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Indicative — included in the line total
+                  </span>
+                </div>
+                <ul className="divide-y divide-blue-100 dark:divide-blue-900/30">
+                  {options.map((option) => {
+                    const line = lines.find((l) => l.code === option.code);
+                    const selected = !!line;
+                    const qty = line ? effectiveAccessoryQuantity(line, ctx) : 0;
+                    const lineTotal =
+                      line && !line.priceToConfirm && line.unitPriceAed !== null
+                        ? Math.round(line.unitPriceAed * qty * 100) / 100
+                        : null;
+                    const step = stepFor(option.unit);
+                    return (
+                      <li
+                        key={option.code}
+                        className="px-3 py-2 flex flex-col gap-1.5"
+                        data-testid={`accessory-option-${itemId}-${option.code}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <label
+                            htmlFor={`accessory-opt-${itemId}-${option.code}`}
+                            className="flex items-start gap-2 min-w-0 cursor-pointer"
+                          >
+                            <Switch
+                              id={`accessory-opt-${itemId}-${option.code}`}
+                              checked={selected}
+                              onCheckedChange={(v) => toggleOption(option, v)}
+                              className="mt-0.5"
+                              data-testid={`accessory-option-toggle-${itemId}-${option.code}`}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm text-gray-800 dark:text-gray-200 leading-tight">
+                                {option.label}
+                                {!option.active && (
+                                  <span className="ml-1 text-[10px] uppercase text-gray-400" title="No longer on the price list; removed from this line on the next save">
+                                    retired
+                                  </span>
+                                )}
+                              </span>
+                              <span
+                                className="block text-xs text-gray-500 dark:text-gray-400"
+                                data-testid={`accessory-option-price-${itemId}-${option.code}`}
+                              >
+                                {option.priceToConfirm || option.priceAed === null || selectedCurrency === "AED"
+                                  ? formatAccessoryPrice(option)
+                                  : `${formatPrice(option.priceAed)} ${unitSuffix(option.unit)}`}
+                                {option.sku ? ` · ${option.sku}` : ""}
+                              </span>
+                            </span>
+                          </label>
+                          {selected && (
+                            <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap shrink-0">
+                              {lineTotal === null ? (
+                                <TbcChip testId={`accessory-line-tbc-${itemId}-${option.code}`} />
+                              ) : (
+                                <span data-testid={`accessory-line-total-${itemId}-${option.code}`}>
+                                  {money(lineTotal)}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        {selected && (
+                          <div className="flex items-center gap-1.5 pl-11">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setLineQuantity(option.code, Math.max(0, qty - step))}
+                              disabled={qty <= step}
+                              aria-label="Decrease quantity"
+                              data-testid={`accessory-qty-decrease-${itemId}-${option.code}`}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step={step}
+                              value={qty}
+                              onChange={(e) => setLineQuantity(option.code, Number(e.target.value))}
+                              className="h-7 w-16 text-center text-sm"
+                              data-testid={`accessory-qty-${itemId}-${option.code}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setLineQuantity(option.code, qty + step)}
+                              aria-label="Increase quantity"
+                              data-testid={`accessory-qty-increase-${itemId}-${option.code}`}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {unitNoun(option.unit, qty)}
+                              {option.unit === "per_post" && line && line.quantity === undefined
+                                ? " (from run length)"
+                                : ""}
+                            </span>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-blue-100 dark:border-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10 rounded-b-md">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    Accessories subtotal
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {subtotal.hasTbc && <TbcChip testId={`accessory-subtotal-tbc-${itemId}`} />}
+                    <span
+                      className="text-sm font-semibold text-gray-900 dark:text-white"
+                      data-testid={`accessory-subtotal-${itemId}`}
+                    >
+                      {money(subtotal.totalAed)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Floor type */}
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -469,9 +762,9 @@ export function AccessoryPicker({
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 md:col-span-2 pt-1">
               <p className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                {updateMutation.isPending ? (
+                {updateMutation.isPending || linesMutation.isPending ? (
                   <span>Saving…</span>
-                ) : updateMutation.isSuccess ? (
+                ) : updateMutation.isSuccess || linesMutation.isSuccess ? (
                   <>
                     <CheckCircle2 className="h-3 w-3 text-green-600" />
                     <span>Saved</span>

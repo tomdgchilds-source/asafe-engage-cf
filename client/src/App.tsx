@@ -72,6 +72,9 @@ const Pas13Rules = lazy(() => import("@/pages/admin/Pas13Rules"));
 // without grepping Worker logs. See worker/services/email.ts for the
 // instrumentation that backfills email_log on every send.
 const EmailLog = lazy(() => import("@/pages/admin/EmailLog"));
+// Indicative accessory price list — admin edits the AED figures the cart's
+// AccessoryPicker shows (GET /api/accessory-prices).
+const AccessoryPrices = lazy(() => import("@/pages/admin/AccessoryPrices"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading fallback component - use mobile optimized version
@@ -128,6 +131,7 @@ function Router() {
           <AdminRoute><EmailLog /></AdminRoute>
         </Route>
         <Route path="/admin/migrations"><AdminRoute><Migrations /></AdminRoute></Route>
+        <Route path="/admin/accessory-prices"><AdminRoute><AccessoryPrices /></AdminRoute></Route>
         {/* Haptic test is a dev tool — only registered in development builds */}
         {import.meta.env.DEV && (
           <Route path="/haptic-test" component={HapticTestPage} />

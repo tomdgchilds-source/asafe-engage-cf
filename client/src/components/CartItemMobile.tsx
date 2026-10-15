@@ -1,9 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Minus, Edit, Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, Plus, Minus, Edit, Package, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
-import { AccessoryPicker } from "@/components/AccessoryPicker";
+import { AccessoryPicker, TbcChip } from "@/components/AccessoryPicker";
 import { formatCartQuantity } from "@/components/CartItem";
+import {
+  PRICING_BASIS_LABELS,
+  accessoriesSubtotal,
+  lineTotalWithAccessories,
+  type CartLineContext,
+} from "@/lib/customItems";
 
 interface CartItemMobileProps {
   item: any;
@@ -39,6 +46,19 @@ export function CartItemMobile({
   const productDetails = getProductDetails(item.productName);
   const productId = productDetails?.id;
   const imageUrl = getProductImage(item.productName);
+
+  // Same accessory / custom-line presentation as the desktop CartItem.
+  const lineContext: CartLineContext = {
+    quantity: item.quantity,
+    pricingType: item.pricingType,
+    lengthMeters: item.lengthMeters ?? null,
+  };
+  const accessorySummary = accessoriesSubtotal(item.accessoryLines, lineContext);
+  const lineTotalAed = lineTotalWithAccessories({ ...item, ...lineContext });
+  const isCustom = !!item.isCustom;
+  const basisLabel: string | null = isCustom
+    ? (PRICING_BASIS_LABELS[item.pricingBasis as keyof typeof PRICING_BASIS_LABELS] ?? null)
+    : null;
 
   const handleProductClick = () => {
     if (productDetails) {
@@ -90,21 +110,41 @@ export function CartItemMobile({
           <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight mb-1 line-clamp-2">
             {item.productName}
           </h3>
+          {isCustom && (
+            <div className="flex flex-wrap items-center gap-1 mb-1">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-violet-50 border-violet-300 text-violet-800" data-testid={`badge-custom-${item.id}`}>
+                <Sparkles className="h-3 w-3 mr-1" />
+                Custom
+              </Badge>
+              <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-900 hover:bg-amber-100 border border-amber-300" data-testid={`badge-indicative-${item.id}`}>
+                Indicative
+              </Badge>
+              {basisLabel && (
+                <span className="text-[10px] text-gray-500" data-testid={`text-basis-${item.id}`}>{basisLabel}</span>
+              )}
+            </div>
+          )}
           
           {/* Quantity and Price Info */}
-          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-2">
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-2 flex-wrap">
             <span className="font-medium whitespace-nowrap" data-testid={`text-quantity-summary-${item.id}`}>
               Qty {formatCartQuantity(item)}
             </span>
             <span>•</span>
-            <span className="font-bold text-gray-900 dark:text-white">
-              {formatPrice(item.totalPrice)}
+            <span className="font-bold text-gray-900 dark:text-white" data-testid={`text-line-total-${item.id}`}>
+              {formatPrice(lineTotalAed)}
             </span>
+            {accessorySummary.hasTbc && <TbcChip testId={`chip-tbc-${item.id}`} />}
           </div>
 
           {/* Unit Price */}
           <div className="text-xs text-gray-500">
             {formatPrice(item.unitPrice)}/{item.pricingType === "linear_meter" ? "m" : "item"}
+            {accessorySummary.totalAed > 0 && (
+              <span className="ml-1" data-testid={`text-accessories-included-${item.id}`}>
+                · incl. {formatPrice(accessorySummary.totalAed)} accessories
+              </span>
+            )}
           </div>
         </div>
 
@@ -115,7 +155,8 @@ export function CartItemMobile({
             size="sm"
             onClick={handleProductClick}
             className="h-8 w-8 p-0 text-blue-600"
-            title="Edit item"
+            title={isCustom ? "Custom item — remove and re-add to change it" : "Edit item"}
+            disabled={isCustom || !productDetails}
           >
             <Edit className="h-4 w-4" />
           </Button>
@@ -182,6 +223,8 @@ export function CartItemMobile({
           category={item.category}
           productName={item.productName}
           initialValue={item.accessories}
+          accessoryLines={item.accessoryLines}
+          lineContext={lineContext}
         />
       </div>
     </div>

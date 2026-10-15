@@ -12,6 +12,7 @@ import { Trash2, Plus, Minus, ShoppingCart, MapPin, Wrench, Shield, Settings, Ca
 import { useAutoMinimize } from "@/hooks/useAutoMinimize";
 import { CartItem } from "@/components/CartItem";
 import { CartItemMobile } from "@/components/CartItemMobile";
+import { AddCustomItemButton } from "@/components/CustomItemDialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DiscountModal } from "@/components/DiscountModal";
@@ -1100,8 +1101,12 @@ export function Cart() {
           )}
 
           {cartItems.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground" data-testid="text-empty-cart">
-              Your cart is empty
+            <div className="text-center py-8 text-muted-foreground space-y-3" data-testid="text-empty-cart">
+              <p>Your cart is empty</p>
+              <AddCustomItemButton
+                className="flex items-center justify-center gap-2"
+                testId="button-add-custom-item-empty"
+              />
             </div>
           ) : (
             <div className="space-y-4">
@@ -1152,6 +1157,14 @@ export function Cart() {
                     <span className="text-sm">Use Calculator</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
+
+                  {/* Client-specific line the price list doesn't carry —
+                      opens CustomItemDialog (name + indicative price +
+                      basis). Same dialog as the products-grid card. */}
+                  <AddCustomItemButton
+                    className="flex items-center justify-center gap-2 border-2 border-violet-500 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:text-violet-800 w-full sm:w-auto"
+                    testId="button-add-custom-item"
+                  />
                 </div>
               </div>
 
@@ -1480,6 +1493,17 @@ export function Cart() {
                     <span>{formatPrice(grandTotalExVat)}</span>
                   </div>
                 </div>
+
+                {/* Accessories and custom lines are priced from the
+                    indicative price list / the rep's estimate; the
+                    server folds them into the same pricing lines as the
+                    products, so they are already inside the figures
+                    above — never add a second accessory total here. */}
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug" data-testid="text-totals-footnote">
+                  Accessory prices and custom items are indicative and included in the subtotal.
+                  Anything marked <span className="font-semibold">TBC</span> has no price yet and is
+                  excluded until the estimation team confirms it.
+                </p>
 
                 {/* "Request Quote" (email-to-estimation) flow removed in
                     the Wave-1 cleanup — the team feedback session made

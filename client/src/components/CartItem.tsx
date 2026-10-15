@@ -2,14 +2,20 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Minus, ShoppingCart, MapPin, Wrench, Calculator, ChevronDown, ChevronUp, Edit, ImagePlus, X, Image, Lightbulb, PenTool, Package, Shield } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, MapPin, Wrench, Calculator, ChevronDown, ChevronUp, Edit, ImagePlus, X, Image, Lightbulb, PenTool, Package, Shield, Sparkles } from "lucide-react";
 import { useAutoMinimize } from "@/hooks/useAutoMinimize";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddToCartModal } from "@/components/AddToCartModal";
 import { TierSwitcher } from "@/components/TierSwitcher";
-import { AccessoryPicker } from "@/components/AccessoryPicker";
+import { AccessoryPicker, TbcChip } from "@/components/AccessoryPicker";
+import {
+  PRICING_BASIS_LABELS,
+  accessoriesSubtotal,
+  lineTotalWithAccessories,
+  type CartLineContext,
+} from "@/lib/customItems";
 import {
   findLadderForFamily,
   recommendTier,
@@ -413,6 +419,22 @@ export function CartItem({
     });
   };
 
+  // Priced accessories + custom-line presentation. The line total shown
+  // to the rep includes the priced accessories; TBC marks any selected
+  // accessory the price list cannot price yet. Custom lines carry an
+  // "Indicative" chip and the basis the rep chose.
+  const lineContext: CartLineContext = {
+    quantity: item.quantity,
+    pricingType: item.pricingType,
+    lengthMeters: item.lengthMeters ?? null,
+  };
+  const accessorySummary = accessoriesSubtotal(item.accessoryLines, lineContext);
+  const lineTotalAed = lineTotalWithAccessories({ ...item, ...lineContext });
+  const isCustom = !!item.isCustom;
+  const basisLabel: string | null = isCustom
+    ? (PRICING_BASIS_LABELS[item.pricingBasis as keyof typeof PRICING_BASIS_LABELS] ?? null)
+    : null;
+
   // Create product object for AddToCartModal with existing cart item data
   const productForModal = productDetails ? {
     ...productDetails,
@@ -497,7 +519,18 @@ export function CartItem({
                   Cold Storage
                 </Badge>
               )}
-              {!item.impactCalculationId && !item.solutionContext && !item.layoutDrawingId && !item.siteSurveyId && (
+              {isCustom && (
+                <>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0 bg-violet-50 border-violet-300 text-violet-800" data-testid={`badge-custom-${item.id}`}>
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Custom
+                  </Badge>
+                  <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-900 hover:bg-amber-100 border border-amber-300" data-testid={`badge-indicative-${item.id}`}>
+                    Indicative
+                  </Badge>
+                </>
+              )}
+              {!isCustom && !item.impactCalculationId && !item.solutionContext && !item.layoutDrawingId && !item.siteSurveyId && (
                 <Badge variant="outline" className="text-xs px-1.5 py-0 bg-gray-50 border-gray-300">
                   <Package className="h-3 w-3 mr-1" />
                   Manual
@@ -509,7 +542,13 @@ export function CartItem({
                 Qty {formatCartQuantity(item)}
               </span>
               <span>•</span>
-              <span className="font-medium">{formatPrice(item.totalPrice)}</span>
+              <span className="font-medium" data-testid={`text-line-total-${item.id}`}>{formatPrice(lineTotalAed)}</span>
+              {accessorySummary.hasTbc && <TbcChip testId={`chip-tbc-${item.id}`} />}
+              {basisLabel && (
+                <span className="hidden sm:inline text-[11px] text-gray-500 truncate" data-testid={`text-basis-${item.id}`}>
+                  · {basisLabel}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -562,7 +601,7 @@ export function CartItem({
               disabled
               className="text-gray-400 h-8 w-8 p-0"
               data-testid={`button-edit-${item.id}`}
-              title="Product details not available"
+              title={isCustom ? "Custom item — remove and re-add to change it" : "Product details not available"}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -675,6 +714,18 @@ export function CartItem({
                           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 capitalize">
                             {product.category.replace(/-/g, ' ')}
                           </p>
+                        )}
+                        {isCustom && (
+                          <div className="text-xs sm:text-sm rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-900/40 px-2 py-1.5 space-y-0.5" data-testid={`custom-line-details-${item.id}`}>
+                            <p className="text-amber-900 dark:text-amber-200">
+                              <span className="font-medium">Indicative price</span>
+                              {basisLabel ? <> · {basisLabel}</> : null}
+                              {item.customCategory ? <span className="capitalize"> · {String(item.customCategory)}</span> : null}
+                            </p>
+                            {item.description && (
+                              <p className="text-gray-600 dark:text-gray-400 break-words">{item.description}</p>
+                            )}
+                          </div>
                         )}
                         {item.applicationArea && (
                           <p className="text-xs sm:text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
@@ -860,6 +911,8 @@ export function CartItem({
               category={item.category}
               productName={item.productName}
               initialValue={item.accessories}
+              accessoryLines={item.accessoryLines}
+              lineContext={lineContext}
             />
 
             {/* Quantity Controls - MD+: 3 columns */}
@@ -915,10 +968,16 @@ export function CartItem({
             {/* Price and Actions - MD+: 3 columns */}
             <div className="md:col-span-3 flex flex-row justify-between items-center md:flex-col md:justify-center">
               <div className="text-right md:text-center">
-                <div className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white mb-1" 
+                <div className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white mb-1 flex items-center justify-end md:justify-center gap-2" 
                      data-testid={`text-total-price-${item.id}`}>
-                  {formatPrice(item.totalPrice)}
+                  {formatPrice(lineTotalAed)}
+                  {accessorySummary.hasTbc && <TbcChip />}
                 </div>
+                {accessorySummary.totalAed > 0 && (
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1 whitespace-nowrap" data-testid={`text-accessories-included-${item.id}`}>
+                    incl. {formatPrice(accessorySummary.totalAed)} accessories
+                  </div>
+                )}
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1" 
                      data-testid={`text-unit-price-${item.id}`}>
                   {formatPrice(item.unitPrice)}/{item.pricingType === "linear_meter" ? "m" : "item"}
