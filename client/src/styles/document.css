@@ -29,7 +29,7 @@
   --doc-teal: #66c9ba;
   --doc-blue: #92c0e9;
   --doc-halo-on-black: #343432; /* 90 % black */
-  --doc-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --doc-font: "Inter", "Helvetica Neue", Arial, sans-serif; /* Inter = Graphik substitute, loaded in index.html */
 
   min-height: 100vh;
   padding: 24px 12px 48px;

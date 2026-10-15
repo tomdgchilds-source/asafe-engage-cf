@@ -219,7 +219,8 @@ const EMAIL_COLOUR = {
   teal: "#66C9BA",
 } as const;
 
-const EMAIL_FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+// Inter where the client has it installed (brand substitute for Graphik); no web fonts in email.
+const EMAIL_FONT = "'Inter',Helvetica,Arial,sans-serif";
 
 /**
  * Strapline logo at the brand's 60 mm width: 60 mm × 96 dpi / 25.4 = 227 px.

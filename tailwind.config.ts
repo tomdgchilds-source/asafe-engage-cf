@@ -5,6 +5,10 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      // Brand type: Inter (Graphik substitute), loaded from Google Fonts in client/index.html.
+      fontFamily: {
+        sans: ['"Inter"', '"Helvetica Neue"', "Arial", "sans-serif"],
+      },
       screens: {
         'xs': '475px',
       },

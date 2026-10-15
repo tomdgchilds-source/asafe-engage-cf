@@ -10,13 +10,17 @@
 //   24 mm wide · H3 bold 10.5 pt · body 9.5 / 13.5 · small 7.5 grey60 ·
 //   label 7 pt caps grey60, 0.05 em tracking.
 //
-// The standard Helvetica fonts use WinAnsi encoding; characters outside it
-// make pdf-lib throw, so `sanitize()` maps the common offenders first.
+// Fonts: Inter Regular / SemiBold / Bold when the document was created with
+// an env (fonts.ts), else Helvetica. The standard Helvetica fonts use WinAnsi
+// encoding and pdf-lib throws on anything outside it, so `sanitize()` maps
+// the common offenders first; Inter covers far more, so for a brand font
+// `sanitizeFor()` only substitutes characters that face actually lacks.
 // ────────────────────────────────────────────────────────────────────────────
 
 import type { PDFFont, PDFPage, RGB } from "pdf-lib";
 import { C, LAYOUT, TYPE } from "./theme";
 import { ensureSpace, contentWidth, mm, type Page } from "./doc";
+import { hasGlyph, isBrandFont } from "./fonts";
 
 export type Align = "left" | "right" | "center";
 
@@ -62,7 +66,7 @@ const WIN1252_EXTRA = new Set(
   "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ".split(""),
 );
 
-/** Replace characters the standard fonts cannot encode. */
+/** Replace characters the standard (Helvetica, WinAnsi) fonts cannot encode. */
 export function sanitize(str: string): string {
   let out = "";
   for (const ch of String(str ?? "")) {
@@ -80,8 +84,30 @@ export function sanitize(str: string): string {
   return out;
 }
 
+/**
+ * Make `str` drawable with `font`. Helvetica gets the full WinAnsi
+ * `sanitize()`; an embedded brand font keeps every character it has a glyph
+ * for and substitutes (or "?"s) only the rest, so Greek, Cyrillic, arrows and
+ * "≥" survive in Inter while "✔" still becomes "Yes".
+ */
+export function sanitizeFor(font: PDFFont, str: string): string {
+  if (!isBrandFont(font)) return sanitize(str);
+  let out = "";
+  for (const ch of String(str ?? "")) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x80 || hasGlyph(font, code)) {
+      out += ch;
+    } else if (ch in SUBSTITUTIONS) {
+      out += SUBSTITUTIONS[ch];
+    } else {
+      out += "?";
+    }
+  }
+  return out;
+}
+
 export function measure(font: PDFFont, size: number, str: string): number {
-  return font.widthOfTextAtSize(sanitize(str), size);
+  return font.widthOfTextAtSize(sanitizeFor(font, str), size);
 }
 
 /**
@@ -90,7 +116,7 @@ export function measure(font: PDFFont, size: number, str: string): number {
  */
 export function wrap(font: PDFFont, size: number, str: string, maxWidth: number): string[] {
   const lines: string[] = [];
-  const paragraphs = sanitize(str).replace(/\r\n?/g, "\n").split("\n");
+  const paragraphs = sanitizeFor(font, str).replace(/\r\n?/g, "\n").split("\n");
   for (const para of paragraphs) {
     const words = para.split(/[ \t]+/).filter((w) => w.length > 0);
     if (words.length === 0) {
@@ -132,7 +158,7 @@ function rawPage(p: PDFPage | Page): PDFPage {
 
 /** Baseline offset from the top of a line box, so text sits visually within `lineHeight`. */
 function baselineOffset(size: number, lineHeight: number): number {
-  // Helvetica ascender ≈ 0.72 em (cap height); centre the caps in the line box.
+  // Cap height ≈ 0.72 em for Helvetica and 0.727 em for Inter; centre the caps in the line box.
   return (lineHeight - size * 0.72) / 2 + size * 0.72;
 }
 
@@ -148,7 +174,7 @@ export function drawText(page: PDFPage | Page, str: string, opts: DrawTextOption
   const align = opts.align ?? "left";
   const tracking = (opts.tracking ?? 0) * size;
   const lines =
-    opts.maxWidth && !opts.noWrap ? wrap(opts.font, size, str, opts.maxWidth) : sanitize(str).split(/\r?\n/);
+    opts.maxWidth && !opts.noWrap ? wrap(opts.font, size, str, opts.maxWidth) : sanitizeFor(opts.font, str).split(/\r?\n/);
   let y = opts.y - baselineOffset(size, lineHeight);
   for (const line of lines) {
     const w = opts.font.widthOfTextAtSize(line, size) + tracking * Math.max(0, line.length - 1);
@@ -265,10 +291,10 @@ export function small(page: Page, str: string, opts: { indent?: number; after?: 
   });
 }
 
-/** 7 pt caps grey60 with 0.05 em tracking. */
+/** 7 pt caps grey60 with 0.05 em tracking, semibold. */
 export function label(page: Page, str: string, opts: { indent?: number; after?: number } = {}): number {
   return flow(page, str.toUpperCase(), {
-    font: page.doc.fonts.regular,
+    font: page.doc.fonts.semibold,
     size: TYPE.label.size,
     lead: TYPE.label.lead,
     color: C.grey60,

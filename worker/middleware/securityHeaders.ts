@@ -13,7 +13,10 @@ import type { Env, Variables } from "../types";
 //    Matterport (my.matterport.com — site survey 3D scans embedded
 //    via <iframe>), Google Maps JS API (maps.googleapis.com + maps.gstatic.com),
 //    YouTube thumbnails (img.youtube.com), and the CDNs the logo-picker /
-//    Clearbit autocomplete / Resend email / etc. talk to.
+//    Clearbit autocomplete / Resend email / etc. talk to. Google Fonts
+//    (fonts.googleapis.com in style-src, fonts.gstatic.com in font-src)
+//    serves Inter, the brand typeface (Graphik substitute) linked from
+//    client/index.html.
 //  - `style-src 'unsafe-inline'` is required for Tailwind JIT + inline
 //    component styles emitted by Radix/shadcn. Acceptable trade-off
 //    because we avoid `script-src 'unsafe-inline'`.

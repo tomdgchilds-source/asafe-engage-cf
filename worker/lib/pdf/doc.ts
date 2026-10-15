@@ -3,7 +3,10 @@
 //
 // Document and page lifecycle for the A-SAFE document system on pdf-lib.
 //
-//   createDoc(meta)            → Doc with Helvetica / Helvetica-Bold embedded
+//   createDoc(meta, env?)      → Doc with the brand fonts embedded: Inter
+//                                 Regular / SemiBold / Bold from R2 when `env`
+//                                 is given and the TTFs are readable (see
+//                                 fonts.ts), else Helvetica / Helvetica-Bold
 //   addPage(doc, opts)         → new A4 portrait or A3 landscape page with
 //                                 18 mm margins, inner-page header drawn
 //   ensureSpace(doc, page, n)  → same page, or a fresh one when `n` pt would
@@ -19,17 +22,10 @@
 // `{ page }` a block returns.
 // ────────────────────────────────────────────────────────────────────────────
 
-import {
-  PDFDocument,
-  StandardFonts,
-  PageSizes,
-  degrees,
-  type PDFFont,
-  type PDFImage,
-  type PDFPage,
-} from "pdf-lib";
+import { PDFDocument, PageSizes, degrees, type PDFImage, type PDFPage } from "pdf-lib";
 import { C, LAYOUT, TYPE } from "./theme";
 import { embedBrandImage } from "./assets";
+import { loadBrandFonts, type DocFonts, type FontEnv } from "./fonts";
 
 /** 1 mm = 2.8346 pt. */
 export const mm = (n: number): number => n * 2.8346;
@@ -67,7 +63,8 @@ export interface OutlineEntry {
 
 export interface Doc {
   pdf: PDFDocument;
-  fonts: { regular: PDFFont; bold: PDFFont };
+  /** Body regular · labels semibold · headings bold. `brand` is false on the Helvetica fallback. */
+  fonts: DocFonts;
   meta: DocMeta;
   pages: Page[];
   /** The page most recently created; where the cursor lives. */
@@ -91,10 +88,14 @@ const SIZES: Record<PageSize, [number, number]> = {
   A3L: [PageSizes.A3[1], PageSizes.A3[0]],
 };
 
-export async function createDoc(meta: DocMeta): Promise<Doc> {
+/**
+ * Create a document. Pass the Worker `env` so the brand fonts (Inter, from
+ * R2) are embedded; without it — tests, scripts — the document uses
+ * Helvetica / Helvetica-Bold.
+ */
+export async function createDoc(meta: DocMeta, env?: FontEnv): Promise<Doc> {
   const pdf = await PDFDocument.create();
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const fonts = await loadBrandFonts(pdf, env);
   pdf.setTitle(`${meta.title} — ${meta.reference} Rev ${meta.revision}`);
   pdf.setSubject(meta.docType);
   pdf.setAuthor("A-SAFE");
@@ -103,7 +104,7 @@ export async function createDoc(meta: DocMeta): Promise<Doc> {
   pdf.setCreationDate(new Date());
   const doc: Doc = {
     pdf,
-    fonts: { regular, bold },
+    fonts,
     meta,
     pages: [],
     current: null,
@@ -169,7 +170,7 @@ export function current(doc: Doc): Page {
 function drawHeader(doc: Doc, page: Page): void {
   const text = doc.meta.docType.toUpperCase();
   const size = TYPE.label.size;
-  const font = doc.fonts.regular;
+  const font = doc.fonts.semibold;
   const tracking = size * TYPE.label.tracking;
   const width = font.widthOfTextAtSize(text, size) + tracking * Math.max(0, text.length - 1);
   let x = page.width - page.margin.r - width;
