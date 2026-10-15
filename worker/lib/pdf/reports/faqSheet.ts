@@ -87,7 +87,7 @@ export async function renderFaqSheet(env: Env, opts: FaqSheetOptions = {}): Prom
     loadFaqs(env),
     opts.hero === undefined ? pickHeroImage(env, { industry: opts.industry ?? null, seed: "faq-sheet" }) : Promise.resolve(opts.hero),
   ]);
-  return renderFaqSheetFromFaqs(all, { ...opts, hero });
+  return renderFaqSheetFromFaqs(all, { ...opts, hero }, env);
 }
 
 /**
@@ -156,8 +156,8 @@ export function groupByCategory(faqs: readonly FaqEntry[]): Array<{ key: string;
   }));
 }
 
-/** Render from an in-memory list (what the tests use). */
-export async function renderFaqSheetFromFaqs(all: readonly FaqEntry[], opts: FaqSheetOptions = {}): Promise<FaqSheetOutput> {
+/** Render from an in-memory list (what the tests use). Pass `env` so createDoc can embed the brand fonts. */
+export async function renderFaqSheetFromFaqs(all: readonly FaqEntry[], opts: FaqSheetOptions = {}, env?: Env): Promise<FaqSheetOutput> {
   const selected = selectFaqs(all, opts);
   const groups = groupByCategory(selected);
   const issuedAt = opts.issuedOn ?? new Date();
@@ -173,7 +173,7 @@ export async function renderFaqSheetFromFaqs(all: readonly FaqEntry[], opts: Faq
     issuedOn,
     docType: FAQ_SHEET_DOC_TYPE,
     status,
-  });
+  }, env);
 
   // Page 1 carries the header band instead of the inner-page header.
   let page = addPage(doc, { header: false });

@@ -27,7 +27,7 @@ import {
   type Tone,
 } from "./theme";
 import { addPage, contentHeight, contentWidth, ensureSpace, mm, type Doc, type Page } from "./doc";
-import { drawText, measure, sanitize, wrap, small, type Align } from "./text";
+import { drawText, measure, sanitizeFor, wrap, small, type Align } from "./text";
 import { drawHalo, drawImageCover, drawImageFit, embedBrandImage, type Rect } from "./assets";
 import { embedImage } from "./images";
 
@@ -712,7 +712,7 @@ function formatNumber(n: number): string {
 // ─── Chip ──────────────────────────────────────────────────────────────────
 
 function chipWidth(doc: Doc, text: string): number {
-  const t = sanitize(text).toUpperCase();
+  const t = sanitizeFor(doc.fonts.bold, text).toUpperCase();
   return measure(doc.fonts.bold, TYPE.chip.size, t) + TYPE.chip.size * 0.04 * Math.max(0, t.length - 1) + mm(5);
 }
 
@@ -845,7 +845,7 @@ export async function photo(doc: Doc, page: Page, bytes: Uint8Array | null, o: P
 function miniChip(page: Page, text: string, x: number, y: number): number {
   const doc = page.doc;
   const size = 6.5;
-  const t = sanitize(text).toUpperCase();
+  const t = sanitizeFor(doc.fonts.bold, text).toUpperCase();
   const w = measure(doc.fonts.bold, size, t) + mm(3.5);
   page.page.drawRectangle({ x, y: y - mm(5), width: w, height: mm(5), color: C.grey20 });
   drawText(page, t, { x: x + mm(1.75), y, size, font: doc.fonts.bold, color: C.grey90, lineHeight: mm(5) });

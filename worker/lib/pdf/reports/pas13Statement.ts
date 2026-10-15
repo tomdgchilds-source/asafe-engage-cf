@@ -35,6 +35,7 @@ import {
   type Verdict,
 } from "../../../../shared/pas13Rules";
 import { pas13Cite, PAS13_PDF_URL, type Pas13Citation } from "../../../../shared/pas13Citations";
+import type { Env } from "../../../types";
 import { C, TYPE, type Tone } from "../theme";
 import { createDoc, addPage, finalize, mm, type Doc, type Page } from "../doc";
 import { heading, body, small, bullets, drawText } from "../text";
@@ -88,6 +89,8 @@ export interface Pas13StatementInput extends AlignmentReportInput {
    * letter page is page 1 as before.
    */
   hero?: HeroPick | null;
+  /** Worker env; when given, createDoc embeds the Inter brand fonts from R2. */
+  env?: Env;
 }
 
 export interface AlignmentReportOutput {
@@ -124,7 +127,7 @@ export async function renderPas13Statement(input: Pas13StatementInput): Promise<
     issuedOn,
     docType: "PAS 13 Alignment Statement",
     status,
-  });
+  }, input.env);
 
   // Optional photographic cover: only ever a real A-SAFE reference
   // installation, captioned so it cannot be read as the client's site.

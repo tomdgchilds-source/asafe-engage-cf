@@ -81,7 +81,7 @@ documentsPas13.get("/orders/:id/documents/pas13-statement.pdf", authMiddleware, 
     const report = await _buildAlignmentReportForOrder(c.env, storage, order);
     const appOrigin = c.env.APP_URL || new URL(c.req.url).origin;
     const preparedBy = user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined : undefined;
-    const out = await renderPas13Statement({ ...report, appOrigin, status: statusFromQuery(c), preparedBy });
+    const out = await renderPas13Statement({ ...report, appOrigin, status: statusFromQuery(c), preparedBy, env: c.env });
     const res = pdfResponse(out.pdf, out.filename, "private, max-age=86400");
     res.headers.set("X-PAS13-Aggregate-Verdict", out.aggregateVerdict);
     res.headers.set("X-PAS13-Worst-Margin-Pct", String(out.worstCaseSafetyMarginPct));

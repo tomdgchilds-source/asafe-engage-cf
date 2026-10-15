@@ -139,10 +139,10 @@ function computeFrame(page: Page, hasLegend: boolean): Frame {
 // ─── Entry point ───────────────────────────────────────────────────────────
 
 /**
- * Render one A3 landscape sheet. `env` is accepted for parity with the other
- * renderers (future asset fetches); nothing here touches bindings today.
+ * Render one A3 landscape sheet. `env` lets createDoc embed the brand fonts
+ * from R2; without it the sheet falls back to Helvetica.
  */
-export async function renderDrawingSheet(_env: Env, opts: DrawingSheetOptions): Promise<Uint8Array> {
+export async function renderDrawingSheet(env: Env, opts: DrawingSheetOptions): Promise<Uint8Array> {
   const tb = opts.titleBlock;
   const status = tb.status ?? "ISSUED";
   const title = (tb.title || "A-SAFE BARRIER PROPOSAL").trim();
@@ -155,7 +155,7 @@ export async function renderDrawingSheet(_env: Env, opts: DrawingSheetOptions): 
     issuedOn: tb.date || formatDrawingDate(),
     docType: "Layout drawing",
     status,
-  });
+  }, env);
   const page = addPage(doc, { size: "A3L", header: false, footer: false });
   const legendFamilies = opts.legendFamilies.filter((id, i, arr) => arr.indexOf(id) === i);
   const frame = computeFrame(page, legendFamilies.length > 0);

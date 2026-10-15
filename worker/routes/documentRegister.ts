@@ -409,7 +409,7 @@ documentRegister.post("/projects/:id/documents/:kind/issue", authMiddleware, mut
         await ensurePas13ClassesLoaded(c.env);
         const report = await _buildAlignmentReportForOrder(c.env, storage, order);
         const { ref, revision } = await reserveDocumentRef(c.env, "PS", { orderId: order.id }, issuedOn);
-        const out = await renderPas13Statement({ ...report, appOrigin, status: "ISSUED", reference: ref, revision, preparedBy });
+        const out = await renderPas13Statement({ ...report, appOrigin, status: "ISSUED", reference: ref, revision, preparedBy, env: c.env });
         ({ objectKey } = await recordDocumentIssue(c.env, {
           kind: "PS",
           bytes: out.pdf,

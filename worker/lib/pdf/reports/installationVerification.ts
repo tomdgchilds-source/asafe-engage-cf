@@ -121,7 +121,7 @@ export const STANDARD_CHECKLIST = [
 
 // ─── Entry point ───────────────────────────────────────────────────────────
 
-export async function renderInstallationVerification(_env: Env, input: VerificationInput): Promise<Uint8Array> {
+export async function renderInstallationVerification(env: Env, input: VerificationInput): Promise<Uint8Array> {
   const issued = input.issuedOn ?? new Date();
   const reference = input.reference ?? defaultReference(issued, input.order?.orderNumber);
   const revision = input.revision ?? "A";
@@ -137,7 +137,7 @@ export async function renderInstallationVerification(_env: Env, input: Verificat
     issuedOn,
     docType: "Installation Verification Report",
     status,
-  });
+  }, env);
 
   // 1 · Cover
   const installedHero = input.zones.find((z) => z.asInstalledPhoto)?.asInstalledPhoto ?? null;

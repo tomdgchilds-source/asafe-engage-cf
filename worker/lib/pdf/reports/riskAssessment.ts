@@ -1329,8 +1329,8 @@ function drawAppendixD(w: Writer, model: RiskAssessmentModel): void {
   w.small(`Tested energies are ${PAS13_VERSION} pendulum-test figures published by A-SAFE. Datasheets carry the full specification, deflection zones and fixing details.`);
 }
 
-/** RiskAssessmentModel → PDF bytes. */
-export async function renderRiskAssessmentModel(model: RiskAssessmentModel, meta: RenderMeta): Promise<Uint8Array> {
+/** RiskAssessmentModel → PDF bytes. Pass `env` so createDoc can embed the brand fonts. */
+export async function renderRiskAssessmentModel(model: RiskAssessmentModel, meta: RenderMeta, env?: Env): Promise<Uint8Array> {
   const doc = await createDoc({
     title: DOCUMENT_KINDS.RA,
     reference: meta.status === "ISSUED" ? meta.reference : DRAFT_REFERENCE,
@@ -1338,7 +1338,7 @@ export async function renderRiskAssessmentModel(model: RiskAssessmentModel, meta
     issuedOn: shortDate(meta.issuedOn),
     docType: DOCUMENT_KINDS.RA,
     status: meta.status,
-  });
+  }, env);
   await drawCoverFor(doc, model, meta);
   const w = new Writer(doc);
   drawDocumentControl(w, model, meta);
@@ -1436,7 +1436,7 @@ export async function renderRiskAssessment(env: Env, surveyId: string, opts: Ren
     opts.status === "ISSUED"
       ? await reserveDocumentRef(env, kind, subject, issuedOn).then((r) => ({ reference: r.ref, revision: r.revision }))
       : { reference: DRAFT_REFERENCE, revision: "A" };
-  const bytes = await renderRiskAssessmentModel(model, { status: opts.status, reference, revision, issuedOn });
+  const bytes = await renderRiskAssessmentModel(model, { status: opts.status, reference, revision, issuedOn }, env);
   let objectKey: string | null = null;
   if (opts.status === "ISSUED") {
     ({ objectKey } = await recordDocumentIssue(env, {
