@@ -603,7 +603,10 @@ export default function SiteSurvey() {
   // Mutation to complete a survey
   const completeSurveyMutation = useMutation({
     mutationFn: async (surveyId: string) => {
-      return await apiRequest(`/api/site-surveys/${surveyId}/complete`, 'POST');
+      // apiRequest resolves to the raw Response; the dialog needs the survey
+      // row itself (status, overallRiskLevel, snapshot) to flip to "Completed".
+      const res = await apiRequest(`/api/site-surveys/${surveyId}/complete`, 'POST');
+      return (await res.json()) as any;
     },
     onSuccess: (completedSurvey) => {
       queryClient.invalidateQueries({ queryKey: ['/api/site-surveys'] });
@@ -1554,6 +1557,25 @@ export default function SiteSurvey() {
                         </Badge>
                       )}
                     </Button>
+                    {/* Return visit (Task S7): the "Since last visit" comparison
+                        lives at /site-survey/:id/compare but had no entry point
+                        in the UI — surface it whenever the survey has a
+                        previous visit. */}
+                    {selectedSurvey?.previousSurveyId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full sm:w-auto"
+                        onClick={() => {
+                          haptic.select();
+                          navigate(`/site-survey/${selectedSurvey.id}/compare`);
+                        }}
+                        data-testid="button-compare-previous"
+                      >
+                        <History className="h-4 w-4 mr-1" />
+                        Since last visit
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"

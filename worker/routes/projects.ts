@@ -7,6 +7,27 @@ import { createStorage } from "../storage";
 import { ensureInstallationsForProject } from "./installations";
 import { pas13Verdict, type Pas13Verdict, type Verdict } from "../../shared/pas13Rules";
 import { sendEmail } from "../services/email";
+import { getFile } from "./files";
+
+// ─── Public drawing files ──────────────────────────────────────────
+// Layout drawings are stored behind the authenticated /api/objects/* route,
+// so a customer opening the share link (logged out) got a broken image in
+// section 2 of SharedProjectView (401 on the <img src>). The public project
+// payload now points drawing files at a token-gated proxy route instead.
+const OBJECTS_PREFIX = /^(?:https?:\/\/[^/]+)?(?:\/api)?\/objects\/(.+)$/;
+
+function objectKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = OBJECTS_PREFIX.exec(url);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function publicDrawingUrl(token: string, drawingId: string, kind: "file" | "thumbnail", original: string | null | undefined) {
+  if (!original) return original ?? null;
+  return objectKeyFromUrl(original)
+    ? `/api/public/projects/${encodeURIComponent(token)}/drawings/${encodeURIComponent(drawingId)}/${kind}`
+    : original;
+}
 
 const projectsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -927,9 +948,9 @@ projectsRoutes.get("/public/projects/:token", async (c) => {
     const sanitisedDrawings = (layoutDrawings as any[]).map((d) => ({
       id: d.id,
       fileName: d.fileName,
-      fileUrl: d.fileUrl,
+      fileUrl: publicDrawingUrl(tokenStr, d.id, "file", d.fileUrl),
       fileType: d.fileType,
-      thumbnailUrl: d.thumbnailUrl,
+      thumbnailUrl: publicDrawingUrl(tokenStr, d.id, "thumbnail", d.thumbnailUrl),
       projectName: d.projectName,
       location: d.location,
       company: d.company,
@@ -969,6 +990,50 @@ projectsRoutes.get("/public/projects/:token", async (c) => {
   } catch (error) {
     console.error("Error loading public project view:", error);
     return c.json({ message: "Failed to load project" }, 500);
+  }
+});
+
+// ─── Public drawing file proxy ─────────────────────────────────────
+// GET /api/public/projects/:token/drawings/:drawingId/(file|thumbnail)
+// Same token checks as the public project view; the drawing must belong
+// to the shared project. Streams the stored object so the shared page can
+// show the floor plan without a session.
+projectsRoutes.get("/public/projects/:token/drawings/:drawingId/:kind", async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const tokenStr = c.req.param("token");
+    const kind = c.req.param("kind");
+    if (kind !== "file" && kind !== "thumbnail") return c.json({ message: "Not found" }, 404);
+
+    const project = await storage.getProjectByShareToken(tokenStr);
+    if (!project) return c.json({ message: "Link expired or revoked" }, 404);
+    const expires = (project as any).shareTokenExpiresAt as Date | null;
+    if (expires && new Date(expires).getTime() < Date.now()) {
+      return c.json({ message: "Link expired or revoked" }, 410);
+    }
+
+    const drawing = await storage.getLayoutDrawing(c.req.param("drawingId"));
+    if (!drawing || (drawing as any).projectId !== project.id || (drawing as any).deletedAt) {
+      return c.json({ message: "Drawing not found" }, 404);
+    }
+    const source = kind === "thumbnail" ? (drawing as any).thumbnailUrl : drawing.fileUrl;
+    const key = objectKeyFromUrl(source);
+    if (!key) {
+      // External URL (legacy rows) — hand the browser straight to it.
+      return source ? c.redirect(source, 302) : c.json({ message: "Drawing not found" }, 404);
+    }
+    const result = await getFile(c.env, key);
+    if (!result) return c.json({ message: "Drawing not found" }, 404);
+
+    const headers = new Headers();
+    headers.set("Content-Type", result.contentType);
+    headers.set("Content-Disposition", `inline; filename="${String(drawing.fileName || "drawing").replace(/["\r\n]/g, "")}"`);
+    headers.set("Cache-Control", "private, max-age=300");
+    return new Response(result.body as any, { headers });
+  } catch (error) {
+    console.error("Error serving public drawing file:", error);
+    return c.json({ message: "Failed to load drawing" }, 500);
   }
 });
 

@@ -88,7 +88,7 @@ export async function putObject(
   await storeFile(env, key, buffer as ArrayBuffer, contentType);
 }
 
-async function getFile(
+export async function getFile(
   env: Env,
   key: string
 ): Promise<{ body: ReadableStream | ArrayBuffer; contentType: string } | null> {

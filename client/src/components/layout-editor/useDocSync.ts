@@ -199,7 +199,14 @@ export function useDocSync(opts: DocSyncOptions): DocSyncApi {
 
   // Debounce every document change.
   useEffect(() => {
-    if (!loadedRef.current || !doc || doc === lastSavedDocRef.current) return;
+    if (!loadedRef.current || !doc) return;
+    if (doc === lastSavedDocRef.current) {
+      // Undo/redo landed back on exactly what the server holds: nothing to
+      // send, but the "dirty" status set on the way out must not stick, or
+      // the header shows "Saving…" until the next edit (field QA, Oct 2026).
+      setStatus((s) => (s === "dirty" ? "saved" : s));
+      return;
+    }
     setStatus((s) => (s === "saving" ? s : "dirty"));
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {

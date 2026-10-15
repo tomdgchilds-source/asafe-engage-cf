@@ -102,13 +102,20 @@ export function ProductPicker({ open, onOpenChange, mobile, products, isLoading,
         data-testid="product-picker-backdrop"
       />
       <div
-        role="dialog"
+        // Not role="dialog": styles/mobile-fixes.css forces every [role="dialog"]
+        // to max-height: calc(100vh - 1rem) !important + margin 0.5rem, which made
+        // this bottom sheet taller than the stage on phones (header + Close pushed
+        // off-screen). It is a non-modal panel inside the editor, so "region" fits.
+        role="region"
         aria-label="Choose product"
         data-testid="product-picker"
         className={cn(
           "absolute z-50 flex flex-col bg-white shadow-2xl dark:bg-gray-900",
           mobile
-            ? "inset-x-0 bottom-0 max-h-[75%] rounded-t-2xl border-t border-gray-200 dark:border-gray-700"
+            // dvh, not %: the stage is a flex-1 box with no definite height, so a
+            // percentage max-height resolved to "none" and the sheet grew past the top
+            // of the screen — header, search and Close were unreachable on phones.
+            ? "inset-x-0 bottom-0 max-h-[70dvh] rounded-t-2xl border-t border-gray-200 dark:border-gray-700"
             : "bottom-2 right-2 top-2 w-[340px] rounded-xl border border-gray-200 dark:border-gray-700",
         )}
         style={mobile ? { paddingBottom: "env(safe-area-inset-bottom, 0px)" } : undefined}

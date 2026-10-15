@@ -1293,6 +1293,10 @@ export function VehicleImpactCalculator() {
                   <p className="text-gray-600 dark:text-gray-400">Kinetic Energy Required</p>
                 </div>
 
+                {/* Only show the zone block when the rep actually described one
+                    (or attached photos) — an empty "Operating Zone:" box read as a
+                    broken result in field QA. */}
+                {(inputs.operatingZone?.trim() || operationalZoneImageUrls.length > 0) && (
                 <div className="mb-4">
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <p className="font-semibold text-sm text-blue-800">Operating Zone:</p>
@@ -1305,6 +1309,7 @@ export function VehicleImpactCalculator() {
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>

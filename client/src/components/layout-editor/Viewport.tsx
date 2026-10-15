@@ -158,7 +158,11 @@ export const Viewport = forwardRef<ViewportHandle, ViewportProps>(function Viewp
       className={className}
       data-testid="layout-viewport"
       style={{
-        position: "relative",
+        // Fill the stage. The inline `position: relative` this used to set
+        // beat the caller's `absolute inset-0` class, so the viewport had no
+        // height and the drawing never appeared (field QA, Oct 2026).
+        position: "absolute",
+        inset: 0,
         overflow: "hidden",
         outline: "none",
         touchAction: "none",
