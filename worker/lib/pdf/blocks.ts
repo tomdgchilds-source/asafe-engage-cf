@@ -28,7 +28,7 @@ import {
 } from "./theme";
 import { addPage, contentHeight, contentWidth, ensureSpace, mm, type Doc, type Page } from "./doc";
 import { drawText, measure, sanitize, wrap, small, type Align } from "./text";
-import { drawHalo, drawImageCover, drawImageFit, embedBrandImage } from "./assets";
+import { drawHalo, drawImageCover, drawImageFit, embedBrandImage, type Rect } from "./assets";
 import { embedImage } from "./images";
 
 export interface BlockResult {
@@ -43,6 +43,12 @@ const GUTTER = mm(LAYOUT.gutterMm);
 
 export interface CoverOptions {
   heroImage?: Uint8Array;
+  /**
+   * Caption drawn over the foot of the hero. Required whenever the hero is a
+   * reference installation rather than the client's own site, so the reader
+   * is never led to think the photo is theirs.
+   */
+  heroCaption?: string;
   docTypeLine: string;
   title: string;
   subtitle?: string;
@@ -78,6 +84,7 @@ export async function coverPage(doc: Doc, o: CoverOptions): Promise<Page> {
       opacity: 0.28,
       clip: heroRect,
     });
+    if (o.heroCaption) photoCaptionStrip(page, heroRect, o.heroCaption);
   } else {
     page.page.drawRectangle({ x: 0, y: 0, width, height, color: C.black });
     drawHalo(page.page, {
@@ -212,12 +219,35 @@ function stamp(page: Page, status: "DRAFT" | "ISSUED", rightX: number, topY: num
   });
 }
 
+/**
+ * Translucent black strip along the foot of a photo with a small white
+ * caption, left-aligned. Used for reference-installation heroes so the
+ * attribution sits on the photograph itself.
+ */
+export function photoCaptionStrip(page: Page, rect: Rect, caption: string): void {
+  const doc = page.doc;
+  const h = mm(7);
+  page.page.drawRectangle({ x: rect.x, y: rect.y, width: rect.w, height: h, color: C.black, opacity: 0.62 });
+  drawText(page, caption, {
+    x: page.margin.l,
+    y: rect.y + h - (h - TYPE.small.lead) / 2,
+    size: TYPE.small.size,
+    font: doc.fonts.regular,
+    color: C.white,
+    maxWidth: rect.w - page.margin.l - page.margin.r,
+    lineHeight: TYPE.small.lead,
+    noWrap: true,
+  });
+}
+
 // ─── Section divider ───────────────────────────────────────────────────────
 
 export interface SectionDividerOptions {
   number: string | number;
   title: string;
   image?: Uint8Array;
+  /** Caption over the foot of `image`; required when the image is a reference installation. */
+  imageCaption?: string;
   /** Optional one-line strap under the title. */
   strap?: string;
 }
@@ -233,6 +263,7 @@ export async function sectionDivider(doc: Doc, o: SectionDividerOptions): Promis
   if (img) {
     const rect = { x: 0, y: height * 0.55, w: width, h: height * 0.45 };
     drawImageCover(page.page, img.image, rect);
+    if (o.imageCaption) photoCaptionStrip(page, rect, o.imageCaption);
     page.page.drawRectangle({ x: 0, y: rect.y - 3, width, height: 3, color: C.yellow });
     bandTop = rect.y - 3;
   }
@@ -836,13 +867,20 @@ export interface ProductCardOptions {
   quantityLine?: string;
 }
 
-/** Two-column card with a black header bar and the tested-energy callout in a yellow box (datasheet style). */
+/**
+ * Two-column card with a black header bar and the tested-energy callout in a
+ * yellow box (datasheet style). The left column is the product photograph
+ * (A-SAFE catalogue or in-situ shot). When no real image is available the
+ * column is omitted and the specification runs full width — customer
+ * documents never carry a "PRODUCT IMAGE" placeholder.
+ */
 export async function productCard(doc: Doc, page: Page, o: ProductCardOptions): Promise<BlockResult> {
   const cw = contentWidth(page);
   const headerH = mm(10);
   const pad = mm(4);
-  const imgColW = mm(50);
-  const rightX0 = imgColW + pad * 2;
+  const embedded = o.image ? await embedImage(doc, o.image) : null;
+  const imgColW = embedded ? mm(50) : 0;
+  const rightX0 = embedded ? imgColW + pad * 2 : pad;
   const rightW = cw - rightX0 - pad;
   const energyBoxH = mm(14);
   const specSize = 8.5;
@@ -854,7 +892,7 @@ export async function productCard(doc: Doc, page: Page, o: ProductCardOptions): 
   const rightH = energyBoxH + mm(3) + specsH + whyH;
   const hasPrice = o.unitPriceAed !== undefined || o.lineTotalAed !== undefined;
   const priceH = hasPrice ? mm(9) : 0;
-  const bodyH = Math.max(rightH, mm(40)) + pad * 2;
+  const bodyH = Math.max(rightH, embedded ? mm(40) : mm(24)) + pad * 2;
   const total = headerH + bodyH + priceH;
   const p = ensureSpace(doc, page, total + mm(4));
   const top = p.cursorY;
@@ -884,11 +922,10 @@ export async function productCard(doc: Doc, page: Page, o: ProductCardOptions): 
     align: "right",
   });
 
-  // Left: product image or placeholder.
+  // Left: product image (slot omitted entirely when there is none).
   const imgTop = top - headerH - pad;
-  const imgH = Math.min(mm(40), bodyH - pad * 2);
-  const embedded = o.image ? await embedImage(doc, o.image) : null;
   if (embedded) {
+    const imgH = Math.min(mm(40), bodyH - pad * 2);
     const ratio = embedded.width / embedded.height;
     let w = imgColW;
     let h = w / ratio;
@@ -897,19 +934,6 @@ export async function productCard(doc: Doc, page: Page, o: ProductCardOptions): 
       w = h * ratio;
     }
     p.page.drawImage(embedded.image, { x: x0 + pad + (imgColW - w) / 2, y: imgTop - imgH + (imgH - h) / 2, width: w, height: h });
-  } else {
-    p.page.drawRectangle({ x: x0 + pad, y: imgTop - imgH, width: imgColW, height: imgH, color: C.grey8 });
-    drawText(p, "PRODUCT IMAGE", {
-      x: x0 + pad,
-      y: imgTop - imgH / 2 + TYPE.label.lead / 2,
-      size: TYPE.label.size,
-      font: doc.fonts.regular,
-      color: C.grey60,
-      maxWidth: imgColW,
-      align: "center",
-      tracking: TYPE.label.tracking,
-      lineHeight: TYPE.label.lead,
-    });
   }
 
   // Right: energy callout.

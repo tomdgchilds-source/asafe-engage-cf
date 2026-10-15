@@ -39,6 +39,7 @@ import {
 } from "../lib/pdf/reports/installationVerification";
 import { renderDrawingSheetForDrawing, drawingSheetFileName } from "../lib/pdf/reports/drawingSheetLoader";
 import { fetchImageBytes } from "../lib/pdf/images";
+import { pickHeroImage } from "../lib/pdf/heroes";
 import { parseLayoutDoc, type LayoutDoc } from "../../shared/layout/doc";
 import { markupsToDoc } from "../../shared/layout/migrateMarkups";
 
@@ -293,6 +294,15 @@ export async function buildVerificationInput(
     snags,
     installTeam: teamName(assignments[0]?.teamId) ?? teamName(phases.find((p) => p.assignedTeamId)?.assignedTeamId),
     preparedBy: opts.preparedBy,
+    // Cover photo when no as-installed photo exists yet: a real A-SAFE
+    // reference installation, captioned as such — never a drawn stand-in.
+    referenceHero: zones.some((z) => z.asInstalledPhoto)
+      ? null
+      : await pickHeroImage(env, {
+          areaTypes: zoneDefs.map((z) => z.name),
+          text: [install.title, install.customerName, install.location, order?.customerCompany, order?.projectName, order?.projectDescription].filter(Boolean).join(" "),
+          seed: install.id,
+        }),
   };
   return { input, install, order };
 }

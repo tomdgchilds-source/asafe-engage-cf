@@ -23,6 +23,7 @@ import type { Env } from "../../../types";
 import { createDoc, addPage, finalize, mm, current, contentWidth, type Doc, type Page } from "../doc";
 import { heading, body, small, label, bullets, drawText } from "../text";
 import { coverPage, documentControl, table, kpiTiles, productCard, photo, calloutBox, signOffBlock, letterTab, type SignOffParty } from "../blocks";
+import { referenceCaption } from "../heroes";
 import { C, LAYOUT, TYPE, RISK_LABELS, type RiskLevel } from "../theme";
 import {
   computeTotals,
@@ -136,6 +137,8 @@ export interface ProposalModel {
   /** Unique products used, in first-use order. */
   products: ProductInfo[];
   heroImage: Uint8Array | null;
+  /** Set when `heroImage` is an A-SAFE reference installation rather than the client's site. */
+  heroCaption?: string | null;
   drawing: LayoutDrawingInfo | null;
   approvals: ProposalSignOff[];
   /** True when a rep-facing quote draft, not an order, produced the model. */
@@ -309,6 +312,7 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
       : null;
 
   const heroPhoto = bundle.survey?.photos.find((p) => p.bytes) ?? null;
+  const referenceHero = heroPhoto ? null : bundle.referenceHero ?? null;
   const fx = Number(o.fxRateAtOrder);
 
   return {
@@ -342,7 +346,8 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
     commitments,
     serviceCare,
     products,
-    heroImage: heroPhoto?.bytes ?? null,
+    heroImage: heroPhoto?.bytes ?? referenceHero?.bytes ?? null,
+    heroCaption: referenceHero ? referenceCaption(referenceHero) : null,
     drawing: bundle.layoutDrawing,
     approvals: [
       signOffFrom("technical", order.technicalSignature),
@@ -456,6 +461,7 @@ export function quoteDraftToProposalModel(q: QuoteDraftLike): ProposalModel {
     serviceCare: service > 0 ? { label: q.totals.serviceCareLabel || "Service Care", aed: service } : null,
     products,
     heroImage: null,
+    heroCaption: null,
     drawing: null,
     approvals: [signOffFrom("technical", null), signOffFrom("commercial", null), signOffFrom("marketing", null)],
     isQuoteDraft: true,
@@ -504,6 +510,7 @@ export async function drawCover(doc: Doc, model: ProposalModel, meta: RenderMeta
   const ref = meta.status === "ISSUED" ? `${meta.reference}  ·  Rev ${meta.revision}` : DRAFT_REFERENCE;
   return coverPage(doc, {
     heroImage: model.heroImage ?? undefined,
+    heroCaption: model.heroCaption ?? undefined,
     docTypeLine: DOCUMENT_KINDS[kind],
     title: model.project.name,
     subtitle:

@@ -6,7 +6,7 @@ import { PDFDocument, PDFArray, PDFRawStream, PDFName, type PDFRef } from "pdf-l
 import { pas13Verdict } from "../../../../shared/pas13Rules";
 import { RISK_LEVEL_BANDS } from "../../../../shared/risk/riskRegister";
 import { decodeBase64 } from "../assets";
-import { SAMPLE_PHOTO_JPEG_B64 } from "../samplePhoto";
+import { SAMPLE_PHOTO_JPEG_B64 } from "../__fixtures__/samplePhoto";
 import type { RegisterArea, RegisterPhoto, AreaProductRecommendation, CompareResponse } from "../../../routes/siteSurveys";
 import type { SurveyBundle, ProductInfo, PhotoInfo } from "./shared";
 import type { RenderMeta } from "./proposal";

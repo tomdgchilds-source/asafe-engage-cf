@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { computeTotals, cartItemsToPricingLines, normaliseComplexity } from "../../../../shared/pricing";
 import { decodeBase64 } from "../assets";
-import { SAMPLE_PHOTO_JPEG_B64 } from "../samplePhoto";
+import { SAMPLE_PHOTO_JPEG_B64 } from "../__fixtures__/samplePhoto";
 import { PDFName, PDFRawStream, PDFArray, PDFStream, decodePDFRawStream, rgb, type PDFPage } from "pdf-lib";
 import {
   buildProposalModel,

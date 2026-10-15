@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
+import DocHeroStrip from "@/components/document/DocHeroStrip";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -531,6 +532,12 @@ export default function SharedProjectView() {
             {stamp}
           </span>
         </header>
+
+        {/* Real A-SAFE reference installation, matched to the customer */}
+        <DocHeroStrip
+          text={[clientName, data.project.name, data.project.location, data.project.description].filter(Boolean).join(" ")}
+          seed={data.project.id}
+        />
 
         {/* Document control */}
         <div className="doc-control" data-testid="document-control">

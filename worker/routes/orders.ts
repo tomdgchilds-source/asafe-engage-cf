@@ -19,6 +19,7 @@ import {
   type ReportLineItem as Pas13ReportLineItem,
   type VehicleContextForReport,
 } from "../lib/pdf/reports/pas13Statement";
+import { pickHeroImage, type HeroPick } from "../lib/pdf/heroes";
 import {
   cartItemsToPricingLines,
   computeTotals,
@@ -986,6 +987,7 @@ async function buildAlignmentReportForOrder(
   projectLocation?: string | null;
   vehicleContext: VehicleContextForReport | null;
   lineItems: Pas13ReportLineItem[];
+  hero: HeroPick | null;
 }> {
   // Resolve a fallback vehicle context. Prefer the order's
   // applicationAreas (a project-time impact scenario list); fall back to
@@ -1073,6 +1075,15 @@ async function buildAlignmentReportForOrder(
     });
   }
 
+  // Cover photograph: a real A-SAFE reference installation matched to the
+  // customer's industry / zones, captioned as such on the statement.
+  const applicationAreas = Array.isArray((order as any).applicationAreas) ? ((order as any).applicationAreas as Array<Record<string, unknown>>) : [];
+  const hero = await pickHeroImage(env, {
+    areaTypes: applicationAreas.map((a) => (typeof a.operatingZone === "string" ? a.operatingZone : typeof a.areaType === "string" ? a.areaType : "")),
+    text: [order.customerCompany, order.projectName, order.projectLocation, (order as any).projectDescription].filter(Boolean).join(" "),
+    seed: order.id,
+  });
+
   return {
     orderNumber: order.orderNumber,
     customOrderNumber: order.customOrderNumber ?? null,
@@ -1083,6 +1094,7 @@ async function buildAlignmentReportForOrder(
     projectLocation: order.projectLocation ?? null,
     vehicleContext: fallback,
     lineItems,
+    hero,
   };
 }
 

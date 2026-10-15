@@ -19,6 +19,7 @@ import type { Env } from "../../../types";
 import { getDb } from "../../../db";
 import { createStorage } from "../../../storage";
 import {
+  customerCompanies,
   layoutDrawings,
   projects,
   surveyPhotos as surveyPhotosTable,
@@ -39,6 +40,7 @@ import {
   type DocumentKind,
 } from "../../../../shared/documents/refs";
 import { fetchImageBytes, fetchObjectBytes } from "../images";
+import { pickHeroImage, type HeroContext, type HeroPick } from "../heroes";
 
 // ─── People ────────────────────────────────────────────────────────────────
 
@@ -93,10 +95,28 @@ type ProductRow = {
   features?: unknown;
   technicalSheetUrl?: string | null;
   imageUrl?: string | null;
+  /** In-situ photograph of the product installed; preferred on customer documents. */
+  lifestyleImageUrl?: string | null;
+  /** True when `imageUrl` is a stand-in borrowed from a sibling family — never shown to customers. */
+  needsImageReview?: boolean | null;
   heightMin?: number | null;
   heightMax?: number | null;
   impactTestingData?: unknown;
 };
+
+/**
+ * The image a customer document may show for a product: the real in-situ
+ * shot first, else the studio hero, and nothing when the catalogue flags
+ * the hero as a borrowed placeholder (a photo of a different product would
+ * be misleading on a proposal).
+ */
+export function productImageRef(p: Pick<ProductRow, "imageUrl" | "lifestyleImageUrl" | "needsImageReview">): string | null {
+  const lifestyle = (p.lifestyleImageUrl ?? "").trim();
+  if (lifestyle) return lifestyle;
+  if (p.needsImageReview) return null;
+  const hero = (p.imageUrl ?? "").trim();
+  return hero || null;
+}
 
 function titleCase(s: string): string {
   return s
@@ -141,7 +161,7 @@ export function productInfoFromRow(p: ProductRow, imageBytes: Uint8Array | null 
     description: p.description ?? null,
     datasheetUrl: p.technicalSheetUrl ?? null,
     deflectionZoneMm: p.deflectionZone ?? null,
-    imageRef: p.imageUrl ?? null,
+    imageRef: productImageRef(p),
     imageBytes,
   };
 }
@@ -183,7 +203,8 @@ export async function loadProductsByName(
         out.set(name, unknownProduct(name));
         return;
       }
-      const bytes = opts.withImages !== false && row.imageUrl ? await fetchImageBytes(env, row.imageUrl) : null;
+      const ref = productImageRef(row);
+      const bytes = opts.withImages !== false && ref ? await fetchImageBytes(env, ref) : null;
       out.set(name, productInfoFromRow(row, bytes));
     }),
   );
@@ -211,6 +232,21 @@ export interface SurveyBundle {
   owner: PersonInfo;
   /** Recommended products across all areas, keyed by product name. */
   products: Map<string, ProductInfo>;
+  /**
+   * A real A-SAFE case-study photograph for the cover when the survey has no
+   * usable photo of its own (loaded only with `withReferenceHero`). Null when
+   * the survey has photos or the catalogue has none.
+   */
+  referenceHero?: HeroPick | null;
+}
+
+/** Industry signals a survey carries: its area types plus the facility and title text. */
+export function surveyHeroContext(survey: Pick<SiteSurvey, "id" | "title" | "facilityName" | "facilityLocation" | "description">, areas: ReadonlyArray<Pick<SiteSurveyArea, "areaType" | "zoneName">>): HeroContext {
+  return {
+    areaTypes: areas.flatMap((a) => [a.areaType, a.zoneName]),
+    text: [survey.facilityName, survey.title, survey.description].filter(Boolean).join(" "),
+    seed: survey.id,
+  };
 }
 
 function photoTags(analysis: unknown): string[] {
@@ -259,7 +295,7 @@ export function sortAreas(areas: SiteSurveyArea[]): SiteSurveyArea[] {
 export async function loadSurveyBundle(
   env: Env,
   surveyId: string,
-  opts: { withPhotoBytes?: boolean; withProductImages?: boolean; maxPhotos?: number } = {},
+  opts: { withPhotoBytes?: boolean; withProductImages?: boolean; maxPhotos?: number; withReferenceHero?: boolean } = {},
 ): Promise<SurveyBundle | null> {
   const db = getDb(env.DATABASE_URL);
   const storage = createStorage(db);
@@ -277,7 +313,10 @@ export async function loadSurveyBundle(
   const names = new Set<string>();
   for (const a of areas) for (const n of areaRecommendedProductNames(a)) names.add(n);
   const products = await loadProductsByName(env, storage, names, { withImages: opts.withProductImages });
-  return { survey, areas: sortAreas(areas), photos, owner: personFromUser(ownerRow), products };
+  const sorted = sortAreas(areas);
+  const referenceHero =
+    opts.withReferenceHero && !photos.some((p) => p.bytes) ? await pickHeroImage(env, surveyHeroContext(survey, sorted)) : null;
+  return { survey, areas: sorted, photos, owner: personFromUser(ownerRow), products, referenceHero };
 }
 
 // ─── Order ─────────────────────────────────────────────────────────────────
@@ -334,6 +373,43 @@ export interface OrderBundle {
   products: Map<string, ProductInfo>;
   layoutDrawing: LayoutDrawingInfo | null;
   appOrigin: string;
+  /**
+   * A real A-SAFE case-study photograph for the proposal cover when the
+   * linked survey has no usable photo. Null when a site photo exists, when
+   * images were not requested, or when the catalogue has none.
+   */
+  referenceHero?: HeroPick | null;
+}
+
+/** Industry signals an order carries: the customer's industry, the project text and the zone names. */
+export function orderHeroContext(
+  order: Pick<Order, "id" | "customerCompany" | "projectName" | "projectLocation" | "projectDescription" | "applicationAreas">,
+  project: Pick<Project, "name" | "description" | "location"> | null,
+  customerIndustry: string | null,
+  survey: SurveyBundle | null,
+): HeroContext {
+  const areas = Array.isArray(order.applicationAreas) ? (order.applicationAreas as Array<Record<string, unknown>>) : [];
+  const zoneNames = areas.map((a) => (typeof a.operatingZone === "string" ? a.operatingZone : typeof a.areaType === "string" ? a.areaType : ""));
+  return {
+    industry: customerIndustry,
+    areaTypes: [...zoneNames, ...(survey?.areas.flatMap((a) => [a.areaType, a.zoneName]) ?? [])],
+    text: [order.customerCompany, order.projectName, order.projectLocation, order.projectDescription, project?.name, project?.description, project?.location, survey?.survey.facilityName]
+      .filter(Boolean)
+      .join(" "),
+    seed: order.id,
+  };
+}
+
+/** `customer_companies.industry` for a project, when it has a linked customer. */
+async function loadCustomerIndustry(db: ReturnType<typeof getDb>, project: Project | null): Promise<string | null> {
+  if (!project?.customerCompanyId) return null;
+  const rows = await db
+    .select({ industry: customerCompanies.industry })
+    .from(customerCompanies)
+    .where(eq(customerCompanies.id, project.customerCompanyId))
+    .limit(1)
+    .catch(() => []);
+  return rows[0]?.industry ?? null;
 }
 
 export function orderItems(order: { items?: unknown }): OrderItemRow[] {
@@ -414,11 +490,14 @@ export async function loadOrderBundle(
   ]);
   const surveyId = opts.surveyId || (await findSurveyIdForOrder(storage, order));
   const withImages = opts.withImages !== false;
-  const [survey, products, layoutDrawing] = await Promise.all([
+  const [survey, products, layoutDrawing, customerIndustry] = await Promise.all([
     surveyId ? loadSurveyBundle(env, surveyId, { withPhotoBytes: withImages, withProductImages: false, maxPhotos: 12 }) : Promise.resolve(null),
     loadProductsByName(env, storage, items.map((it) => it.productName), { withImages }),
     loadLayoutDrawing(env, db, order.layoutDrawingId, project).catch(() => null),
+    loadCustomerIndustry(db, project),
   ]);
+  const referenceHero =
+    withImages && !survey?.photos.some((p) => p.bytes) ? await pickHeroImage(env, orderHeroContext(order, project, customerIndustry, survey)) : null;
   return {
     order,
     items,
@@ -428,6 +507,7 @@ export async function loadOrderBundle(
     products,
     layoutDrawing,
     appOrigin: opts.appOrigin || env.APP_URL || "",
+    referenceHero,
   };
 }
 

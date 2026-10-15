@@ -166,6 +166,54 @@
   color: var(--doc-white);
 }
 
+/* ─── Reference photograph strip ───────────────────────────────────────── */
+/* A real A-SAFE case-study photo under the band: 3 px yellow rule above
+   (the same rule the PDF covers carry), full-bleed image, caption in a
+   grey8 strip, left-aligned. Rendered only when /api/brand/hero answers. */
+.doc-hero {
+  margin: 0;
+  border-top: 3px solid var(--doc-yellow);
+  background: var(--doc-black);
+}
+.doc-hero__img {
+  display: block;
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  object-position: center;
+}
+.doc-hero__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 40px;
+  background: var(--doc-grey8);
+  color: var(--doc-grey60);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: left;
+}
+.doc-hero__label {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--doc-grey90);
+}
+@media (max-width: 640px) {
+  .doc-hero__img {
+    height: 132px;
+  }
+  .doc-hero__caption {
+    padding: 8px 16px;
+  }
+}
+@media print {
+  .doc-hero__img {
+    height: 150px;
+  }
+}
+
 /* ─── Document control strip ───────────────────────────────────────────── */
 .doc-control {
   display: grid;

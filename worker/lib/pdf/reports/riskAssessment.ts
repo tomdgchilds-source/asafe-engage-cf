@@ -82,6 +82,7 @@ import {
   type TableCellValue,
 } from "../blocks";
 import { embedImage } from "../images";
+import { referenceCaption, type HeroPick } from "../heroes";
 import { C, TYPE, RISK_LABELS, TIMESCALES, type Timescale, type Tone } from "../theme";
 import { verdictLabel, verdictTone } from "./pas13Statement";
 import { drawScopeOfSupply, type ProposalModel, type ProposalLine, type RenderMeta } from "./proposal";
@@ -114,6 +115,8 @@ export interface RegisterPayload {
 export interface RiskAssessmentExtras {
   /** Return-visit comparison when the survey has a previous visit with a snapshot. */
   comparison?: CompareResponse | null;
+  /** Real A-SAFE case-study photo for the cover when the survey has no usable photo of its own. */
+  referenceHero?: HeroPick | null;
 }
 
 // ─── Model ─────────────────────────────────────────────────────────────────
@@ -226,6 +229,8 @@ export interface RiskAssessmentModel {
   investment: { totalAed: number; pricedZones: number };
   topActions: string[];
   heroImage: Uint8Array | null;
+  /** Set when `heroImage` is an A-SAFE reference installation rather than the client's site. */
+  heroCaption: string | null;
   /** Every photo in figure order (zone photos first), for Appendix C. */
   photoIndex: RaPhoto[];
   /** Unique recommended products, first-use order, for Appendix D. */
@@ -448,7 +453,10 @@ export function buildRiskAssessmentModel(bundle: SurveyBundle, register: Registe
   for (const l of Object.keys(byLevel) as RiskLevel[]) byLevel[l] = Number(s?.byLevel?.[l] ?? 0) || 0;
   const overall = (s?.overallRiskLevel ?? null) as RiskLevel | null;
 
-  const heroImage = zones.find((z) => z.photos[0]?.bytes)?.photos[0]?.bytes ?? bundle.photos.find((p) => p.bytes)?.bytes ?? null;
+  const sitePhoto = zones.find((z) => z.photos[0]?.bytes)?.photos[0]?.bytes ?? bundle.photos.find((p) => p.bytes)?.bytes ?? null;
+  const referenceHero = sitePhoto ? null : extras.referenceHero ?? bundle.referenceHero ?? null;
+  const heroImage = sitePhoto ?? referenceHero?.bytes ?? null;
+  const heroCaption = referenceHero ? referenceCaption(referenceHero) : null;
 
   const photoIndex: RaPhoto[] = zones.flatMap((z) => z.photos);
   bundle.photos
@@ -490,6 +498,7 @@ export function buildRiskAssessmentModel(bundle: SurveyBundle, register: Registe
     investment,
     topActions,
     heroImage,
+    heroCaption,
     photoIndex,
     products,
     comparison,
@@ -598,6 +607,7 @@ async function drawCoverFor(doc: Doc, model: RiskAssessmentModel, meta: RenderMe
   const ref = meta.status === "ISSUED" ? `${meta.reference}  ·  Rev ${meta.revision}` : DRAFT_REFERENCE;
   await coverPage(doc, {
     heroImage: model.heroImage ?? undefined,
+    heroCaption: model.heroCaption ?? undefined,
     docTypeLine: DOCUMENT_KINDS.RA,
     title: model.title,
     subtitle: model.inProgress
@@ -1115,6 +1125,7 @@ export function investmentProposalModel(model: RiskAssessmentModel, meta: Render
     serviceCare: null,
     products: model.products,
     heroImage: null,
+    heroCaption: null,
     drawing: null,
     approvals: [],
     isQuoteDraft: false,
@@ -1238,7 +1249,15 @@ function drawAppendixB(w: Writer, model: RiskAssessmentModel): void {
 
 async function drawAppendixC(w: Writer, model: RiskAssessmentModel): Promise<void> {
   w.section("Appendix C  Photo index");
-  w.small(`${model.photoIndex.length} ${model.photoIndex.length === 1 ? "photograph" : "photographs"} in figure order. Full-size images are held on the A-SAFE Engage survey record.`);
+  // Only photographs that can be reproduced are laid out; a missing or
+  // unsupported file is reported in words, never as a grey placeholder tile.
+  const shown = model.photoIndex.filter((p) => p.bytes);
+  const unavailable = model.photoIndex.length - shown.length;
+  w.small(
+    `${shown.length} ${shown.length === 1 ? "photograph" : "photographs"} in figure order. Full-size images are held on the A-SAFE Engage survey record.${
+      unavailable > 0 ? ` ${unavailable} further ${unavailable === 1 ? "photograph" : "photographs"} on file could not be reproduced in this format.` : ""
+    }`,
+  );
   const cols = 4;
   const rowsPerPage = 6;
   const gutter = mm(3);
@@ -1247,39 +1266,40 @@ async function drawAppendixC(w: Writer, model: RiskAssessmentModel): Promise<voi
   const captionH = TYPE.small.lead * 3 + mm(1);
   const imgH = mm(30);
   const cellH = imgH + captionH + mm(3);
+  // Embed first so a file pdf-lib cannot read (WebP / HEIC) is skipped
+  // rather than leaving a blank tile in the grid.
+  const tiles: Array<{ p: RaPhoto; embedded: NonNullable<Awaited<ReturnType<typeof embedImage>>> }> = [];
+  for (const p of shown) {
+    const embedded = p.bytes ? await embedImage(w.doc, p.bytes) : null;
+    if (embedded) tiles.push({ p, embedded });
+  }
   let i = 0;
-  for (const p of model.photoIndex) {
+  for (const { p, embedded } of tiles) {
     const col = i % cols;
     if (col === 0) {
       w.page = ensureSpace(w.doc, w.page, cellH);
     }
     const x = w.page.margin.l + col * (cellW + gutter);
     const top = w.page.cursorY;
-    const embedded = p.bytes ? await embedImage(w.doc, p.bytes) : null;
-    if (embedded) {
-      const ratio = embedded.width / embedded.height;
-      let dw = cellW;
-      let dh = dw / ratio;
-      if (dh > imgH) {
-        dh = imgH;
-        dw = dh * ratio;
-      }
-      w.page.page.drawImage(embedded.image, { x: x + (cellW - dw) / 2, y: top - imgH + (imgH - dh) / 2, width: dw, height: dh });
-    } else {
-      w.page.page.drawRectangle({ x, y: top - imgH, width: cellW, height: imgH, color: C.grey8 });
-      drawText(w.page, "NO IMAGE", { x, y: top - imgH / 2 + TYPE.label.lead / 2, size: TYPE.label.size, font: w.doc.fonts.regular, color: C.grey60, maxWidth: cellW, align: "center", lineHeight: TYPE.label.lead, tracking: TYPE.label.tracking });
+    const ratio = embedded.width / embedded.height;
+    let dw = cellW;
+    let dh = dw / ratio;
+    if (dh > imgH) {
+      dh = imgH;
+      dw = dh * ratio;
     }
+    w.page.page.drawImage(embedded.image, { x: x + (cellW - dw) / 2, y: top - imgH + (imgH - dh) / 2, width: dw, height: dh });
     w.page.page.drawRectangle({ x, y: top - imgH, width: cellW, height: imgH, borderColor: C.grey20, borderWidth: 0.5 });
     drawText(w.page, p.figure, { x, y: top - imgH - mm(1), size: TYPE.small.size, font: w.doc.fonts.bold, color: C.black, lineHeight: TYPE.small.lead, maxWidth: cellW, noWrap: true });
     const capLines = wrap(w.doc.fonts.regular, TYPE.small.size, p.caption, cellW).slice(0, 2);
     capLines.forEach((line, li) => {
       drawText(w.page, line, { x, y: top - imgH - mm(1) - TYPE.small.lead * (li + 1), size: TYPE.small.size, font: w.doc.fonts.regular, color: C.grey60, lineHeight: TYPE.small.lead });
     });
-    if (col === cols - 1 || i === model.photoIndex.length - 1) w.page.cursorY = top - cellH;
+    if (col === cols - 1 || i === tiles.length - 1) w.page.cursorY = top - cellH;
     i++;
-    if (i % (cols * rowsPerPage) === 0 && i < model.photoIndex.length) w.newPage();
+    if (i % (cols * rowsPerPage) === 0 && i < tiles.length) w.newPage();
   }
-  if (!model.photoIndex.length) w.body("No photographs are on file for this survey.");
+  if (!tiles.length) w.body(model.photoIndex.length ? "The photographs on file for this survey could not be reproduced in this format; they remain on the A-SAFE Engage survey record." : "No photographs are on file for this survey.");
 }
 
 function drawAppendixD(w: Writer, model: RiskAssessmentModel): void {
@@ -1360,7 +1380,7 @@ export interface RiskAssessmentInputs {
 /** Everything the model needs, from the database. Null when the survey does not exist. */
 export async function loadRiskAssessmentInputs(env: Env, surveyId: string): Promise<RiskAssessmentInputs | null> {
   await ensurePas13ClassesLoaded(env).catch(() => undefined);
-  const bundle = await loadSurveyBundle(env, surveyId, { withPhotoBytes: true, withProductImages: true, maxPhotos: 80 });
+  const bundle = await loadSurveyBundle(env, surveyId, { withPhotoBytes: true, withProductImages: true, maxPhotos: 80, withReferenceHero: true });
   if (!bundle) return null;
   const db = getDb(env.DATABASE_URL);
   const storage = createStorage(db);
@@ -1408,7 +1428,7 @@ export interface RenderedRiskAssessment {
 export async function renderRiskAssessment(env: Env, surveyId: string, opts: RenderRiskAssessmentOptions): Promise<RenderedRiskAssessment | null> {
   const inputs = await loadRiskAssessmentInputs(env, surveyId);
   if (!inputs) return null;
-  const model = buildRiskAssessmentModel(inputs.bundle, inputs.register, { comparison: inputs.comparison });
+  const model = buildRiskAssessmentModel(inputs.bundle, inputs.register, { comparison: inputs.comparison, referenceHero: inputs.bundle.referenceHero ?? null });
   const kind: DocumentKind = "RA";
   const issuedOn = new Date();
   const subject = { surveyId };

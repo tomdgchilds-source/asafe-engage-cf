@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
+import DocHeroStrip from "@/components/document/DocHeroStrip";
 import {
   Dialog,
   DialogContent,
@@ -290,6 +291,9 @@ export default function ApprovalLanding() {
             {stamp}
           </span>
         </header>
+
+        {/* Real A-SAFE reference installation, matched to the customer */}
+        {info && <DocHeroStrip text={client ?? undefined} seed={orderLabel ?? undefined} />}
 
         {/* Document control */}
         {info && (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
+import DocHeroStrip from "@/components/document/DocHeroStrip";
 import { Download, Mail, Printer, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import "@/styles/document.css";
@@ -368,6 +369,12 @@ export default function SharedOrderView() {
             {stamp}
           </span>
         </header>
+
+        {/* Real A-SAFE reference installation, matched to the customer */}
+        <DocHeroStrip
+          text={[order.customerCompany, order.projectName, order.projectLocation, order.projectDescription].filter(Boolean).join(" ")}
+          seed={order.orderNumber}
+        />
 
         {/* Document control */}
         <div className="doc-control" data-testid="document-control">

@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { PDFDocument, PDFArray, PDFRawStream, PDFName, type PDFRef } from "pdf-lib";
 import type { Env } from "../../../types";
 import { decodeBase64 } from "../assets";
-import { SAMPLE_PHOTO_JPEG_B64 } from "../samplePhoto";
+import { SAMPLE_PHOTO_JPEG_B64 } from "../__fixtures__/samplePhoto";
 import { renderInstallationVerification, STANDARD_CHECKLIST, checkLabel, checkTone, type VerificationInput } from "./installationVerification";
 
 const OUT = "/private/tmp/claude-501/-Users-thomaschilds/2d881f7c-dcfa-4f66-ba00-cbde0bc3613f/scratchpad/installation-verification.pdf";

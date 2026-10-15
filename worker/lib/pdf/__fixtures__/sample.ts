@@ -1,5 +1,5 @@
 // ────────────────────────────────────────────────────────────────────────────
-// worker/lib/pdf/sample.ts
+// worker/lib/pdf/__fixtures__/sample.ts
 //
 // Showcase document: exercises every block in blocks.ts with realistic
 // A-SAFE content (a fictional Dubai warehouse risk register) so the look can
@@ -7,8 +7,8 @@
 // output to the scratchpad for eyeballing.
 // ────────────────────────────────────────────────────────────────────────────
 
-import { createDoc, addPage, finalize, mm } from "./doc";
-import { heading, body, small, label, bullets } from "./text";
+import { createDoc, addPage, finalize, mm } from "../doc";
+import { heading, body, small, label, bullets } from "../text";
 import {
   coverPage,
   sectionDivider,
@@ -23,8 +23,8 @@ import {
   calloutBox,
   signOffBlock,
   hierarchyOfControls,
-} from "./blocks";
-import { decodeBase64 } from "./assets";
+} from "../blocks";
+import { decodeBase64 } from "../assets";
 import { SAMPLE_PHOTO_JPEG_B64 } from "./samplePhoto";
 
 export async function renderSample(): Promise<Uint8Array> {

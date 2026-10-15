@@ -1,8 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { renderSample } from "./sample";
+import { renderSample } from "./__fixtures__/sample";
+
+/** Every .ts / .tsx file under `dir` that is not a test or a fixture. */
+function productionSources(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === "dist" || name === "__fixtures__" || name.startsWith(".")) continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...productionSources(full));
+    else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(full);
+  }
+  return out;
+}
+
+describe("synthetic imagery stays out of the production bundle", () => {
+  it("no worker, shared or client module imports the pdf fixtures", () => {
+    const root = join(import.meta.dirname, "..", "..", "..");
+    const offenders: string[] = [];
+    for (const base of ["worker", "shared", "client/src"]) {
+      for (const file of productionSources(join(root, base))) {
+        const src = readFileSync(file, "utf8");
+        // Import or re-export of a fixture module, or use of the synthetic photo constant.
+        if (/(?:from|import)\s*\(?\s*["'][^"']*(?:__fixtures__|samplePhoto)|SAMPLE_PHOTO_JPEG_B64/.test(src)) offenders.push(relative(root, file));
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
 
 const OUT =
   process.env.PDF_SAMPLE_OUT ??

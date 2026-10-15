@@ -38,7 +38,8 @@ import { pas13Cite, PAS13_PDF_URL, type Pas13Citation } from "../../../../shared
 import { C, TYPE, type Tone } from "../theme";
 import { createDoc, addPage, finalize, mm, type Doc, type Page } from "../doc";
 import { heading, body, small, bullets, drawText } from "../text";
-import { documentControl, kpiTiles, table, chipRow, calloutBox, signOffBlock, letterTab, type TableCellValue } from "../blocks";
+import { coverPage, documentControl, kpiTiles, table, chipRow, calloutBox, signOffBlock, letterTab, type TableCellValue } from "../blocks";
+import { referenceCaption, type HeroPick } from "../heroes";
 
 // ─── Types (kept compatible with the previous renderer) ────────────────────
 
@@ -81,6 +82,12 @@ export interface Pas13StatementInput extends AlignmentReportInput {
   status?: "DRAFT" | "ISSUED";
   preparedBy?: string;
   preparedByTitle?: string;
+  /**
+   * Real A-SAFE case-study photograph. When present the statement opens on a
+   * photographic cover captioned as a reference installation; when null the
+   * letter page is page 1 as before.
+   */
+  hero?: HeroPick | null;
 }
 
 export interface AlignmentReportOutput {
@@ -118,6 +125,26 @@ export async function renderPas13Statement(input: Pas13StatementInput): Promise<
     docType: "PAS 13 Alignment Statement",
     status,
   });
+
+  // Optional photographic cover: only ever a real A-SAFE reference
+  // installation, captioned so it cannot be read as the client's site.
+  if (input.hero) {
+    const client = [input.customerCompany, input.customerName].filter(Boolean).join(" — ") || "—";
+    const site = [input.projectName, input.projectLocation].filter(Boolean).join(", ") || "—";
+    await coverPage(doc, {
+      heroImage: input.hero.bytes,
+      heroCaption: referenceCaption(input.hero),
+      docTypeLine: "PAS 13 Alignment Statement",
+      title: input.projectName || input.customerCompany || `Order ${input.orderNumber}`,
+      subtitle: `How each product on order ${input.orderNumber} aligns with ${PAS13_VERSION} for the vehicle context recorded against it`,
+      client,
+      site,
+      date: issuedOn,
+      preparedBy: input.preparedBy ? `${input.preparedBy}${input.preparedByTitle ? `, ${input.preparedByTitle}` : ""}, A-SAFE UAE` : "A-SAFE UAE estimation team",
+      reference: `${reference}  ·  Rev ${revision}`,
+      status,
+    });
+  }
 
   let page = addPage(doc);
   // Text primitives may break pages; always continue on doc.current.

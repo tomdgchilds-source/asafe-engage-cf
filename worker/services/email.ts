@@ -220,6 +220,15 @@ const EMAIL_COLOUR = {
 } as const;
 
 const EMAIL_FONT = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+
+/**
+ * Strapline logo at the brand's 60 mm width: 60 mm × 96 dpi / 25.4 = 227 px.
+ * The artwork is 2486 × 725, so the logo is 66 px tall and the "A" of the
+ * wordmark (≈ 54 % of the artwork height) ≈ 36 px; the clear zone is half of
+ * that, rounded up.
+ */
+const LOGO_WIDTH_PX = 227;
+const LOGO_CLEAR_PX = 18;
 /** Base paragraph style — append overrides after it. */
 const EMAIL_P_STYLE = `margin:0 0 12px 0;font-family:${EMAIL_FONT};font-size:14px;line-height:1.55;color:${EMAIL_COLOUR.black};text-align:left;`;
 const EMAIL_SMALL_STYLE = `margin:0;font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${EMAIL_COLOUR.grey60};text-align:left;`;
@@ -267,13 +276,17 @@ function renderEmailLayout(o: EmailLayoutOptions): string {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLOUR.grey20};padding:24px 0;">
     <tr><td align="center" style="padding:0 12px;">
       <table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width:${width}px;max-width:100%;background-color:${EMAIL_COLOUR.white};">
-        <!-- Header band -->
+        <!-- Header band: primary (yellow-on-black) strapline logo at the
+             brand's 60 mm width (227 px @ 96 dpi). Clear zone = half the
+             height of the "A" (the "A" is ~54 % of the artwork height, so
+             ~18 px at this size); the band padding keeps at least that on
+             every side and the right-hand cell is pushed clear too. -->
         <tr>
-          <td style="background-color:${EMAIL_COLOUR.black};padding:22px 28px;">
+          <td style="background-color:${EMAIL_COLOUR.black};padding:${LOGO_CLEAR_PX + 4}px 28px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td valign="middle" style="font-family:${EMAIL_FONT};">
-                  <img src="${escapeAttr(logoUrl)}" alt="A-SAFE" width="150" style="display:block;width:150px;max-width:150px;height:auto;border:0;font-family:${EMAIL_FONT};font-size:20px;font-weight:bold;color:${EMAIL_COLOUR.yellow};">
+                <td valign="middle" style="font-family:${EMAIL_FONT};padding-right:${LOGO_CLEAR_PX}px;">
+                  <img src="${escapeAttr(logoUrl)}" alt="A-SAFE" width="${LOGO_WIDTH_PX}" style="display:block;width:${LOGO_WIDTH_PX}px;max-width:100%;height:auto;border:0;font-family:${EMAIL_FONT};font-size:20px;font-weight:bold;color:${EMAIL_COLOUR.yellow};">
                 </td>
                 <td align="right" valign="middle" style="font-family:${EMAIL_FONT};font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:${EMAIL_COLOUR.grey40};text-align:right;">
                   ${escapeHtml(o.docType)}

@@ -8,9 +8,11 @@
 //              photo, product card, callout, sign-off, hierarchy of controls,
 //              section divider
 //   images.ts  fetchImageBytes (R2 / CDN / data URL) and embedImage (JPEG/PNG)
+//   heroes.ts  real A-SAFE case-study photography for covers and share pages
 //   assets.ts  embedded logo PNGs, vector halo motif, clipping helpers
 //
-// Report renderers live in ./reports/ and compose these.
+// Report renderers live in ./reports/ and compose these. Synthetic imagery
+// exists only under ./__fixtures__/ for tests and is never exported here.
 // ────────────────────────────────────────────────────────────────────────────
 
 export * from "./theme";
@@ -18,6 +20,7 @@ export * from "./doc";
 export * from "./text";
 export * from "./blocks";
 export * from "./images";
+export * from "./heroes";
 export {
   decodeBase64,
   brandAssetBytes,

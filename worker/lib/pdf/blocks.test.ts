@@ -19,7 +19,7 @@ import {
 } from "./blocks";
 import { embedImage, sniffImage } from "./images";
 import { brandAssetBytes } from "./assets";
-import { SAMPLE_PHOTO_JPEG_B64 } from "./samplePhoto";
+import { SAMPLE_PHOTO_JPEG_B64 } from "./__fixtures__/samplePhoto";
 import { decodeBase64 } from "./assets";
 
 const meta = {

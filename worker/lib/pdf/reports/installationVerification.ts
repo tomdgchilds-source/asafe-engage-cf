@@ -33,6 +33,7 @@ import {
   signOffBlock,
   type TableCellValue,
 } from "../blocks";
+import { referenceCaption, type HeroPick } from "../heroes";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ export interface VerificationInput {
   preparedBy?: string;
   preparedByTitle?: string;
   clientRepresentative?: string;
+  /** Real A-SAFE case-study photo for the cover when no as-installed photo is on file. */
+  referenceHero?: HeroPick | null;
 }
 
 /** The standard check items, in the order they print. */
@@ -137,9 +140,12 @@ export async function renderInstallationVerification(_env: Env, input: Verificat
   });
 
   // 1 · Cover
-  const hero = input.zones.find((z) => z.asInstalledPhoto)?.asInstalledPhoto ?? null;
+  const installedHero = input.zones.find((z) => z.asInstalledPhoto)?.asInstalledPhoto ?? null;
+  const referenceHero = installedHero ? null : input.referenceHero ?? null;
+  const hero = installedHero ?? referenceHero?.bytes ?? null;
   await coverPage(doc, {
     heroImage: hero ?? undefined,
+    heroCaption: referenceHero ? referenceCaption(referenceHero) : undefined,
     docTypeLine: "Installation Verification Report",
     title: inst.title,
     subtitle: "As-installed verification of A-SAFE impact protection against the proposal, with checklist, snag list and handover sign-off",

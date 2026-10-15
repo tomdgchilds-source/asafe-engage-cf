@@ -42,6 +42,8 @@ faqs.get("/faqs/documents/faq-sheet.pdf", async (c) => {
       categories: listParam(c.req.queries("category")),
       ids: listParam(c.req.queries("ids")),
       status: (c.req.query("status") || "").toLowerCase() === "draft" ? "DRAFT" : "ISSUED",
+      // Chooses the reference photograph (a real A-SAFE case-study site).
+      industry: c.req.query("industry") || null,
     });
     const disposition = c.req.query("download") === "1" ? "attachment" : "inline";
     return new Response(out.pdf, {

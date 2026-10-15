@@ -29,8 +29,10 @@ import { FAQS, FAQ_CATEGORIES, INTERNAL_FAQ_CATEGORIES, faqCategoryTitle, type F
 import { C, HALO_ON_BLACK, TYPE } from "../theme";
 import { createDoc, addPage, ensureSpace, contentWidth, finalize, mm, type Doc, type Page } from "../doc";
 import { heading, body, small, drawText, wrap } from "../text";
-import { calloutBox } from "../blocks";
-import { drawHalo, drawImageFit, embedBrandImage } from "../assets";
+import { calloutBox, photoCaptionStrip } from "../blocks";
+import { drawHalo, drawImageCover, drawImageFit, embedBrandImage } from "../assets";
+import { embedImage } from "../images";
+import { pickHeroImage, referenceCaption, type HeroPick } from "../heroes";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,14 @@ export interface FaqSheetOptions {
   issuedOn?: Date;
   /** DRAFT renders carry the watermark. Default ISSUED. */
   status?: "DRAFT" | "ISSUED";
+  /** Customer industry hint used to choose the reference photograph. */
+  industry?: string | null;
+  /**
+   * Real A-SAFE case-study photograph drawn as a strip under the header
+   * band, captioned as a reference installation. `renderFaqSheet` fills
+   * this from the catalogue; pass null to render without one.
+   */
+  hero?: HeroPick | null;
 }
 
 export interface FaqSheetOutput {
@@ -73,8 +83,11 @@ const UAE_OFFICE = {
 
 /** Load FAQs and render the sheet. Route handlers call this. */
 export async function renderFaqSheet(env: Env, opts: FaqSheetOptions = {}): Promise<FaqSheetOutput> {
-  const all = await loadFaqs(env);
-  return renderFaqSheetFromFaqs(all, opts);
+  const [all, hero] = await Promise.all([
+    loadFaqs(env),
+    opts.hero === undefined ? pickHeroImage(env, { industry: opts.industry ?? null, seed: "faq-sheet" }) : Promise.resolve(opts.hero),
+  ]);
+  return renderFaqSheetFromFaqs(all, { ...opts, hero });
 }
 
 /**
@@ -164,7 +177,7 @@ export async function renderFaqSheetFromFaqs(all: readonly FaqEntry[], opts: Faq
 
   // Page 1 carries the header band instead of the inner-page header.
   let page = addPage(doc, { header: false });
-  await headerBand(doc, page);
+  await headerBand(doc, page, opts.hero ?? null);
 
   // Text primitives may break pages; always continue on doc.current.
   const H = (level: 1 | 2 | 3, s: string) => {
@@ -241,10 +254,11 @@ export async function renderFaqSheetFromFaqs(all: readonly FaqEntry[], opts: Faq
  * left, document type line in yellow, title in white bold caps, a 90 % black
  * halo arc cropped to the right edge, and a 3 pt yellow rule underneath.
  */
-async function headerBand(doc: Doc, page: Page): Promise<void> {
+async function headerBand(doc: Doc, page: Page, hero: HeroPick | null): Promise<void> {
   const { width, height, margin } = page;
   const bandH = mm(52);
   const bandY = height - bandH;
+  const embeddedHero = hero ? await embedImage(doc, hero.bytes) : null;
   page.page.drawRectangle({ x: 0, y: bandY, width, height: bandH, color: C.black });
   page.page.drawRectangle({ x: 0, y: bandY - 3, width, height: 3, color: C.yellow });
   drawHalo(page.page, {
@@ -276,6 +290,25 @@ async function headerBand(doc: Doc, page: Page): Promise<void> {
   for (const line of wrap(doc.fonts.bold, TYPE.h1.size, FAQ_SHEET_TITLE.toUpperCase(), titleW)) {
     drawText(page, line, { x: margin.l, y, size: TYPE.h1.size, font: doc.fonts.bold, color: C.white, lineHeight: TYPE.h1.lead });
     y -= TYPE.h1.lead;
+  }
+
+  // Reference photograph strip under the yellow rule: a real A-SAFE
+  // installation with the yellow halo at low opacity and its caption.
+  if (embeddedHero && hero) {
+    const stripH = mm(48);
+    const rect = { x: 0, y: bandY - 3 - stripH, w: width, h: stripH };
+    drawImageCover(page.page, embeddedHero.image, rect);
+    drawHalo(page.page, {
+      cx: width * 0.1,
+      cy: rect.y + rect.h * 0.5,
+      r: width * 0.3,
+      color: C.yellow,
+      opacity: 0.26,
+      clip: rect,
+    });
+    photoCaptionStrip(page, rect, referenceCaption(hero));
+    page.cursorY = rect.y - mm(8);
+    return;
   }
   page.cursorY = bandY - 3 - mm(8);
 }
