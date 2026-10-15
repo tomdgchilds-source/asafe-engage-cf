@@ -795,9 +795,69 @@ export const cartItems = pgTable("cart_items", {
   //     notes?: string
   //   }
   accessories: jsonb("accessories"),
+  // ── Priced accessories + custom lines (migration 2026-10-15-009) ──
+  // Rep-authored line (POST /api/cart/custom): a client-specific product,
+  // accessory or service that is not on the price list.
+  isCustom: boolean("is_custom").default(false),
+  // product | accessory | service | other — only set when is_custom.
+  customCategory: varchar("custom_category"),
+  // price_list | rep_estimate | estimation_team. Anything other than
+  // price_list prints an INDICATIVE chip on documents.
+  pricingBasis: varchar("pricing_basis").default("price_list"),
+  // Priced accessory sub-lines. Shape: AccessoryLine[] from
+  // shared/cartAccessories.ts —
+  //   { code, label, unit: 'each'|'per_post'|'per_metre'|'per_pair',
+  //     quantity, unitPriceAed: number|null, priceToConfirm: boolean }
+  // Priced by shared/pricing/lines.ts as extra PricingLines
+  // (<itemId>:acc:<code>) so computeTotals is the only formula.
+  accessoryLines: jsonb("accessory_lines"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Accessory price list — the live source for the cart's accessory picker.
+// Seeded from shared/cartAccessories.ts ACCESSORY_CATALOGUE by migration
+// 2026-10-15-009; admins edit rows via PATCH /api/admin/accessory-prices/:code.
+export const accessoryPrices = pgTable("accessory_prices", {
+  code: varchar("code").primaryKey(),
+  label: varchar("label").notNull(),
+  // fixings | plates | dock | brackets | caps | extensions | spacers | other
+  group: varchar("group").notNull(),
+  // each | per_post | per_metre | per_pair
+  unit: varchar("unit").notNull().default("each"),
+  // AED per unit; NULL until the estimation team confirms a figure.
+  priceAed: decimal("price_aed", { precision: 12, scale: 2 }),
+  priceToConfirm: boolean("price_to_confirm").notNull().default(true),
+  // Product families the accessory fits (e.g. {iFlex}); NULL = any.
+  appliesToFamilies: text("applies_to_families").array(),
+  sku: varchar("sku"),
+  active: boolean("active").notNull().default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Per-rep library of custom line items so a client-specific product or
+// service only has to be typed once. Most-used first in the picker.
+export const customItemsLibrary = pgTable(
+  "custom_items_library",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").notNull().references(() => users.id),
+    productName: varchar("product_name").notNull(),
+    description: text("description"),
+    // product | accessory | service | other
+    customCategory: varchar("custom_category").notNull().default("other"),
+    // standard_item | linear_meter
+    pricingType: varchar("pricing_type").notNull().default("standard_item"),
+    unitPriceAed: decimal("unit_price_aed", { precision: 12, scale: 2 }).notNull(),
+    requiresDelivery: boolean("requires_delivery").notNull().default(false),
+    requiresInstallation: boolean("requires_installation").notNull().default(false),
+    // price_list | rep_estimate | estimation_team
+    pricingBasis: varchar("pricing_basis").notNull().default("rep_estimate"),
+    useCount: integer("use_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("custom_items_library_user_idx").on(table.userId)],
+);
 
 // Product Pricing table (for barriers with linear meter pricing)
 export const productPricing = pgTable("product_pricing", {
@@ -1993,6 +2053,10 @@ export type InsertQuoteRequestItem = z.infer<typeof insertQuoteRequestItemSchema
 export type QuoteRequestItem = typeof quoteRequestItems.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
 export type CartItem = typeof cartItems.$inferSelect;
+export type AccessoryPriceRow = typeof accessoryPrices.$inferSelect;
+export type InsertAccessoryPriceRow = typeof accessoryPrices.$inferInsert;
+export type CustomItemsLibraryRow = typeof customItemsLibrary.$inferSelect;
+export type InsertCustomItemsLibraryRow = typeof customItemsLibrary.$inferInsert;
 export type InsertProductPricing = z.infer<typeof insertProductPricingSchema>;
 export type ProductPricing = typeof productPricing.$inferSelect;
 export type InsertDiscountOption = z.infer<typeof insertDiscountOptionSchema>;

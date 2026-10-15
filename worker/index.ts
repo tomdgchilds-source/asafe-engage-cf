@@ -55,6 +55,8 @@ import migrations, { ensureMigrationsOnBoot } from "./routes/migrations";
 import surveyPhotos from "./routes/surveyPhotos";
 import documentsPas13 from "./routes/documentsPas13";
 import documentRegister from "./routes/documentRegister";
+import accessoryPricesRoute from "./routes/accessoryPrices";
+import customItems from "./routes/customItems";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -147,6 +149,8 @@ app.route("/api", migrations);
 app.route("/api", surveyPhotos);
 app.route("/api", documentsPas13);
 app.route("/api", documentRegister);
+app.route("/api", accessoryPricesRoute);
+app.route("/api", customItems);
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

@@ -21,6 +21,7 @@
 import { PDFDocument, PageSizes, type PDFEmbeddedPage } from "pdf-lib";
 import type { Env } from "../../../types";
 import { createDoc, addPage, finalize, mm, current, contentWidth, type Doc, type Page } from "../doc";
+import type { FontEnv } from "../fonts";
 import { heading, body, small, label, bullets, drawText } from "../text";
 import { coverPage, documentControl, table, kpiTiles, productCard, photo, calloutBox, signOffBlock, letterTab, type SignOffParty } from "../blocks";
 import { referenceCaption } from "../heroes";
@@ -34,6 +35,8 @@ import {
   type Complexity,
   type PricingResult,
 } from "../../../../shared/pricing";
+import { accessoryLineTotalAed, normaliseAccessoryLines } from "../../../../shared/pricing/accessories";
+import { ACCESSORY_UNIT_LABELS, type AccessoryUnit } from "../../../../shared/cartAccessories";
 import { DOCUMENT_KINDS, DRAFT_REFERENCE, documentFilename, type DocumentKind } from "../../../../shared/documents/refs";
 import {
   loadOrderBundle,
@@ -55,6 +58,18 @@ import {
 
 // ─── Model ─────────────────────────────────────────────────────────────────
 
+/** A priced accessory printed indented under its product line. */
+export interface ProposalAccessoryLine {
+  code: string;
+  label: string;
+  unit: AccessoryUnit;
+  quantity: number;
+  /** AED per unit; null = not yet priced (prints "TBC", excluded from totals). */
+  unitAed: number | null;
+  totalAed: number;
+  priceToConfirm: boolean;
+}
+
 export interface ProposalLine {
   id: string;
   productName: string;
@@ -68,9 +83,46 @@ export interface ProposalLine {
   lengthM: number | null;
   perMetre: boolean;
   unitAed: number;
+  /** The product line alone — accessories are summed separately. */
   totalAed: number;
   zone: string | null;
+  /**
+   * Rep-priced (custom line or non-price-list basis): prints the INDICATIVE
+   * chip. Optional so other renderers that assemble lines (risk assessment)
+   * need not set it; absent = false.
+   */
+  indicative?: boolean;
+  /** Priced accessory sub-lines; absent = none. */
+  accessories?: ProposalAccessoryLine[];
 }
+
+/** Product line + its priced accessories (unpriced accessories add 0). */
+export function lineGoodsAed(l: Pick<ProposalLine, "totalAed" | "accessories">): number {
+  return (l.accessories ?? []).reduce((sum, a) => sum + a.totalAed, l.totalAed);
+}
+
+/** True for a rep-priced line: `isCustom`, or any pricing basis other than the price list. */
+export function isIndicativeItem(it: Pick<OrderItemRow, "isCustom" | "pricingBasis">): boolean {
+  if (it.isCustom === true) return true;
+  const basis = String(it.pricingBasis ?? "").trim();
+  return basis !== "" && basis !== "price_list";
+}
+
+/** `cart_items.accessory_lines` → printable sub-lines, in stored order. */
+export function proposalAccessories(it: OrderItemRow): ProposalAccessoryLine[] {
+  return normaliseAccessoryLines(it.accessoryLines, it).map((a) => ({
+    code: a.code,
+    label: a.label,
+    unit: a.unit,
+    quantity: a.quantity,
+    unitAed: a.unitPriceAed,
+    totalAed: accessoryLineTotalAed(a),
+    priceToConfirm: a.priceToConfirm || a.unitPriceAed === null,
+  }));
+}
+
+export const INDICATIVE_FOOTNOTE = "Items marked indicative are priced by the A-SAFE representative and will be confirmed by the estimation team.";
+export const TBC_FOOTNOTE = "Items marked TBC are not yet priced and are excluded from the totals; the estimation team will confirm them before order.";
 
 export interface ProposalZoneRow {
   zone: string;
@@ -232,9 +284,15 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
   const products: ProductInfo[] = [];
   const seen = new Set<string>();
 
+  // `pricingLines[i]` is item i's own line; accessory sub-lines are appended
+  // after every parent (shared/pricing/lines.ts) so the index still holds.
   const lines: ProposalLine[] = bundle.items.map((it, i) => {
-    const product = bundle.products.get(it.productName) ?? unknownProduct(it.productName, it.category);
-    if (!seen.has(product.name)) {
+    const custom = it.isCustom === true;
+    const product = custom
+      ? unknownProduct(it.productName, it.customCategory ? `Custom ${it.customCategory}` : "Custom items")
+      : bundle.products.get(it.productName) ?? unknownProduct(it.productName, it.category);
+    // Custom lines are rep-authored, not catalogue products: no product card.
+    if (!custom && !seen.has(product.name)) {
       seen.add(product.name);
       products.push(product);
     }
@@ -253,6 +311,8 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
       unitAed: pl.unitPriceAed,
       totalAed: lineTotalAed(pl),
       zone: it.zoneName ?? it.areaName ?? it.applicationArea ?? null,
+      indicative: isIndicativeItem(it),
+      accessories: proposalAccessories(it),
     };
   });
 
@@ -274,7 +334,7 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
         : a.recommendedLengthM
           ? metres(Number(a.recommendedLengthM))
           : "";
-      const aed = matched.length ? matched.reduce((sum, l) => sum + l.totalAed, 0) : a.estimatedCost ? num(a.estimatedCost) : null;
+      const aed = matched.length ? matched.reduce((sum, l) => sum + lineGoodsAed(l), 0) : a.estimatedCost ? num(a.estimatedCost) : null;
       zones.push({ zone: a.zoneName || a.areaName, riskLevel: level, protection, quantityLine: qty, indicativeAed: aed });
     }
     surveyInfo = { title: s.survey.title, date: s.survey.surveyDate ?? null, zoneCount: s.areas.length, highestLevel: highest };
@@ -287,7 +347,7 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
         riskLevel: null,
         protection: Array.from(new Set(ls.map((l) => l.productName))).join(", "),
         quantityLine: ls.map((l) => (l.perMetre ? metres(l.lengthM ?? 0) : `${l.quantity} no.`)).join(" + "),
-        indicativeAed: ls.reduce((sum, l) => sum + l.totalAed, 0),
+        indicativeAed: ls.reduce((sum, l) => sum + lineGoodsAed(l), 0),
       });
     }
   }
@@ -416,6 +476,8 @@ export function quoteDraftToProposalModel(q: QuoteDraftLike): ProposalModel {
       unitAed: li.unitPriceAed,
       totalAed: li.extendedAed,
       zone: null,
+      indicative: false,
+      accessories: [],
     };
   });
   const verdictLevel = (v: string | null | undefined): RiskLevel | null => (v === "not_aligned" ? "high" : v === "borderline" ? "medium" : v === "aligned" ? "low" : null);
@@ -654,24 +716,52 @@ export function drawScopeOfSupply(doc: Doc, model: ProposalModel, opts: { newPag
     headerStyle: "black",
     zebra: true,
     columns: [
-      { key: "n", label: "#", width: mm(8), align: "right" },
+      // 11 mm so accessory sub-line numbers ("1.1") never wrap after the
+      // width scale-down (declared 184 mm against a 174 mm content width).
+      { key: "n", label: "#", width: mm(11), align: "right" },
       { key: "item", label: "Item", width: mm(44) },
-      { key: "desc", label: "Description", width: mm(46) },
+      { key: "desc", label: "Description", width: mm(43) },
       { key: "energy", label: "Tested energy", width: mm(22), align: "right" },
       { key: "qty", label: "Qty × length", width: mm(22), align: "right" },
       { key: "unit", label: `Unit ${cur}`, width: mm(20), align: "right" },
       { key: "total", label: `Total ${cur}`, width: mm(22), align: "right" },
     ],
-    rows: model.lines.map((l, i) => ({
-      n: i + 1,
-      item: { text: l.productName, bold: true },
-      desc: [l.sku ? `SKU ${l.sku}` : "", l.description].filter(Boolean).join(" · "),
-      energy: l.testedEnergyJ > 0 ? joules(l.testedEnergyJ) : "—",
-      qty: l.perMetre ? `${l.quantity} × ${metres(l.lengthM ?? 0)}` : `${l.quantity} no.`,
-      unit: l.unitAed > 0 ? strip(f(l.unitAed)) + (l.perMetre ? "/m" : "") : "POA",
-      total: l.totalAed > 0 ? strip(f(l.totalAed)) : "POA",
-    })),
+    rows: model.lines.flatMap((l, i) => [
+      {
+        n: i + 1,
+        item: { text: l.productName, bold: true },
+        desc: [l.sku ? `SKU ${l.sku}` : "", l.description].filter(Boolean).join(" · "),
+        // Custom lines have no tested energy; the column carries the chip instead.
+        energy: l.indicative ? { text: "Indicative", chip: "yellow" as const } : l.testedEnergyJ > 0 ? joules(l.testedEnergyJ) : "—",
+        qty: l.perMetre ? `${l.quantity} × ${metres(l.lengthM ?? 0)}` : `${l.quantity} no.`,
+        unit: l.unitAed > 0 ? strip(f(l.unitAed)) + (l.perMetre ? "/m" : "") : "POA",
+        total: l.totalAed > 0 ? strip(f(l.totalAed)) : "POA",
+      },
+      // Accessory sub-lines: numbered 1.1, 1.2 …, dash-prefixed, regular weight.
+      ...(l.accessories ?? []).map((a, j) => ({
+        n: `${i + 1}.${j + 1}`,
+        item: `– ${a.label}`,
+        desc: `Accessory · ${ACCESSORY_UNIT_LABELS[a.unit] ?? a.unit}`,
+        energy: "",
+        qty: `${a.quantity} ${a.unit === "per_pair" ? (a.quantity === 1 ? "pair" : "pairs") : a.unit === "per_metre" ? "m" : "no."}`,
+        unit: a.priceToConfirm || a.unitAed === null ? "TBC" : strip(f(a.unitAed)),
+        total: a.priceToConfirm || a.unitAed === null ? "TBC" : strip(f(a.totalAed)),
+      })),
+    ]),
   }));
+
+  // Footnotes for rep-priced lines and unpriced accessories.
+  const anyIndicative = model.lines.some((l) => l.indicative === true);
+  const anyTbc = model.lines.some((l) => (l.accessories ?? []).some((a) => a.priceToConfirm || a.unitAed === null));
+  if (anyIndicative) {
+    small(page, INDICATIVE_FOOTNOTE);
+    page = current(doc);
+  }
+  if (anyTbc) {
+    small(page, TBC_FOOTNOTE);
+    page = current(doc);
+  }
+  if (anyIndicative || anyTbc) page.cursorY -= mm(2);
 
   // Totals block, right-aligned key/value rows.
   const t = model.totals;
@@ -985,7 +1075,8 @@ export function drawAcceptance(doc: Doc, model: ProposalModel, opts: { newPage?:
 }
 
 /** ProposalModel → PDF bytes. */
-export async function renderProposalModel(model: ProposalModel, meta: RenderMeta): Promise<Uint8Array> {
+/** ProposalModel → PDF bytes. Pass `env` to embed the Inter brand font (Helvetica otherwise). */
+export async function renderProposalModel(model: ProposalModel, meta: RenderMeta, env?: FontEnv): Promise<Uint8Array> {
   const doc = await createDoc({
     title: DOCUMENT_KINDS.PR,
     reference: meta.status === "ISSUED" ? meta.reference : DRAFT_REFERENCE,
@@ -993,7 +1084,7 @@ export async function renderProposalModel(model: ProposalModel, meta: RenderMeta
     issuedOn: shortDate(meta.issuedOn),
     docType: DOCUMENT_KINDS.PR,
     status: meta.status,
-  });
+  }, env);
   await drawCover(doc, model, meta, "PR");
   await drawLetter(doc, model, meta);
   drawSolutionSummary(doc, model);
@@ -1033,7 +1124,7 @@ export async function renderProposal(env: Env, opts: RenderDocumentOptions): Pro
   const bundle = await loadOrderBundle(env, opts.orderId, { surveyId: opts.surveyId, appOrigin: opts.appOrigin });
   if (!bundle) return null;
   const model = buildProposalModel(bundle);
-  return renderFromModel(env, "PR", model, opts, (m, meta) => renderProposalModel(m, meta));
+  return renderFromModel(env, "PR", model, opts, (m, meta) => renderProposalModel(m, meta, env));
 }
 
 /** Shared issue flow for any order-backed document kind. */

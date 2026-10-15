@@ -5,6 +5,11 @@ import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { round2 } from "../../shared/pricing";
+import type { CartLikeItem } from "../../shared/pricing/lines";
+import { accessoryLinesTotalAed, defaultAccessoryQuantity } from "../../shared/pricing/accessories";
+import type { AccessoryLine, AccessoryPrice } from "../../shared/cartAccessories";
+import { loadAccessoryPriceList } from "./accessoryPrices";
+import { parseCustomItemFields, upsertCustomLibraryItem, type CustomItemFields } from "./customItems";
 
 const cart = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -341,6 +346,177 @@ cart.put("/cart/:id", authMiddleware, mutationRateLimit, async (c) => {
   } catch (error) {
     console.error("Error updating cart item:", error);
     return c.json({ message: "Failed to update cart item" }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Custom line items + priced accessories (2026-10-15)
+// ═══════════════════════════════════════════════════════════════════
+
+export interface CustomCartItemInput extends CustomItemFields {
+  quantity: number;
+  notes: string | null;
+  saveToLibrary: boolean;
+}
+
+/**
+ * Validate POST /api/cart/custom. Field rules live in
+ * `parseCustomItemFields` (shared with the library); this adds quantity,
+ * notes and the save-to-library flag.
+ */
+export function parseCustomCartItemBody(body: unknown): { ok: true; value: CustomCartItemInput } | { ok: false; message: string } {
+  const fields = parseCustomItemFields(body);
+  if (!fields.ok) return fields;
+  const b = body as Record<string, unknown>;
+  const qty = typeof b.quantity === "string" ? parseFloat(b.quantity) : (b.quantity as number);
+  if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0) {
+    return { ok: false, message: fields.value.pricingType === "linear_meter" ? "quantity (metres) must be greater than 0" : "quantity must be greater than 0" };
+  }
+  const notes = typeof b.notes === "string" && b.notes.trim() ? b.notes.trim().slice(0, 2000) : null;
+  return { ok: true, value: { ...fields.value, quantity: qty, notes, saveToLibrary: b.saveToLibrary === true } };
+}
+
+/** Label printed in the cart's "tier" slot for a custom line. */
+export function pricingBasisTier(basis: CustomItemFields["pricingBasis"]): string {
+  return basis === "estimation_team" ? "Estimation team price" : basis === "price_list" ? "Price list" : "Rep estimate";
+}
+
+/**
+ * The `cart_items` row for a custom line. `unitPrice` is the rep's figure
+ * (never re-priced from product_pricing — custom lines are not products),
+ * `totalPrice` = unit × quantity (metres for linear_meter).
+ */
+export function customCartItemRow(input: CustomCartItemInput, userId: string, projectId: string | null) {
+  return {
+    userId,
+    projectId,
+    productName: input.productName,
+    unitPrice: input.unitPrice,
+    quantity: input.quantity,
+    totalPrice: round2(input.unitPrice * input.quantity),
+    pricingTier: pricingBasisTier(input.pricingBasis),
+    pricingType: input.pricingType,
+    requiresDelivery: input.requiresDelivery,
+    requiresInstallation: input.requiresInstallation,
+    isCustom: true,
+    customCategory: input.customCategory,
+    pricingBasis: input.pricingBasis,
+    notes: [input.description, input.notes].filter(Boolean).join("\n") || null,
+    accessoryLines: null,
+  };
+}
+
+// POST /api/cart/custom - add a rep-authored line (client-specific product / accessory / service)
+cart.post("/cart/custom", authMiddleware, mutationRateLimit, async (c) => {
+  try {
+    const parsed = parseCustomCartItemBody(await c.req.json().catch(() => null));
+    if (!parsed.ok) return c.json({ message: parsed.message }, 400);
+
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const user = await storage.getUser(userId);
+    const projectId: string | null = (user as any)?.activeProjectId ?? null;
+
+    const newCartItem = await storage.addToCart(customCartItemRow(parsed.value, userId, projectId) as any);
+
+    let libraryItem = null;
+    if (parsed.value.saveToLibrary) {
+      try {
+        libraryItem = await upsertCustomLibraryItem(db, userId, parsed.value);
+      } catch (err) {
+        console.warn("[cart] custom item added but library save failed:", err instanceof Error ? err.message : err);
+      }
+    }
+
+    try {
+      c.executionCtx.waitUntil(
+        storage.logUserActivity({
+          userId,
+          activityType: "add_to_cart",
+          section: "cart",
+          details: { productName: parsed.value.productName, quantity: parsed.value.quantity, custom: true, pricingBasis: parsed.value.pricingBasis },
+        })
+      );
+    } catch {}
+
+    return c.json(libraryItem ? { ...newCartItem, libraryItem } : newCartItem);
+  } catch (error) {
+    console.error("Error adding custom cart item:", error);
+    return c.json({ message: "Failed to add custom item" }, 500);
+  }
+});
+
+/**
+ * Re-price posted accessory lines against the live price list. The client
+ * chooses codes and (optionally) quantities; label, unit, price and the
+ * to-confirm flag always come from the list so a stale or hand-edited
+ * price can never be stored. A missing / non-positive quantity defaults
+ * per unit (`per_post` → post count of the run, see
+ * shared/pricing/accessories.ts) and is stored on the line. Codes that are
+ * not in the list (or inactive) are reported, not stored. Duplicate codes
+ * collapse to the last occurrence.
+ */
+export function resolveAccessoryLines(
+  raw: unknown,
+  item: CartLikeItem,
+  priceList: ReadonlyMap<string, AccessoryPrice>,
+): { lines: AccessoryLine[]; unknownCodes: string[] } {
+  const entries = Array.isArray(raw) ? raw : [];
+  const byCode = new Map<string, AccessoryLine>();
+  const unknownCodes: string[] = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const code = typeof e.code === "string" ? e.code.trim() : "";
+    if (!code) continue;
+    const price = priceList.get(code);
+    if (!price || !price.active) {
+      unknownCodes.push(code);
+      continue;
+    }
+    const qtyRaw = typeof e.quantity === "string" ? parseFloat(e.quantity) : (e.quantity as number);
+    const quantity = typeof qtyRaw === "number" && Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : defaultAccessoryQuantity(price.unit, item);
+    byCode.set(code, {
+      code,
+      label: price.label,
+      unit: price.unit,
+      quantity,
+      unitPriceAed: price.priceAed,
+      priceToConfirm: price.priceAed === null ? true : price.priceToConfirm,
+    });
+  }
+  return { lines: [...byCode.values()], unknownCodes };
+}
+
+// PATCH /api/cart/:id/accessories - replace the priced accessory sub-lines on a cart item
+cart.patch("/cart/:id/accessories", authMiddleware, mutationRateLimit, async (c) => {
+  try {
+    const db = getDb(c.env.DATABASE_URL);
+    const storage = createStorage(db);
+    const userId = c.get("user").claims.sub;
+    const id = c.req.param("id");
+
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const rawLines = coerceJsonField(body?.accessoryLines);
+    if (!Array.isArray(rawLines)) {
+      return c.json({ message: "accessoryLines must be an array" }, 400);
+    }
+
+    const [item] = await storage.getUserCart(userId).then((rows) => rows.filter((r) => r.id === id));
+    if (!item) return c.json({ message: "Cart item not found" }, 404);
+
+    const { byCode } = await loadAccessoryPriceList(db);
+    const { lines, unknownCodes } = resolveAccessoryLines(rawLines, item as CartLikeItem, byCode);
+    if (unknownCodes.length) {
+      return c.json({ message: `Unknown accessory code(s): ${unknownCodes.join(", ")}`, unknownCodes }, 400);
+    }
+
+    const updated = await storage.updateCartItem(id, { accessoryLines: lines.length ? lines : null } as any);
+    return c.json({ ...updated, accessoryTotalAed: accessoryLinesTotalAed(lines) });
+  } catch (error) {
+    console.error("Error updating cart accessories:", error);
+    return c.json({ message: "Failed to update accessories" }, 500);
   }
 });
 

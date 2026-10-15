@@ -9,6 +9,7 @@
 
 import type { Env } from "../../../types";
 import { createDoc, addPage, finalize, current } from "../doc";
+import type { FontEnv } from "../fonts";
 import { heading, body } from "../text";
 import { documentControl } from "../blocks";
 import { DOCUMENT_KINDS, DRAFT_REFERENCE } from "../../../../shared/documents/refs";
@@ -25,8 +26,8 @@ import {
   type RenderedDocument,
 } from "./proposal";
 
-/** ProposalModel → order-form PDF bytes (document control + scope, terms, acceptance). */
-export async function renderOrderFormModel(model: ProposalModel, meta: RenderMeta): Promise<Uint8Array> {
+/** ProposalModel → order-form PDF bytes (document control + scope, terms, acceptance). `env` embeds the Inter brand font. */
+export async function renderOrderFormModel(model: ProposalModel, meta: RenderMeta, env?: FontEnv): Promise<Uint8Array> {
   const doc = await createDoc({
     title: DOCUMENT_KINDS.OF,
     reference: meta.status === "ISSUED" ? meta.reference : DRAFT_REFERENCE,
@@ -34,7 +35,7 @@ export async function renderOrderFormModel(model: ProposalModel, meta: RenderMet
     issuedOn: shortDate(meta.issuedOn),
     docType: DOCUMENT_KINDS.OF,
     status: meta.status,
-  });
+  }, env);
 
   let page = addPage(doc);
   heading(page, 1, `Order form — ${model.project.name}`);
@@ -69,5 +70,5 @@ export async function renderOrderForm(
   const bundle = await loadOrderBundle(env, orderId, { surveyId: opts.surveyId, appOrigin: opts.appOrigin, withImages: false });
   if (!bundle) return null;
   const model = buildProposalModel(bundle);
-  return renderFromModel(env, "OF", model, { ...opts, orderId }, (m, meta) => renderOrderFormModel(m, meta));
+  return renderFromModel(env, "OF", model, { ...opts, orderId }, (m, meta) => renderOrderFormModel(m, meta, env));
 }

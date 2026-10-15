@@ -24,9 +24,16 @@
  *   default false) so this only affects legacy snapshots.
  * - Every line is a product line (`isProduct: true`); service packages
  *   are added separately via `servicePackageAed`.
+ * - Accessory sub-lines (`accessoryLines` on a cart row — see
+ *   shared/pricing/accessories.ts) become extra per-unit `PricingLine`s
+ *   with id `<itemId>:acc:<code>`, priced at `quantity × unitPriceAed`
+ *   (null price → 0) and inheriting the parent's delivery / install flags.
+ *   They are appended AFTER every parent line so `lines[i]` still matches
+ *   `items[i]` for the first `items.length` entries.
  */
 import type { PricingLine } from "./computeTotals";
 import { round2 } from "./computeTotals";
+import { accessoryLineId, normaliseAccessoryLines } from "./accessories";
 
 /**
  * Tolerant view of a cart row / order item. Covers `cart_items`, the
@@ -45,6 +52,12 @@ export interface CartLikeItem {
   requiresInstallation?: boolean | null;
   /** Run length in metres. When > 0 the line is per-metre and this is its quantity. */
   lengthMeters?: string | number | null;
+  /** Priced accessories attached to the line (`AccessoryLine[]`, or a JSON string of one). */
+  accessoryLines?: unknown;
+  /** Rep-authored line (POST /api/cart/custom). Display only; priced like any other line. */
+  isCustom?: boolean | null;
+  /** 'price_list' | 'rep_estimate' | 'estimation_team'. Display only. */
+  pricingBasis?: string | null;
 }
 
 /** Numeric read of a stored money / quantity field; junk → 0. */
@@ -76,16 +89,45 @@ export function isPerMetreItem(item: CartLikeItem | null | undefined): boolean {
   return isPerMetreType(item.pricingType) || num(item.lengthMeters) > 0;
 }
 
-/** Cart rows / `orders.items` snapshot → `PricingLine[]` for computeTotals. */
+/** The PricingLine id a cart row gets: its own id, else `line-<index>`. */
+export function pricingLineId(item: CartLikeItem | null | undefined, index: number): string {
+  const id = item?.id;
+  return id === undefined || id === null || id === "" ? `line-${index}` : String(id);
+}
+
+/**
+ * Accessory sub-lines of one cart row as `PricingLine`s. Per-unit, id
+ * `<parentId>:acc:<code>`, parent's delivery / install flags, product
+ * lines (they sit inside the goods figure and the discount base).
+ */
+export function accessoryPricingLines(item: CartLikeItem | null | undefined, parentId: string): PricingLine[] {
+  const it: CartLikeItem = item ?? {};
+  return normaliseAccessoryLines(it.accessoryLines, it).map((acc) => ({
+    id: accessoryLineId(parentId, acc.code),
+    unitPriceAed: acc.unitPriceAed === null ? 0 : acc.unitPriceAed,
+    quantity: acc.quantity,
+    pricingType: "per-unit" as const,
+    includesDelivery: carries(it.requiresDelivery),
+    includesInstall: carries(it.requiresInstallation),
+    isProduct: true,
+  }));
+}
+
+/**
+ * Cart rows / `orders.items` snapshot → `PricingLine[]` for computeTotals.
+ * Parents first (index-aligned with `items`), then every accessory
+ * sub-line in item order.
+ */
 export function cartItemsToPricingLines(
   items: ReadonlyArray<CartLikeItem | null | undefined> | null | undefined,
 ): PricingLine[] {
-  return (items ?? []).map((item, i) => {
+  const rows = items ?? [];
+  const parents: PricingLine[] = rows.map((item, i) => {
     const it: CartLikeItem = item ?? {};
     const perMetre = isPerMetreItem(it);
     const metres = num(it.lengthMeters);
     return {
-      id: it.id === undefined || it.id === null || it.id === "" ? `line-${i}` : String(it.id),
+      id: pricingLineId(it, i),
       unitPriceAed: num(it.unitPrice),
       quantity: perMetre && metres > 0 ? metres : num(it.quantity),
       pricingType: perMetre ? "per-meter" : "per-unit",
@@ -94,6 +136,11 @@ export function cartItemsToPricingLines(
       isProduct: true,
     };
   });
+  const accessories: PricingLine[] = [];
+  rows.forEach((item, i) => {
+    accessories.push(...accessoryPricingLines(item, parents[i].id));
+  });
+  return [...parents, ...accessories];
 }
 
 /**

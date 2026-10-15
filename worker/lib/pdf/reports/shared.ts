@@ -343,6 +343,14 @@ export interface OrderItemRow {
   notes?: string | null;
   calculationContext?: Record<string, unknown> | null;
   selectedVariant?: Record<string, unknown> | null;
+  /** Priced accessory sub-lines (`AccessoryLine[]`, shared/cartAccessories.ts). */
+  accessoryLines?: unknown;
+  /** Rep-authored line (POST /api/cart/custom) — printed with an INDICATIVE chip. */
+  isCustom?: boolean | null;
+  /** product | accessory | service | other, when `isCustom`. */
+  customCategory?: string | null;
+  /** price_list | rep_estimate | estimation_team. Anything but price_list is indicative. */
+  pricingBasis?: string | null;
 }
 
 export interface LayoutDrawingInfo {

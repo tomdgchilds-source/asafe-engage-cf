@@ -141,3 +141,177 @@ export function labelForDockBuffer(v: DockBufferType | undefined): string {
   const opt = DOCK_BUFFER_OPTIONS.find((o) => o.value === v);
   return opt ? opt.label : String(v);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Priced accessory catalogue (2026-10-15)
+// ═══════════════════════════════════════════════════════════════════
+// Tom's request: accessories in the cart must carry indicative prices.
+// Every accessory a rep can attach to a cart line is one of these codes.
+// The DB table `accessory_prices` (migration 2026-10-15-009) is seeded
+// from this list and is the live source of prices; this constant is the
+// fallback when the table has not been migrated yet and the vocabulary
+// the client renders. Codes never change once shipped — they are stored
+// on cart_items.accessory_lines and inside orders.items snapshots.
+//
+// Prices come from scripts/data/pricelist-aed-2025v1.json where a real
+// SKU exists. Everything else is NULL + priceToConfirm until the
+// estimation team supplies a figure (admin PATCH /api/admin/accessory-prices/:code).
+
+export type AccessoryGroup =
+  | "fixings"
+  | "plates"
+  | "dock"
+  | "brackets"
+  | "caps"
+  | "extensions"
+  | "spacers"
+  | "other";
+
+/** How an accessory is counted. `per_post` defaults to the post count of a run. */
+export type AccessoryUnit = "each" | "per_post" | "per_metre" | "per_pair";
+
+export const ACCESSORY_GROUPS: AccessoryGroup[] = [
+  "fixings",
+  "plates",
+  "dock",
+  "brackets",
+  "caps",
+  "extensions",
+  "spacers",
+  "other",
+];
+
+export const ACCESSORY_UNITS: AccessoryUnit[] = ["each", "per_post", "per_metre", "per_pair"];
+
+export const ACCESSORY_GROUP_LABELS: Record<AccessoryGroup, string> = {
+  fixings: "Fixings",
+  plates: "Plates",
+  dock: "Dock buffers",
+  brackets: "Brackets",
+  caps: "Caps",
+  extensions: "Height extensions",
+  spacers: "Spacers",
+  other: "Other",
+};
+
+export const ACCESSORY_UNIT_LABELS: Record<AccessoryUnit, string> = {
+  each: "each",
+  per_post: "per post",
+  per_metre: "per metre",
+  per_pair: "per pair",
+};
+
+/** One row of the accessory price list (shape shared by the API and the seed). */
+export interface AccessoryPrice {
+  code: string;
+  label: string;
+  group: AccessoryGroup;
+  unit: AccessoryUnit;
+  /** AED per `unit`; null until the estimation team confirms. */
+  priceAed: number | null;
+  priceToConfirm: boolean;
+  /** Product families the accessory fits (e.g. ["iFlex"]); null = any. */
+  appliesToFamilies: string[] | null;
+  sku: string | null;
+  active: boolean;
+  updatedAt?: string | null;
+}
+
+/**
+ * A priced accessory attached to a cart line. Stored as
+ * cart_items.accessory_lines (jsonb array) and copied into orders.items.
+ * `quantity` is already resolved (per_post defaults filled in) so a
+ * snapshot prices the same forever.
+ */
+export interface AccessoryLine {
+  code: string;
+  label: string;
+  unit: AccessoryUnit;
+  quantity: number;
+  /** AED per unit at the time the line was priced; null = not yet priced. */
+  unitPriceAed: number | null;
+  priceToConfirm: boolean;
+}
+
+type CatalogueEntry = Omit<AccessoryPrice, "active" | "updatedAt" | "priceToConfirm"> & {
+  priceToConfirm?: boolean;
+};
+
+const priced = (
+  code: string,
+  label: string,
+  group: AccessoryGroup,
+  unit: AccessoryUnit,
+  priceAed: number,
+  sku: string,
+  appliesToFamilies: string[] | null = null,
+): CatalogueEntry => ({ code, label, group, unit, priceAed, sku, appliesToFamilies, priceToConfirm: false });
+
+const tbc = (
+  code: string,
+  label: string,
+  group: AccessoryGroup,
+  unit: AccessoryUnit,
+  appliesToFamilies: string[] | null = null,
+): CatalogueEntry => ({ code, label, group, unit, priceAed: null, sku: null, appliesToFamilies, priceToConfirm: true });
+
+/** Canonical accessory list. Order = display order in the picker. */
+export const ACCESSORY_CATALOGUE: ReadonlyArray<AccessoryPrice> = (
+  [
+    // Fixings — priced per post; no SKU on the 2025 price list.
+    tbc("fixing-zinc-plated", "Standard zinc-plated fixings", "fixings", "per_post"),
+    tbc("fixing-stainless-steel", "Stainless steel (SS) fixings", "fixings", "per_post"),
+    tbc("fixing-countersunk", "Countersunk fixings", "fixings", "per_post"),
+    tbc("fixing-chemical-anchor", "Chemical anchors", "fixings", "per_post"),
+    tbc("fixing-through-bolt", "Through-bolts", "fixings", "per_post"),
+    // Plates
+    tbc("weld-plate", "Weld plate", "plates", "per_post"),
+    priced("slider-plate-iflex-190", "iFlex 190 Post Slider Plate (230 × 230 mm)", "plates", "per_post", 513.0, "B-03-01-0021", ["iFlex"]),
+    priced("slider-plate-eflex", "eFlex Post Slider Plate (180 × 180 mm)", "plates", "per_post", 327.0, "B-03-01-0040", ["eFlex"]),
+    // Dock buffers
+    priced("dock-buffer-pair", "Dock Buffer (Pair)", "dock", "per_pair", 2287.08, "A-01-22-0002"),
+    tbc("dock-buffer-standard", "Dock buffer — standard", "dock", "each"),
+    tbc("dock-buffer-heavy-duty", "Dock buffer — heavy-duty", "dock", "each"),
+    // Brackets / caps / extensions
+    tbc("l-bracket", "L-bracket", "brackets", "each"),
+    tbc("bollard-cap", "Bollard cap", "caps", "each"),
+    tbc("height-extension", "Height extension", "extensions", "per_post"),
+    // FlexiShield column guard spacer sets (real SKUs)
+    priced("spacer-flexishield-100-black", "FlexiShield Column Guard Spacer set — 100 mm, Black", "spacers", "each", 612.96, "A-01-14-0051", ["FlexiShield"]),
+    priced("spacer-flexishield-100-yellow", "FlexiShield Column Guard Spacer set — 100 mm, Yellow", "spacers", "each", 834.48, "A-01-14-0052", ["FlexiShield"]),
+    priced("spacer-flexishield-150-black", "FlexiShield Column Guard Spacer set — 150 mm, Black", "spacers", "each", 640.92, "A-01-14-0053", ["FlexiShield"]),
+    priced("spacer-flexishield-150-yellow", "FlexiShield Column Guard Spacer set — 150 mm, Yellow", "spacers", "each", 873.84, "A-01-14-0054", ["FlexiShield"]),
+    priced("spacer-flexishield-300-black", "FlexiShield Column Guard Spacer set — 300 mm, Black", "spacers", "each", 701.88, "A-01-14-0055", ["FlexiShield"]),
+    priced("spacer-flexishield-300-yellow", "FlexiShield Column Guard Spacer set — 300 mm, Yellow", "spacers", "each", 959.52, "A-01-14-0056", ["FlexiShield"]),
+    // Escape hatch
+    tbc("other-accessory", "Other accessory (see notes)", "other", "each"),
+  ] as CatalogueEntry[]
+).map((e) => ({ ...e, priceToConfirm: e.priceToConfirm ?? e.priceAed === null, active: true }));
+
+/** Catalogue row for a code, or undefined when the code is not known. */
+export function accessoryCatalogueEntry(code: string | null | undefined): AccessoryPrice | undefined {
+  if (!code) return undefined;
+  return ACCESSORY_CATALOGUE.find((a) => a.code === code);
+}
+
+/**
+ * Bridge from the legacy dropdown vocabulary (`CartAccessories.fixings`,
+ * `dockBuffers.type`) to a priced accessory code, so the picker can
+ * pre-select the matching priced line. null = nothing to price.
+ */
+export const FIXINGS_ACCESSORY_CODE: Record<FixingsType, string | null> = {
+  "zinc-plated": "fixing-zinc-plated",
+  "stainless-steel": "fixing-stainless-steel",
+  countersunk: "fixing-countersunk",
+  chemical: "fixing-chemical-anchor",
+  "weld-plate": "weld-plate",
+  "through-bolt": "fixing-through-bolt",
+  other: "other-accessory",
+};
+
+export const DOCK_BUFFER_ACCESSORY_CODE: Record<DockBufferType, string | null> = {
+  none: null,
+  standard: "dock-buffer-standard",
+  "heavy-duty": "dock-buffer-heavy-duty",
+  custom: "other-accessory",
+};

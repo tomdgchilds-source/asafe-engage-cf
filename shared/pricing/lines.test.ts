@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   cartItemsToPricingLines,
+  accessoryPricingLines,
+  pricingLineId,
   isPerMetreType,
   isPerMetreItem,
   servicePackageAed,
@@ -150,6 +152,64 @@ describe("cartItemsToPricingLines", () => {
     expect(a.goodsAed).toBe(3000);
     expect(a.deliveryAed).toBe(round2(3000 * DELIVERY_RATE));
     expect(a.installAed).toBe(round2(1000 * INSTALL_RATES.normal));
+  });
+});
+
+describe("accessory sub-lines", () => {
+  const ss = { code: "fixing-stainless-steel", label: "SS fixings", unit: "per_post", quantity: 12, unitPriceAed: null, priceToConfirm: true };
+  const slider = { code: "slider-plate-iflex-190", label: "iFlex slider plate", unit: "per_post", quantity: 12, unitPriceAed: 513, priceToConfirm: false };
+  const run = { id: "r1", unitPrice: 410, quantity: 24, pricingType: "linear_meter", requiresDelivery: true, requiresInstallation: false, accessoryLines: [slider, ss] };
+  const bollard = { id: "b1", unitPrice: 320, quantity: 6, pricingType: "per_item", requiresDelivery: false, requiresInstallation: true, accessoryLines: [{ code: "bollard-cap", unit: "each", unitPriceAed: 40 }] };
+
+  it("appends one per-unit PricingLine per accessory after every parent, keeping parents index-aligned", () => {
+    const lines = cartItemsToPricingLines([run, bollard]);
+    expect(lines.map((l) => l.id)).toEqual(["r1", "b1", "r1:acc:slider-plate-iflex-190", "r1:acc:fixing-stainless-steel", "b1:acc:bollard-cap"]);
+    expect(lines[0].pricingType).toBe("per-meter");
+    expect(lines[2]).toEqual({ id: "r1:acc:slider-plate-iflex-190", unitPriceAed: 513, quantity: 12, pricingType: "per-unit", includesDelivery: true, includesInstall: false, isProduct: true });
+    expect(pricingLineId(run, 0)).toBe("r1");
+    expect(pricingLineId({}, 3)).toBe("line-3");
+  });
+
+  it("inherits the parent's delivery / install flags and defaults a missing quantity from the parent", () => {
+    const [cap] = accessoryPricingLines(bollard, "b1");
+    expect(cap.includesDelivery).toBe(false);
+    expect(cap.includesInstall).toBe(true);
+    expect(cap.quantity).toBe(6); // 'each' on a 6-unit line
+    expect(lineTotalAed(cap)).toBe(240);
+    const [plate] = accessoryPricingLines({ ...run, accessoryLines: [{ code: "weld-plate", unit: "per_post", unitPriceAed: 100 }] }, "r1");
+    expect(plate.quantity).toBe(12); // ceil(24 / 2.2) + 1 posts
+  });
+
+  it("prices an unpriced (TBC) accessory at 0 so totals exclude it, and still lists it", () => {
+    const lines = cartItemsToPricingLines([run]);
+    const tbc = lines.find((l) => l.id === "r1:acc:fixing-stainless-steel")!;
+    expect(tbc.unitPriceAed).toBe(0);
+    expect(lineTotalAed(tbc)).toBe(0);
+    const totals = computeTotals({ lines, complexity: "normal", reciprocalDiscountPercent: 0, partnerDiscountPercent: 0, socialDiscountPercent: 0 });
+    expect(totals.goodsAed).toBe(round2(24 * 410 + 12 * 513));
+    // Delivery follows the parent run (which carries delivery); install does not.
+    expect(totals.deliveryAed).toBe(round2((24 * 410 + 12 * 513) * DELIVERY_RATE));
+    expect(totals.installAed).toBe(0);
+  });
+
+  it("accessories count toward the discount base like any product line", () => {
+    const totals = computeTotals({ lines: cartItemsToPricingLines([bollard]), complexity: "simple", reciprocalDiscountPercent: 10, partnerDiscountPercent: 0, socialDiscountPercent: 0 });
+    expect(totals.goodsAed).toBe(6 * 320 + 240);
+    expect(totals.discountAed).toBe(round2((6 * 320 + 240) * 0.1));
+  });
+
+  it("accepts the jsonb column as a JSON string and ignores null / junk / empty arrays", () => {
+    expect(cartItemsToPricingLines([{ ...run, accessoryLines: JSON.stringify(run.accessoryLines) }])).toHaveLength(3);
+    expect(cartItemsToPricingLines([{ ...run, accessoryLines: null }])).toHaveLength(1);
+    expect(cartItemsToPricingLines([{ ...run, accessoryLines: "{bad" }])).toHaveLength(1);
+    expect(cartItemsToPricingLines([{ ...run, accessoryLines: [] }])).toHaveLength(1);
+    expect(cartItemsToPricingLines([{ ...run, accessoryLines: [{ label: "no code" }] }])).toHaveLength(1);
+  });
+
+  it("prices a cart row and its order snapshot identically when both carry accessory lines", () => {
+    const input = (items: any[]) => ({ lines: cartItemsToPricingLines(items), complexity: "normal" as const, reciprocalDiscountPercent: 5, partnerDiscountPercent: 0, socialDiscountPercent: 0 });
+    const snapshot = JSON.parse(JSON.stringify([run, bollard]));
+    expect(computeTotals(input([run, bollard]))).toEqual(computeTotals(input(snapshot)));
   });
 });
 

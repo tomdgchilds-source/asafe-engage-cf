@@ -1480,6 +1480,14 @@ orders.post("/orders/:id/restore-to-cart", authMiddleware, async (c) => {
         installationLocation: orderItem.installationLocation,
         calculatorImages: orderItem.calculatorImages,
         selectedVariant: orderItem.selectedVariant,
+        // Custom-line + priced-accessory fields (migration 2026-10-15-009).
+        // The snapshot carries them because orders.items spreads the cart
+        // row; restoring must carry them back or the line loses its
+        // accessories and its INDICATIVE marker.
+        isCustom: orderItem.isCustom === true,
+        customCategory: orderItem.customCategory ?? null,
+        pricingBasis: orderItem.pricingBasis ?? "price_list",
+        accessoryLines: Array.isArray(orderItem.accessoryLines) ? orderItem.accessoryLines : null,
       };
       await storage.addToCart(cartItem);
     }
