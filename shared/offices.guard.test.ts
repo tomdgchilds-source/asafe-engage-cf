@@ -11,7 +11,9 @@ import { join, relative, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const SCAN_DIRS = ["client/src", "worker", "shared", "scripts", "e2e", "migrations"];
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".css", ".html", ".md", ".json", ".sql"]);
-const SKIP_DIRS = new Set(["node_modules", "dist", ".wrangler", "assets", "brand"]);
+// e2e/qa holds gitignored throwaway QA specs that legitimately assert the
+// address text appears on the Contact page.
+const SKIP_DIRS = new Set(["node_modules", "dist", ".wrangler", "assets", "brand", "qa"]);
 const THIS_FILE = "shared/offices.guard.test.ts";
 
 function walk(dir: string, out: string[] = []): string[] {
