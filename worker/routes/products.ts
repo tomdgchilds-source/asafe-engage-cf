@@ -866,8 +866,12 @@ products.get("/products/:id", async (c) => {
 // SEARCH ROUTE
 // =============================================
 
-// GET /api/search
-products.get("/search", async (c) => {
+// GET /api/products/search — legacy product/resource/FAQ search.
+// Was registered as "/search", which shadowed the cross-entity
+// GET /api/search in routes/search.ts (products mounts first in
+// worker/index.ts): the header GlobalSearch received this envelope
+// (no `projects`/`customers` keys) and crashed the app on `.map`.
+products.get("/products/search", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
     const storage = createStorage(db);

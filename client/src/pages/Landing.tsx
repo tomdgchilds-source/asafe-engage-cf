@@ -393,7 +393,7 @@ export default function Landing() {
       </section>
 
       <Dialog open={loginOpen} onOpenChange={(open) => { setLoginOpen(open); if (!open) { setForgotMode(false); setForgotSent(false); setRegisterMode(false); } }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>{forgotMode ? "Reset Your Password" : registerMode ? "Create Your Account" : "Sign in to A-SAFE ENGAGE"}</DialogTitle>
           </DialogHeader>

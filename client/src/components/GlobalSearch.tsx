@@ -102,11 +102,12 @@ export function GlobalSearch() {
 
   // Flatten groups into a single ordered list for ↑/↓ navigation.
   const flatResults = useMemo<FlatResult[]>(() => {
+    // Defensive: never let an unexpected envelope take the whole app down.
     return [
-      ...searchResults.projects.map((item) => ({ bucket: "projects" as const, item })),
-      ...searchResults.customers.map((item) => ({ bucket: "customers" as const, item })),
-      ...searchResults.orders.map((item) => ({ bucket: "orders" as const, item })),
-      ...searchResults.products.map((item) => ({ bucket: "products" as const, item })),
+      ...(searchResults.projects ?? []).map((item) => ({ bucket: "projects" as const, item })),
+      ...(searchResults.customers ?? []).map((item) => ({ bucket: "customers" as const, item })),
+      ...(searchResults.orders ?? []).map((item) => ({ bucket: "orders" as const, item })),
+      ...(searchResults.products ?? []).map((item) => ({ bucket: "products" as const, item })),
     ];
   }, [searchResults]);
 

@@ -642,7 +642,7 @@ function ProjectDetailPane({
       {/* Header */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[16rem] flex-1">
             {editingName ? (
               <Input
                 value={nameDraft}
@@ -671,7 +671,7 @@ function ProjectDetailPane({
               <button
                 type="button"
                 onClick={() => setEditingName(true)}
-                className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2 hover:text-primary transition-colors group"
+                className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2 hover:text-primary transition-colors group text-left break-words"
                 data-testid="button-edit-project-name"
               >
                 {project.name}
@@ -847,7 +847,9 @@ function ProjectDetailPane({
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList>
+        {/* Five tabs overflow a 390 px viewport; let the strip scroll
+            sideways instead of clipping Documents / Activity. */}
+        <TabsList className="max-w-full overflow-x-auto justify-start [scrollbar-width:none]">
           <TabsTrigger value="overview" data-testid="tab-overview">
             Overview
           </TabsTrigger>

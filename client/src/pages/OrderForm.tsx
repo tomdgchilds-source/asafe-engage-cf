@@ -87,7 +87,8 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { useActiveProject } from "@/hooks/useActiveProject";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { ShareOrderModal } from "@/components/ShareOrderModal";
 
@@ -389,6 +390,7 @@ export function OrderForm() {
   // hook so the Cart and Site Survey pages hit the same cached response.
   const { activeProject: activeProjectRaw } = useActiveProject();
   const activeProject = activeProjectRaw as ActiveProject | null;
+  const { user: authUser } = useAuth();
 
   // Project contacts — fetched separately because the active-project payload
   // might be stale if a contact was just added inline via the Combobox's
@@ -1069,6 +1071,8 @@ export function OrderForm() {
   // the dropdown offers. 401 → null → owner-only transitions shown.
   const { data: adminSession } = useQuery<any>({
     queryKey: ["/api/admin/session"],
+    // Non-admins get 403 ("Not an admin") — expected, not an error.
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
     staleTime: 60 * 1000,
   });
@@ -1690,7 +1694,19 @@ export function OrderForm() {
     );
   }
 
-  const customer = orderData.isForUser ? orderData.user : {
+  // "For me" orders (the default since the Wave-1 auto-create) don't carry a
+  // `user` object on GET /api/orders/:id — reading `.company` off undefined
+  // crashed the whole page into the error boundary. Fall back to the signed-in
+  // rep + the active project's customer company.
+  const me = authUser as any;
+  const customer = orderData.isForUser ? (orderData.user ?? {
+    firstName: me?.firstName || '',
+    lastName: me?.lastName || '',
+    email: me?.email,
+    company: activeProject?.customerCompany?.name || me?.company,
+    phone: me?.phone,
+    jobTitle: me?.jobTitle,
+  }) : {
     firstName: orderData.customerName?.split(' ')[0] || '',
     lastName: orderData.customerName?.split(' ').slice(1).join(' ') || '',
     email: orderData.customerEmail,

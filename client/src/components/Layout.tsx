@@ -42,7 +42,7 @@ import {
   PenTool,
   Truck
 } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
@@ -272,7 +272,7 @@ export function Layout({ children }: LayoutProps) {
                         <Button
                           variant="ghost"
                           className="w-full justify-start text-foreground hover:bg-muted hover:text-primary h-auto py-2 px-3 text-left whitespace-normal transition-colors"
-                          data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
+                          data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
                           onClick={handleNavClick}
                         >
                           <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -297,7 +297,7 @@ export function Layout({ children }: LayoutProps) {
                             ? "bg-[#FFC72C] text-black hover:bg-[#FFB700] font-semibold"
                             : "text-foreground hover:bg-[#FFC72C]/10 hover:text-foreground"
                         )}
-                        data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
+                        data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
                         onClick={handleNavClick}
                       >
                         <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -306,7 +306,7 @@ export function Layout({ children }: LayoutProps) {
                           <Badge
                             variant="secondary"
                             className="ml-2 bg-red-500 text-white border-0 min-w-[1.2rem] h-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
-                            data-testid={`nav-badge-${item.name.toLowerCase().replace(' ', '-')}`}
+                            data-testid={`nav-badge-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
                           >
                             {badgeCount > 99 ? "99+" : badgeCount}
                           </Badge>
@@ -351,6 +351,11 @@ export function Layout({ children }: LayoutProps) {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[85vw] max-w-sm p-0 transition-transform duration-300 ease-out">
+                  {/* Radix requires an accessible title/description on every
+                      dialog; the visible "Navigation" heading below is a plain
+                      h2, so provide screen-reader-only ones here. */}
+                  <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+                  <SheetDescription className="sr-only">Main navigation links for A-SAFE Engage</SheetDescription>
                   <div className="flex flex-col h-full">
                     {/* Enhanced Mobile Header */}
                     <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
@@ -374,8 +379,15 @@ export function Layout({ children }: LayoutProps) {
                       </div>
                     </nav>
                     
-                    {/* Footer with Profile + Logout */}
+                    {/* Footer with Theme + Profile + Logout. The theme toggle
+                        moved here from the header: with a project active the
+                        390 px header (menu, logo, switcher, currency, recents,
+                        cart) pushed it off the right edge. */}
                     <div className="border-t border-border p-6 space-y-2">
+                      <div className="flex items-center justify-between px-1 pb-1">
+                        <span className="text-sm text-muted-foreground">Appearance</span>
+                        <ThemeToggle />
+                      </div>
                       <Button
                         asChild
                         variant="ghost"
@@ -467,9 +479,9 @@ export function Layout({ children }: LayoutProps) {
 
                 {/* Profile left the sidebar in the Sept 2026 regrouping;
                      the welcome name is now the way in. */}
-                <Link href="/profile" className="text-sm text-foreground font-medium hover:text-primary transition-colors flex items-center gap-1" data-testid="user-welcome">
+                <Link href="/profile" className="text-sm text-foreground font-medium hover:text-primary transition-colors flex items-center gap-1 min-w-0 max-w-[220px] truncate" data-testid="user-welcome">
                   <User className="h-4 w-4" />
-                  Welcome, {(user as any)?.name || (user as any)?.email?.split('@')[0] || 'User'}
+                  Welcome, {[(user as any)?.firstName, (user as any)?.lastName].filter(Boolean).join(' ') || (user as any)?.name || (user as any)?.email?.split('@')[0] || 'User'}
                 </Link>
 
                 {/* Recents — last 10 visited pages, per-browser localStorage. */}
@@ -503,10 +515,6 @@ export function Layout({ children }: LayoutProps) {
                 </Button>
               </div>
 
-              {/* Mobile Theme Toggle */}
-              <div className="md:hidden">
-                <ThemeToggle />
-              </div>
             </div>
           </div>
         </div>

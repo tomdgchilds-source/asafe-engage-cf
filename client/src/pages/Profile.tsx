@@ -538,7 +538,7 @@ export default function Profile() {
                               order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
-                              {order.status.charAt(0).toUpperCase() + order.status.slice(1).replace('_', ' ')}
+                              {order.status.replace(/_/g, ' ').replace(/^./, (c: string) => c.toUpperCase())}
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">

@@ -70,8 +70,10 @@ export const getQueryFn =
         credentials: "include",
       });
 
-      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      if (unauthorizedBehavior === "returnNull" && (res.status === 401 || res.status === 403)) {
         // Callers opting into returnNull type their data as `T | null`.
+        // 403 is "signed in but not permitted" (e.g. /api/admin/session for
+        // a rep) — the same "no session here" answer for these probes.
         return null as unknown as T;
       }
 

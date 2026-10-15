@@ -64,6 +64,26 @@ export async function applyServerPricing(
     return true; // nothing to price; storage-level validation handles the rest
   }
   const pricingResult = await storage.calculatePrice(cartItem.productName, quantity);
+  // Per-metre lines (QuoteBuilderPanel "Quote by total length", pricingType
+  // linear_meter) carry metres in `quantity`. When no product_pricing tier
+  // row exists, calculatePrice falls back to products.price — the price of
+  // ONE PIECE — and would bill 10 m of iFlex Double Traffic as 10 × the
+  // 1000 mm piece (AED 44,458 instead of AED 24,446). Use the catalogue's
+  // per-metre rate for that fallback so the server total matches the rate
+  // the modal quoted.
+  if (
+    cartItem.pricingType === "linear_meter" &&
+    (pricingResult.requiresQuote || pricingResult.tier === "Base Product Price")
+  ) {
+    const product = await storage.getProductByName(cartItem.productName);
+    const perMetre = parseFloat(String((product as any)?.basePricePerMeter ?? ""));
+    if (Number.isFinite(perMetre) && perMetre > 0) {
+      cartItem.unitPrice = round2(perMetre);
+      cartItem.totalPrice = round2(perMetre * quantity);
+      cartItem.pricingTier = cartItem.pricingTier || "Per metre";
+      return true;
+    }
+  }
   if (pricingResult.requiresQuote) {
     const clientUnitPrice = parseFloat(cartItem.unitPrice);
     if (!isNaN(clientUnitPrice) && clientUnitPrice > 0) {

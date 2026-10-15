@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText } from "lucide-react";
+import { FileText, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,17 @@ export function CreateOrderModal({
   linkedInDiscountAmount,
   linkedInDiscountData 
 }: CreateOrderModalProps) {
-  const [step, setStep] = useState<'selection' | 'customer-details'>('selection');
+  const [step, setStep] = useState<'selection' | 'customer-details' | 'pas13-blocked'>('selection');
+  // PAS 13 pre-flight: POST /api/orders answers 409 + { pas13Blockers } when a
+  // line is not aligned with the project's vehicle context. The server allows
+  // ?override=true&overrideReason=… (audit-logged), so surface the cited
+  // blockers and offer that override instead of a raw-JSON toast + a modal
+  // stuck on "Generating…".
+  type Pas13Blocker = { productName: string; summary: string };
+  const [pas13Blockers, setPas13Blockers] = useState<Pas13Blocker[]>([]);
+  const [pas13Warnings, setPas13Warnings] = useState<string[]>([]);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [isForUser, setIsForUser] = useState(true);
   const [customerDetails, setCustomerDetails] = useState({
     customerName: '',
@@ -67,6 +78,20 @@ export function CreateOrderModal({
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const { selectedCurrency } = useCurrency();
+
+  // Start clean every time the modal opens so a previous PAS 13 block or
+  // error doesn't leave the next attempt stuck on a stale step.
+  useEffect(() => {
+    if (!isOpen) {
+      setStep('selection');
+      setPas13Blockers([]);
+      setPas13Warnings([]);
+      setOverrideReason('');
+      setPendingOrderData(null);
+      createOrderMutation.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Check for revision info in session storage
   useEffect(() => {
@@ -99,8 +124,15 @@ export function CreateOrderModal({
   }, [isOpen, step, revisionInfo]);
 
   const createOrderMutation = useMutation({
-    mutationFn: async (orderData: any) => {
-      const response = await apiRequest("/api/orders", "POST", orderData);
+    mutationFn: async ({
+      orderData,
+      override,
+      overrideReason: reason,
+    }: { orderData: any; override?: boolean; overrideReason?: string }) => {
+      const qs = override
+        ? `?override=true&overrideReason=${encodeURIComponent(reason || "Rep override from order form")}`
+        : "";
+      const response = await apiRequest(`/api/orders${qs}`, "POST", orderData);
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -124,13 +156,35 @@ export function CreateOrderModal({
       onClose();
       resetForm();
     },
-    onError: (error: any) => {
+    onError: (error: any, variables) => {
       haptic.error();
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create order form",
-        variant: "destructive",
-      });
+      // 409 = PAS 13 pre-flight block. ApiError's message is "409: <json>".
+      if (error instanceof ApiError && error.status === 409) {
+        try {
+          const raw = String(error.message).replace(/^409:\s*/, "");
+          const parsed = JSON.parse(raw) as {
+            message?: string;
+            pas13Blockers?: Pas13Blocker[];
+            pas13Warnings?: string[];
+          };
+          setPas13Blockers(parsed.pas13Blockers ?? []);
+          setPas13Warnings(parsed.pas13Warnings ?? []);
+          setPendingOrderData(variables?.orderData ?? null);
+          setStep('pas13-blocked');
+          return;
+        } catch {
+          /* fall through to the generic toast */
+        }
+      }
+      let description = error?.message || "Failed to create order form";
+      // Never show raw JSON to the rep — pull the server's message out.
+      const m = /^\d{3}:\s*(\{[\s\S]*\})$/.exec(description);
+      if (m) {
+        try { description = JSON.parse(m[1]).message || description; } catch {}
+      }
+      toast({ title: "Couldn't create order form", description, variant: "destructive" });
+      // Leave the spinner step — give the rep a way back instead.
+      if (step === 'selection') setStep('customer-details');
     },
   });
 
@@ -167,7 +221,16 @@ export function CreateOrderModal({
       ...(!forUser && details)
     };
 
-    createOrderMutation.mutate(orderData);
+    createOrderMutation.mutate({ orderData });
+  };
+
+  const handleOverrideAndCreate = () => {
+    if (!pendingOrderData) return;
+    createOrderMutation.mutate({
+      orderData: pendingOrderData,
+      override: true,
+      overrideReason: overrideReason.trim() || undefined,
+    });
   };
 
   const handleCustomerSubmit = (e: React.FormEvent) => {
@@ -211,6 +274,8 @@ export function CreateOrderModal({
           <DialogDescription>
             {revisionInfo
               ? `Creating revision ${revisionInfo.revisionCount} of the original order`
+              : step === 'pas13-blocked'
+              ? 'One or more lines need a PAS 13 override'
               : step === 'selection'
                 ? 'Generating your order form…'
                 : 'Enter customer information for the order form'}
@@ -229,6 +294,63 @@ export function CreateOrderModal({
             <p className="text-sm text-muted-foreground">
               Generating order form for the active project…
             </p>
+          </div>
+        )}
+
+        {step === 'pas13-blocked' && (
+          <div className="space-y-4" data-testid="pas13-blocked-panel">
+            <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3">
+              <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-amber-900 dark:text-amber-200">
+                  PAS 13 pre-flight: {pas13Blockers.length} line{pas13Blockers.length === 1 ? "" : "s"} not aligned
+                </p>
+                <p className="text-amber-800 dark:text-amber-300 mt-1">
+                  Checked against this project's vehicle context. You can go back and change
+                  the products, or override with a reason — the override is recorded in the
+                  order's audit trail.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-2 max-h-48 overflow-y-auto text-sm" data-testid="pas13-blockers-list">
+              {pas13Blockers.map((b, i) => (
+                <li key={`${b.productName}-${i}`} className="rounded-md border border-border p-2" data-testid={`pas13-blocker-${i}`}>
+                  <div className="font-medium">{b.productName}</div>
+                  <div className="text-muted-foreground">{b.summary}</div>
+                </li>
+              ))}
+            </ul>
+            {pas13Warnings.length > pas13Blockers.length && (
+              <p className="text-xs text-muted-foreground">
+                {pas13Warnings.length - pas13Blockers.length} further note{pas13Warnings.length - pas13Blockers.length === 1 ? "" : "s"} will be attached to the order form.
+              </p>
+            )}
+            <div>
+              <Label htmlFor="pas13-override-reason">Override reason (recommended)</Label>
+              <Textarea
+                id="pas13-override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="e.g. Customer accepts bollard rating; forklift speed limited to 6 km/h in this aisle."
+                rows={3}
+                className="mt-1"
+                data-testid="textarea-pas13-override-reason"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1" data-testid="button-pas13-back">
+                Back to cart
+              </Button>
+              <Button
+                type="button"
+                onClick={handleOverrideAndCreate}
+                disabled={createOrderMutation.isPending}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-black"
+                data-testid="button-pas13-override"
+              >
+                {createOrderMutation.isPending ? "Creating…" : "Override and create order form"}
+              </Button>
+            </div>
           </div>
         )}
 

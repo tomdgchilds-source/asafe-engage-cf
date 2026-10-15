@@ -67,7 +67,10 @@ export function CartItemMobile({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div
+      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+      data-testid={`cart-item-${item.id}`}
+    >
       {/* Header with Image and Basic Info */}
       <div className="flex items-start p-4 gap-3">
         {/* Product Image */}

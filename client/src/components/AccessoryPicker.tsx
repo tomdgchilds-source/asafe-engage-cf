@@ -200,14 +200,6 @@ export function AccessoryPicker({
 
   const [lines, setLines] = useState<DraftAccessoryLine[]>(() => accessoryLines ?? []);
   const lastLinesRef = useRef<string>(JSON.stringify(accessoryLines ?? []));
-  useEffect(() => {
-    const incoming = JSON.stringify(accessoryLines ?? []);
-    if (incoming !== lastLinesRef.current) {
-      lastLinesRef.current = incoming;
-      setLines(accessoryLines ?? []);
-    }
-  }, [accessoryLines]);
-
   const linesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesMutation = useMutation({
     mutationFn: async (next: DraftAccessoryLine[]) => {
@@ -240,6 +232,18 @@ export function AccessoryPicker({
       if (linesDebounceRef.current) clearTimeout(linesDebounceRef.current);
     };
   }, []);
+
+  // Sync from the server copy — but never while an edit is still queued or
+  // in flight. Without this guard, toggling an accessory and then pressing
+  // "+" straight after lost the "+": the first PATCH's cart refetch arrived
+  // with quantity 6 and overwrote the local 7 before the second PATCH ran.
+  useEffect(() => {
+    const incoming = JSON.stringify(accessoryLines ?? []);
+    if (incoming === lastLinesRef.current) return;
+    if (linesDebounceRef.current || linesMutation.isPending) return;
+    lastLinesRef.current = incoming;
+    setLines(accessoryLines ?? []);
+  }, [accessoryLines, linesMutation.isPending]);
 
   const setLinesAndSave = (next: DraftAccessoryLine[]) => {
     setLines(next);
