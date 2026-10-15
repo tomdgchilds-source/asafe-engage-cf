@@ -94,6 +94,7 @@ export type RawVisionCaller = (req: RawVisionRequest) => Promise<RawVisionRespon
 // model table (Claude Haiku 4.5: $1.00 in / $5.00 out). OpenAI prices from
 // OpenAI's published gpt-4o-mini rate card ($0.15 in / $0.60 out).
 export const MODEL_PRICES_PER_MTOK: Record<string, { input: number; output: number }> = {
+  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
   "claude-haiku-4-5": { input: 1.0, output: 5.0 },
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
 };

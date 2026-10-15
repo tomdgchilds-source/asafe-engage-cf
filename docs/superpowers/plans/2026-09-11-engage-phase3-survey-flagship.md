@@ -8,7 +8,7 @@
 
 **Tech Stack:** Existing stack plus `pdf-lib` (Worker-side PDF with JPEG/PNG embedding), IndexedDB (via a 60-line wrapper, no library) for the offline upload queue, Anthropic Messages API via `fetch` (Claude Haiku 4.5, cheapest vision-capable Claude) with an OpenAI `gpt-4o-mini` fallback when `ANTHROPIC_API_KEY` is absent.
 
-**Model policy (Tom: "whichever is best, keep costs low"):** default `claude-haiku-4-5-20251001` for per-photo analysis; one call per photo, image downscaled to ≤ 1280 px before upload so each call is roughly 1,500 input tokens. Provider is selected at runtime by env presence, so nothing breaks if only the OpenAI key exists. Before writing any Anthropic call, the implementing agent MUST load the `claude-api` skill.
+**Model policy (Tom: "whichever is best, keep costs low"):** default `claude-haiku-5-5` ($0.10 in / $0.50 out per million tokens) for per-photo analysis; one call per photo, image downscaled to ≤ 1280 px before upload so each call is roughly 1,500 input tokens. Provider is selected at runtime by env presence, so nothing breaks if only the OpenAI key exists. Before writing any Anthropic call, the implementing agent MUST load the `claude-api` skill.
 
 **Rules for every task:** same as Phase 1 (owned files only, no commits, keep owned files `tsc`-clean, tests for pure logic, report file:line).
 

@@ -122,8 +122,14 @@ describe("prompt builder", () => {
 // ─── cost estimate ─────────────────────────────────────────
 
 describe("estimateCostUsd", () => {
-  it("prices Claude Haiku 4.5 at $1/$5 per MTok", () => {
-    expect(estimateCostUsd(ANTHROPIC_VISION_MODEL, 1_500, 300)).toBeCloseTo(0.003, 9);
+  it("prices Claude Haiku 5.5 at $0.10/$0.50 per MTok", () => {
+    // 1,500 input tokens (one downscaled photo + prompt) and 300 output tokens
+    // cost 0.00015 + 0.00015 = $0.0003 — roughly 3,300 photos per dollar.
+    expect(estimateCostUsd(ANTHROPIC_VISION_MODEL, 1_500, 300)).toBeCloseTo(0.0003, 9);
+  });
+  it("still prices the previous Haiku 4.5 id, dated or not", () => {
+    expect(estimateCostUsd("claude-haiku-4-5", 1_500, 300)).toBeCloseTo(0.003, 9);
+    expect(estimateCostUsd("claude-haiku-4-5-20251001", 1_500, 300)).toBeCloseTo(0.003, 9);
   });
   it("prices gpt-4o-mini at $0.15/$0.60 per MTok", () => {
     expect(estimateCostUsd(OPENAI_VISION_MODEL, 1_500, 300)).toBeCloseTo(0.000405, 9);
@@ -250,7 +256,7 @@ describe("anthropic provider", () => {
     });
     expect(obs.suggestedRiskLevel).toBe("high");
     expect(usage[0]).toMatchObject({ model: ANTHROPIC_VISION_MODEL, inputTokens: 1400, outputTokens: 250 });
-    expect(usage[0].costUsdEst).toBeCloseTo(0.0014 + 0.00125, 9);
+    expect(usage[0].costUsdEst).toBeCloseTo(0.00014 + 0.000125, 9);
   });
 
   it("surfaces non-OK responses with status so withRetry can classify them", async () => {

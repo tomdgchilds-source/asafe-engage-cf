@@ -718,12 +718,14 @@ export function drawInstallation(doc: Doc, model: ProposalModel): Page {
   let page = addPage(doc);
   heading(page, 1, "Installation and site requirements");
   page = current(doc);
-  const rate = INSTALL_RATES[model.complexity] * 100;
+  // The installation uplift percentage is an internal pricing rule and is
+  // never disclosed to the customer; the document names the complexity
+  // band and what it covers, and the scope of supply shows the amount.
   heading(page, 2, "Installation complexity");
   page = current(doc);
   body(
     page,
-    `Installation is priced at ${complexityLabel(model.complexity).toLowerCase()} complexity (${rate.toFixed(1)} % of goods carrying installation). ${
+    `Installation has been assessed as ${complexityLabel(model.complexity).toLowerCase()} complexity and is priced as a single installation line in the scope of supply. ${
       model.complexity === "simple"
         ? "Open floor, clear access, standard 150 mm concrete slab and no out-of-hours working."
         : model.complexity === "complex"

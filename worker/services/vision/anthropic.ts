@@ -16,7 +16,9 @@ import {
 } from "./common";
 
 /** Exact model id from the claude-api skill's model table (no date suffix). */
-export const ANTHROPIC_VISION_MODEL = "claude-haiku-4-5-20251001";
+// Claude Haiku 5.5: $0.10 / $0.50 per MTok — a 1280 px photo plus the JSON
+// answer costs well under a tenth of a US cent. Ids carry no date suffix.
+export const ANTHROPIC_VISION_MODEL = "claude-haiku-5-5";
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 // Structured JSON output is ~300-600 tokens; 2048 leaves generous headroom

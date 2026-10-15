@@ -50,7 +50,7 @@ import orderForm from "./routes/orderForm";
 import documents from "./routes/documents";
 import { scanOverdueInstallations } from "./scheduled/installationScanner";
 import { scanCommSuggestions } from "./scheduled/commSuggestionsScanner";
-import migrations from "./routes/migrations";
+import migrations, { ensureMigrationsOnBoot } from "./routes/migrations";
 import surveyPhotos from "./routes/surveyPhotos";
 import documentsPas13 from "./routes/documentsPas13";
 import documentRegister from "./routes/documentRegister";
@@ -75,6 +75,13 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:8787",
   "http://localhost:5173",
 ]);
+
+// Apply pending schema migrations once per isolate after a deploy (see
+// routes/migrations.ts). A single cheap KV read after the first run.
+app.use("/api/*", async (c, next) => {
+  await ensureMigrationsOnBoot(c.env);
+  await next();
+});
 
 app.use("/api/*", cors({
   origin: (origin) => {

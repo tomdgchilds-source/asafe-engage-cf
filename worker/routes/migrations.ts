@@ -160,6 +160,94 @@ async function loadStatus(
   });
 }
 
+/**
+ * Apply every pending migration in file order. Each file runs in its own
+ * transaction followed by the bookkeeping INSERT. Stops at the first failure
+ * and marks the rest as skipped.
+ */
+export async function applyPendingMigrations(
+  sql: Sql,
+  actor: string,
+  note: string,
+): Promise<{ failed: boolean; log: ApplyLogEntry[] }> {
+  const log: ApplyLogEntry[] = [];
+  const status = await loadStatus(sql);
+  const pending = status.filter((s) => s.status === "pending");
+  let failed = false;
+
+  for (const entry of pending) {
+    const file = MIGRATIONS.find((m) => m.id === entry.id)!;
+    const statements = splitSqlStatements(file.sql);
+    if (failed) {
+      log.push({ id: entry.id, status: "skipped", statements: statements.length, ms: 0 });
+      continue;
+    }
+    const started = Date.now();
+    try {
+      await sql.transaction((txn) => [
+        ...statements.map((st) => txn(st)),
+        txn`
+          INSERT INTO schema_migrations (id, applied_by, note)
+          VALUES (${entry.id}, ${actor}, ${note})
+          ON CONFLICT (id) DO NOTHING
+        `,
+      ]);
+      log.push({ id: entry.id, status: "applied", statements: statements.length, ms: Date.now() - started });
+    } catch (e: any) {
+      failed = true;
+      log.push({
+        id: entry.id,
+        status: "failed",
+        statements: statements.length,
+        ms: Date.now() - started,
+        error: e?.message || String(e),
+      });
+      console.error(`[migrations] ${entry.id} failed:`, e);
+    }
+  }
+  return { failed, log };
+}
+
+/**
+ * Deploy-time safety net: the first /api request each isolate serves after a
+ * deploy applies any pending migrations, so a promoted build never fails on
+ * columns that only exist in a migration file. A KV marker keyed by the set
+ * of bundled migration ids makes this a single cheap read after the first
+ * run; every statement is idempotent, so a rare double-run is harmless.
+ * The admin page remains the explicit, audited path.
+ */
+const BOOT_MARKER_PREFIX = "migrations:boot:";
+let bootCheck: Promise<void> | null = null;
+
+export function migrationsFingerprint(): string {
+  // djb2 over the ordered id list: stable across isolates, changes whenever
+  // a migration file is added.
+  let h = 5381;
+  for (const ch of MIGRATIONS.map((m) => m.id).join("|")) h = ((h << 5) + h + ch.charCodeAt(0)) >>> 0;
+  return `${MIGRATIONS.length}-${h.toString(36)}`;
+}
+
+export function ensureMigrationsOnBoot(env: Env): Promise<void> {
+  if (bootCheck) return bootCheck;
+  bootCheck = (async () => {
+    if (!env.DATABASE_URL) return;
+    const key = BOOT_MARKER_PREFIX + migrationsFingerprint();
+    try {
+      if (await env.KV_SESSIONS.get(key)) return;
+      const sql = neon(env.DATABASE_URL);
+      const { failed, log } = await applyPendingMigrations(sql, "deploy", "applied on boot");
+      const applied = log.filter((l) => l.status === "applied").length;
+      if (applied > 0 || failed) console.warn(`[migrations] boot check: applied=${applied} failed=${failed}`);
+      if (!failed) await env.KV_SESSIONS.put(key, new Date().toISOString(), { expirationTtl: 60 * 60 * 24 * 30 });
+    } catch (e) {
+      console.error("[migrations] boot check failed:", e);
+      // Allow a retry on the next request rather than pinning a failure.
+      bootCheck = null;
+    }
+  })();
+  return bootCheck;
+}
+
 migrations.get("/admin/migrations", authMiddleware, async (c) => {
   if (!(await requireAdmin(c))) {
     return c.json({ message: "Admin access required" }, 403);
@@ -202,46 +290,9 @@ migrations.post("/admin/migrations/apply", authMiddleware, async (c) => {
   const log: ApplyLogEntry[] = [];
   try {
     const sql = neon(c.env.DATABASE_URL);
-    const status = await loadStatus(sql);
-    const pending = status.filter((s) => s.status === "pending");
-    const actor = actorOf(c);
-    let failed = false;
-
-    for (const entry of pending) {
-      const file = MIGRATIONS.find((m) => m.id === entry.id)!;
-      const statements = splitSqlStatements(file.sql);
-      if (failed) {
-        log.push({ id: entry.id, status: "skipped", statements: statements.length, ms: 0 });
-        continue;
-      }
-      const started = Date.now();
-      try {
-        await sql.transaction((txn) => [
-          ...statements.map((s) => txn(s)),
-          txn`
-            INSERT INTO schema_migrations (id, applied_by, note)
-            VALUES (${entry.id}, ${actor}, 'applied via /admin/migrations')
-            ON CONFLICT (id) DO NOTHING
-          `,
-        ]);
-        log.push({
-          id: entry.id,
-          status: "applied",
-          statements: statements.length,
-          ms: Date.now() - started,
-        });
-      } catch (e: any) {
-        failed = true;
-        log.push({
-          id: entry.id,
-          status: "failed",
-          statements: statements.length,
-          ms: Date.now() - started,
-          error: e?.message || String(e),
-        });
-        console.error(`[migrations] ${entry.id} failed:`, e);
-      }
-    }
+    const result = await applyPendingMigrations(sql, actorOf(c), "applied via /admin/migrations");
+    const failed = result.failed;
+    log.push(...result.log);
 
     return c.json(
       {
