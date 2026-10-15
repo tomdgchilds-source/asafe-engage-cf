@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Engage Review</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -102,9 +103,9 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 <div class="eyebrow">A-SAFE Engage · full application review</div>
 <h1>Engage Review</h1>
 <div class="meta">
-  <div><b>Date</b>11 September 2026, updated 12 September</div>
+  <div><b>Date</b>11 September 2026, updated 15 October</div>
   <div><b>Codebase</b>asafe-engage-cf @ 6533fb0 (125 commits, 137k lines TS)</div>
-  <div><b>Live</b>asafe-engage.tom-d-g-childs.workers.dev, deployed 7 May 2026</div>
+  <div><b>Live</b>asafe-engage.tom-d-g-childs.workers.dev, deployed 15 October 2026</div>
   <div><b>Inputs</b>Code read, live browser pass (public pages), 5 May team feedback transcript</div>
 </div>
 
@@ -125,7 +126,7 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 
 
 <h2 id="built">Update 12 September: what was built</h2>
-<p class="lede">Everything in the plan below has been built, tested, and pushed to the main branch. It is on a Cloudflare preview version, not yet on production, because promotion and the database migrations need your admin login. The deploy sequence is at the end of this section.</p>
+<p class="lede">Everything in the plan below has been built, tested, and pushed to the main branch, and on 15 October it was promoted to production for team testing. Schema migrations now apply themselves on the first request after a deploy, so the manual admin step is no longer needed. Photo analysis runs on Claude Haiku 5.5 at roughly a thirtieth of a cent per photo once the API key secret is set.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Area</th><th>Delivered</th><th>Tests</th></tr></thead>
 <tbody>
@@ -137,14 +138,13 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 <tr><td>Engineering</td><td>Worker entry 6,109 → 896 lines; 47 one-off routes replaced by SQL migration files and an admin Migrations page; about 6,000 lines of dead code removed; CI runs typecheck, 525 tests, and build.</td><td class="num">525 total</td></tr>
 </tbody></table></div>
 
-<h3>Deploy sequence (needs your admin login)</h3>
+<h3>Deployed 15 October (version 7c2c431b)</h3>
+<p>Production is live on the new build. One secret remains for you to set so photo analysis uses Claude rather than the OpenAI fallback:</p>
 <ol>
-  <li>Set the vision key: <code>npx wrangler secret put ANTHROPIC_API_KEY</code>. Without it photo analysis falls back to gpt-4o-mini; with neither it marks photos "skipped".</li>
-  <li>Open the preview URL, sign in as admin, go to <code>/admin/migrations</code> and press Apply pending. Six migrations add the new columns and tables. Until they run, order, survey and drawing pages return 500 on the new build because the queries select the new columns.</li>
-  <li>Walk through: catalogue, a survey walk on a phone, review, register, Generate report, an order's Proposal and Order form PDFs, the layout editor, Projects → Documents.</li>
-  <li>Promote: <code>npx wrangler versions deploy a57a6ea8-df8e-46e4-acd7-c75b0d22ed67@100 --yes</code>.</li>
+  <li><code>cd ~/asafe-engage-cf &amp;&amp; npx wrangler secret put ANTHROPIC_API_KEY</code></li>
+  <li>Walk through with the team: catalogue, a survey walk on a phone, review, the register, Generate report, an order's Proposal and Order form PDFs, the layout editor, Projects → Documents.</li>
 </ol>
-<p class="small">Preview: <a href="https://a57a6ea8-asafe-engage.tom-d-g-childs.workers.dev">a57a6ea8-asafe-engage.tom-d-g-childs.workers.dev</a>. Production still runs the 7 May build.</p>
+<p class="small">Production: <a href="https://asafe-engage.tom-d-g-childs.workers.dev">asafe-engage.tom-d-g-childs.workers.dev</a>.</p>
 
 <h2 id="scorecard">Feature scorecard</h2>
 <p>Status from the user's side. "Works" means the team can rely on it today; "Partly" means it functions but with bugs or gaps they will hit; "Broken" means a core path fails; "Missing" means it exists in name only.</p>
@@ -412,3 +412,5 @@ figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 <p class="small">Method note: four parallel code-reading passes (survey, drawing, pricing, platform) plus a live browser pass over the public pages at desktop and phone widths, cross-referenced against the 5 May transcript. File and line references are to the current main branch.</p>
 </main>
 </div>
+
+</body></html>
