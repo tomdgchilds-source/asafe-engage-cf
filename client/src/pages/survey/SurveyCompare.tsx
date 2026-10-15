@@ -20,8 +20,10 @@ import {
   formatScoreChange,
   formatVisitDate,
   levelClass,
+  missingAfterCopy,
   netChangeTone,
   photoSrc,
+  summaryCells,
   type CompareResponse,
 } from "./compareView";
 
@@ -72,7 +74,15 @@ function DeltaBadge({ row }: { row: ZoneComparison }) {
   );
 }
 
-function HeroPhoto({ area, alt }: { area: ComparableArea | undefined; alt: string }) {
+function HeroPhoto({
+  area,
+  alt,
+  pending = false,
+}: {
+  area: ComparableArea | undefined;
+  alt: string;
+  pending?: boolean;
+}) {
   const key = area?.photoKeys?.[0];
   const src = key ? photoSrc(key) : "";
   return (
@@ -82,7 +92,7 @@ function HeroPhoto({ area, alt }: { area: ComparableArea | undefined; alt: strin
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-zinc-400">
           <ImageOff className="h-6 w-6" aria-hidden />
-          <span className="text-xs">{area ? "No photo" : "Not surveyed"}</span>
+          <span className="text-xs">{area ? "No photo" : pending ? "Not yet assessed" : "Not surveyed"}</span>
         </div>
       )}
     </div>
@@ -93,15 +103,18 @@ function VisitColumn({
   label,
   area,
   zone,
+  delta,
 }: {
   label: "Before" | "After";
   area: ComparableArea | undefined;
   zone: string;
+  delta: ZoneComparison["delta"];
 }) {
+  const pending = delta === "pending";
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
-      <HeroPhoto area={area} alt={`${zone} – ${label.toLowerCase()}`} />
+      <HeroPhoto area={area} alt={`${zone} – ${label.toLowerCase()}`} pending={label === "After" && pending} />
       {area ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -127,7 +140,9 @@ function VisitColumn({
           )}
         </>
       ) : (
-        <p className="text-sm text-zinc-400">{label === "Before" ? "Not present on the previous visit." : "Not surveyed on this visit."}</p>
+        <p className="text-sm text-zinc-400">
+          {label === "Before" ? "Not present on the previous visit." : missingAfterCopy(delta)}
+        </p>
       )}
     </div>
   );
@@ -144,8 +159,8 @@ function ZoneCard({ row }: { row: ZoneComparison }) {
         <DeltaBadge row={row} />
       </header>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <VisitColumn label="Before" area={row.before} zone={row.zone} />
-        <VisitColumn label="After" area={row.after} zone={row.zone} />
+        <VisitColumn label="Before" area={row.before} zone={row.zone} delta={row.delta} />
+        <VisitColumn label="After" area={row.after} zone={row.zone} delta={row.delta} />
       </div>
       {row.notes.length > 0 && (
         <ul className="mt-4 space-y-1 border-t border-zinc-100 pt-3 text-sm text-zinc-700">
@@ -160,20 +175,18 @@ function ZoneCard({ row }: { row: ZoneComparison }) {
 
 function SummaryStrip({ summary }: { summary: CompareResponse["summary"] }) {
   const tone = netChangeTone(summary.netScoreChange);
-  const cells: Array<{ label: string; value: number; className: string }> = [
-    { label: "Improved", value: summary.improved, className: "text-green-700" },
-    { label: "Same", value: summary.same, className: "text-zinc-700" },
-    { label: "Worse", value: summary.worse, className: "text-red-700" },
-    { label: "New", value: summary.new, className: "text-blue-700" },
-    { label: "Removed", value: summary.removed, className: "text-amber-700" },
-  ];
+  const cells = summaryCells(summary);
+  const pending = summary.pending ?? 0;
   return (
     <section
       aria-label="Comparison summary"
-      className="grid grid-cols-3 gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm sm:grid-cols-6"
+      className={cn(
+        "grid grid-cols-3 gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm",
+        cells.length > 5 ? "sm:grid-cols-7" : "sm:grid-cols-6",
+      )}
     >
       {cells.map((cell) => (
-        <div key={cell.label} className="text-center">
+        <div key={cell.key} className="text-center" data-testid={`summary-${cell.key}`}>
           <p className={cn("text-2xl font-bold tabular-nums", cell.className)}>{cell.value}</p>
           <p className="text-xs text-zinc-500">{cell.label}</p>
         </div>
@@ -190,6 +203,11 @@ function SummaryStrip({ summary }: { summary: CompareResponse["summary"] }) {
           {formatScoreChange(summary.netScoreChange)}
         </p>
         <p className="text-xs text-zinc-500">Net score change</p>
+        {pending > 0 && (
+          <p className="text-[11px] text-zinc-400">
+            Excludes {pending} zone{pending === 1 ? "" : "s"} not yet assessed
+          </p>
+        )}
       </div>
     </section>
   );

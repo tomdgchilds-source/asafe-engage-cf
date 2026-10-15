@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { formatScoreChange, formatVisitDate, levelClass, netChangeTone, photoSrc } from "./compareView";
+import {
+  DELTA_META,
+  formatScoreChange,
+  formatVisitDate,
+  levelClass,
+  missingAfterCopy,
+  netChangeTone,
+  photoSrc,
+  summaryCells,
+} from "./compareView";
 
 describe("photoSrc", () => {
   it("prefixes bare R2 keys with /api/objects/", () => {
@@ -37,5 +46,32 @@ describe("formatVisitDate / levelClass", () => {
     expect(levelClass("critical")).toContain("red");
     expect(levelClass("HIGH")).toContain("orange");
     expect(levelClass(undefined)).toContain("zinc");
+  });
+});
+
+describe("pending zones", () => {
+  const base = { improved: 2, same: 1, worse: 0, new: 1, removed: 0, pending: 0, netScoreChange: -9 };
+
+  it("renders the pending delta as a grey 'Not yet assessed' badge", () => {
+    expect(DELTA_META.pending.label).toBe("Not yet assessed");
+    expect(DELTA_META.pending.className).toContain("zinc");
+    expect(DELTA_META.pending.className).not.toContain("amber");
+  });
+
+  it("adds a 'Not yet assessed' cell to the summary strip only when something is pending", () => {
+    expect(summaryCells(base).map((c) => c.key)).toEqual(["improved", "same", "worse", "new", "removed"]);
+    const cells = summaryCells({ ...base, pending: 3 });
+    expect(cells.map((c) => c.key)).toEqual(["improved", "same", "worse", "new", "removed", "pending"]);
+    expect(cells[5]).toMatchObject({ label: "Not yet assessed", value: 3 });
+    expect(cells[5].className).toContain("zinc");
+  });
+
+  it("keeps a genuine improvement green while zones are still pending", () => {
+    expect(netChangeTone({ ...base, pending: 3 }.netScoreChange)).toBe("good");
+  });
+
+  it("explains an empty After column differently for pending vs removed zones", () => {
+    expect(missingAfterCopy("pending")).toBe("Not yet assessed on this visit.");
+    expect(missingAfterCopy("removed")).toBe("Not surveyed on this visit.");
   });
 });

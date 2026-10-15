@@ -592,9 +592,28 @@ layoutDrawings.get("/layout-drawings/:id/document", async (c) => {
   }
 });
 
+/**
+ * Body of GET /api/layout-drawings/:id/export. "Never exported" is a normal
+ * state, not an error, so it answers 200 with `exported: false` rather than
+ * a 404 the browser would log on every project-page load.
+ */
+export type ExportStatusResponse =
+  | ({ exported: true } & ExportStatus)
+  | { exported: false; objectKey: null; url: null; version: null; stale: false };
+
+export function exportStatusResponse(status: ExportStatus | null): ExportStatusResponse {
+  if (!status) {
+    return { exported: false, objectKey: null, url: null, version: null, stale: false };
+  }
+  return { exported: true, ...status };
+}
+
 // GET /api/layout-drawings/:id/export
-// Current stored export: { objectKey, url, version, stale } where `stale`
-// is exportVersion !== documentVersion. 404 when never exported.
+// Current stored export: { exported: true, objectKey, url, version, stale }
+// where `stale` is exportVersion !== documentVersion, or
+// { exported: false, objectKey: null, url: null, version: null, stale: false }
+// (still 200) when the drawing has never been exported. 404 only when the
+// drawing itself is missing or not owned by the caller.
 layoutDrawings.get("/layout-drawings/:id/export", async (c) => {
   try {
     const db = getDb(c.env.DATABASE_URL);
@@ -604,11 +623,7 @@ layoutDrawings.get("/layout-drawings/:id/export", async (c) => {
     if (!drawing || drawing.userId !== userId) {
       return c.json({ error: "Layout drawing not found" }, 404);
     }
-    const status = exportStatusFromDrawing(drawing);
-    if (!status) {
-      return c.json({ error: "Drawing has not been exported yet" }, 404);
-    }
-    return c.json(status);
+    return c.json(exportStatusResponse(exportStatusFromDrawing(drawing)));
   } catch (error) {
     console.error("Error fetching layout export status:", error);
     return c.json({ error: "Internal server error" }, 500);

@@ -2,10 +2,11 @@
  * Export status chip + actions for one layout drawing on the project
  * detail page (Phase 4 Task L5, client half).
  *
- * Reads GET /api/layout-drawings/:id/export (404 = never exported, which
- * we treat as data, not an error), shows "Export up to date" / "Export
- * stale" / "Not exported", and offers "Export sheet" (POST, then refetch)
- * plus an "Open sheet" link to the stored PDF when one exists.
+ * Reads GET /api/layout-drawings/:id/export (`exported: false` = never
+ * exported; a legacy 404 is treated the same way, as data not an error),
+ * shows "Export up to date" / "Export stale" / "Not exported", and offers
+ * "Export sheet" (POST, then refetch) plus an "Open sheet" link to the
+ * stored PDF when one exists.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import {
   exportButtonLabel,
   exportChip,
   exportSheetUrl,
+  isExported,
   type DrawingExportStatus as ExportStatus,
 } from "./drawingExport";
 
@@ -30,11 +32,14 @@ async function fetchExportStatus(drawingId: string): Promise<ExportStatus | null
   const res = await fetch(`/api/layout-drawings/${drawingId}/export`, {
     credentials: "include",
   });
+  // Older workers answered 404 for a never-exported drawing; keep mapping
+  // that to "not exported" rather than surfacing it as a failure.
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new ApiError(res.status, (await res.text()) || res.statusText);
   }
-  return (await res.json()) as ExportStatus;
+  const body = (await res.json()) as ExportStatus;
+  return isExported(body) ? body : null;
 }
 
 export function DrawingExportStatus({

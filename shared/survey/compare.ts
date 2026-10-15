@@ -14,6 +14,12 @@
  *   improved — score dropped by ≥ 2, or the level dropped a band
  *   worse    — score rose, or the level rose a band
  *   same     — otherwise
+ *   new      — zone only in the after snapshot
+ *   removed  — zone only in the before snapshot, and the current survey is
+ *              completed (the zone was genuinely not revisited)
+ *   pending  — zone only in the before snapshot while the current survey is
+ *              still in progress: it has not been assessed *yet*. Pending
+ *              rows carry scoreChange 0 and never move netScoreChange.
  *
  * Pure logic: no I/O, no imports from worker or client.
  */
@@ -35,7 +41,16 @@ export type ComparableArea = SnapshotArea & { installedProduct?: string };
 
 export type ComparableSnapshot = Omit<SurveySnapshot, "areas"> & { areas: ComparableArea[] };
 
-export type ZoneDelta = "improved" | "same" | "worse" | "new" | "removed";
+export type ZoneDelta = "improved" | "same" | "worse" | "new" | "removed" | "pending";
+
+export interface CompareOptions {
+  /**
+   * Whether the after (current) survey is completed. Defaults to true.
+   * When false, before-only zones are "pending" (not yet assessed) rather
+   * than "removed", since the walk may still reach them.
+   */
+  currentCompleted?: boolean;
+}
 
 export interface ZoneComparison {
   /** Display label: the after-visit zone name when present, else the before name. */
@@ -45,7 +60,8 @@ export interface ZoneComparison {
   delta: ZoneDelta;
   /**
    * after.score − before.score for paired zones; +after.score for new zones;
-   * −before.score for removed zones (the change in the site's registered risk).
+   * −before.score for removed zones (the change in the site's registered
+   * risk); 0 for pending zones, which have not been assessed yet.
    */
   scoreChange: number;
   /** Consultant-style sentences; the first always describes the score movement. */
@@ -58,7 +74,9 @@ export interface ComparisonSummary {
   worse: number;
   new: number;
   removed: number;
-  /** Sum of `scoreChange` across all rows. */
+  /** Before-only zones not yet assessed because the current survey is in progress. */
+  pending: number;
+  /** Sum of `scoreChange` across all rows; pending rows contribute nothing. */
   netScoreChange: number;
 }
 
@@ -278,6 +296,12 @@ function removedNotes(before: ComparableArea): string[] {
   ];
 }
 
+function pendingNotes(before: ComparableArea): string[] {
+  return [
+    `Not yet assessed on this visit; last recorded at ${before.riskLevel} level (score ${before.score}).`,
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -286,12 +310,15 @@ function removedNotes(before: ComparableArea): string[] {
  * Compare two snapshots zone by zone.
  *
  * Rows are ordered by the after-snapshot's `priorityRank` (most urgent
- * first), followed by removed zones in the before-snapshot's rank order.
+ * first), followed by removed / pending zones in the before-snapshot's
+ * rank order.
  */
 export function compareSnapshots(
   before: ComparableSnapshot,
   after: ComparableSnapshot,
+  options: CompareOptions = {},
 ): ZoneComparison[] {
+  const currentCompleted = options.currentCompleted ?? true;
   const pairs = pairAreas(labelAreas(before.areas), labelAreas(after.areas));
 
   const rows: ZoneComparison[] = pairs.map(({ before: b, after: a }) => {
@@ -315,13 +342,24 @@ export function compareSnapshots(
         notes: newNotes(a.area),
       };
     }
-    const removed = b as Labelled;
+    const beforeOnly = b as Labelled;
+    if (!currentCompleted) {
+      // The walk is still in progress: the zone has not been reached yet,
+      // so it is neither improved nor removed and must not move the net.
+      return {
+        zone: beforeOnly.label,
+        before: beforeOnly.area,
+        delta: "pending",
+        scoreChange: 0,
+        notes: pendingNotes(beforeOnly.area),
+      };
+    }
     return {
-      zone: removed.label,
-      before: removed.area,
+      zone: beforeOnly.label,
+      before: beforeOnly.area,
       delta: "removed",
-      scoreChange: -removed.area.score,
-      notes: removedNotes(removed.area),
+      scoreChange: -beforeOnly.area.score,
+      notes: removedNotes(beforeOnly.area),
     };
   });
 
@@ -335,7 +373,12 @@ export function compareSnapshots(
   return rows;
 }
 
-/** Counts per delta plus the net score change, for the report strip. */
+/**
+ * Counts per delta plus the net score change, for the report strip.
+ * Pending zones are counted but excluded from `netScoreChange`, so a
+ * part-walked return visit shows the genuine movement so far rather than
+ * a phantom improvement from zones simply not reached yet.
+ */
 export function summariseComparison(rows: readonly ZoneComparison[]): ComparisonSummary {
   const summary: ComparisonSummary = {
     improved: 0,
@@ -343,11 +386,12 @@ export function summariseComparison(rows: readonly ZoneComparison[]): Comparison
     worse: 0,
     new: 0,
     removed: 0,
+    pending: 0,
     netScoreChange: 0,
   };
   for (const row of rows) {
     summary[row.delta] += 1;
-    summary.netScoreChange += row.scoreChange;
+    if (row.delta !== "pending") summary.netScoreChange += row.scoreChange;
   }
   return summary;
 }

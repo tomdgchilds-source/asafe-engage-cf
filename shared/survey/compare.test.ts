@@ -250,6 +250,7 @@ describe("summariseComparison", () => {
       worse: 1,
       new: 1,
       removed: 1,
+      pending: 0,
       netScoreChange: -12 + 0 + 4 + 6 - 12,
     });
   });
@@ -261,7 +262,72 @@ describe("summariseComparison", () => {
       worse: 0,
       new: 0,
       removed: 0,
+      pending: 0,
       netScoreChange: 0,
     });
+  });
+
+  it("counts pending zones but keeps them out of the net score change", () => {
+    const rows = compareSnapshots(
+      snap("s1", [zone("A", 16, 1), zone("Not reached", 12, 2)]),
+      snap("s2", [zone("A", 4, 1)]),
+      { currentCompleted: false },
+    );
+    expect(summariseComparison(rows)).toEqual({
+      improved: 1,
+      same: 0,
+      worse: 0,
+      new: 0,
+      removed: 0,
+      pending: 1,
+      netScoreChange: -12,
+    });
+  });
+});
+
+describe("compareSnapshots while the current survey is in progress", () => {
+  it("marks before-only zones as pending with scoreChange 0 and a 'not yet assessed' note", () => {
+    const rows = compareSnapshots(
+      snap("s1", [zone("Dock", 16, 1), zone("Aisle", 12, 2)]),
+      snap("s2", [zone("Dock", 4, 1)]),
+      { currentCompleted: false },
+    );
+    const aisle = rows.find((r) => r.zone === "Aisle")!;
+    expect(aisle.delta).toBe("pending");
+    expect(aisle.after).toBeUndefined();
+    expect(aisle.scoreChange).toBe(0);
+    expect(aisle.notes).toEqual([
+      "Not yet assessed on this visit; last recorded at high level (score 12).",
+    ]);
+    // Paired zones are still classified normally.
+    expect(rows.find((r) => r.zone === "Dock")!.delta).toBe("improved");
+  });
+
+  it("defaults to completed, so before-only zones are removed unless told otherwise", () => {
+    const rows = compareSnapshots(
+      snap("s1", [zone("Gone", 12, 1)]),
+      snap("s2", []),
+    );
+    expect(rows[0].delta).toBe("removed");
+    expect(rows[0].scoreChange).toBe(-12);
+    const explicit = compareSnapshots(
+      snap("s1", [zone("Gone", 12, 1)]),
+      snap("s2", []),
+      { currentCompleted: true },
+    );
+    expect(explicit[0].delta).toBe("removed");
+  });
+
+  it("orders pending rows after assessed rows, by their previous priority rank", () => {
+    const rows = compareSnapshots(
+      snap("s1", [zone("P2", 9, 3), zone("Kept", 12, 2), zone("P1", 6, 1)]),
+      snap("s2", [zone("Kept", 4, 1)]),
+      { currentCompleted: false },
+    );
+    expect(rows.map((r) => [r.zone, r.delta])).toEqual([
+      ["Kept", "improved"],
+      ["P1", "pending"],
+      ["P2", "pending"],
+    ]);
   });
 });

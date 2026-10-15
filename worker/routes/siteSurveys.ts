@@ -1035,7 +1035,10 @@ export function buildCompareResponse(
   if (!isSurveySnapshot(previous.snapshot)) return null;
   const before = previous.snapshot;
   const { snapshot: after, frozen } = resolveCurrentSnapshot(current, currentAreas, currentPhotos);
-  const rows = compareSnapshots(before, after);
+  // While the return visit is still being walked, zones it has not reached
+  // yet are "pending" (not yet assessed), not "removed", and stay out of the
+  // net score change. Once completed, a missing zone is genuinely removed.
+  const rows = compareSnapshots(before, after, { currentCompleted: current.status === "completed" });
   const currentVisit: CompareVisit = { id: current.id, title: current.title };
   if (frozen) currentVisit.completedAt = after.completedAt;
   return {

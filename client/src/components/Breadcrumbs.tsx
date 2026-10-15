@@ -2,6 +2,14 @@ import { Link, useLocation } from "wouter";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX_TOKEN_RE = /^[0-9a-f]{24,}$/i;
+
+/** True for a path segment that is a database id rather than a word. */
+export function isOpaqueId(segment: string): boolean {
+  return UUID_RE.test(segment) || HEX_TOKEN_RE.test(segment);
+}
+
 export function Breadcrumbs() {
   const [location] = useLocation();
   
@@ -31,18 +39,39 @@ export function Breadcrumbs() {
       'about': 'About',
       'contact': 'Contact',
       'solution-finder': 'Solution Finder',
-      'site-survey': 'Site Survey',
+      'site-survey': 'Site survey',
       'start-new-project': 'Start New Project',
       'orders': 'Orders',
       'quotes': 'Quotes',
       'layout-markup': 'Layout Markup',
-      'drawing': 'Drawing'
+      'drawing': 'Drawing',
+      'order-form': 'Order form',
+      'pas13-compliance': 'PAS 13 Alignment Checker',
+      'layout-drawings': 'Layout Drawings',
+      'layout-drawing': 'Layout Drawings',
+      'calculations-history': 'Calculations History',
     };
-    
+
+    // Sub-pages that sit under an entity id (e.g. /site-survey/:id/review).
+    // Keyed by the top-level section so the same word can mean different
+    // things in different areas.
+    const subPageNames: Record<string, Record<string, string>> = {
+      'site-survey': {
+        review: 'Review photos',
+        walk: 'Survey walk',
+        compare: 'Since last visit',
+      },
+    };
+
     let currentPath = '';
     paths.forEach((path, index) => {
       currentPath += `/${path}`;
-      
+
+      // Never render a raw id segment (/site-survey/<uuid>/review,
+      // /order-form/<uuid>). The segments after it still link through
+      // the full path, so navigation is unaffected.
+      if (isOpaqueId(path)) return;
+
       // If we're on a product detail page and coming from calculator
       if (path.startsWith('products') && index === 0 && paths.length === 2 && isFromCalculator) {
         // Add calculator breadcrumb before products
@@ -52,21 +81,28 @@ export function Breadcrumbs() {
           icon: undefined
         });
       }
-      
-      const name = pathNames[path] || path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, ' ');
-      
+
+      const section = paths[0];
+      const underId = index >= 2 && isOpaqueId(paths[index - 1]);
+      const subName = underId ? subPageNames[section]?.[path] : undefined;
+
+      const name =
+        subName ||
+        pathNames[path] ||
+        path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, ' ');
+
       // For product detail pages, show "Product Details" instead of the ID
-      const displayName = (path.startsWith('products') && index === 0 && paths.length === 2) 
-        ? 'Product Details' 
+      const displayName = (path.startsWith('products') && index === 0 && paths.length === 2)
+        ? 'Product Details'
         : name;
-      
+
       breadcrumbs.push({
         name: displayName,
         href: currentPath,
         icon: undefined
       });
     });
-    
+
     return breadcrumbs;
   };
   

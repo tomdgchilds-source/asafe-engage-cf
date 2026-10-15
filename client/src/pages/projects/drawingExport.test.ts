@@ -4,6 +4,7 @@ import {
   exportChip,
   exportChipState,
   exportSheetUrl,
+  isExported,
   isNotExportedError,
   type DrawingExportStatus,
 } from "./drawingExport";
@@ -15,10 +16,33 @@ const fresh: DrawingExportStatus = {
   stale: false,
 };
 
+/** The 200 body the worker returns for a drawing that has never been exported. */
+const neverExported: DrawingExportStatus = {
+  exported: false,
+  objectKey: null,
+  url: null,
+  version: null,
+  stale: false,
+};
+
+describe("isExported", () => {
+  it("is false for null, a legacy 404 mapping, and the exported:false placeholder", () => {
+    expect(isExported(null)).toBe(false);
+    expect(isExported(undefined)).toBe(false);
+    expect(isExported(neverExported)).toBe(false);
+  });
+
+  it("is true for a stored export with or without the exported flag", () => {
+    expect(isExported(fresh)).toBe(true);
+    expect(isExported({ ...fresh, exported: true })).toBe(true);
+  });
+});
+
 describe("exportChipState", () => {
-  it("is 'not_exported' when the endpoint 404'd (null/undefined)", () => {
+  it("is 'not_exported' when the endpoint 404'd (null/undefined) or answered exported:false", () => {
     expect(exportChipState(null)).toBe("not_exported");
     expect(exportChipState(undefined)).toBe("not_exported");
+    expect(exportChipState(neverExported)).toBe("not_exported");
   });
 
   it("is 'up_to_date' when the stored export matches the document version", () => {
@@ -38,12 +62,14 @@ describe("exportChip", () => {
     expect(exportChip({ ...fresh, stale: true }).className).toContain("amber");
     expect(exportChip(null)).toMatchObject({ label: "Not exported" });
     expect(exportChip(null).className).toContain("muted");
+    expect(exportChip(neverExported)).toMatchObject({ label: "Not exported" });
   });
 });
 
 describe("exportButtonLabel", () => {
   it("offers a first export, a re-export, or the in-flight copy", () => {
     expect(exportButtonLabel(null, false)).toBe("Export sheet");
+    expect(exportButtonLabel(neverExported, false)).toBe("Export sheet");
     expect(exportButtonLabel(fresh, false)).toBe("Re-export sheet");
     expect(exportButtonLabel({ ...fresh, stale: true }, false)).toBe("Re-export sheet");
     expect(exportButtonLabel(null, true)).toBe("Exporting…");
@@ -55,6 +81,7 @@ describe("exportSheetUrl", () => {
   it("returns the stored PDF url only when an export exists", () => {
     expect(exportSheetUrl(fresh)).toBe("/api/objects/layout-exports/d1/v3.pdf");
     expect(exportSheetUrl(null)).toBeNull();
+    expect(exportSheetUrl(neverExported)).toBeNull();
     expect(exportSheetUrl({ ...fresh, url: "" })).toBeNull();
   });
 });

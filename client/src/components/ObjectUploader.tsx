@@ -150,6 +150,7 @@ export function ObjectUploader({
       // Permission granted, close the stream immediately
       stream.getTracks().forEach(track => track.stop());
       setCameraPermissionDenied(false);
+      resetIfFinished();
       setShowModal(true);
       toast({
         title: "Camera Access Granted",
@@ -166,10 +167,34 @@ export function ObjectUploader({
     }
   };
 
+  /**
+   * With `allowMultipleUploadBatches: false` (and maxNumberOfFiles=1) Uppy
+   * keeps the finished batch in state after a successful upload, so the
+   * next time the dashboard opens it is still in its "Upload complete"
+   * view with no file input. Clear the finished batch before re-opening
+   * so a second upload works without a page reload. A batch the user
+   * selected but never uploaded is left alone.
+   */
+  const resetIfFinished = () => {
+    const state = uppy.getState();
+    const files = Object.values(state.files ?? {});
+    const finished =
+      state.allowNewUpload === false ||
+      files.some((f) => f.progress?.uploadComplete);
+    if (finished) {
+      try {
+        uppy.cancelAll();
+      } catch (err) {
+        console.warn("Could not reset uploader state:", err);
+      }
+    }
+  };
+
   const handleOpenModal = () => {
     if (cameraPermissionDenied) {
       requestCameraPermission();
     } else {
+      resetIfFinished();
       setShowModal(true);
     }
   };

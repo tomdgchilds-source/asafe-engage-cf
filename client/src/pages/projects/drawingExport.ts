@@ -1,20 +1,33 @@
 /**
  * Pure helpers for the per-drawing export status chip on the project
  * detail page (Phase 4 Task L5, client half). The worker exposes
- * GET /api/layout-drawings/:id/export → { objectKey, url, version, stale }
- * or 404 when the drawing has never been exported; POST re-renders the
- * A3 sheet. Everything that decides what the chip says lives here so it
- * can be unit-tested without React.
+ * GET /api/layout-drawings/:id/export → { exported: true, objectKey, url,
+ * version, stale } or { exported: false, objectKey: null, url: null,
+ * version: null, stale: false } (200) when the drawing has never been
+ * exported; older workers answered 404 for that case, which is still
+ * handled. POST re-renders the A3 sheet. Everything that decides what the
+ * chip says lives here so it can be unit-tested without React.
  */
 
 export type DrawingExportStatus = {
-  objectKey: string;
-  url: string;
+  /** Absent on the POST response and on older workers; false = never exported. */
+  exported?: boolean;
+  objectKey: string | null;
+  url: string | null;
   /** documentVersion the stored PDF was rendered from. */
-  version: number;
+  version: number | null;
   /** True when the document has been saved since the export was rendered. */
   stale: boolean;
 };
+
+/** True when the status describes a stored export (not a never-exported placeholder). */
+export function isExported(
+  status: DrawingExportStatus | null | undefined,
+): status is DrawingExportStatus & { objectKey: string; url: string; version: number } {
+  if (!status) return false;
+  if (status.exported === false) return false;
+  return Boolean(status.objectKey);
+}
 
 export type ExportChipState = "up_to_date" | "stale" | "not_exported";
 
@@ -47,13 +60,13 @@ const CHIPS: Record<ExportChipState, ExportChip> = {
 };
 
 /**
- * Map the export endpoint's response (null/undefined when it 404'd) to
- * the chip the card should show.
+ * Map the export endpoint's response (null/undefined when it 404'd, or
+ * `exported: false`) to the chip the card should show.
  */
 export function exportChipState(
   status: DrawingExportStatus | null | undefined,
 ): ExportChipState {
-  if (!status) return "not_exported";
+  if (!isExported(status)) return "not_exported";
   return status.stale ? "stale" : "up_to_date";
 }
 
@@ -72,7 +85,8 @@ export function exportButtonLabel(
 
 /** The sheet link is only offered when the server has a stored PDF. */
 export function exportSheetUrl(status: DrawingExportStatus | null | undefined): string | null {
-  return status?.url ? status.url : null;
+  if (!isExported(status)) return null;
+  return status.url ? status.url : null;
 }
 
 /** True when a fetch error is the "never exported" 404 rather than a real failure. */

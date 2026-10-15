@@ -127,7 +127,7 @@ describe("buildCompareResponse", () => {
     expect(buildCompareResponse(noSnap, current, liveAreas, livePhotos)).toBeNull();
   });
 
-  it("pairs zones case-insensitively and classifies improved / new / removed with a live current", () => {
+  it("pairs zones case-insensitively and classifies improved / new / pending with a live (in-progress) current", () => {
     const current: CompareSurveyRow = { id: "cur", title: "Return visit", status: "draft" };
     const res = buildCompareResponse(previous, current, liveAreas, livePhotos);
     expect(res).not.toBeNull();
@@ -138,9 +138,12 @@ describe("buildCompareResponse", () => {
     expect(byZone["Loading Dock"].after?.photoKeys).toEqual(["surveys/cur/dock-after.jpg"]);
     expect(byZone["Loading Dock"].scoreChange).toBe(-11);
     expect(byZone["Charging bay"].delta).toBe("new");
-    expect(byZone["Aisle 4"].delta).toBe("removed");
+    // The walk is not finished, so a zone it has not reached is pending,
+    // not removed, and does not count toward the net score change.
+    expect(byZone["Aisle 4"].delta).toBe("pending");
+    expect(byZone["Aisle 4"].scoreChange).toBe(0);
 
-    expect(res!.summary).toEqual({ improved: 1, same: 0, worse: 0, new: 1, removed: 1, netScoreChange: -11 + 12 - 6 });
+    expect(res!.summary).toEqual({ improved: 1, same: 0, worse: 0, new: 1, removed: 0, pending: 1, netScoreChange: -11 + 12 });
     expect(res!.previous).toEqual({ id: "prev", title: "Spring visit", completedAt: "2026-06-01T09:00:00.000Z" });
     // Live current: no completedAt on the visit header.
     expect(res!.current).toEqual({ id: "cur", title: "Return visit" });
@@ -157,6 +160,18 @@ describe("buildCompareResponse", () => {
     expect(res!.current.completedAt).toBe("2026-09-12T10:00:00.000Z");
     expect(res!.rows[0].delta).toBe("worse");
     expect(res!.summary.worse).toBe(1);
+    // Completed visit: the unvisited zone is genuinely removed.
     expect(res!.summary.removed).toBe(1);
+    expect(res!.summary.pending).toBe(0);
+    expect(res!.summary.netScoreChange).toBe(5 - 6);
+  });
+
+  it("treats missing zones as removed (not pending) for a completed current survey without a frozen snapshot", () => {
+    const current: CompareSurveyRow = { id: "cur", title: "Return visit", status: "completed", snapshot: null };
+    const res = buildCompareResponse(previous, current, liveAreas, livePhotos);
+    const byZone = Object.fromEntries(res!.rows.map((r) => [r.zone, r]));
+    expect(byZone["Aisle 4"].delta).toBe("removed");
+    expect(res!.summary.removed).toBe(1);
+    expect(res!.summary.pending).toBe(0);
   });
 });

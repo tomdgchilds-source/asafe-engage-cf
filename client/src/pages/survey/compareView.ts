@@ -51,7 +51,30 @@ export const DELTA_META: Record<ZoneDelta, { label: string; className: string }>
   worse: { label: "Worse", className: "bg-red-100 text-red-800 border-red-200" },
   new: { label: "New zone", className: "bg-blue-100 text-blue-800 border-blue-200" },
   removed: { label: "Not revisited", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  pending: { label: "Not yet assessed", className: "bg-zinc-100 text-zinc-500 border-zinc-200" },
 };
+
+/** Cells for the summary strip, in display order. Pending is shown only while the visit is in progress. */
+export function summaryCells(
+  summary: ComparisonSummary,
+): Array<{ key: keyof ComparisonSummary; label: string; value: number; className: string }> {
+  const cells: Array<{ key: keyof ComparisonSummary; label: string; value: number; className: string }> = [
+    { key: "improved", label: "Improved", value: summary.improved, className: "text-green-700" },
+    { key: "same", label: "Same", value: summary.same, className: "text-zinc-700" },
+    { key: "worse", label: "Worse", value: summary.worse, className: "text-red-700" },
+    { key: "new", label: "New", value: summary.new, className: "text-blue-700" },
+    { key: "removed", label: "Removed", value: summary.removed, className: "text-amber-700" },
+  ];
+  if ((summary.pending ?? 0) > 0) {
+    cells.push({ key: "pending", label: "Not yet assessed", value: summary.pending, className: "text-zinc-500" });
+  }
+  return cells;
+}
+
+/** Copy for an empty "After" column: pending zones have simply not been reached yet. */
+export function missingAfterCopy(delta: ZoneDelta): string {
+  return delta === "pending" ? "Not yet assessed on this visit." : "Not surveyed on this visit.";
+}
 
 /** Risk level chip colours — same palette as the SiteSurvey page. */
 export const LEVEL_CLASS: Record<string, string> = {
@@ -65,7 +88,11 @@ export function levelClass(level: string | undefined): string {
   return LEVEL_CLASS[(level ?? "").toLowerCase()] ?? "bg-zinc-100 text-zinc-700";
 }
 
-/** Colour the net score change by direction (lower is better). */
+/**
+ * Colour the net score change by direction (lower is better). The server
+ * already leaves pending zones out of the net, so a negative figure is a
+ * genuine improvement and stays green even while zones are still pending.
+ */
 export function netChangeTone(change: number): "good" | "bad" | "flat" {
   if (change < 0) return "good";
   if (change > 0) return "bad";

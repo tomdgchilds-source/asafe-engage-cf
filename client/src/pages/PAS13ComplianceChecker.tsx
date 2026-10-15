@@ -450,8 +450,18 @@ export function PAS13ComplianceChecker() {
         <Shield className="h-8 w-8 text-[#FFC72C]" />
         <div>
           <h1 className="text-3xl font-bold">PAS 13:2017 Alignment Checker</h1>
+          {activeProject?.name && (
+            <p
+              className="mt-0.5 text-sm font-medium text-gray-800 dark:text-gray-200"
+              data-testid="pas13-active-project"
+            >
+              Project: {activeProject.name}
+            </p>
+          )}
           <p className="text-gray-600 dark:text-gray-400">
-            Automatic audit of the items in your active project against PAS 13:2017.
+            {activeProject?.name
+              ? `Automatic audit of the items in ${activeProject.name} against PAS 13:2017.`
+              : "Automatic audit of the items in your active project against PAS 13:2017."}
           </p>
         </div>
       </div>

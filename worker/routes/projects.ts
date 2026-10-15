@@ -694,7 +694,7 @@ function shortUserAgent(ua: string | null | undefined): string | null {
 // barrier" interpretation σ's verdict engine assumes.
 // ═══════════════════════════════════════════════════════════════════
 
-interface PublicVehicleContext {
+export interface PublicVehicleContext {
   label: string;
   vehicleMassKg: number;
   loadMassKg: number;
@@ -769,68 +769,170 @@ interface PublicLineItem {
   verdict: Pas13Verdict | null;
 }
 
+// ─── Pure lookup helpers (unit-tested in projects.test.ts) ─────────────
+
+/** Default lateral impact zone when the catalogue row has none (matches the client checker). */
+export const DEFAULT_IMPACT_ZONE_MM = 200;
+
+/** Case / whitespace-insensitive key for matching cart lines to catalogue rows. */
+export function normaliseProductName(name: unknown): string {
+  return String(name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Index catalogue rows by normalised name; the first row for a name wins. */
+export function indexProductsByName<T extends { name?: unknown }>(rows: readonly T[]): Map<string, T> {
+  const byName = new Map<string, T>();
+  for (const row of rows) {
+    const key = normaliseProductName(row?.name);
+    if (key && !byName.has(key)) byName.set(key, row);
+  }
+  return byName;
+}
+
+function positiveNumber(v: unknown): number {
+  const n = typeof v === "string" ? parseFloat(v) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Parse an impact-zone figure that may be stored as a number or as free text
+ * ("250 mm", "0–250mm"). Prefers the integer deflection_zone column.
+ */
+export function parseImpactZoneMm(raw: unknown, fallbackDeflectionZone?: unknown): number {
+  const fallback = positiveNumber(fallbackDeflectionZone);
+  if (fallback > 0) return fallback;
+  if (raw === null || raw === undefined || raw === "") return DEFAULT_IMPACT_ZONE_MM;
+  if (typeof raw === "number") return raw > 0 ? raw : DEFAULT_IMPACT_ZONE_MM;
+  const matches = String(raw).match(/\d{1,5}/g);
+  if (!matches || matches.length === 0) return DEFAULT_IMPACT_ZONE_MM;
+  const max = Math.max(...matches.map((m) => parseInt(m, 10)).filter((n) => Number.isFinite(n)));
+  return Number.isFinite(max) && max > 0 ? max : DEFAULT_IMPACT_ZONE_MM;
+}
+
+/**
+ * Rated joules and impact zone for a cart line. The line's own figures win
+ * (a rep may have keyed a variant rating); otherwise the catalogue row found
+ * by productName supplies them (pas13TestJoules, then impactRating).
+ * ratedJ is 0 when nothing is known, in which case no verdict is possible.
+ */
+export function resolveLineItemRating(
+  item: any,
+  product: any | undefined,
+): { ratedJ: number; impactZoneMm: number } {
+  const ratedJ =
+    positiveNumber(item?.impactRating) ||
+    positiveNumber(item?.ratedJoules) ||
+    positiveNumber(item?.selectedVariant?.impactRating) ||
+    positiveNumber(product?.pas13TestJoules) ||
+    positiveNumber(product?.impactRating) ||
+    0;
+  const impactZoneMm = parseImpactZoneMm(
+    product?.impactTestingData?.impactZone,
+    product?.deflectionZone,
+  );
+  return { ratedJ, impactZoneMm };
+}
+
+/**
+ * Vehicle context for one line: the calculationContext the rep saved on the
+ * cart line when they added it, else the project-level context.
+ */
+export function resolveLineVehicleContext(
+  item: any,
+  projectContext: PublicVehicleContext | null,
+): PublicVehicleContext | null {
+  const ctx = item?.calculationContext;
+  if (ctx && typeof ctx === "object") {
+    const vMass = positiveNumber(ctx.vehicleMass);
+    const lMass = positiveNumber(ctx.loadMass);
+    const speedKmh = toKmh(ctx.speed, ctx.speedUnit);
+    const angle = positiveNumber(ctx.impactAngle) || 90;
+    if ((vMass > 0 || lMass > 0) && speedKmh > 0) {
+      return {
+        label: `${(vMass + lMass).toLocaleString()} kg @ ${speedKmh.toFixed(1)} km/h, ${angle}°`,
+        vehicleMassKg: vMass,
+        loadMassKg: lMass,
+        speedKmh,
+        approachAngleDeg: angle,
+      };
+    }
+  }
+  return projectContext;
+}
+
+/**
+ * Verdict for one line given its resolved rating and vehicle context, or
+ * null when either is missing (the UI then shows "Verdict pending").
+ */
+export function lineItemVerdict(
+  item: any,
+  product: any | undefined,
+  projectContext: PublicVehicleContext | null,
+): Pas13Verdict | null {
+  const vehicleContext = resolveLineVehicleContext(item, projectContext);
+  const { ratedJ, impactZoneMm } = resolveLineItemRating(item, product);
+  if (!vehicleContext || ratedJ <= 0) return null;
+  try {
+    return pas13Verdict({
+      vehicleMassKg: vehicleContext.vehicleMassKg,
+      loadMassKg: vehicleContext.loadMassKg,
+      speedKmh: vehicleContext.speedKmh,
+      approachAngleDeg: vehicleContext.approachAngleDeg,
+      productRatedJoulesAt45deg: ratedJ,
+      productImpactZoneMaxMm: impactZoneMm,
+    });
+  } catch (err) {
+    console.warn(`[computeBarrierVerdicts] verdict failed for ${item?.productName}:`, err);
+    return null;
+  }
+}
+
 // Compute per-line-item PAS 13 verdicts. If the project has no vehicle
-// context or the product has no rated joules, we leave verdict=null and
-// the UI renders "verdict pending — vehicle context required".
+// context (and the line carries none) or no rated joules can be found for
+// the product, we leave verdict=null and the UI renders "Verdict pending".
 async function computeBarrierVerdicts(
   storage: ReturnType<typeof createStorage>,
   cartItems: any[],
   vehicleContext: PublicVehicleContext | null,
 ): Promise<PublicLineItem[]> {
   if (cartItems.length === 0) return [];
-  // Fetch products by name (cart_items only carries productName, not productId).
-  // Cheap because cart_items typically holds <50 lines per project.
-  const names = Array.from(new Set(cartItems.map((i) => i.productName).filter(Boolean)));
-  const productsByName: Map<string, any> = new Map();
-  if (names.length > 0) {
+  // Fetch products by name (cart_items only carries productName, not
+  // productId). Match case/whitespace-insensitively: cart lines are often
+  // keyed from variant labels that differ from the catalogue name only in
+  // casing. Cheap because cart_items typically holds <50 lines per project.
+  const keys = Array.from(
+    new Set(cartItems.map((i) => normaliseProductName(i.productName)).filter(Boolean)),
+  );
+  let productsByName: Map<string, any> = new Map();
+  if (keys.length > 0) {
     try {
       const productsTable = (await import("../../shared/schema")).products;
       const drizzle = await import("drizzle-orm");
       const rows = await (storage as any).db
         .select()
         .from(productsTable)
-        .where(drizzle.inArray(productsTable.name, names));
-      for (const row of rows) productsByName.set(row.name, row);
+        .where(
+          drizzle.inArray(
+            drizzle.sql`lower(regexp_replace(trim(${productsTable.name}), '\\s+', ' ', 'g'))`,
+            keys,
+          ),
+        );
+      productsByName = indexProductsByName(rows as any[]);
     } catch (err) {
       console.warn("[computeBarrierVerdicts] product lookup failed:", err);
     }
   }
 
-  const out: PublicLineItem[] = [];
-  for (const item of cartItems) {
-    const product = productsByName.get(item.productName);
-    const ratedJ =
-      Number(product?.pas13TestJoules) ||
-      Number(product?.impactRating) ||
-      0;
-    const impactZoneMm =
-      Number(product?.impactTestingData?.impactZone) ||
-      Number(product?.deflectionZone) ||
-      0;
-
-    let verdict: Pas13Verdict | null = null;
-    if (vehicleContext && ratedJ > 0 && impactZoneMm > 0) {
-      try {
-        verdict = pas13Verdict({
-          vehicleMassKg: vehicleContext.vehicleMassKg,
-          loadMassKg: vehicleContext.loadMassKg,
-          speedKmh: vehicleContext.speedKmh,
-          approachAngleDeg: vehicleContext.approachAngleDeg,
-          productRatedJoulesAt45deg: ratedJ,
-          productImpactZoneMaxMm: impactZoneMm,
-        });
-      } catch (err) {
-        console.warn(`[computeBarrierVerdicts] verdict failed for ${item.productName}:`, err);
-      }
-    }
-    out.push({
-      productName: item.productName,
-      quantity: Number(item.quantity) || 1,
-      applicationArea: item.applicationArea || null,
-      verdict,
-    });
-  }
-  return out;
+  return cartItems.map((item) => ({
+    productName: item.productName,
+    quantity: Number(item.quantity) || 1,
+    applicationArea: item.applicationArea || null,
+    verdict: lineItemVerdict(
+      item,
+      productsByName.get(normaliseProductName(item.productName)),
+      vehicleContext,
+    ),
+  }));
 }
 
 // Aggregate verdict — worst-case wins. Mirrors D's PDF aggregate logic

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { exportObjectKey, exportStatusFromDrawing, objectUrl } from "./layoutDrawings";
+import { exportObjectKey, exportStatusFromDrawing, exportStatusResponse, objectUrl } from "./layoutDrawings";
 
 // Pure halves of the Phase 4 export API (plan Task L4). The Hono handlers
 // need a DB + R2; these cover the object-key scheme and the staleness rule
@@ -48,5 +48,32 @@ describe("exportStatusFromDrawing", () => {
   it("treats a missing exportVersion as version 0 (stale unless the doc is also at 0)", () => {
     expect(exportStatusFromDrawing({ exportObjectKey: "k", exportVersion: null, documentVersion: 2 })).toMatchObject({ version: 0, stale: true });
     expect(exportStatusFromDrawing({ exportObjectKey: "k", exportVersion: null, documentVersion: 0 })).toMatchObject({ version: 0, stale: false });
+  });
+});
+
+describe("exportStatusResponse", () => {
+  it("answers exported:false with null fields for a never-exported drawing (200, not 404)", () => {
+    expect(exportStatusResponse(null)).toEqual({
+      exported: false,
+      objectKey: null,
+      url: null,
+      version: null,
+      stale: false,
+    });
+  });
+
+  it("flags a stored export with exported:true and passes the status through", () => {
+    const status = exportStatusFromDrawing({
+      exportObjectKey: "layout-exports/d1/v3.pdf",
+      exportVersion: 3,
+      documentVersion: 5,
+    });
+    expect(exportStatusResponse(status)).toEqual({
+      exported: true,
+      objectKey: "layout-exports/d1/v3.pdf",
+      url: "/api/objects/layout-exports/d1/v3.pdf",
+      version: 3,
+      stale: true,
+    });
   });
 });
