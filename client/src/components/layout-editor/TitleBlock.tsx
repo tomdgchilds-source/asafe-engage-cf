@@ -1,7 +1,7 @@
 /**
  * client/src/components/layout-editor/TitleBlock.tsx
  *
- * A-SAFE DWC LLC drawing title block (ported from
+ * A-SAFE DWC-LLC drawing title block (ported from
  * layout-markup/components/TitleBlockFrame.tsx) wrapped around the
  * viewport. The barrier key on the right is derived from `FAMILIES` +
  * the document through `legendRows`, so it always matches the Legend.
@@ -15,6 +15,7 @@ import asafeLogo from "@/assets/brand/asafe-logo-strapline.png";
 import queensAwardImg from "@/assets/brand/queens-award.png";
 import type { LayoutDoc } from "@shared/layout/doc";
 import type { CatalogProductLike } from "@shared/layout/quantities";
+import { A_SAFE_UAE, A_SAFE_WEB } from "@shared/offices";
 import { FamilySwatch, legendRows } from "./Legend";
 
 /** Substrate type; mirrors `layout_drawings.floor_type`. */
@@ -44,11 +45,12 @@ export interface TitleBlockMeta {
   vehicleTypeId?: string | null;
 }
 
+/** Legal entity + address printed in the title block; mirrors worker/lib/pdf/reports/drawingSheet.ts A_SAFE_UAE_OFFICE. */
 const OFFICE = {
-  officeName: "A-SAFE DWC LLC",
-  officeAddressLines: ["Office #220, Building A5", "Dubai South, Business Park", "Dubai, UAE"],
-  officePhone: "Tel: 04 884 2422",
-  officeWeb: "www.asafe.com",
+  officeName: A_SAFE_UAE.legalName,
+  officeAddressLines: A_SAFE_UAE.addressLines,
+  officePhone: `Tel: ${A_SAFE_UAE.phoneDisplay}`,
+  officeWeb: A_SAFE_WEB,
 };
 
 export function todayDdMmmYyyy(): string {
@@ -202,9 +204,9 @@ export const TitleBlock = forwardRef<HTMLDivElement, TitleBlockProps>(function T
           </div>
 
           <div className="bg-[#2d5a9c] px-3 py-[3px] text-center text-[8px] italic text-white" data-testid="confidentiality-strip">
-            This document is confidential and the information contained therein, including the design principles and copyright is the property of A-SAFE DWC LLC. The document
+            This document is confidential and the information contained therein, including the design principles and copyright is the property of {A_SAFE_UAE.legalName}. The document
             and/or the information therein may not be used, copied or reproduced, in part of whole to any third party, or used for manufacture or other purpose without prior
-            authority of A-SAFE DWC LLC.
+            authority of {A_SAFE_UAE.legalName}.
           </div>
         </div>
 

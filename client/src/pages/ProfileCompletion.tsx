@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { User as UserProfile } from '@shared/schema';
+import { A_SAFE_UAE } from '@shared/offices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -199,7 +200,7 @@ export function ProfileCompletion() {
                       <FormLabel>Address</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="Office 220, Building A5, Dubai South Business Park" 
+                          placeholder={A_SAFE_UAE.addressLines.slice(0, -1).join(", ")}
                           {...field}
                           data-testid="input-address"
                         />

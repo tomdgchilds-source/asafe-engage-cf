@@ -41,6 +41,7 @@ import {
 } from "../../../../shared/documents/refs";
 import { fetchImageBytes, fetchObjectBytes } from "../images";
 import { pickHeroImage, type HeroContext, type HeroPick } from "../heroes";
+import { A_SAFE_UAE } from "../../../../shared/offices";
 
 // ─── People ────────────────────────────────────────────────────────────────
 
@@ -55,11 +56,11 @@ export interface PersonInfo {
 export function personFromUser(user: User | null | undefined): PersonInfo {
   const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
   return {
-    name: name || user?.email || "A-SAFE UAE",
+    name: name || user?.email || A_SAFE_UAE.tradingName,
     title: user?.jobTitle || (user as { jobRole?: string | null } | undefined)?.jobRole || null,
     email: user?.email ?? null,
     mobile: user?.phone ?? null,
-    company: user?.company || "A-SAFE DWC LLC",
+    company: user?.company || A_SAFE_UAE.legalName,
   };
 }
 

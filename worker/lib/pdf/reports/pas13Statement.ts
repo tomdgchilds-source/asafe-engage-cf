@@ -35,6 +35,7 @@ import {
   type Verdict,
 } from "../../../../shared/pas13Rules";
 import { pas13Cite, PAS13_PDF_URL, type Pas13Citation } from "../../../../shared/pas13Citations";
+import { A_SAFE_UAE, SALES_EMAIL } from "../../../../shared/offices";
 import type { Env } from "../../../types";
 import { C, TYPE, type Tone } from "../theme";
 import { createDoc, addPage, finalize, mm, type Doc, type Page } from "../doc";
@@ -247,7 +248,7 @@ export async function renderPas13Statement(input: Pas13StatementInput): Promise<
   ({ page } = calloutBox(doc, page, {
     tone: "grey",
     title: "Indicative interpretation",
-    body: `This statement is an indicative engineering interpretation of ${PAS13_VERSION} against the impact context recorded for this order. It is not a commercial-liability statement and does not warrant compliance with ${PAS13_VERSION}. Vehicle masses, speeds and approach angles are as supplied by the client or observed during survey; floor construction and fixings are assumed suitable until verified on site. For procurement, verify every verdict with A-SAFE engineering — sales@asafe.ae, +971 4 884 2422.`,
+    body: `This statement is an indicative engineering interpretation of ${PAS13_VERSION} against the impact context recorded for this order. It is not a commercial-liability statement and does not warrant compliance with ${PAS13_VERSION}. Vehicle masses, speeds and approach angles are as supplied by the client or observed during survey; floor construction and fixings are assumed suitable until verified on site. For procurement, verify every verdict with A-SAFE engineering — ${SALES_EMAIL}, ${A_SAFE_UAE.phoneDisplay}.`,
   }));
 
   H(2, "Declaration");

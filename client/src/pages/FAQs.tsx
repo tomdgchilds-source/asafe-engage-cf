@@ -27,6 +27,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FAQS, FAQ_CATEGORIES, INTERNAL_FAQ_CATEGORIES, type FaqEntry } from "@shared/faqContent";
+import { A_SAFE_UAE, A_SAFE_WEB } from "@shared/offices";
 import { useToast } from "@/hooks/use-toast";
 import { InfoPopover } from "@/components/ui/info-popover";
 interface CategoryConfig {
@@ -186,7 +187,7 @@ export default function FAQs() {
     if (!guardSelection()) return;
     const subject = encodeURIComponent("A-SAFE Frequently Asked Questions");
     const bodyText = encodeURIComponent(
-      `Hello,\n\nPlease find the A-SAFE Frequently Asked Questions sheet here:\n${absoluteFaqSheetUrl()}\n\nFor more information, visit www.asafe.com or contact us on +971 4 884 2422.\n\nBest regards,\nA-SAFE Team`,
+      `Hello,\n\nPlease find the A-SAFE Frequently Asked Questions sheet here:\n${absoluteFaqSheetUrl()}\n\nFor more information, visit ${A_SAFE_WEB} or contact us on ${A_SAFE_UAE.phoneDisplay}.\n\nBest regards,\nA-SAFE Team`,
     );
     triggerDownload();
     window.setTimeout(() => window.open(`mailto:?subject=${subject}&body=${bodyText}`, "_blank"), 500);

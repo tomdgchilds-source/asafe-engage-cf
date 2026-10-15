@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { A_SAFE_UAE } from "@shared/offices";
 
 export default function PrivacyPolicy() {
   return (
@@ -168,9 +169,9 @@ export default function PrivacyPolicy() {
               If you have questions about this privacy policy or our data practices, please contact us:
             </p>
             <div className="space-y-2 text-gray-700">
-              <p><strong>Email:</strong> support@asafe.ae</p>
-              <p><strong>Phone:</strong> +971 4 884 2422</p>
-              <p><strong>Address:</strong> A-SAFE Middle East, Dubai, United Arab Emirates</p>
+              <p><strong>Email:</strong> {A_SAFE_UAE.email}</p>
+              <p><strong>Phone:</strong> {A_SAFE_UAE.phoneDisplay}</p>
+              <p><strong>Address:</strong> {A_SAFE_UAE.legalName}, {A_SAFE_UAE.addressOneLine}</p>
               <p><strong>Business Hours:</strong> Monday to Friday, 8:30 AM - 5:30 PM (GST)</p>
             </div>
           </CardContent>

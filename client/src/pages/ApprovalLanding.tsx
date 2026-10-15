@@ -97,7 +97,7 @@ const NEXT_SECTION: Record<Section, Section | null> = {
 };
 
 const LOGO_PRIMARY = "/brand/logo-strapline-primary.png";
-const SALES_EMAIL = "sales@asafe.ae";
+import { A_SAFE_UAE, A_SAFE_WEB, SALES_EMAIL } from "@shared/offices";
 
 // Simple RFC-5322-lite check. We intentionally avoid a big regex here: the
 // backend is the source of truth for deliverability; this is just to stop
@@ -162,10 +162,10 @@ function DocFooter({ meta }: { meta: string }) {
       <div className="doc-footer__brand">
         <span className="doc-footer__halo" aria-hidden="true" />
         <p className="doc-footer__office">
-          <strong>A-SAFE UAE</strong> · Office 220, Building A5, Dubai South Business Park
+          <strong>{A_SAFE_UAE.tradingName}</strong> · {A_SAFE_UAE.addressOneLine}
           <br />
-          Tel: +971 (4) 8842 422 · <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a> ·
-          www.asafe.com
+          Tel: {A_SAFE_UAE.phoneDisplay} · <a href={`mailto:${SALES_EMAIL}`}>{SALES_EMAIL}</a> ·{" "}
+          {A_SAFE_WEB}
         </p>
       </div>
       <p className="doc-footer__meta">{meta}</p>

@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { A_SAFE_UAE, SALES_EMAIL, SALES_EMAIL_KSA, officeBlockHtml } from "../../shared/offices";
 
 // ──────────────────────────────────────────────
 // Email service via Resend (https://resend.com)
@@ -234,8 +235,14 @@ const LOGO_CLEAR_PX = 18;
 const EMAIL_P_STYLE = `margin:0 0 12px 0;font-family:${EMAIL_FONT};font-size:14px;line-height:1.55;color:${EMAIL_COLOUR.black};text-align:left;`;
 const EMAIL_SMALL_STYLE = `margin:0;font-family:${EMAIL_FONT};font-size:12px;line-height:1.5;color:${EMAIL_COLOUR.grey60};text-align:left;`;
 
-/** The A-SAFE UAE office block used in every footer. */
-const EMAIL_OFFICE_BLOCK_HTML = `<strong style="color:${EMAIL_COLOUR.black};">A-SAFE UAE</strong> &nbsp;|&nbsp; Office 220, Building A5, Dubai South Business Park<br>Tel: +971 (4) 8842 422 &nbsp;|&nbsp; <a href="mailto:sales@asafe.ae" style="color:${EMAIL_COLOUR.grey60};">sales@asafe.ae</a> &nbsp;|&nbsp; <a href="https://www.asafe.com" style="color:${EMAIL_COLOUR.grey60};">www.asafe.com</a>`;
+/** The A-SAFE UAE office block used in every footer (address from shared/offices.ts; replies go to sales). */
+const EMAIL_OFFICE_BLOCK_HTML = officeBlockHtml(A_SAFE_UAE, {
+  layout: "inline",
+  separator: " &nbsp;|&nbsp; ",
+  email: SALES_EMAIL,
+  nameStyle: `color:${EMAIL_COLOUR.black};`,
+  linkStyle: `color:${EMAIL_COLOUR.grey60};`,
+});
 
 interface EmailLayoutOptions {
   /** Document type in the header band, rendered in grey caps (e.g. "Order confirmation"). */
@@ -618,8 +625,8 @@ export async function sendOrderSubmittedNotification(
   //  AED → UAE sales team
   //  anything else → fall back to ADMIN_NOTIFICATION_EMAILS
   const regionalSalesEmail =
-    currency === "SAR" ? "sales@asafe.sa" :
-    currency === "AED" ? "sales@asafe.ae" :
+    currency === "SAR" ? SALES_EMAIL_KSA :
+    currency === "AED" ? SALES_EMAIL :
     null;
 
   const adminEmails = (env.ADMIN_NOTIFICATION_EMAILS || "")

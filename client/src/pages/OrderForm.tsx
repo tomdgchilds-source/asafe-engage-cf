@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCombinedDiscount } from "@shared/discountLimits";
+import { A_SAFE_UAE } from "@shared/offices";
 import {
   cartItemsToPricingLines,
   computeTotals,
@@ -2304,7 +2305,7 @@ export function OrderForm() {
                     <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</Label>
                     <p className="text-lg flex items-center gap-2">
                       <Phone className="h-4 w-4" />
-                      {userProfile.phone || '+971 4884 2422'}
+                      {userProfile.phone || A_SAFE_UAE.phoneDisplay}
                     </p>
                   </div>
                   {userProfile.address && (
@@ -3644,21 +3645,21 @@ export function OrderForm() {
                 <MapPin className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 <div>
                   <p className="font-medium">Dubai Office</p>
-                  <p>Office 220, Dubai South Business Park, Dubai, UAE</p>
+                  <p>{A_SAFE_UAE.addressOneLine}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 <div>
                   <p className="font-medium">Phone</p>
-                  <p>+971 4884 2422</p>
+                  <p>{A_SAFE_UAE.phoneDisplay}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 <div>
                   <p className="font-medium">Email</p>
-                  <p>support@asafe.ae</p>
+                  <p>{A_SAFE_UAE.email}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -3666,7 +3667,7 @@ export function OrderForm() {
                 <div>
                   <p className="font-medium">5.0 ⭐ Written Testimonials</p>
                   <a 
-                    href="https://maps.app.goo.gl/55wf4FPkAe2NfKDHA?g_st=ipc" 
+                    href={A_SAFE_UAE.mapsUrl ?? undefined}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline"

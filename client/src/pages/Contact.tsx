@@ -20,6 +20,7 @@ import {
 import { InfoPopover } from "@/components/ui/info-popover";
 import { SiFacebook, SiLinkedin, SiX, SiYoutube, SiTiktok } from "react-icons/si";
 import OfficeSelector, { GlobalOffice } from "@/components/OfficeSelector";
+import { A_SAFE_UAE, telHref } from "@shared/offices";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -32,6 +33,8 @@ export default function Contact() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<GlobalOffice | undefined>();
   const { toast } = useToast();
+  // tel: links follow the selected office's published number; UAE until one is picked.
+  const officeTel = telHref(selectedOffice?.phone || A_SAFE_UAE.phoneDisplay);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -337,7 +340,7 @@ export default function Contact() {
                     data-testid="phone-contact"
                   >
                     <a 
-                      href={selectedOffice?.country === "Saudi Arabia" ? "tel:+966530356116" : "tel:+97148842422"}
+                      href={officeTel}
                       className="flex items-center justify-center gap-2"
                     >
                       <Phone className="h-4 w-4" />
@@ -519,7 +522,7 @@ export default function Contact() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button asChild size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
-                    <a href={selectedOffice?.country === "Saudi Arabia" ? "tel:+966530356116" : "tel:+97148842422"}>
+                    <a href={officeTel}>
                       Call Emergency Line
                     </a>
                   </Button>

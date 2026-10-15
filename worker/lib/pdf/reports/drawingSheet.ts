@@ -30,6 +30,7 @@ import { embedImage } from "../images";
 import type { LayoutDoc, Element, Pt, Calibration } from "../../../../shared/layout/doc";
 import { FAMILIES, getFamily, type FamilyId, type FamilySpec } from "../../../../shared/layout/symbols";
 import { pxPerMm, postPositions, dist, runLengthMm, dedupePoints } from "../../../../shared/layout/geometry";
+import { A_SAFE_UAE, A_SAFE_WEB } from "../../../../shared/offices";
 
 // ─── Public types ──────────────────────────────────────────────────────────
 
@@ -80,15 +81,16 @@ export interface DrawingSheetOptions {
   legendFamilies: FamilyId[];
 }
 
+/** Legal entity + address in the title block; the DOM TitleBlock.tsx prints the same values. */
 export const A_SAFE_UAE_OFFICE: OfficeBlock = {
-  name: "A-SAFE DWC LLC",
-  addressLines: ["Office #220, Building A5", "Dubai South, Business Park", "Dubai, UAE"],
-  phone: "Tel: 04 884 2422",
-  web: "www.asafe.com",
+  name: A_SAFE_UAE.legalName,
+  addressLines: [...A_SAFE_UAE.addressLines],
+  phone: `Tel: ${A_SAFE_UAE.phoneDisplay}`,
+  web: A_SAFE_WEB,
 };
 
 export const CONFIDENTIALITY_TEXT =
-  "This document is confidential and the information contained therein, including the design principles and copyright, is the property of A-SAFE DWC LLC. It may not be used, copied or reproduced, in part or whole, by any third party, or used for manufacture or any other purpose without the prior authority of A-SAFE DWC LLC.";
+  `This document is confidential and the information contained therein, including the design principles and copyright, is the property of ${A_SAFE_UAE.legalName}. It may not be used, copied or reproduced, in part or whole, by any third party, or used for manufacture or any other purpose without the prior authority of ${A_SAFE_UAE.legalName}.`;
 
 /** Families used by a document's runs and stamps, in order of first use. */
 export function familiesInDoc(doc: LayoutDoc | undefined | null): FamilyId[] {

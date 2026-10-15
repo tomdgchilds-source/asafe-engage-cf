@@ -82,7 +82,7 @@ describe("renderFaqSheetFromFaqs", () => {
     expect(await containsText(out.pdf, "Fixture question 12")).toBe(true);
     // Callout titles are drawn with letter tracking (one Tj per glyph), so assert on the body.
     expect(await containsText(out.pdf, "Our UAE team gives site-specific guidance")).toBe(true);
-    expect(await containsText(out.pdf, "Call +971 4 884 2422")).toBe(true);
+    expect(await containsText(out.pdf, "Call +971 (4) 8842 422")).toBe(true);
     // Internal (app usage) questions are left out by default.
     expect(await containsText(out.pdf, "Fixture question 13")).toBe(false);
   });

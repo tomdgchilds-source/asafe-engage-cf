@@ -38,6 +38,7 @@ import {
 import { accessoryLineTotalAed, normaliseAccessoryLines } from "../../../../shared/pricing/accessories";
 import { ACCESSORY_UNIT_LABELS, type AccessoryUnit } from "../../../../shared/cartAccessories";
 import { DOCUMENT_KINDS, DRAFT_REFERENCE, documentFilename, type DocumentKind } from "../../../../shared/documents/refs";
+import { A_SAFE_UAE } from "../../../../shared/offices";
 import {
   loadOrderBundle,
   reserveDocumentRef,
@@ -497,7 +498,7 @@ export function quoteDraftToProposalModel(q: QuoteDraftLike): ProposalModel {
     surveyId: null,
     client: { company: q.customerCompany || "Customer", contact: q.customerName ?? null, contactTitle: null, email: null, mobile: null, address: q.projectLocation ?? null },
     project: { name: q.projectName || q.customerCompany || "Impact protection", location: q.projectLocation ?? null, description: q.notes ?? null },
-    preparedBy: q.preparedBy ?? { name: "A-SAFE UAE", title: null, email: null, mobile: null, company: "A-SAFE DWC LLC" },
+    preparedBy: q.preparedBy ?? { name: A_SAFE_UAE.tradingName, title: null, email: null, mobile: null, company: A_SAFE_UAE.legalName },
     date: q.generatedAt,
     currency: "AED",
     fxRate: 1,
@@ -650,7 +651,7 @@ export async function drawLetter(doc: Doc, model: ProposalModel, meta: RenderMet
   page.cursorY -= mm(10);
   body(page, model.preparedBy.name, { bold: true, after: mm(0.5) });
   page = current(doc);
-  const sig = [model.preparedBy.title, model.preparedBy.company || "A-SAFE DWC LLC", model.preparedBy.mobile, model.preparedBy.email].filter(Boolean).join("  ·  ");
+  const sig = [model.preparedBy.title, model.preparedBy.company || A_SAFE_UAE.legalName, model.preparedBy.mobile, model.preparedBy.email].filter(Boolean).join("  ·  ");
   if (sig) small(page, sig);
   return current(doc);
 }
@@ -867,7 +868,7 @@ export function drawCommercialTerms(doc: Doc, model: ProposalModel, opts: { newP
   heading(page, 1, "Commercial terms");
   page = current(doc);
   const terms: Array<[string, string]> = [
-    ["Payment", "50 % with order, 50 % on delivery, before installation. Bank transfer to A-SAFE DWC LLC; invoices in the proposal currency."],
+    ["Payment", `50 % with order, 50 % on delivery, before installation. Bank transfer to ${A_SAFE_UAE.legalName}; invoices in the proposal currency.`],
     ["Lead time", "4–6 weeks from receipt of purchase order and deposit to delivery, subject to stock at time of order."],
     ["Warranty", "As per A-SAFE standard terms and conditions of sale."],
     ["Validity", "30 days from the issue date. Prices are budgetary until confirmed by the A-SAFE estimation team on the approved layout drawing."],

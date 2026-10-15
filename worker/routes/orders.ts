@@ -30,6 +30,7 @@ import {
   type PricingResult,
 } from "../../shared/pricing";
 import { getCombinedDiscount } from "../../shared/discountLimits";
+import { A_SAFE_UAE } from "../../shared/offices";
 import { formatMoney, resolveFxRate } from "../lib/money";
 
 // ─── Order number ────────────────────────────────────────────────────────
@@ -2080,7 +2081,7 @@ orders.get("/approval-tokens/:token/order-data", async (c) => {
           phone: ownerUser.phone || null,
           jobRole: (ownerUser as any)?.jobRole || "BDM",
           jobTitle: ownerUser.jobTitle || null,
-          company: ownerUser.company || "A-SAFE DWC LLC",
+          company: ownerUser.company || A_SAFE_UAE.legalName,
         }
       : null;
 

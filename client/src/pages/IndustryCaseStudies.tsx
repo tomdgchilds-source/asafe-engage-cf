@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { CaseStudyCard } from "@/components/CaseStudyCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CaseStudy } from "@shared/schema";
+import { A_SAFE_UAE, telHref } from "@shared/offices";
 
 // Industry display names mapping (URL slug → human label)
 const industryDisplayNames: Record<string, string> = {
@@ -380,32 +381,33 @@ export default function IndustryCaseStudies() {
                   <MapPin className="h-4 w-4 text-yellow-400" />
                   <div>
                     <a 
-                      href="https://www.google.com/maps/dir/?api=1&destination=Office+220,+Dubai+South+Business+Park,+Dubai,+UAE"
+                      href={A_SAFE_UAE.mapsUrl ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:text-yellow-300 transition-colors cursor-pointer"
                     >
-                      <p>Office 220, Dubai South Business Park</p>
-                      <p>Dubai, UAE</p>
+                      {A_SAFE_UAE.addressLines.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
                     </a>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-yellow-400" />
                   <a 
-                    href="tel:+97148842422"
+                    href={telHref(A_SAFE_UAE.phoneDisplay)}
                     className="hover:text-yellow-300 transition-colors cursor-pointer"
                   >
-                    <p>+971 4884 2422</p>
+                    <p>{A_SAFE_UAE.phoneDisplay}</p>
                   </a>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-yellow-400" />
                   <a 
-                    href="mailto:support@asafe.ae"
+                    href={`mailto:${A_SAFE_UAE.email}`}
                     className="hover:text-yellow-300 transition-colors cursor-pointer"
                   >
-                    <p>support@asafe.ae</p>
+                    <p>{A_SAFE_UAE.email}</p>
                   </a>
                 </div>
                 

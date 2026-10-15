@@ -26,6 +26,7 @@ import type { Env } from "../../../types";
 import { getDb } from "../../../db";
 import { createStorage } from "../../../storage";
 import { FAQS, FAQ_CATEGORIES, INTERNAL_FAQ_CATEGORIES, faqCategoryTitle, type FaqEntry } from "../../../../shared/faqContent";
+import { A_SAFE_UAE, A_SAFE_WEB } from "../../../../shared/offices";
 import { C, HALO_ON_BLACK, TYPE } from "../theme";
 import { createDoc, addPage, ensureSpace, contentWidth, finalize, mm, type Doc, type Page } from "../doc";
 import { heading, body, small, drawText, wrap } from "../text";
@@ -72,11 +73,11 @@ export const FAQ_SHEET_TITLE = "A-SAFE Frequently Asked Questions";
 export const FAQ_SHEET_DOC_TYPE = "Customer FAQ sheet";
 
 const UAE_OFFICE = {
-  name: "A-SAFE DWC-LLC",
-  address: "Office 220, Building A5, Dubai South Business Park, Dubai, UAE",
-  phone: "+971 4 884 2422",
-  email: "support@asafe.ae",
-  web: "www.asafe.com",
+  name: A_SAFE_UAE.legalName,
+  address: A_SAFE_UAE.addressOneLine,
+  phone: A_SAFE_UAE.phoneDisplay,
+  email: A_SAFE_UAE.email,
+  web: A_SAFE_WEB,
 };
 
 // ─── Public entry points ───────────────────────────────────────────────────

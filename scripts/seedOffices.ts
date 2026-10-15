@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { globalOffices } from "../shared/schema";
+import { A_SAFE_KSA, A_SAFE_UAE } from "../shared/offices";
 
 const offices = [
   // EUROPE
@@ -160,32 +161,33 @@ const offices = [
   },
   // MIDDLE EAST
   {
-    companyName: "A-SAFE UAE",
+    // Address, phone, email and map link come from shared/offices.ts
+    // (verified against asafe.com/ar-ae/contact). Fix them there, not here.
+    companyName: A_SAFE_UAE.tradingName,
     officeType: "office",
     region: "Middle East",
-    country: "United Arab Emirates",
-    city: "Dubai",
-    addressLine1: "Duvolks Office, Office 10",
-    addressLine2: "6460 Ibrahim Ibn Mukhalad",
-    addressLine3: "Al Malaz District",
-    phone: "+971 (4)8842 422",
-    email: "uae@asafe.com",
+    country: A_SAFE_UAE.country,
+    city: A_SAFE_UAE.city,
+    addressLine1: A_SAFE_UAE.addressLines[0],
+    addressLine2: A_SAFE_UAE.addressLines[1],
+    phone: A_SAFE_UAE.phoneDisplay,
+    email: A_SAFE_UAE.email,
     imageUrl: "https://flagcdn.com/w80/ae.png",
-    googleMapsUrl: "https://maps.app.goo.gl/55wf4FPkAe2NfKDHA",
+    googleMapsUrl: A_SAFE_UAE.mapsUrl,
     isDefault: true,
     isActive: true,
     sortOrder: 1,
   },
   {
-    companyName: "A-SAFE Saudi Arabia",
+    companyName: A_SAFE_KSA.tradingName,
     officeType: "office",
     region: "Middle East",
-    country: "Saudi Arabia",
-    city: "Riyadh",
-    addressLine1: "Abdullah Al Hamdhani",
-    addressLine2: "Al Malaz Dist.",
-    phone: "+966 53035 6116",
-    email: "ksa@asafe.com",
+    country: A_SAFE_KSA.country,
+    city: A_SAFE_KSA.city,
+    addressLine1: A_SAFE_KSA.addressLines[0],
+    addressLine2: A_SAFE_KSA.addressLines[1],
+    phone: A_SAFE_KSA.phoneDisplay,
+    email: A_SAFE_KSA.email,
     imageUrl: "https://flagcdn.com/w80/sa.png",
     isDefault: false,
     isActive: true,

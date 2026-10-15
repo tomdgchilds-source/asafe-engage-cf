@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { A_SAFE_UAE } from "@shared/offices";
 
 export default function TermsOfService() {
   return (
@@ -249,8 +250,8 @@ export default function TermsOfService() {
             </p>
             <div className="space-y-2 text-gray-700">
               <p><strong>Email:</strong> legal@asafe.ae</p>
-              <p><strong>Phone:</strong> +971 4 884 2422</p>
-              <p><strong>Address:</strong> A-SAFE Middle East, Dubai, United Arab Emirates</p>
+              <p><strong>Phone:</strong> {A_SAFE_UAE.phoneDisplay}</p>
+              <p><strong>Address:</strong> {A_SAFE_UAE.legalName}, {A_SAFE_UAE.addressOneLine}</p>
               <p><strong>Business Hours:</strong> Monday to Friday, 8:30 AM - 5:30 PM (GST)</p>
             </div>
           </CardContent>

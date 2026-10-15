@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import "@/styles/document.css";
+import { A_SAFE_UAE, A_SAFE_WEB, QUOTES_EMAIL } from "@shared/offices";
 
 // ──────────────────────────────────────────────
 // /share/project/:token — public, anonymous read-only project view.
@@ -121,7 +122,7 @@ type LoadState =
   | { kind: "error"; message: string };
 
 const LOGO_PRIMARY = "/brand/logo-strapline-primary.png";
-const CONTACT_EMAIL = "quotes@asafe.ae";
+const CONTACT_EMAIL = QUOTES_EMAIL;
 const DOC_TYPE = "Project review · PAS 13 alignment summary";
 
 function formatDate(value: string | Date | null | undefined): string | null {
@@ -237,10 +238,10 @@ function DocFooter({ meta, note }: { meta: string; note?: string | null }) {
       <div className="doc-footer__brand">
         <span className="doc-footer__halo" aria-hidden="true" />
         <p className="doc-footer__office">
-          <strong>A-SAFE UAE</strong> · Office 220, Building A5, Dubai South Business Park
+          <strong>{A_SAFE_UAE.tradingName}</strong> · {A_SAFE_UAE.addressOneLine}
           <br />
-          Tel: +971 (4) 8842 422 ·{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> · www.asafe.com
+          Tel: {A_SAFE_UAE.phoneDisplay} ·{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> · {A_SAFE_WEB}
         </p>
       </div>
       <p className="doc-footer__meta">
