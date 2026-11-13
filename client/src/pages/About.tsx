@@ -251,8 +251,8 @@ export default function About() {
               
               <div className="text-center">
                 <img
-                  src="https://webcdn.asafe.com/media/iyvhq2wy/a-safe-memaflex-barrier-system.jpg"
-                  alt="A-SAFE Memaflex barrier system - innovative safety technology"
+                  src="https://webcdn.asafe.com/media/0mah4hfg/three-layer-engineering-610-348.jpg?width=1220"
+                  alt="A-SAFE three-layer Memaplex barrier engineering"
                   className="rounded-lg shadow-lg w-full"
                   loading="lazy"
                   onError={(e) => {

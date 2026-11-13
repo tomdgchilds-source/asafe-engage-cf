@@ -683,6 +683,19 @@ orders.post("/orders", authMiddleware, async (c) => {
       storage.createOrder({ ...orderData, orderNumber: candidate }),
     );
 
+    // The order now holds a full snapshot of these lines, so clear them from
+    // the cart. Only the lines that went into this order are removed; the
+    // order's "restore to cart" action brings them back if a revision is
+    // needed. A failure here must not fail the order.
+    try {
+      const orderedIds = serverCartItems
+        .map((item: any) => item?.id)
+        .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+      await storage.removeCartItemsByIds(userId, orderedIds);
+    } catch (err) {
+      console.error("Cart clear after order failed (non-blocking):", err);
+    }
+
     // Audit-log the PAS 13 override when it fired. The blocker details are
     // captured verbatim so the admin-side review has the full cited reason.
     if (pas13Blockers.length > 0 && override) {

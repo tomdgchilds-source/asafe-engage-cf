@@ -368,6 +368,7 @@ export interface IStorage {
   updateCartItem(id: string, updates: Partial<InsertCartItem>): Promise<CartItem>;
   removeFromCart(id: string): Promise<void>;
   clearUserCart(userId: string): Promise<void>;
+  removeCartItemsByIds(userId: string, ids: string[]): Promise<void>;
   
   // Cart Project Information operations
   getCartProjectInfo(userId: string): Promise<CartProjectInfo | undefined>;
@@ -1901,6 +1902,18 @@ export class DatabaseStorage implements IStorage {
 
   async clearUserCart(userId: string): Promise<void> {
     await this.db.delete(cartItems).where(eq(cartItems.userId, userId));
+  }
+
+  /**
+   * Remove specific cart lines belonging to one user. Used after an order
+   * form is created so only the lines that were snapshotted into the order
+   * are cleared; carts held under other projects are left alone.
+   */
+  async removeCartItemsByIds(userId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .delete(cartItems)
+      .where(and(eq(cartItems.userId, userId), inArray(cartItems.id, ids)));
   }
 
   // Product Pricing operations

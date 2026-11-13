@@ -136,9 +136,11 @@ export function CreateOrderModal({
       return response.json();
     },
     onSuccess: (data: any) => {
-      console.log('Order creation response:', data);
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      // The server clears the ordered lines from the cart; refresh the cart
+      // and its header badge straight away.
+      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
       
       // Clear revision info from session storage after successful order creation
       sessionStorage.removeItem('orderRevisionInfo');
