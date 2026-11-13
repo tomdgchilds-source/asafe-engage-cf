@@ -8,7 +8,7 @@ import { CheckCircle, Star, ArrowRight, Package, ChevronDown } from "lucide-reac
 import { Link } from "wouter";
 import { ProductImpactBadges } from "@/components/ProductImpactBadges";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { formatHeightMm, getHeightVariants } from "@/components/GroupedProductCard";
+import { getProductOptions } from "@/lib/productOptions";
 
 // Widened to carry the schema impact/PAS13/height/cold-storage fields so
 // the unified <ProductImpactBadges> can render consistently with
@@ -53,14 +53,16 @@ export function ConsolidatedProductCard({
   impactRange,
   index
 }: ConsolidatedProductCardProps) {
-  // Variants that differ only by height (bollards) get an always-visible
-  // "Height" picker, matching GroupedProductCard / HeightRestrictorKitCard.
-  const heightVariants = useMemo(() => getHeightVariants(variants), [variants]);
-  // Default to the lowest height so the picker always shows a real option
-  // (the recommendation's `product` isn't necessarily one of the variants).
+  // Variants that are a height and/or a colour (bollards) get an
+  // always-visible option picker, matching GroupedProductCard /
+  // HeightRestrictorKitCard.
+  const optionSet = useMemo(() => getProductOptions(variants), [variants]);
+  // Default to the lowest-priced option so the picker always shows a real
+  // option (the recommendation's `product` isn't necessarily one of the variants).
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
-    () => heightVariants?.[0]?.product ?? product,
+    () => optionSet?.options.find((o) => o.id === optionSet.defaultId)?.product ?? product,
   );
+  const selectedOption = optionSet?.options.find((o) => o.product.id === selectedVariant.id) ?? null;
   const [showVariants, setShowVariants] = useState(false);
   const { formatPrice } = useCurrency();
 
@@ -84,11 +86,11 @@ export function ConsolidatedProductCard({
           <div className="flex-1">
             <CardTitle className="text-lg">{baseProductName}</CardTitle>
             
-            {/* Height-only family: labelled picker, no disclosure toggle */}
-            {heightVariants && (
+            {/* Option family: one labelled picker, no disclosure toggle */}
+            {optionSet && (
               <div className="mt-2">
                 <Label htmlFor={`cons-height-${product.id}`} className="text-xs font-semibold">
-                  Height
+                  {optionSet.axisLabel}
                 </Label>
                 <Select value={selectedVariant.id} onValueChange={handleVariantChange}>
                   <SelectTrigger
@@ -96,14 +98,14 @@ export function ConsolidatedProductCard({
                     className="h-9 mt-1"
                     data-testid={`consolidated-height-${product.id}`}
                   >
-                    <SelectValue placeholder="Select height" />
+                    <SelectValue placeholder={`Select ${optionSet.axisLabel.toLowerCase()}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {heightVariants.map(({ product: v, heightMm }) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {formatHeightMm(heightMm)}
-                        {typeof v.price === "number" && v.price > 0
-                          ? ` · ${formatPrice(v.price)}`
+                    {optionSet.options.map((o) => (
+                      <SelectItem key={o.product.id} value={o.product.id} data-testid={`product-option-${o.product.id}`}>
+                        {o.label}
+                        {o.price > 0
+                          ? ` · ${o.priceIsFrom ? "from " : ""}${formatPrice(o.price)}${o.isPerMeter ? "/m" : ""}`
                           : ""}
                       </SelectItem>
                     ))}
@@ -113,7 +115,7 @@ export function ConsolidatedProductCard({
             )}
 
             {/* Variants indicator and selector */}
-            {!heightVariants && variants && variants.length > 1 && (
+            {!optionSet && variants && variants.length > 1 && (
               <div className="mt-2 space-y-2">
                 <Badge 
                   variant="outline" 
@@ -193,8 +195,8 @@ export function ConsolidatedProductCard({
             pas13Compliant={selectedVariant.pas13Compliant}
             pas13TestMethod={selectedVariant.pas13TestMethod}
             pas13TestJoules={selectedVariant.pas13TestJoules}
-            heightMin={selectedVariant.heightMin}
-            heightMax={selectedVariant.heightMax}
+            heightMin={selectedOption?.heightMm ?? selectedVariant.heightMin}
+            heightMax={selectedOption?.heightMm ?? selectedVariant.heightMax}
             isColdStorage={selectedVariant.isColdStorage}
             category={selectedVariant.category}
             subcategory={selectedVariant.subcategory}

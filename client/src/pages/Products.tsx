@@ -242,7 +242,14 @@ export default function Products() {
         if (processedIds.has(product.id)) return; // Skip already processed
         
         const serverProduct = product as any;
-        if (serverProduct.hasVariants && serverProduct.productVariants && serverProduct.productVariants.length > 1) {
+        // A card with several server options (one per priced sub-size) gets the
+        // option picker even when a search / filter left it a single row —
+        // "Bollard, Yellow" alone still holds 835 mm, 1.2 m and 210 OD sizes.
+        const hasOptions = Array.isArray(serverProduct.options) && serverProduct.options.length > 1;
+        if (serverProduct.productVariants && (
+          (serverProduct.hasVariants && serverProduct.productVariants.length > 1) ||
+          (hasOptions && serverProduct.productVariants.length > 0)
+        )) {
           grouped.push({
             product: {
               ...product,
@@ -837,7 +844,8 @@ export default function Products() {
                       </div>
                     ))}
                     {groupedProducts.map((item) => {
-                      if (item.variants && item.variants.length > 1) {
+                      const itemOptions = (item.product as any).options;
+                      if (item.variants && (item.variants.length > 1 || (item.variants.length > 0 && Array.isArray(itemOptions) && itemOptions.length > 1))) {
                         // Check if this is a server-provided grouped product
                         const productData = item.product as any;
                         const hasServerVariants = productData.hasVariants && productData.productVariants;

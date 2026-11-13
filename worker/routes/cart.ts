@@ -5,6 +5,7 @@ import { mutationRateLimit } from "../middleware/rateLimiter";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
 import { round2 } from "../../shared/pricing";
+import { findProductSubSize } from "../../shared/productOptions";
 import type { CartLikeItem } from "../../shared/pricing/lines";
 import { accessoryLinesTotalAed, defaultAccessoryQuantity } from "../../shared/pricing/accessories";
 import type { AccessoryLine, AccessoryPrice } from "../../shared/cartAccessories";
@@ -46,17 +47,71 @@ cart.get("/cart", authMiddleware, async (c) => {
   }
 });
 
+/** SKU of the sub-size a cart line was added as (`selectedVariant.code` / `.sku`), or null. */
+export function selectedVariantSku(selectedVariant: unknown): string | null {
+  let sv: unknown = selectedVariant;
+  if (typeof sv === "string") {
+    try {
+      sv = JSON.parse(sv);
+    } catch {
+      return null;
+    }
+  }
+  if (!sv || typeof sv !== "object") return null;
+  const raw = (sv as { code?: unknown; sku?: unknown }).code ?? (sv as { sku?: unknown }).sku;
+  const sku = typeof raw === "string" ? raw.trim() : "";
+  return sku || null;
+}
+
+type SubSizeStorage = Pick<ReturnType<typeof createStorage>, "getProductByName" | "getProductVariants">;
+
+/**
+ * Price of the sub-size a per-unit line stands for, read from the catalogue.
+ *
+ * A line added from an option of a grouped card carries the parent row as
+ * `productName` ("Bollard, Yellow") and the picked size as `selectedVariant`
+ * (SKU S-01-07-0053, "190 OD x 1200 mm"). The row's headline price is only
+ * its cheapest size, so the line is priced from the sub-size whose SKU
+ * matches — looked up on the product row, never taken from the client.
+ * Returns null when the line names no sub-size of its product (see
+ * productSubSizes in shared/productOptions.ts for what counts as one).
+ */
+export async function resolveSubSizePrice(
+  storage: SubSizeStorage,
+  cartItem: any,
+): Promise<{ sku: string; unitPrice: number } | null> {
+  if (!cartItem?.productName || cartItem.isCustom === true) return null;
+  if (cartItem.pricingType === "linear_meter") return null;
+  const sku = selectedVariantSku(cartItem.selectedVariant);
+  if (!sku) return null;
+  const product = await storage.getProductByName(cartItem.productName);
+  if (!product) return null;
+  // Price-list variants make the price list the row's price source; the
+  // lookup is what tells productSubSizes the spec sub-sizes are stale.
+  let priceVariants: unknown[] = [];
+  try {
+    priceVariants = await storage.getProductVariants(product.id);
+  } catch {
+    priceVariants = [];
+  }
+  const sub = findProductSubSize({ ...(product as any), priceVariants }, sku);
+  return sub ? { sku: sub.sku, unitPrice: round2(sub.priceAed) } : null;
+}
+
 /**
  * Server-side re-pricing shared by POST /api/cart and /api/cart/bulk-add.
  *
  * Looks the product up in product_pricing (tiered by quantity — metres for
  * per-metre lines, units otherwise) and overwrites unitPrice / totalPrice /
- * pricingTier in place. When no tier row exists, a positive client-supplied
- * unitPrice (e.g. a variant price) is trusted and the total recomputed.
+ * pricingTier in place. With no tier row, a line whose selectedVariant SKU
+ * is a sub-size of its product row is priced from that sub-size; otherwise
+ * the row's own price applies, whatever unitPrice the client sent. Only
+ * when the catalogue has no price at all is a positive client-supplied
+ * unitPrice trusted and the total recomputed.
  * Returns false when the line cannot be priced at all.
  */
 export async function applyServerPricing(
-  storage: ReturnType<typeof createStorage>,
+  storage: Pick<ReturnType<typeof createStorage>, "calculatePrice" | "getProductByName" | "getProductVariants">,
   cartItem: any,
 ): Promise<boolean> {
   const quantity = Number(cartItem?.quantity);
@@ -84,6 +139,21 @@ export async function applyServerPricing(
       return true;
     }
   }
+  // No quantity-tier row for this name: the row's sub-size, when the line
+  // names one, is the price — not the row headline calculatePrice fell back
+  // to, and not the client's figure.
+  if (pricingResult.requiresQuote || pricingResult.tier === "Base Product Price") {
+    const sub = await resolveSubSizePrice(storage, cartItem);
+    if (sub) {
+      cartItem.unitPrice = sub.unitPrice;
+      cartItem.totalPrice = round2(sub.unitPrice * quantity);
+      cartItem.pricingTier = "Variant Price";
+      if (cartItem.selectedVariant && typeof cartItem.selectedVariant === "object") {
+        cartItem.selectedVariant = { ...cartItem.selectedVariant, price: sub.unitPrice };
+      }
+      return true;
+    }
+  }
   if (pricingResult.requiresQuote) {
     const clientUnitPrice = parseFloat(cartItem.unitPrice);
     if (!isNaN(clientUnitPrice) && clientUnitPrice > 0) {
@@ -98,6 +168,31 @@ export async function applyServerPricing(
   cartItem.totalPrice = pricingResult.totalPrice;
   cartItem.pricingTier = pricingResult.tier;
   return true;
+}
+
+/**
+ * After a quantity change: storage.updateCartItem re-prices by product name,
+ * which for a sub-size line is the row headline (the cheapest size). Put the
+ * line back on its own sub-size price. No-op for every other line.
+ */
+export async function keepSubSizePrice(
+  storage: SubSizeStorage & Pick<ReturnType<typeof createStorage>, "updateCartItem">,
+  item: any,
+  quantityChanged: boolean,
+): Promise<any> {
+  if (!quantityChanged || !item?.id) return item;
+  const sub = await resolveSubSizePrice(storage, item);
+  if (!sub) return item;
+  const quantity = Number(item.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) return item;
+  const totalPrice = round2(sub.unitPrice * quantity);
+  if (Number(item.unitPrice) === sub.unitPrice && Number(item.totalPrice) === totalPrice) return item;
+  // No `quantity` in this update, so storage does not re-price again.
+  return storage.updateCartItem(item.id, {
+    unitPrice: sub.unitPrice,
+    totalPrice,
+    pricingTier: "Variant Price",
+  } as any);
 }
 
 // POST /api/cart - add item to cart
@@ -341,7 +436,11 @@ cart.patch("/cart/items", authMiddleware, mutationRateLimit, async (c) => {
       return c.json({ message: "No fields to update" }, 400);
     }
 
-    const updatedItem = await storage.updateCartItem(id, updates);
+    const updatedItem = await keepSubSizePrice(
+      storage,
+      await storage.updateCartItem(id, updates),
+      updates.quantity !== undefined,
+    );
     return c.json(updatedItem);
   } catch (error) {
     console.error("Error updating cart item:", error);
@@ -361,7 +460,11 @@ cart.put("/cart/:id", authMiddleware, mutationRateLimit, async (c) => {
     if (body.accessories !== undefined) {
       body.accessories = coerceJsonField(body.accessories);
     }
-    const updatedItem = await storage.updateCartItem(c.req.param("id"), body);
+    const updatedItem = await keepSubSizePrice(
+      storage,
+      await storage.updateCartItem(c.req.param("id"), body),
+      body?.quantity !== undefined,
+    );
     return c.json(updatedItem);
   } catch (error) {
     console.error("Error updating cart item:", error);

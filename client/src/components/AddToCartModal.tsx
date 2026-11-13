@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,6 +30,8 @@ import { SiteReferenceUploader } from "./SiteReferenceUploader";
 import { ForkGuardKerbCalculator } from "./ForkGuardKerbCalculator";
 import { QuoteBuilderPanel, detectBuilderMode } from "./QuoteBuilderPanel";
 import { computeTotals, planLength, round2, type LengthVariant } from "@shared/pricing";
+import { findProductSubSize } from "@shared/productOptions";
+import { productDisplayName } from "@shared/productDisplayName";
 import {
   calculateHeightRestrictorPricing as calcHeightRestrictor,
   calculateIFlexRailPricing as calcIFlexRail,
@@ -80,6 +82,38 @@ interface AddToCartModalProps {
     speedMs: number;
   };
   calculatorImages?: string[];
+  /**
+   * SKU of one of this product row's own priced sub-sizes (e.g. the
+   * "190 OD x 1200 mm" of "Bollard, Yellow"), already picked on the
+   * catalogue card. The modal opens with that size selected, does not ask
+   * for it again, and adds the line as this row + that sub-size at the
+   * sub-size price. Ignored when the row has no sub-size by that SKU.
+   */
+  initialVariantSku?: string;
+}
+
+/**
+ * The modal's `selectedVariant` for a pre-picked sub-size of `product`, or
+ * null. Shaped like the row's own spec variant (name / code / price) so the
+ * existing variant pricing applies, plus what the cart line needs to be
+ * named and re-priced: the parent row and the size's height / OD.
+ */
+function lockedVariantFor(product: any, sku: string | undefined): any | null {
+  const sub = findProductSubSize(product, sku);
+  if (!sub) return null;
+  return {
+    ...sub.raw,
+    code: sub.sku,
+    sku: sub.sku,
+    name: sub.name,
+    variant: sub.name,
+    price: sub.priceAed,
+    height: sub.heightMm ?? undefined,
+    heightMm: sub.heightMm,
+    odMm: sub.odMm,
+    parentName: product.name,
+    parentProductId: product.productId ?? null,
+  };
 }
 
 interface PricingData {
@@ -90,7 +124,7 @@ interface PricingData {
   planLabel?: string;
 }
 
-export function AddToCartModal({ product, children, impactCalculationId, calculationContext, variants, showVariantSelector, calculatorImages, isEditMode = false }: AddToCartModalProps) {
+export function AddToCartModal({ product, children, impactCalculationId, calculationContext, variants, showVariantSelector, calculatorImages, isEditMode = false, initialVariantSku }: AddToCartModalProps) {
   const [, setLocation] = useLocation();
   const existingItem = product.existingCartItem;
 
@@ -101,7 +135,20 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
   const [pricingData, setPricingData] = useState<PricingData | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
   const [requiresQuote, setRequiresQuote] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  // A sub-size picked on the catalogue card stays selected for the life of
+  // the modal: there is no second size picker to change it with.
+  const lockedVariant = useMemo(
+    () => lockedVariantFor(product, initialVariantSku),
+    [product, initialVariantSku],
+  );
+  const [selectedVariant, setSelectedVariant] = useState<any>(lockedVariant);
+  // The line is named after the row; the sub-size rides along as its variant.
+  const lineName: string = lockedVariant
+    ? product.name
+    : selectedVariant
+      ? selectedVariant.name
+      : product.name;
+  const lineDisplayName: string = lockedVariant ? productDisplayName(product.name, lockedVariant) : lineName;
   
   // Delivery options
   const [requiresDelivery, setRequiresDelivery] = useState(existingItem?.requiresDelivery ?? true);
@@ -994,7 +1041,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       }
       
       const response = await apiRequest("/api/product-pricing/calculate", "POST", {
-        productName: selectedVariant ? selectedVariant.name : product.name,
+        productName: lineName,
         quantity: qty,
       });
       setIsLoadingPrice(false);
@@ -1075,7 +1122,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       
       // Otherwise, add a new item to the cart
       const response = await apiRequest("/api/cart", "POST", {
-        productName: selectedVariant ? selectedVariant.name : product.name,
+        productName: lineName,
         quantity,
         pricingType: isLinearMeter ? "linear_meter" : "single_item",
         unitPrice: pricingData.unitPrice,
@@ -1119,7 +1166,19 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           width: selectedVariant.width,
           height: selectedVariant.height,
           price: selectedVariant.price,
-          code: selectedVariant.code
+          code: selectedVariant.code,
+          // A sub-size of this row: what the server re-prices by (SKU on
+          // the parent row) and what the line is displayed as.
+          ...(lockedVariant
+            ? {
+                name: lockedVariant.name,
+                sku: lockedVariant.sku,
+                heightMm: lockedVariant.heightMm,
+                odMm: lockedVariant.odMm,
+                parentName: lockedVariant.parentName,
+                parentProductId: lockedVariant.parentProductId,
+              }
+            : {}),
         } : null,
       });
       return response.json();
@@ -1130,8 +1189,8 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       toast({
         title: "Success",
         description: isEditMode 
-          ? `${selectedVariant ? selectedVariant.name : product.name} updated in cart`
-          : `${selectedVariant ? selectedVariant.name : product.name} added to cart`,
+          ? `${lineDisplayName} updated in cart`
+          : `${lineDisplayName} added to cart`,
       });
       setOpen(false);
       setQuantity(minQuantity);
@@ -1146,8 +1205,8 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
       // Reset site reference images
       setReferenceImages([]);
       setInstallationLocation("");
-      // Reset variant selection
-      setSelectedVariant(null);
+      // Reset variant selection (a card-picked sub-size stays selected)
+      setSelectedVariant(lockedVariant);
       // Reset column guard specific fields
       setColumnLength("");
       setColumnWidth("");
@@ -1292,7 +1351,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           <DialogHeader>
             <DialogTitle>{isEditMode ? "Modify Cart Item" : "Add to Cart"}</DialogTitle>
             <DialogDescription>
-              {isEditMode ? `Update quantity and options for ${product.name}` : `Configure quantity and options for ${product.name}`}
+              {isEditMode ? `Update quantity and options for ${lockedVariant ? lineDisplayName : product.name}` : `Configure quantity and options for ${lockedVariant ? lineDisplayName : product.name}`}
             </DialogDescription>
           </DialogHeader>
 
@@ -1420,7 +1479,20 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           )}
 
           {/* Product Variant Selection - Show when product has selectable variants (NOT for FlexiShield or iFlex Rail which have their own config flows) */}
-          {!showVariantSelector && availableVariants.length > 1 && !isFlexiShieldColumnGuard && !isIFlexRailColumnGuard && !((product as any).basePricePerMeter && (product as any).basePricePerMeter > 0) && (
+          {/* Size already picked on the catalogue card: state it, don't ask again. */}
+          {lockedVariant && availableVariants.length > 1 && (
+            <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-sm" data-testid="locked-variant-summary">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-yellow-600" />
+                <span className="font-medium text-yellow-900 dark:text-yellow-100">{lineDisplayName}</span>
+              </div>
+              <div className="mt-1 text-gray-700 dark:text-gray-300">
+                SKU {lockedVariant.sku} · {formatPrice(lockedVariant.price)} each
+              </div>
+            </div>
+          )}
+
+          {!lockedVariant && !showVariantSelector && availableVariants.length > 1 && !isFlexiShieldColumnGuard && !isIFlexRailColumnGuard && !((product as any).basePricePerMeter && (product as any).basePricePerMeter > 0) && (
             <div className="space-y-3 border border-yellow-200 bg-yellow-50 p-4 rounded-lg">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-yellow-600" />
@@ -2124,7 +2196,7 @@ export function AddToCartModal({ product, children, impactCalculationId, calcula
           )}
 
           {/* Product-Specific Variant Selection - NOT for products with grouped variants, NOT FlexiShield and NOT per-meter products */}
-          {hasVariants && !((product as any).productVariants && (product as any).productVariants.length > 1) && !isFlexiShieldColumnGuard && !isLinearMeter && (
+          {!lockedVariant && hasVariants && !((product as any).productVariants && (product as any).productVariants.length > 1) && !isFlexiShieldColumnGuard && !isLinearMeter && (
             <div className="space-y-3 border border-yellow-200 bg-yellow-50 p-4 rounded-lg">
               <div className="flex items-center gap-2">
                 <Ruler className="h-4 w-4 text-yellow-600" />

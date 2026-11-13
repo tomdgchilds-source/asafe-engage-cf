@@ -11,6 +11,7 @@ import {
   lineTotalWithAccessories,
   type CartLineContext,
 } from "@/lib/customItems";
+import { productDisplayName } from "@shared/productDisplayName";
 
 interface CartItemMobileProps {
   item: any;
@@ -56,6 +57,8 @@ export function CartItemMobile({
   const accessorySummary = accessoriesSubtotal(item.accessoryLines, lineContext);
   const lineTotalAed = lineTotalWithAccessories({ ...item, ...lineContext });
   const isCustom = !!item.isCustom;
+  // Customer-facing name for the line; lookups keep the stored productName.
+  const displayName: string = isCustom ? item.productName : productDisplayName(item.productName, item.selectedVariant);
   const basisLabel: string | null = isCustom
     ? (PRICING_BASIS_LABELS[item.pricingBasis as keyof typeof PRICING_BASIS_LABELS] ?? null)
     : null;
@@ -80,7 +83,7 @@ export function CartItemMobile({
               <>
                 <img
                   src={imageUrl}
-                  alt={item.productName}
+                  alt={displayName}
                   className="w-full h-full object-contain p-1"
                   loading="lazy"
                   onError={(e) => {
@@ -111,7 +114,7 @@ export function CartItemMobile({
         {/* Product Info */}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight mb-1 line-clamp-2">
-            {item.productName}
+            {displayName}
           </h3>
           {isCustom && (
             <div className="flex flex-wrap items-center gap-1 mb-1">

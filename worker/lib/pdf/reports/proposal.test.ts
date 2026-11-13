@@ -218,6 +218,39 @@ describe("buildProposalModel", () => {
     expect(noSurvey.survey).toBeNull();
     expect(noSurvey.products.map((p) => p.name)).toEqual(["iFlex Single Traffic", "Bollard Bumper"]);
   });
+
+  it("prints a sub-size line under its full name and SKU while keeping the stored name as the key", () => {
+    const b = bundle({ survey: false });
+    const withBollard: OrderBundle = {
+      ...b,
+      items: [
+        ...b.items,
+        {
+          id: "l3",
+          productName: "Bollard, Yellow",
+          quantity: 4,
+          unitPrice: 1865.14,
+          pricingType: "single_item",
+          requiresDelivery: true,
+          requiresInstallation: true,
+          zoneName: "Gate 2",
+          selectedVariant: { code: "S-01-07-0053", sku: "S-01-07-0053", name: "190 OD x 1200 mm", heightMm: 1200, odMm: 190, price: 1865.14, parentName: "Bollard, Yellow" },
+        },
+      ] as unknown as OrderBundle["items"],
+      products: new Map([...b.products, ["Bollard, Yellow", product("Bollard, Yellow", "iFlex 190 bollards", 0, onePx())]]),
+    };
+    const model = buildProposalModel(withBollard);
+    const line = model.lines[2];
+    expect(line.productName).toBe("Bollard, Yellow");
+    expect(line.displayName).toBe("iFlex 190 Bollard, 1.2 m, Yellow");
+    expect(line.sku).toBe("S-01-07-0053");
+    expect(line.unitAed).toBe(1865.14);
+    expect(model.zones.find((z) => z.zone === "Gate 2")?.protection).toBe("iFlex 190 Bollard, 1.2 m, Yellow");
+    // Lines with no sub-size print exactly as before.
+    expect(model.lines[0].displayName).toBe("iFlex Single Traffic");
+    // The product card is still found by the stored name.
+    expect(model.products.map((p) => p.name)).toContain("Bollard, Yellow");
+  });
 });
 
 describe("renderProposalModel", () => {

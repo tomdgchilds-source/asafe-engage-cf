@@ -26,6 +26,7 @@ import {
   pickRowForLength,
 } from "@/hooks/useBarrierLadders";
 import { apiRequest } from "@/lib/queryClient";
+import { productDisplayName } from "@shared/productDisplayName";
 
 interface CartItemProps {
   item: any;
@@ -431,6 +432,12 @@ export function CartItem({
   const accessorySummary = accessoriesSubtotal(item.accessoryLines, lineContext);
   const lineTotalAed = lineTotalWithAccessories({ ...item, ...lineContext });
   const isCustom = !!item.isCustom;
+  // What the customer reads for this line ("Bollard, Yellow" + its
+  // 190 OD x 1200 mm sub-size → "iFlex 190 Bollard, 1.2 m, Yellow").
+  // Display only: every lookup, price and update
+  // below keeps using the stored `item.productName`. A custom line is the
+  // rep's own wording and is shown as typed.
+  const displayName: string = isCustom ? item.productName : productDisplayName(item.productName, item.selectedVariant);
   const basisLabel: string | null = isCustom
     ? (PRICING_BASIS_LABELS[item.pricingBasis as keyof typeof PRICING_BASIS_LABELS] ?? null)
     : null;
@@ -464,7 +471,7 @@ export function CartItem({
             {getProductImage(item.productName) ? (
               <img
                 src={getProductImage(item.productName)!}
-                alt={item.productName}
+                alt={displayName}
                 className="w-full h-full object-contain p-1"
                 loading="lazy"
               />
@@ -478,9 +485,9 @@ export function CartItem({
             <div className="flex items-center gap-2 mb-1">
               <h4 
                 className="font-medium text-gray-900 dark:text-white text-sm truncate" 
-                title={item.productName}
+                title={displayName}
               >
-                {item.productName}
+                {displayName}
               </h4>
               {/* Source badges based on how item was added */}
               {item.impactCalculationId && (
@@ -641,7 +648,7 @@ export function CartItem({
                   {getProductImage(item.productName) ? (
                     <img
                       src={getProductImage(item.productName)!}
-                      alt={item.productName}
+                      alt={displayName}
                       className="w-full h-full object-contain p-2"
                       data-testid={`img-product-thumbnail-${item.id}`}
                       loading="lazy"
@@ -658,9 +665,9 @@ export function CartItem({
                 <h4 
                   className="font-semibold text-gray-900 dark:text-white leading-tight mb-2 text-sm sm:text-base break-words line-clamp-2" 
                   data-testid={`text-product-name-${item.id}`}
-                  title={item.productName}
+                  title={displayName}
                 >
-                  {item.productName}
+                  {displayName}
                 </h4>
                 
                 {/* Product Details - Better spacing on all sizes */}

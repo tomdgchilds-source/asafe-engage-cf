@@ -4,6 +4,7 @@ import type { Product } from "@shared/schema";
 import { authMiddleware } from "../middleware/auth";
 import { getDb } from "../db";
 import { createStorage } from "../storage";
+import { deriveFamilyOptions, resolveBollardGroupKey } from "./products.options";
 
 const products = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -425,299 +426,7 @@ products.get("/products", async (c) => {
       return c.json(sortedProducts);
     }
 
-    // Group products by base name for consolidated view
-    const groupedProducts: Record<string, any> = {};
-
-    // ─────────────────────────────────────────────────────────────
-    // Bollard grouping helper.
-    //
-    // Sales feedback (Shahla, Micah — May 5): all bollard variants of the
-    // same model + impact rating should live under ONE card; the variant
-    // axis (colour, height, OD) lives inside. The historical grouping
-    // kept "Bollard, Yellow" and "Bollard, Grey" as siblings, and the
-    // "iFlex Heavy Duty Bollard" parent was a phantom row with no price
-    // because the actual SKUs ship as "Heavy Duty Bollard, Yellow, GALV"
-    // and "Heavy Duty Bollard, Grey, GALV".
-    //
-    // The map below resolves any bollard SKU name to its model card. We
-    // strip the trailing colour/finish so colour becomes a variant of the
-    // grouped card rather than a sibling card. Keep Cold Storage, Heavy
-    // Duty, Monoplex 130/190, iFlex Post 130, Sign Post separate per
-    // their distinct impact ratings / model lines.
-    //
-    // Returns null when the product isn't a bollard or doesn't need
-    // re-grouping; the caller falls back to its existing rule chain.
-    // ─────────────────────────────────────────────────────────────
-    const resolveBollardGroupKey = (name: string): string | null => {
-      if (name.includes("Cold Storage iFlex 190 Bollard")) {
-        return "Cold Storage iFlex 190 Bollard";
-      }
-      // "Heavy Duty Bollard, Yellow, GALV" + "Heavy Duty Bollard, Grey,
-      // GALV" + the legacy "iFlex Heavy Duty Bollard" parent all roll up
-      // into the same card. Phantom-parent merging happens below: the
-      // priceless parent gets merged into the same group, then the post-
-      // grouping pass elevates the priced variants' price band to the
-      // card.
-      if (
-        name === "iFlex Heavy Duty Bollard" ||
-        name.startsWith("Heavy Duty Bollard")
-      ) {
-        return "iFlex Heavy Duty Bollard";
-      }
-      if (name === "Monoplex 130 Bollard") return "Monoplex 130 Bollard";
-      if (name === "Monoplex 190 Bollard") return "Monoplex 190 Bollard";
-      if (name === "iFlex Post 130") return "iFlex Post 130";
-      if (name.startsWith("Sign Post")) return name; // each sign-post line stays distinct
-      // iFlex 190 family — currently a single 2m SKU but Tom wants it
-      // surfaced as a family card so future heights drop in cleanly.
-      if (name.startsWith("iFlex 190 Bollard")) return "iFlex 190 Bollard";
-      // Standard iFlex bollard line: "Bollard, Yellow" + "Bollard, Grey"
-      // both come from the same iFlex 190OD/210OD family. Merge them by
-      // colour into the iFlex Bollard card.
-      if (/^Bollard, (Yellow|Grey)/.test(name)) return "iFlex Bollard";
-      return null;
-    };
-
-    sortedProducts.forEach((product) => {
-      let groupKey = product.name;
-
-      // Define grouping patterns based on product names
-      // Products that should NOT be grouped (individual products):
-      if (
-        product.name === "Car Stop" ||
-        product.name === "Coach Stop" ||
-        product.name === "Truck Stop" ||
-        product.name === "Sign Cap" ||
-        (product.name.startsWith("Slide Gate") &&
-          !product.name.includes("iFlex")) ||
-        product.name === "Atlas Double Traffic Barrier" ||
-        product.name === "iFlex Double Traffic Plus" ||
-        product.name === "iFlex Single Traffic Plus"
-      ) {
-        groupKey = product.name;
-      } else if (product.name.includes("iFlex Slide Gate")) {
-        groupKey = "iFlex Slide Gate";
-      } else if (product.category === "bollards") {
-        // Bollard category — defer to the bollard helper. If it returns
-        // null we still want SOME group (single-card) so use the raw
-        // name. This keeps the bollard grouping logic in one place.
-        groupKey = resolveBollardGroupKey(product.name) ?? product.name;
-      } else if (product.name.includes("Traffic Gate"))
-        groupKey = "Traffic Gate";
-      else if (product.name.includes("Hydraulic Swing Gate"))
-        groupKey = "Hydraulic Swing Gate";
-      else if (product.name.includes("eFlex Single Rack End Barrier"))
-        groupKey = "eFlex Single Rack End Barrier";
-      else if (product.name.includes("eFlex Double Rack End Barrier"))
-        groupKey = "eFlex Double Rack End Barrier";
-      else if (
-        product.name.includes("ForkGuard Kerb Barrier") &&
-        !product.name.includes("HD")
-      )
-        groupKey = "ForkGuard Kerb Barrier";
-      else if (product.name.includes("HD ForkGuard Kerb Barrier"))
-        groupKey = "HD ForkGuard Kerb Barrier";
-      else if (
-        product.name.includes("FlexiShield Column Guard") &&
-        !product.name.includes("Spacer")
-      )
-        groupKey = "FlexiShield Column Guard";
-      else if (product.name.includes("FlexiShield Corner Guard"))
-        groupKey = "FlexiShield Corner Guard";
-      else if (product.name.includes("Step Guard"))
-        groupKey = "Step Guard";
-      else if (product.name.includes("iFlex RackGuard"))
-        groupKey = "iFlex RackGuard";
-      else if (product.name.includes("Cold Store RackGuard"))
-        groupKey = "Cold Store RackGuard";
-      else if (product.name.includes("iFlex Rail Column Guard+"))
-        groupKey = "iFlex Rail Column Guard+";
-      else if (product.name.includes("iFlex Rail Column Guard"))
-        groupKey = "iFlex Rail Column Guard";
-      else if (product.name.includes("Slider Plate"))
-        groupKey = "Slider Plate";
-
-      // Phantom parent detection: a "Heavy Duty Bollard"-style row that
-      // has no price, no SKU, and no variants. We still want it to
-      // contribute *metadata* (impact rating, description, image) to the
-      // grouped card, but it must NOT appear as a selectable variant
-      // because it has nothing to add to cart.
-      const productPriceNum = parseFloat(String(product.price ?? 0));
-      const variantPriceNumbers = ((product.specifications?.variants ??
-        product.variants ??
-        []) as any[])
-        .map((v: any) => parseFloat(v?.price ?? 0))
-        .filter((n) => Number.isFinite(n) && n > 0);
-      const isPhantomParent =
-        (!productPriceNum || productPriceNum <= 0) &&
-        variantPriceNumbers.length === 0;
-
-      if (!groupedProducts[groupKey]) {
-        groupedProducts[groupKey] = {
-          ...product,
-          name: groupKey,
-          productVariants: [],
-          // Seed min/max from the first priced sibling we see; we'll
-          // tighten these as more products land in the group. Using
-          // Infinity sentinels avoids the historical `0` floor that let
-          // a phantom parent set minPrice to 0.
-          minPrice: Infinity,
-          maxPrice: 0,
-          hasVariants: false,
-        };
-      }
-
-      // Skip phantom parents from the variant list (they have no SKU
-      // and no price — letting them in confuses the variant picker)
-      // but keep them as a metadata source. If a phantom parent is
-      // processed AFTER its priced siblings have already seeded the
-      // group, we still want to fold its impact rating / image /
-      // description across — these are the fields the phantom row
-      // typically carries that the priced rows lack.
-      if (!isPhantomParent) {
-        groupedProducts[groupKey].productVariants.push(product);
-      } else {
-        if (product.category === "bollards") {
-          console.warn(
-            `[products] Treating "${product.name}" (id=${product.productId}) as a phantom bollard parent — no price, no variants. ` +
-              `Surfacing siblings under group "${groupKey}" instead. ` +
-              `If this is unexpected, check that price-list ingest matched the variant SKUs.`,
-          );
-        }
-        const cur = groupedProducts[groupKey];
-        const fillIfMissing = (key: string) => {
-          if (
-            (cur as any)[key] == null ||
-            (cur as any)[key] === "" ||
-            (cur as any)[key] === false
-          ) {
-            const v = (product as any)[key];
-            if (v != null && v !== "" && v !== false) {
-              (cur as any)[key] = v;
-            }
-          }
-        };
-        fillIfMissing("impactRating");
-        fillIfMissing("imageUrl");
-        fillIfMissing("lifestyleImageUrl");
-        fillIfMissing("description");
-        fillIfMissing("pas13Compliant");
-        fillIfMissing("pas13TestJoules");
-        fillIfMissing("technicalSheetUrl");
-        fillIfMissing("installationGuideUrl");
-      }
-
-      // Check if product has variants in specifications
-      let hasSpecVariants = false;
-      let specMinPrice = productPriceNum;
-      let specMaxPrice = productPriceNum;
-
-      if (
-        product.specifications &&
-        product.specifications.variants &&
-        Array.isArray(product.specifications.variants)
-      ) {
-        hasSpecVariants = product.specifications.variants.length > 1;
-        if (hasSpecVariants) {
-          const variantPrices = product.specifications.variants
-            .map((v: any) => parseFloat(v.price || 0))
-            .filter((p: number) => p > 0);
-          if (variantPrices.length > 0) {
-            specMinPrice = Math.min(...variantPrices);
-            specMaxPrice = Math.max(...variantPrices);
-          }
-        }
-      }
-
-      // Only fold a price into the min/max if it's actually positive.
-      // The phantom parent's null/0 price is silently ignored here so
-      // the grouped card shows the real "AED X — AED Y" band, not an
-      // "AED 0 — …" floor.
-      const bandCandidates = [
-        groupedProducts[groupKey].minPrice,
-        groupedProducts[groupKey].maxPrice,
-        ...(productPriceNum > 0 ? [productPriceNum] : []),
-        ...(specMinPrice > 0 ? [specMinPrice] : []),
-        ...(specMaxPrice > 0 ? [specMaxPrice] : []),
-      ].filter((n) => Number.isFinite(n) && n > 0);
-      if (bandCandidates.length > 0) {
-        groupedProducts[groupKey].minPrice = Math.min(...bandCandidates);
-        groupedProducts[groupKey].maxPrice = Math.max(...bandCandidates);
-      }
-
-      groupedProducts[groupKey].hasVariants =
-        groupedProducts[groupKey].productVariants.length > 1 || hasSpecVariants;
-
-      // Use the lowest priced variant's data as the base (so the card
-      // hero image / description comes from a real SKU). Skip phantom
-      // parents — we don't want them stamping their metadata over a
-      // priced sibling. We DO preserve the existing group's
-      // impactRating / image / description / pas13 fields when the
-      // priced sibling doesn't have them — those typically come from
-      // the phantom parent ("iFlex Heavy Duty Bollard" has the
-      // 5,700 J rating but no price; the priced colour variants have
-      // a price but no rating). Without this, the card would lose its
-      // impact badge as soon as a priced sibling won the min-price
-      // slot.
-      const groupMin = groupedProducts[groupKey].minPrice;
-      const matchesMin =
-        productPriceNum > 0 && productPriceNum === groupMin;
-      const variantMatchesMin =
-        product.specifications?.variants && specMinPrice === groupMin;
-      if (!isPhantomParent && (matchesMin || variantMatchesMin)) {
-        const prev = groupedProducts[groupKey];
-        const preserveIfPresent = (key: string, fallback?: any) =>
-          (product as any)[key] != null && (product as any)[key] !== ""
-            ? (product as any)[key]
-            : (prev as any)[key] ?? fallback;
-        groupedProducts[groupKey] = {
-          ...prev,
-          ...product,
-          name: groupKey,
-          // Restore aggregate fields after the spread.
-          productVariants: prev.productVariants,
-          minPrice: prev.minPrice,
-          maxPrice: prev.maxPrice,
-          hasVariants: prev.hasVariants,
-          variants:
-            product.specifications?.variants || product.variants,
-          // Fields that typically come from the phantom parent and
-          // shouldn't be lost when a priced sibling wins the merge.
-          impactRating: preserveIfPresent("impactRating"),
-          imageUrl: preserveIfPresent("imageUrl"),
-          lifestyleImageUrl: preserveIfPresent("lifestyleImageUrl"),
-          description: preserveIfPresent("description"),
-          pas13Compliant: preserveIfPresent("pas13Compliant"),
-          pas13TestJoules: preserveIfPresent("pas13TestJoules"),
-          technicalSheetUrl: preserveIfPresent("technicalSheetUrl"),
-          installationGuideUrl: preserveIfPresent("installationGuideUrl"),
-        };
-      }
-    });
-
-    // Drop any group that ended up empty (phantom-only with no priced
-    // siblings) — we'd rather hide the card entirely than show "AED 0".
-    // Also normalise the Infinity sentinel back to 0 / null on cards
-    // that legitimately have no priced variants (e.g. an isolated Sign
-    // Cap with no price), so the client doesn't choke on Infinity.
-    for (const key of Object.keys(groupedProducts)) {
-      const g = groupedProducts[key];
-      if (!g.productVariants || g.productVariants.length === 0) {
-        console.warn(
-          `[products] Dropping empty group "${key}" — no priced variants resolved.`,
-        );
-        delete groupedProducts[key];
-        continue;
-      }
-      if (!Number.isFinite(g.minPrice) || g.minPrice === Infinity) {
-        g.minPrice = parseFloat(String(g.price ?? 0)) || 0;
-      }
-      if (!Number.isFinite(g.maxPrice) || g.maxPrice === 0) {
-        g.maxPrice = parseFloat(String(g.price ?? 0)) || g.minPrice;
-      }
-    }
-
-    const allGrouped = Object.values(groupedProducts);
+    const allGrouped = groupCatalogueProducts(sortedProducts);
 
     // Support pagination if page/pageSize are provided
     const pageNum = page ? parseInt(page, 10) : undefined;
@@ -740,6 +449,293 @@ products.get("/products", async (c) => {
     return c.json({ message: "Failed to fetch products" }, 500);
   }
 });
+
+/**
+ * Group the flat, impact-sorted product list into catalogue cards.
+ *
+ * Pure (no DB, no request) so the grouping can be unit-tested: see
+ * worker/routes/products.options.test.ts. Each card carries
+ * `productVariants` (the priced rows inside it), `options` (what a customer
+ * picks: one per priced sub-size, see shared/productOptions.ts),
+ * `minPrice` / `maxPrice` across them, and `hasVariants`.
+ */
+export function groupCatalogueProducts(sortedProducts: any[]): any[] {
+  // Group products by base name for consolidated view
+  const groupedProducts: Record<string, any> = {};
+
+  // Bollard rows resolve to their model card through
+  // resolveBollardGroupKey (worker/routes/products.options.ts): colour and
+  // height become options inside one card instead of sibling cards.
+
+  sortedProducts.forEach((product) => {
+    let groupKey = product.name;
+
+    // Define grouping patterns based on product names
+    // Products that should NOT be grouped (individual products):
+    if (
+      product.name === "Car Stop" ||
+      product.name === "Coach Stop" ||
+      product.name === "Truck Stop" ||
+      product.name === "Sign Cap" ||
+      (product.name.startsWith("Slide Gate") &&
+        !product.name.includes("iFlex")) ||
+      product.name === "Atlas Double Traffic Barrier" ||
+      product.name === "iFlex Double Traffic Plus" ||
+      product.name === "iFlex Single Traffic Plus"
+    ) {
+      groupKey = product.name;
+    } else if (product.name.includes("iFlex Slide Gate")) {
+      groupKey = "iFlex Slide Gate";
+    } else if (product.category === "bollards") {
+      // Bollard category — defer to the bollard helper. If it returns
+      // null we still want SOME group (single-card) so use the raw
+      // name. This keeps the bollard grouping logic in one place.
+      groupKey = resolveBollardGroupKey(product.name) ?? product.name;
+    } else if (product.name.includes("Traffic Gate"))
+      groupKey = "Traffic Gate";
+    else if (product.name.includes("Hydraulic Swing Gate"))
+      groupKey = "Hydraulic Swing Gate";
+    else if (product.name.includes("eFlex Single Rack End Barrier"))
+      groupKey = "eFlex Single Rack End Barrier";
+    else if (product.name.includes("eFlex Double Rack End Barrier"))
+      groupKey = "eFlex Double Rack End Barrier";
+    else if (
+      product.name.includes("ForkGuard Kerb Barrier") &&
+      !product.name.includes("HD")
+    )
+      groupKey = "ForkGuard Kerb Barrier";
+    else if (product.name.includes("HD ForkGuard Kerb Barrier"))
+      groupKey = "HD ForkGuard Kerb Barrier";
+    else if (
+      product.name.includes("FlexiShield Column Guard") &&
+      !product.name.includes("Spacer")
+    )
+      groupKey = "FlexiShield Column Guard";
+    else if (product.name.includes("FlexiShield Corner Guard"))
+      groupKey = "FlexiShield Corner Guard";
+    else if (product.name.includes("Step Guard"))
+      groupKey = "Step Guard";
+    else if (product.name.includes("iFlex RackGuard"))
+      groupKey = "iFlex RackGuard";
+    else if (product.name.includes("Cold Store RackGuard"))
+      groupKey = "Cold Store RackGuard";
+    else if (product.name.includes("iFlex Rail Column Guard+"))
+      groupKey = "iFlex Rail Column Guard+";
+    else if (product.name.includes("iFlex Rail Column Guard"))
+      groupKey = "iFlex Rail Column Guard";
+    else if (product.name.includes("Slider Plate"))
+      groupKey = "Slider Plate";
+
+    // Phantom parent detection: a "Heavy Duty Bollard"-style row that
+    // has no price, no SKU, and no variants. We still want it to
+    // contribute *metadata* (impact rating, description, image) to the
+    // grouped card, but it must NOT appear as a selectable variant
+    // because it has nothing to add to cart.
+    const productPriceNum = parseFloat(String(product.price ?? 0));
+    const variantPriceNumbers = ((product.specifications?.variants ??
+      product.variants ??
+      []) as any[])
+      .map((v: any) => parseFloat(v?.price ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const isPhantomParent =
+      (!productPriceNum || productPriceNum <= 0) &&
+      variantPriceNumbers.length === 0;
+
+    if (!groupedProducts[groupKey]) {
+      groupedProducts[groupKey] = {
+        ...product,
+        name: groupKey,
+        productVariants: [],
+        // Seed min/max from the first priced sibling we see; we'll
+        // tighten these as more products land in the group. Using
+        // Infinity sentinels avoids the historical `0` floor that let
+        // a phantom parent set minPrice to 0.
+        minPrice: Infinity,
+        maxPrice: 0,
+        hasVariants: false,
+      };
+    }
+
+    // Skip phantom parents from the variant list (they have no SKU
+    // and no price — letting them in confuses the variant picker)
+    // but keep them as a metadata source. If a phantom parent is
+    // processed AFTER its priced siblings have already seeded the
+    // group, we still want to fold its impact rating / image /
+    // description across — these are the fields the phantom row
+    // typically carries that the priced rows lack.
+    if (!isPhantomParent) {
+      groupedProducts[groupKey].productVariants.push(product);
+    } else {
+      if (product.category === "bollards") {
+        console.warn(
+          `[products] Treating "${product.name}" (id=${product.productId}) as a phantom bollard parent — no price, no variants. ` +
+            `Surfacing siblings under group "${groupKey}" instead. ` +
+            `If this is unexpected, check that price-list ingest matched the variant SKUs.`,
+        );
+      }
+      const cur = groupedProducts[groupKey];
+      const fillIfMissing = (key: string) => {
+        if (
+          (cur as any)[key] == null ||
+          (cur as any)[key] === "" ||
+          (cur as any)[key] === false
+        ) {
+          const v = (product as any)[key];
+          if (v != null && v !== "" && v !== false) {
+            (cur as any)[key] = v;
+          }
+        }
+      };
+      fillIfMissing("impactRating");
+      fillIfMissing("imageUrl");
+      fillIfMissing("lifestyleImageUrl");
+      fillIfMissing("description");
+      fillIfMissing("pas13Compliant");
+      fillIfMissing("pas13TestJoules");
+      fillIfMissing("technicalSheetUrl");
+      fillIfMissing("installationGuideUrl");
+    }
+
+    // Check if product has variants in specifications
+    let hasSpecVariants = false;
+    let specMinPrice = productPriceNum;
+    let specMaxPrice = productPriceNum;
+
+    if (
+      product.specifications &&
+      product.specifications.variants &&
+      Array.isArray(product.specifications.variants)
+    ) {
+      hasSpecVariants = product.specifications.variants.length > 1;
+      if (hasSpecVariants) {
+        const variantPrices = product.specifications.variants
+          .map((v: any) => parseFloat(v.price || 0))
+          .filter((p: number) => p > 0);
+        if (variantPrices.length > 0) {
+          specMinPrice = Math.min(...variantPrices);
+          specMaxPrice = Math.max(...variantPrices);
+        }
+      }
+    }
+
+    // Only fold a price into the min/max if it's actually positive.
+    // The phantom parent's null/0 price is silently ignored here so
+    // the grouped card shows the real "AED X — AED Y" band, not an
+    // "AED 0 — …" floor.
+    const bandCandidates = [
+      groupedProducts[groupKey].minPrice,
+      groupedProducts[groupKey].maxPrice,
+      ...(productPriceNum > 0 ? [productPriceNum] : []),
+      ...(specMinPrice > 0 ? [specMinPrice] : []),
+      ...(specMaxPrice > 0 ? [specMaxPrice] : []),
+    ].filter((n) => Number.isFinite(n) && n > 0);
+    if (bandCandidates.length > 0) {
+      groupedProducts[groupKey].minPrice = Math.min(...bandCandidates);
+      groupedProducts[groupKey].maxPrice = Math.max(...bandCandidates);
+    }
+
+    groupedProducts[groupKey].hasVariants =
+      groupedProducts[groupKey].productVariants.length > 1 || hasSpecVariants;
+
+    // Use the lowest priced variant's data as the base (so the card
+    // hero image / description comes from a real SKU). Skip phantom
+    // parents — we don't want them stamping their metadata over a
+    // priced sibling. We DO preserve the existing group's
+    // impactRating / image / description / pas13 fields when the
+    // priced sibling doesn't have them — those typically come from
+    // the phantom parent ("iFlex Heavy Duty Bollard" has the
+    // 5,700 J rating but no price; the priced colour variants have
+    // a price but no rating). Without this, the card would lose its
+    // impact badge as soon as a priced sibling won the min-price
+    // slot.
+    const groupMin = groupedProducts[groupKey].minPrice;
+    const matchesMin =
+      productPriceNum > 0 && productPriceNum === groupMin;
+    const variantMatchesMin =
+      product.specifications?.variants && specMinPrice === groupMin;
+    if (!isPhantomParent && (matchesMin || variantMatchesMin)) {
+      const prev = groupedProducts[groupKey];
+      const preserveIfPresent = (key: string, fallback?: any) =>
+        (product as any)[key] != null && (product as any)[key] !== ""
+          ? (product as any)[key]
+          : (prev as any)[key] ?? fallback;
+      groupedProducts[groupKey] = {
+        ...prev,
+        ...product,
+        name: groupKey,
+        // Restore aggregate fields after the spread.
+        productVariants: prev.productVariants,
+        minPrice: prev.minPrice,
+        maxPrice: prev.maxPrice,
+        hasVariants: prev.hasVariants,
+        variants:
+          product.specifications?.variants || product.variants,
+        // Fields that typically come from the phantom parent and
+        // shouldn't be lost when a priced sibling wins the merge.
+        impactRating: preserveIfPresent("impactRating"),
+        imageUrl: preserveIfPresent("imageUrl"),
+        lifestyleImageUrl: preserveIfPresent("lifestyleImageUrl"),
+        description: preserveIfPresent("description"),
+        pas13Compliant: preserveIfPresent("pas13Compliant"),
+        pas13TestJoules: preserveIfPresent("pas13TestJoules"),
+        technicalSheetUrl: preserveIfPresent("technicalSheetUrl"),
+        installationGuideUrl: preserveIfPresent("installationGuideUrl"),
+      };
+    }
+  });
+
+  // Drop any group that ended up empty (phantom-only with no priced
+  // siblings) — we'd rather hide the card entirely than show "AED 0".
+  // Also normalise the Infinity sentinel back to 0 / null on cards
+  // that legitimately have no priced variants (e.g. an isolated Sign
+  // Cap with no price), so the client doesn't choke on Infinity.
+  for (const key of Object.keys(groupedProducts)) {
+    const g = groupedProducts[key];
+    if (!g.productVariants || g.productVariants.length === 0) {
+      console.warn(
+        `[products] Dropping empty group "${key}" — no priced variants resolved.`,
+      );
+      delete groupedProducts[key];
+      continue;
+    }
+    if (!Number.isFinite(g.minPrice) || g.minPrice === Infinity) {
+      g.minPrice = parseFloat(String(g.price ?? 0)) || 0;
+    }
+    if (!Number.isFinite(g.maxPrice) || g.maxPrice === 0) {
+      g.maxPrice = parseFloat(String(g.price ?? 0)) || g.minPrice;
+    }
+  }
+
+  // Every card lists the options a customer picks inside it. A row with
+  // priced sub-sizes (specifications.variants: "190 OD x 835 mm", …) is
+  // expanded into one option per sub-size, each with its own SKU and exact
+  // price; any other row is one option. Derived, never stored — the parent
+  // row's `name` stays the cart / pricing key.
+  for (const g of Object.values(groupedProducts)) {
+    const options = deriveFamilyOptions(g.productVariants as any[]);
+    g.options = options;
+
+    // Expanded options carry the real prices: the card's band spans them.
+    if (options.some((o) => o.subVariant !== null)) {
+      const prices = options.map((o) => o.priceAed).filter((n): n is number => n !== null && n > 0);
+      if (prices.length > 0) {
+        g.minPrice = Math.min(...prices);
+        g.maxPrice = Math.max(...prices);
+      }
+    }
+
+    // A card with several options spans their real heights (iFlex 190
+    // Bollard: 835–2000), not the height columns of whichever row won the
+    // lowest-price merge. Single-option cards keep their own range.
+    const heights = options.map((o) => o.heightMm);
+    if (options.length >= 2 && heights.every((h): h is number => h !== null)) {
+      g.heightMin = Math.min(...heights);
+      g.heightMax = Math.max(...heights);
+    }
+  }
+
+  return Object.values(groupedProducts);
+}
 
 // GET /api/products/recommendations/:jouleRating
 // NOTE: This must be registered BEFORE /api/products/:id to avoid

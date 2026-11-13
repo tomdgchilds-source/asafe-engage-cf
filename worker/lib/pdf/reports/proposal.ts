@@ -38,6 +38,10 @@ import {
 import { accessoryLineTotalAed, normaliseAccessoryLines } from "../../../../shared/pricing/accessories";
 import { ACCESSORY_UNIT_LABELS, type AccessoryUnit } from "../../../../shared/cartAccessories";
 import { DOCUMENT_KINDS, DRAFT_REFERENCE, documentFilename, type DocumentKind } from "../../../../shared/documents/refs";
+// Printed names only ("Bollard, Yellow" + its 190 OD x 1200 mm sub-size →
+// "iFlex 190 Bollard, 1.2 m, Yellow"). `productName` on the model stays the
+// stored name: it keys product lookups.
+import { productDisplayName } from "../../../../shared/productDisplayName";
 import { A_SAFE_UAE } from "../../../../shared/offices";
 import {
   loadOrderBundle,
@@ -74,6 +78,13 @@ export interface ProposalAccessoryLine {
 export interface ProposalLine {
   id: string;
   productName: string;
+  /**
+   * What the line prints as, when the stored name plus the line's
+   * selectedVariant says more than the name alone ("Bollard, Yellow" →
+   * "iFlex 190 Bollard, 1.2 m, Yellow"). Absent = print productName through
+   * productDisplayName. Never used for lookups.
+   */
+  displayName?: string;
   family: string;
   sku: string | null;
   description: string;
@@ -222,6 +233,17 @@ function signOffFrom(role: ProposalSignOff["role"], raw: unknown): ProposalSignO
   };
 }
 
+/** What a proposal line prints as; `productName` stays the lookup key. */
+const printedName = (l: ProposalLine): string => l.displayName ?? productDisplayName(l.productName);
+
+/** SKU of the sub-size a line was added as (selectedVariant of its own product row), else null. */
+function lineVariantSku(it: OrderItemRow): string | null {
+  const v = it.selectedVariant as { parentName?: string; sku?: string; code?: string } | null | undefined;
+  if (!v || typeof v !== "object" || v.parentName !== it.productName) return null;
+  const sku = String(v.sku ?? v.code ?? "").trim();
+  return sku || null;
+}
+
 /** Line description: variant, application area and rep notes, kept to one sentence each. */
 function lineDescription(it: OrderItemRow, product: ProductInfo): string {
   const parts: string[] = [];
@@ -302,8 +324,11 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
     return {
       id: pl.id,
       productName: it.productName,
+      // Custom lines are the rep's own wording and print as typed.
+      displayName: custom ? it.productName : productDisplayName(it.productName, it.selectedVariant),
       family: product.family,
-      sku: product.sku ?? it.sku ?? null,
+      // A sub-size line carries its own SKU on the selected variant.
+      sku: lineVariantSku(it) ?? product.sku ?? it.sku ?? null,
       description: lineDescription(it, product),
       testedEnergyJ: product.testedEnergyJ || num(it.impactRating),
       quantity: perMetre ? 1 : pl.quantity,
@@ -329,7 +354,7 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
       const zoneKey = String(a.zoneName || a.areaName).toLowerCase();
       const matched = lines.filter((l) => l.zone && l.zone.toLowerCase() === zoneKey);
       const recommended = areaRecommendedProductNames(a);
-      const protection = matched.length ? Array.from(new Set(matched.map((l) => l.productName))).join(", ") : recommended.join(", ") || "To be confirmed";
+      const protection = matched.length ? Array.from(new Set(matched.map(printedName))).join(", ") : recommended.map((n) => productDisplayName(n)).join(", ") || "To be confirmed";
       const qty = matched.length
         ? matched.map((l) => (l.perMetre ? metres(l.lengthM ?? 0) : `${l.quantity} no.`)).join(" + ")
         : a.recommendedLengthM
@@ -346,7 +371,7 @@ export function buildProposalModel(bundle: OrderBundle): ProposalModel {
       zones.push({
         zone: ls[0].zone ?? family,
         riskLevel: null,
-        protection: Array.from(new Set(ls.map((l) => l.productName))).join(", "),
+        protection: Array.from(new Set(ls.map(printedName))).join(", "),
         quantityLine: ls.map((l) => (l.perMetre ? metres(l.lengthM ?? 0) : `${l.quantity} no.`)).join(" + "),
         indicativeAed: ls.reduce((sum, l) => sum + lineGoodsAed(l), 0),
       });
@@ -730,7 +755,7 @@ export function drawScopeOfSupply(doc: Doc, model: ProposalModel, opts: { newPag
     rows: model.lines.flatMap((l, i) => [
       {
         n: i + 1,
-        item: { text: l.productName, bold: true },
+        item: { text: printedName(l), bold: true },
         desc: [l.sku ? `SKU ${l.sku}` : "", l.description].filter(Boolean).join(" · "),
         // Custom lines have no tested energy; the column carries the chip instead.
         energy: l.indicative ? { text: "Indicative", chip: "yellow" as const } : l.testedEnergyJ > 0 ? joules(l.testedEnergyJ) : "—",
@@ -895,7 +920,7 @@ export async function drawProductAppendix(doc: Doc, model: ProposalModel): Promi
     const zones = Array.from(new Set(lines.map((l) => l.zone).filter(Boolean))) as string[];
     ({ page } = await productCard(doc, page, {
       image: p.imageBytes,
-      name: p.name,
+      name: productDisplayName(p.name),
       family: p.family,
       testedEnergyJ: p.testedEnergyJ,
       keySpecs: p.keySpecs.length ? p.keySpecs : ["Specification on the product datasheet"],
