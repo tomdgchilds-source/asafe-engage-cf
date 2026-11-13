@@ -30,7 +30,7 @@ import {
   type PricingResult,
 } from "../../shared/pricing";
 import { getCombinedDiscount } from "../../shared/discountLimits";
-import { A_SAFE_UAE } from "../../shared/offices";
+import { A_SAFE_UAE, SALES_EMAIL } from "../../shared/offices";
 import { formatMoney, resolveFxRate } from "../lib/money";
 
 // ─── Order number ────────────────────────────────────────────────────────
@@ -1847,7 +1847,7 @@ async function dispatchApprovalRequest(
       [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(" ") ||
       ownerUser?.email ||
       "A-SAFE Sales",
-    email: ownerUser?.email || c.env.EMAIL_FROM || "sales@asafe.ae",
+    email: ownerUser?.email || c.env.EMAIL_FROM || SALES_EMAIL,
     phone: ownerUser?.phone || undefined,
     // Day-job label (e.g. "BDM") for the sales rep's signature in the
     // approval email. `role` is permissions; `jobRole` is the business-
@@ -2090,7 +2090,7 @@ orders.get("/approval-tokens/:token/order-data", async (c) => {
             [ownerUser.firstName, ownerUser.lastName].filter(Boolean).join(" ") ||
             ownerUser.email ||
             "A-SAFE Sales",
-          email: ownerUser.email || c.env.EMAIL_FROM || "sales@asafe.ae",
+          email: ownerUser.email || c.env.EMAIL_FROM || SALES_EMAIL,
           phone: ownerUser.phone || null,
           jobRole: (ownerUser as any)?.jobRole || "BDM",
           jobTitle: ownerUser.jobTitle || null,

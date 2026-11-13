@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import { SALES_EMAIL, SALES_EMAIL_KSA } from "@shared/offices";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -288,7 +289,7 @@ const HELP_TOPICS: HelpTopic[] = [
       {
         heading: "Generate a quote",
         body:
-          "Click Generate Order Form. A branded PDF opens with all items, pricing, customer details, delivery locations, discounts, service packages, and attached case study references. Submit via the Send button — the order notification is routed based on currency (AED → sales@asafe.ae, SAR → sales@asafe.sa).",
+          `Click Generate Order Form. A branded PDF opens with all items, pricing, customer details, delivery locations, discounts, service packages, and attached case study references. Submit via the Send button — the order notification is routed based on currency (AED → ${SALES_EMAIL}, SAR → ${SALES_EMAIL_KSA}).`,
       },
     ],
   },

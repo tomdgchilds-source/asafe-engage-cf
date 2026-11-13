@@ -11,7 +11,7 @@ import { A_SAFE_UAE, A_SAFE_WEB, QUOTES_EMAIL } from "@shared/offices";
 //
 // Backend gate: GET /api/public/orders/:token. 404 → link was never valid
 // (or was revoked); 410 → the link expired. Both render a friendly
-// branded "link expired" document with a mailto fallback to quotes@asafe.ae.
+// branded "link expired" document with a mailto fallback to QUOTES_EMAIL.
 //
 // Rendered as a consultancy document (client/src/styles/document.css):
 //   - Black header band, yellow strapline logo, safety-halo motif, stamp

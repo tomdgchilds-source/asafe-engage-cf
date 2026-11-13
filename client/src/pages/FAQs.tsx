@@ -27,7 +27,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FAQS, FAQ_CATEGORIES, INTERNAL_FAQ_CATEGORIES, type FaqEntry } from "@shared/faqContent";
-import { A_SAFE_UAE, A_SAFE_WEB } from "@shared/offices";
+import { A_SAFE_UAE, A_SAFE_WEB, A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 import { useToast } from "@/hooks/use-toast";
 import { InfoPopover } from "@/components/ui/info-popover";
 interface CategoryConfig {
@@ -528,7 +528,7 @@ export default function FAQs() {
               </Button>
               <Button variant="outline" asChild>
                 <a 
-                  href="https://wa.me/971503881285?text=Hello%20A-SAFE%20team%2C%0A%0AI%20have%20a%20question%20about%20A-SAFE%20products%20and%20would%20like%20to%20speak%20with%20an%20expert.%0A%0APlease%20provide%20information%20about%3A%0A%0A%0A%0AThank%20you%20for%20your%20assistance."
+                  href={`${A_SAFE_WHATSAPP_ME_HREF}?text=Hello%20A-SAFE%20team%2C%0A%0AI%20have%20a%20question%20about%20A-SAFE%20products%20and%20would%20like%20to%20speak%20with%20an%20expert.%0A%0APlease%20provide%20information%20about%3A%0A%0A%0A%0AThank%20you%20for%20your%20assistance.`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

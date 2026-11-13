@@ -364,7 +364,7 @@ export default function IndustryCaseStudies() {
               size="lg"
               className="border-white text-black bg-white hover:bg-gray-100"
             >
-              <a href="mailto:support@asafe.ae">Contact Our Experts</a>
+              <a href={`mailto:${A_SAFE_UAE.email}`}>Contact Our Experts</a>
             </Button>
           </div>
         </div>

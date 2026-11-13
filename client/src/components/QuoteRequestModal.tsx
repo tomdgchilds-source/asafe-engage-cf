@@ -28,6 +28,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import type { Product, User } from "@shared/schema";
+import { A_SAFE_UAE, A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 
 const quoteRequestSchema = z.object({
   projectLocation: z.string().min(1, "Project location is required"),
@@ -160,13 +161,12 @@ Generated from A-SAFE ENGAGE Portal
 ${new Date().toLocaleDateString('en-GB')}`;
 
       // Create WhatsApp URL
-      const whatsappNumber = "+971504777499"; // A-SAFE UAE WhatsApp number
-      const whatsappUrl = `https://wa.me/${whatsappNumber.replace('+', '')}?text=${encodeURIComponent(whatsappMessage)}`;
+      const whatsappUrl = `${A_SAFE_WHATSAPP_ME_HREF}?text=${encodeURIComponent(whatsappMessage)}`;
       window.open(whatsappUrl, '_blank');
     } else {
       // Generate email
       const userFullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
-      const supportEmail = "support@asafe.ae";
+      const supportEmail = A_SAFE_UAE.email;
       const subject = `Quote Request: ${product.name} - A-SAFE Product Inquiry`;
       
       // Simplified email body to avoid URL length issues

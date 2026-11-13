@@ -9,6 +9,7 @@ import { InfoPopover } from "@/components/ui/info-popover";
 import { ResourceCard } from "@/components/ResourceCard";
 import { apiRequest } from "@/lib/queryClient";
 import type { Resource } from "@shared/schema";
+import { A_SAFE_UAE, A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 
 export default function Resources() {
   const [selectedResourceType, setSelectedResourceType] = useState("");
@@ -376,10 +377,10 @@ export default function Resources() {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button asChild size="sm" className="bg-black text-white hover:bg-gray-800">
-                    <a href="mailto:support@asafe.ae">Request Documents</a>
+                    <a href={`mailto:${A_SAFE_UAE.email}`}>Request Documents</a>
                   </Button>
                   <Button asChild variant="outline" size="sm">
-                    <a href="https://wa.me/971503881285" target="_blank" rel="noopener noreferrer">
+                    <a href={A_SAFE_WHATSAPP_ME_HREF} target="_blank" rel="noopener noreferrer">
                       WhatsApp Support
                     </a>
                   </Button>

@@ -8,6 +8,7 @@ import { Search, FileText, Info, Video, File } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CaseStudyCard } from "@/components/CaseStudyCard";
 import type { CaseStudy } from "@shared/schema";
+import { A_SAFE_UAE, A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 
 export default function CaseStudies() {
   const [selectedIndustry, setSelectedIndustry] = useState("");
@@ -278,10 +279,10 @@ export default function CaseStudies() {
             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild className="bg-black text-white hover:bg-gray-800">
-                <a href="mailto:support@asafe.ae">Request Consultation</a>
+                <a href={`mailto:${A_SAFE_UAE.email}`}>Request Consultation</a>
               </Button>
               <Button asChild variant="outline">
-                <a href="https://wa.me/971503881285" target="_blank" rel="noopener noreferrer">
+                <a href={A_SAFE_WHATSAPP_ME_HREF} target="_blank" rel="noopener noreferrer">
                   WhatsApp Us
                 </a>
               </Button>

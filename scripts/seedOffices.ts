@@ -1,281 +1,14 @@
+/**
+ * Seeds `global_offices` from shared/offices.ts (the single source for every
+ * office; see that file). Upserts by id, so it is safe to re-run and brings
+ * an existing row back in line with its record.
+ *
+ *   DATABASE_URL=... npx tsx scripts/seedOffices.ts
+ */
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { globalOffices } from "../shared/schema";
-import { A_SAFE_KSA, A_SAFE_UAE } from "../shared/offices";
-
-const offices = [
-  // EUROPE
-  {
-    companyName: "A-SAFE HQ",
-    officeType: "office",
-    region: "Europe",
-    country: "United Kingdom",
-    city: "Halifax",
-    addressLine1: "Habergham Works",
-    addressLine2: "Ainleys Industrial Estate",
-    addressLine3: "Elland",
-    postalCode: "HX5 9JP",
-    phone: "+44 (0)1422 344402",
-    email: "sales@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/gb.png",
-    isDefault: true,
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    companyName: "A-SAFE Belgium",
-    officeType: "office",
-    region: "Europe",
-    country: "Belgium",
-    city: "Menen",
-    addressLine1: "Krommebeekstraat 56A",
-    postalCode: "8930",
-    phone: "+32 (0)5143 3434",
-    email: "belgium@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/be.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 2,
-  },
-  {
-    companyName: "A-SAFE Denmark",
-    officeType: "office",
-    region: "Europe",
-    country: "Denmark",
-    city: "Taastrup",
-    addressLine1: "Rugvaenget 46A",
-    postalCode: "2630",
-    phone: "+45 35145 026",
-    email: "denmark@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/dk.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 3,
-  },
-  {
-    companyName: "A-SAFE France",
-    officeType: "office",
-    region: "Europe",
-    country: "France",
-    city: "Bailly-Romainvilliers",
-    addressLine1: "16 Avenue Christian Doppler - Bat. C",
-    postalCode: "77700",
-    phone: "+33 1 61 10 78 00",
-    email: "france@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/fr.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 4,
-  },
-  {
-    companyName: "A-SAFE Germany",
-    officeType: "office",
-    region: "Europe",
-    country: "Germany",
-    city: "Molln",
-    addressLine1: "Sitzkruger Moor 6",
-    postalCode: "23879",
-    phone: "+49 4542 995 80 40",
-    email: "germany@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/de.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 5,
-  },
-  {
-    companyName: "A-SAFE Italy",
-    officeType: "office",
-    region: "Europe",
-    country: "Italy",
-    city: "Arcore",
-    addressLine1: "Via Felice Matteucci 19",
-    postalCode: "20862",
-    phone: "+39 039 2268044",
-    email: "italy@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/it.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 6,
-  },
-  {
-    companyName: "A-SAFE Netherlands",
-    officeType: "office",
-    region: "Europe",
-    country: "Netherlands",
-    city: "Maasdijk",
-    addressLine1: "Honderdland 150",
-    postalCode: "2676 LT",
-    phone: "+31 (0)1746 13120",
-    email: "netherlands@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/nl.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 7,
-  },
-  {
-    companyName: "A-SAFE Poland",
-    officeType: "office",
-    region: "Europe",
-    country: "Poland",
-    city: "Warsaw",
-    addressLine1: "Budynek Spaces Platinum",
-    addressLine2: "ul. Domaniewska 44",
-    postalCode: "02-672",
-    phone: "+48 61 250 35 35",
-    email: "poland@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/pl.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 8,
-  },
-  {
-    companyName: "A-SAFE Spain",
-    officeType: "office",
-    region: "Europe",
-    country: "Spain",
-    city: "Paterna",
-    addressLine1: "C/ Botiguers 5, Edificio Manuel Borso",
-    addressLine2: "Parque Empresarial Tactica",
-    postalCode: "46980",
-    phone: "+34 (96) 111 70 94",
-    email: "spain@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/es.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 9,
-  },
-  {
-    companyName: "A-SAFE Sweden",
-    officeType: "office",
-    region: "Europe",
-    country: "Sweden",
-    city: "Kungsbacka",
-    addressLine1: "Varlabergsvagen 29",
-    postalCode: "SE-434 39",
-    phone: "+46 300 77110",
-    email: "sweden@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/se.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 10,
-  },
-  // MIDDLE EAST
-  {
-    // Address, phone, email and map link come from shared/offices.ts
-    // (verified against asafe.com/ar-ae/contact). Fix them there, not here.
-    companyName: A_SAFE_UAE.tradingName,
-    officeType: "office",
-    region: "Middle East",
-    country: A_SAFE_UAE.country,
-    city: A_SAFE_UAE.city,
-    addressLine1: A_SAFE_UAE.addressLines[0],
-    addressLine2: A_SAFE_UAE.addressLines[1],
-    phone: A_SAFE_UAE.phoneDisplay,
-    email: A_SAFE_UAE.email,
-    imageUrl: "https://flagcdn.com/w80/ae.png",
-    googleMapsUrl: A_SAFE_UAE.mapsUrl,
-    isDefault: true,
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    companyName: A_SAFE_KSA.tradingName,
-    officeType: "office",
-    region: "Middle East",
-    country: A_SAFE_KSA.country,
-    city: A_SAFE_KSA.city,
-    addressLine1: A_SAFE_KSA.addressLines[0],
-    addressLine2: A_SAFE_KSA.addressLines[1],
-    phone: A_SAFE_KSA.phoneDisplay,
-    email: A_SAFE_KSA.email,
-    imageUrl: "https://flagcdn.com/w80/sa.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 2,
-  },
-  // AMERICAS
-  {
-    companyName: "A-SAFE USA",
-    officeType: "office",
-    region: "Americas",
-    country: "United States",
-    city: "York",
-    addressLine1: "400 North Zarfoss Drive",
-    addressLine2: "Pennsylvania",
-    postalCode: "17404",
-    phone: "(443) 776 3472",
-    email: "usa@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/us.png",
-    isDefault: true,
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    companyName: "A-SAFE Canada",
-    officeType: "office",
-    region: "Americas",
-    country: "Canada",
-    city: "Stoney Creek",
-    addressLine1: "A12-1250 South Service Rd",
-    addressLine2: "Ontario",
-    postalCode: "L8E 5R9",
-    phone: "+1 647.952.0030",
-    email: "canada@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/ca.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 2,
-  },
-  {
-    companyName: "A-SAFE Mexico",
-    officeType: "office",
-    region: "Americas",
-    country: "Mexico",
-    city: "Queretaro",
-    addressLine1: "Av. Industria Petroquimica 435-F",
-    addressLine2: "Parque Industrial",
-    postalCode: "76220",
-    phone: "+52 (442) 4788987",
-    email: "mexico@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/mx.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 3,
-  },
-  // ASIA PACIFIC
-  {
-    companyName: "A-SAFE Australia",
-    officeType: "office",
-    region: "Asia Pacific",
-    country: "Australia",
-    city: "Eastern Creek",
-    addressLine1: "Unit 2, 1-5 Interchange Drive",
-    addressLine2: "NSW",
-    postalCode: "2766",
-    phone: "+61 (0)2962 58927",
-    email: "australia@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/au.png",
-    isDefault: true,
-    isActive: true,
-    sortOrder: 1,
-  },
-  {
-    companyName: "A-SAFE Japan",
-    officeType: "office",
-    region: "Asia Pacific",
-    country: "Japan",
-    city: "Nara",
-    addressLine1: "Nara-shi Nijo Ooji Minami 1-2-33",
-    addressLine2: "Rena Shin-Omiya Bldg 2F",
-    postalCode: "630-8012",
-    phone: "+81 742-32-5180",
-    email: "japan@asafe.com",
-    imageUrl: "https://flagcdn.com/w80/jp.png",
-    isDefault: false,
-    isActive: true,
-    sortOrder: 2,
-  },
-];
+import { A_SAFE_OFFICES, officeRowValues } from "../shared/offices";
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -288,15 +21,17 @@ async function main() {
 
   console.log("Seeding global offices...");
 
-  for (const office of offices) {
-    const [created] = await db
+  for (const office of A_SAFE_OFFICES) {
+    const { id, ...values } = officeRowValues(office);
+    const [saved] = await db
       .insert(globalOffices)
-      .values(office as any)
+      .values({ id, ...values })
+      .onConflictDoUpdate({ target: globalOffices.id, set: { ...values, updatedAt: new Date() } })
       .returning({ id: globalOffices.id, companyName: globalOffices.companyName });
-    console.log(`  Created: ${created.companyName} (${created.id})`);
+    console.log(`  Saved: ${saved.companyName} (${saved.id})`);
   }
 
-  console.log(`\nDone! Seeded ${offices.length} offices.`);
+  console.log(`\nDone! Seeded ${A_SAFE_OFFICES.length} offices.`);
   process.exit(0);
 }
 

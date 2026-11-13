@@ -27,6 +27,7 @@ import { Mail, MessageCircle, Package, ShoppingCart, User } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, User as UserType, CartItem } from "@shared/schema";
+import { A_SAFE_UAE, A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 
 const quoteRequestSchema = z.object({
   customerName: z.string().min(1, "Customer name is required"),
@@ -167,7 +168,7 @@ export function EnhancedQuoteRequestModal({ isOpen, onClose, product, user }: En
       if (selectedMethod === "whatsapp") {
         // Generate WhatsApp message
         const message = generateWhatsAppMessage(data, product, cartItems, user);
-        const whatsappUrl = `https://wa.me/971503881285?text=${encodeURIComponent(message)}`;
+        const whatsappUrl = `${A_SAFE_WHATSAPP_ME_HREF}?text=${encodeURIComponent(message)}`;
         
         window.open(whatsappUrl, '_blank');
         toast({
@@ -183,7 +184,7 @@ export function EnhancedQuoteRequestModal({ isOpen, onClose, product, user }: En
           ? `Quote Request - ${product.name}`
           : `Quote Request - Cart Items (${cartItems.length} items)`;
         
-        const mailtoUrl = `mailto:support@asafe.ae?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+        const mailtoUrl = `mailto:${A_SAFE_UAE.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
         
         try {
           window.open(mailtoUrl, '_blank');

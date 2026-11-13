@@ -11,6 +11,7 @@ import OfficeSelector, { GlobalOffice } from "@/components/OfficeSelector";
 import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 import { Turnstile } from "@/components/Turnstile";
 import { usePublicConfig } from "@/hooks/usePublicConfig";
+import { A_SAFE_UAE } from "@shared/offices";
 
 export default function Landing() {
   const [, setLocation] = useLocation();
@@ -386,7 +387,7 @@ export default function Landing() {
               size="lg"
               className="bg-primary text-primary-foreground font-semibold hover:bg-yellow-300 border-primary"
             >
-              <a href="mailto:support@asafe.ae">Contact Sales</a>
+              <a href={`mailto:${selectedOffice?.email || A_SAFE_UAE.email}`}>Contact Sales</a>
             </Button>
           </div>
         </div>

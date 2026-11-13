@@ -19,6 +19,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { A_SAFE_WHATSAPP_ME_HREF } from "@shared/offices";
 
 export default function About() {
   const [, setLocation] = useLocation();
@@ -31,7 +32,7 @@ export default function About() {
         break;
       case 'whatsapp-me':
         // Keep Middle East WhatsApp as a quick contact option
-        window.open('https://wa.me/971585992500?text=Hello%2C%20I%27m%20interested%20in%20A-SAFE%20safety%20solutions%20and%20would%20like%20to%20speak%20with%20an%20expert.', '_blank');
+        window.open(`${A_SAFE_WHATSAPP_ME_HREF}?text=Hello%2C%20I%27m%20interested%20in%20A-SAFE%20safety%20solutions%20and%20would%20like%20to%20speak%20with%20an%20expert.`, '_blank');
         break;
     }
     setShowContactModal(false);

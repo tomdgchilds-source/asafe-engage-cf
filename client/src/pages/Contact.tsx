@@ -20,7 +20,12 @@ import {
 import { InfoPopover } from "@/components/ui/info-popover";
 import { SiFacebook, SiLinkedin, SiX, SiYoutube, SiTiktok } from "react-icons/si";
 import OfficeSelector, { GlobalOffice } from "@/components/OfficeSelector";
-import { A_SAFE_UAE, telHref } from "@shared/offices";
+import {
+  A_SAFE_UAE_RECORD,
+  officeContactForRow,
+  officePhoneHref,
+  whatsAppHref,
+} from "@shared/offices";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -33,8 +38,13 @@ export default function Contact() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<GlobalOffice | undefined>();
   const { toast } = useToast();
-  // tel: links follow the selected office's published number; UAE until one is picked.
-  const officeTel = telHref(selectedOffice?.phone || A_SAFE_UAE.phoneDisplay);
+  // Every contact link below reads the selected office (row + its
+  // shared/offices.ts record); the UAE office stands in until one is picked.
+  const contact = selectedOffice ? officeContactForRow(selectedOffice) : null;
+  const officeTel = officePhoneHref(contact?.phones[0] ?? A_SAFE_UAE_RECORD.phones[0]);
+  const officeEmail = contact?.email ?? A_SAFE_UAE_RECORD.email;
+  // WhatsApp is published for the Middle East offices only.
+  const officeWhatsApp = contact ? contact.whatsApp : A_SAFE_UAE_RECORD.whatsApp ?? null;
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -170,19 +180,20 @@ export default function Contact() {
                   className="w-full"
                 />
 
-                {/* WhatsApp for UAE and Saudi Arabia only */}
-                {(selectedOffice?.country === "United Arab Emirates" || selectedOffice?.country === "Saudi Arabia") && (
+                {/* WhatsApp: only for offices that publish a number (Middle East) */}
+                {selectedOffice && officeWhatsApp && (
                   <div className="flex items-start gap-4">
                     <MessageCircle className="h-6 w-6 text-green-600 mt-1 flex-shrink-0" />
                     <div>
                       <h3 className="font-semibold text-black mb-1">WhatsApp</h3>
                       <a 
-                        href={selectedOffice?.country === "Saudi Arabia" ? "https://wa.me/966530356116" : "https://wa.me/971503881285"}
+                        href={whatsAppHref(officeWhatsApp)}
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="text-green-600 hover:text-green-700 transition-colors"
+                        data-testid="whatsapp-number"
                       >
-                        {selectedOffice?.country === "Saudi Arabia" ? "+966 530356116" : "+971 503881285"}
+                        {officeWhatsApp}
                       </a>
                     </div>
                   </div>
@@ -295,28 +306,30 @@ export default function Contact() {
               </CardContent>
             </Card>
 
-            {/* Quick Contact Options - Only for UAE and Saudi Arabia */}
-            {(selectedOffice?.country === "United Arab Emirates" || selectedOffice?.country === "Saudi Arabia") && (
+            {/* Quick Contact Options - every office; WhatsApp where one is published */}
+            {selectedOffice && (
               <Card className="bg-yellow-50 border-yellow-200">
                 <CardHeader>
                   <CardTitle>Quick Contact Options</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button 
-                    asChild 
-                    className="w-full bg-green-500 hover:bg-green-600 text-white"
-                    data-testid="whatsapp-contact"
-                  >
-                    <a 
-                      href={selectedOffice?.country === "Saudi Arabia" ? "https://wa.me/966530356116" : "https://wa.me/971503881285"}
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2"
+                  {officeWhatsApp && (
+                    <Button 
+                      asChild 
+                      className="w-full bg-green-500 hover:bg-green-600 text-white"
+                      data-testid="whatsapp-contact"
                     >
-                      <MessageCircle className="h-4 w-4" />
-                      Chat on WhatsApp
-                    </a>
-                  </Button>
+                      <a 
+                        href={whatsAppHref(officeWhatsApp)}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Chat on WhatsApp
+                      </a>
+                    </Button>
+                  )}
 
                   <Button 
                     asChild 
@@ -325,7 +338,7 @@ export default function Contact() {
                     data-testid="email-contact"
                   >
                     <a 
-                      href={selectedOffice?.country === "Saudi Arabia" ? "mailto:sales@asafe.sa" : "mailto:support@asafe.ae"}
+                      href={`mailto:${officeEmail}`}
                       className="flex items-center justify-center gap-2"
                     >
                       <Mail className="h-4 w-4" />
@@ -503,7 +516,7 @@ export default function Contact() {
 
                 <p className="text-xs text-gray-500 text-center">
                   We typically respond within 24 hours during business days. 
-                  For urgent inquiries, please call or use WhatsApp.
+                  For urgent inquiries, please call{officeWhatsApp ? " or use WhatsApp" : ""}.
                 </p>
               </form>
             </CardContent>
@@ -526,11 +539,13 @@ export default function Contact() {
                       Call Emergency Line
                     </a>
                   </Button>
-                  <Button asChild size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
-                    <a href={selectedOffice?.country === "Saudi Arabia" ? "https://wa.me/966530356116" : "https://wa.me/971503881285"} target="_blank" rel="noopener noreferrer">
-                      Emergency WhatsApp
-                    </a>
-                  </Button>
+                  {officeWhatsApp && (
+                    <Button asChild size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
+                      <a href={whatsAppHref(officeWhatsApp)} target="_blank" rel="noopener noreferrer">
+                        Emergency WhatsApp
+                      </a>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

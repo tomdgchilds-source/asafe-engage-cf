@@ -249,7 +249,7 @@ export default function TermsOfService() {
               If you have questions about these Terms of Service, please contact us:
             </p>
             <div className="space-y-2 text-gray-700">
-              <p><strong>Email:</strong> legal@asafe.ae</p>
+              <p><strong>Email:</strong> {A_SAFE_UAE.email}</p>
               <p><strong>Phone:</strong> {A_SAFE_UAE.phoneDisplay}</p>
               <p><strong>Address:</strong> {A_SAFE_UAE.legalName}, {A_SAFE_UAE.addressOneLine}</p>
               <p><strong>Business Hours:</strong> Monday to Friday, 8:30 AM - 5:30 PM (GST)</p>

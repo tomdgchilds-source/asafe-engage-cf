@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, Clock, FileText, Camera, Video, Users, Trophy, Handshake, Building, Share2, Calendar, DollarSign } from "lucide-react";
+import { A_SAFE_UAE } from "@shared/offices";
 
 interface DiscountTermsModalProps {
   isOpen: boolean;
@@ -657,8 +658,8 @@ export function DiscountTermsModal({ isOpen, onClose, discountType }: DiscountTe
                 <h4 className="font-semibold text-blue-900 mb-3">Questions or Support</h4>
                 <div className="space-y-2 text-sm text-blue-800">
                   <p>For questions about discount terms or to discuss timeline adjustments:</p>
-                  <p><strong>Email:</strong> support@asafe.ae</p>
-                  <p><strong>Phone:</strong> +971 50 388 1285</p>
+                  <p><strong>Email:</strong> {A_SAFE_UAE.email}</p>
+                  <p><strong>Phone:</strong> {A_SAFE_UAE.phoneDisplay}</p>
                   <p><strong>Business Hours:</strong> Monday - Friday, 8:30 AM - 5:30 PM GST</p>
                 </div>
               </CardContent>

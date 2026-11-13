@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, MapPin, Phone, Mail, Star, ExternalLink } from "lucide-react";
+import { officeContactForRow, officePhoneHref } from "@shared/offices";
 
 export interface GlobalOffice {
   id: string;
@@ -20,15 +21,16 @@ export interface GlobalOffice {
   country: string;
   city: string;
   addressLine1: string;
-  addressLine2?: string;
-  addressLine3?: string;
-  postalCode?: string;
+  addressLine2?: string | null;
+  addressLine3?: string | null;
+  postalCode?: string | null;
   phone: string;
   email: string;
-  imageUrl?: string;
-  googleMapsUrl?: string;
-  latitude?: number;
-  longitude?: number;
+  imageUrl?: string | null;
+  googleMapsUrl?: string | null;
+  // decimal columns arrive as strings from the API
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   isActive: boolean;
   isDefault: boolean;
   sortOrder: number;
@@ -95,11 +97,15 @@ export function OfficeSelector({
 
     let defaultOffice: GlobalOffice | undefined;
 
-    // Try to match visitor's country first
+    // Try to match visitor's country first. A country can have several
+    // offices (UK Ltd / HQ Ltd, York / Plano): open on its default one, and
+    // never on the International desk, which is for countries with no office.
     if (geoData?.country) {
       const countryName = countryCodeToName[geoData.country];
       if (countryName) {
-        defaultOffice = offices.find(o => o.country === countryName);
+        const inCountry = offices.filter(o => o.country === countryName && o.region !== "International");
+        defaultOffice = inCountry.find(o => o.isDefault)
+          || [...inCountry].sort((a, b) => a.sortOrder - b.sortOrder)[0];
       }
     }
 
@@ -152,14 +158,9 @@ export function OfficeSelector({
     });
   });
 
-  const formatAddress = (office: GlobalOffice) => {
-    return [office.addressLine1, office.addressLine2, office.addressLine3, office.city, office.postalCode]
-      .filter(Boolean).join(', ');
-  };
-
-  const generateGoogleMapsUrl = (office: GlobalOffice) => {
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formatAddress(office))}`;
-  };
+  // Legal name, full address, every published phone, email and map link for
+  // the selected office: read from the row and its shared/offices.ts record.
+  const contact = selectedOffice ? officeContactForRow(selectedOffice) : null;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -242,48 +243,71 @@ export function OfficeSelector({
       </DropdownMenu>
 
       {/* Contact Information Display */}
-      {showContactInfo && selectedOffice && (
-        <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
+      {showContactInfo && selectedOffice && contact && (
+        <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border" data-testid="office-contact-card">
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100" data-testid="office-legal-name">
+            {contact.legalName}
+          </p>
+
           <div className="flex items-start gap-2">
             <MapPin className="h-4 w-4 text-asafe-yellow mt-0.5 flex-shrink-0" />
             <div className="min-w-0 flex-1">
+              <address
+                className="not-italic text-sm leading-relaxed text-gray-900 dark:text-gray-100"
+                data-testid="office-address"
+              >
+                {contact.addressLines.map((line, i) => (
+                  <span key={i} className="block">{line}</span>
+                ))}
+              </address>
+              {contact.addressLinesNative.length > 0 && (
+                <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400 mt-1" data-testid="office-address-native">
+                  {contact.addressLinesNative.join(" ")}
+                </p>
+              )}
               <a
-                href={selectedOffice.googleMapsUrl || generateGoogleMapsUrl(selectedOffice)}
+                href={contact.mapsHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-asafe-yellow transition-colors cursor-pointer group"
+                className="inline-flex items-center gap-1 mt-1 text-xs text-gray-700 dark:text-gray-300 underline hover:text-asafe-yellow transition-colors"
+                data-testid="office-maps-link"
               >
-                <p className="text-sm leading-relaxed group-hover:underline text-gray-900 dark:text-gray-100">
-                  {formatAddress(selectedOffice)}
-                </p>
-                <ExternalLink className="h-3 w-3 inline ml-1 opacity-50 group-hover:opacity-100" />
+                View on Google Maps
+                <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 text-asafe-yellow flex-shrink-0" />
-            <a
-              href={`tel:${selectedOffice.phone}`}
-              className="hover:text-asafe-yellow transition-colors text-sm text-gray-900 dark:text-gray-100"
-            >
-              {selectedOffice.phone}
-            </a>
+          <div className="flex items-start gap-2">
+            <Phone className="h-4 w-4 text-asafe-yellow mt-0.5 flex-shrink-0" />
+            <div className="flex flex-col gap-1">
+              {contact.phones.map((phone) => (
+                <a
+                  key={phone.tel}
+                  href={officePhoneHref(phone)}
+                  className="hover:text-asafe-yellow transition-colors text-sm text-gray-900 dark:text-gray-100"
+                  data-testid="office-phone"
+                >
+                  {phone.display}
+                </a>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-asafe-yellow flex-shrink-0" />
             <a
-              href={`mailto:${selectedOffice.email}`}
+              href={`mailto:${contact.email}`}
               className="hover:text-asafe-yellow transition-colors text-sm break-all text-gray-900 dark:text-gray-100"
+              data-testid="office-email"
             >
-              {selectedOffice.email}
+              {contact.email}
             </a>
           </div>
 
           {selectedOffice.region === "Middle East" && selectedOffice.country === "United Arab Emirates" && (
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2">
                 <div className="flex items-center">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -292,14 +316,6 @@ export function OfficeSelector({
                 <span className="text-sm font-medium">5.0</span>
                 <span className="text-xs text-gray-500">Written Testimonials</span>
               </div>
-              <a
-                href="https://maps.app.goo.gl/55wf4FPkAe2NfKDHA?g_st=ipc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-asafe-yellow hover:underline"
-              >
-                Visit us on Google Maps →
-              </a>
             </div>
           )}
         </div>

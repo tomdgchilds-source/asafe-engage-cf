@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import { A_SAFE_UAE, SALES_EMAIL, SALES_EMAIL_KSA, officeBlockHtml } from "../../shared/offices";
+import { A_SAFE_UAE, QUOTES_EMAIL, SALES_EMAIL, SALES_EMAIL_KSA, officeBlockHtml } from "../../shared/offices";
 
 // ──────────────────────────────────────────────
 // Email service via Resend (https://resend.com)
@@ -824,7 +824,7 @@ export async function sendApprovalRequestEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // The spec calls for "A-SAFE Sales <sales@asafe.ae>" branding. We
+        // The spec calls for "A-SAFE Sales <SALES_EMAIL>" branding. We
         // keep the verified sender (from EMAIL_FROM) so DKIM/SPF still pass
         // but override the friendly label so approvers see the human sender.
         from: `A-SAFE Sales <${from}>`,
@@ -952,7 +952,7 @@ export async function sendOrderPdfEmail(
   } = params;
 
   const apiKey = env.RESEND_API_KEY;
-  const fromAddr = env.EMAIL_FROM ?? "quotes@asafe.ae";
+  const fromAddr = env.EMAIL_FROM ?? QUOTES_EMAIL;
 
   if (!apiKey) {
     const msg = "RESEND_API_KEY not configured";
@@ -1338,7 +1338,7 @@ export async function sendInstallTeamVideoDigest(
     preheader: `${groupsWithVideos.length} product${groupsWithVideos.length !== 1 ? "s" : ""}, ${videoCount} video${videoCount !== 1 ? "s" : ""} to watch before ${installationTitle}.`,
     appUrl: env.APP_URL,
     width: 640,
-    footerNoteHtml: `If you weren't expecting this, contact <a href="mailto:sales@asafe.ae" style="color:${EMAIL_COLOUR.grey60};">sales@asafe.ae</a>.`,
+    footerNoteHtml: `If you weren't expecting this, contact <a href="mailto:${SALES_EMAIL}" style="color:${EMAIL_COLOUR.grey60};">${SALES_EMAIL}</a>.`,
     bodyHtml: [
       emailParagraph(`${greeting},`),
       emailParagraph(teamLine),
